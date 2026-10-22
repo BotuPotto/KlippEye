@@ -1,0 +1,21 @@
+# GESTITO-DA-VZBOT: questo file e' riscritto da scripts/install.sh; le modifiche a mano si perdono al prossimo giro.
+# VzBot - Brain: serve la dashboard, fa da ponte verso Moonraker e controlla la stampa con la camera (monitor IA).
+# Modello: scripts/install.sh sostituisce @UTENTE@, @CODICE@, @DATI@ e @PYTHON@ e lo mette in /etc/systemd/system/vzbot.service.
+# Il nome del servizio DEVE restare "vzbot": e' quello che l'update manager di Moonraker riavvia dopo un aggiornamento.
+[Unit]
+Description=VzBot - Brain (dashboard e monitor IA)
+After=network.target moonraker.service
+
+[Service]
+Type=simple
+User=@UTENTE@
+WorkingDirectory=@CODICE@
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONDONTWRITEBYTECODE=1
+Environment=VZBOT_DATA=@DATI@
+ExecStart=@PYTHON@ @CODICE@/brain/vzbot_brain.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

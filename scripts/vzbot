@@ -1,0 +1,88 @@
+#!/usr/bin/env bash
+# vzbot - comandi per il Raspberry (messi in /usr/local/bin da scripts/install.sh).
+# Servono solo se qualcosa non va o se vuoi guardare dentro: l'uso normale (aggiornare, riavviare) si fa dalla dashboard.
+
+REPO="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)"
+if [ -n "${VZBOT_DATA:-}" ]; then DATA="$VZBOT_DATA"
+elif [ -d "$HOME/printer_data" ]; then DATA="$HOME/printer_data/vzbot"
+else DATA="$HOME/vzbot_data"; fi
+BRAIN_URL="${VZBOT_BRAIN_URL:-http://127.0.0.1:8085}"
+SUDO="${VZBOT_SUDO-sudo}"
+SYSTEMCTL="${VZBOT_SYSTEMCTL:-systemctl}"
+
+service_for() {  # brain|notifiche|tutto -> nomi dei servizi
+  case "${1:-brain}" in
+    brain|dashboard|vzbot) echo "vzbot" ;;
+    notifiche|notifier|notifica) echo "vzbot-notifier" ;;
+    tutto|tutti) echo "vzbot vzbot-notifier" ;;
+    *) return 1 ;;
+  esac
+}
+
+release() { tr -d '[:space:]' < "$REPO/VERSION" 2>/dev/null || echo "sconosciuta"; }
+
+case "${1:-aiuto}" in
+  versione)
+    echo "VzBot $(release)"
+    git -C "$REPO" log -1 --format='commit %h del %cd' --date=short 2>/dev/null
+    ;;
+  stato)
+    echo "VzBot $(release)   (cartella del programma: $REPO)"
+    echo "Dati e impostazioni:  $DATA"
+    for s in vzbot vzbot-notifier moonraker; do
+      printf '  %-16s %s\n' "$s" "$($SYSTEMCTL is-active "$s" 2>/dev/null || echo 'non trovato')"
+    done
+    python3 - "$BRAIN_URL" <<'PY'
+import json, sys, urllib.request
+try:
+    d = json.load(urllib.request.urlopen(sys.argv[1] + "/api/version", timeout=4))
+    print("  Il Brain risponde: release %s, interfaccia %s, acceso da %d minuti" % (d.get("release"), d.get("api"), d.get("uptime", 0) // 60))
+except Exception as e:
+    print("  Il Brain NON risponde su %s (%s)" % (sys.argv[1], e))
+PY
+    ;;
+  log)
+    svc="$(service_for "${2:-brain}")" || { echo "Quale? brain oppure notifiche"; exit 2; }
+    args=(); for s in $svc; do args+=(-u "$s"); done
+    journalctl "${args[@]}" -n 80 --no-pager 2>/dev/null || $SUDO journalctl "${args[@]}" -n 80 --no-pager
+    ;;
+  riavvia)
+    svc="$(service_for "${2:-brain}")" || { echo "Quale? brain, notifiche oppure tutto"; exit 2; }
+    $SUDO $SYSTEMCTL restart $svc && echo "Riavviato: $svc"
+    ;;
+  aggiorna)
+    # Quello che fa il tasto "Aggiorna" della dashboard, a mano (serve internet e il repository collegato).
+    branch="$(git -C "$REPO" rev-parse --abbrev-ref HEAD 2>/dev/null)"
+    [ -n "$branch" ] || { echo "$REPO non e' un repository git: niente da aggiornare."; exit 1; }
+    if [ -n "$(git -C "$REPO" status --porcelain -uno 2>/dev/null)" ]; then
+      echo "Ci sono file del programma modificati a mano in $REPO:"; git -C "$REPO" status --short -uno
+      echo "Per buttarli via e aggiornare:  vzbot aggiorna --forza"
+      [ "${2:-}" = "--forza" ] || exit 1
+    fi
+    git -C "$REPO" fetch --quiet origin "$branch" || { echo "Non riesco a contattare il repository (internet?)."; exit 1; }
+    git -C "$REPO" reset --hard "origin/$branch" --quiet && echo "Aggiornato alla release $(release)."
+    $SUDO $SYSTEMCTL restart vzbot && echo "Brain riavviato."
+    ;;
+  notifiche)
+    py="$(command -v python3)"
+    case "${2:-aiuto}" in
+      prova)     "$py" "$REPO/notifier/vzbot_notifier.py" --config "$DATA/notifier.json" --test ;;
+      controlla) "$py" "$REPO/notifier/vzbot_notifier.py" --config "$DATA/notifier.json" --check ;;
+      *) echo "vzbot notifiche prova | controlla" ;;
+    esac
+    ;;
+  annulla)
+    exec bash "$REPO/scripts/install.sh" --annulla
+    ;;
+  *)
+    cat <<'HELP'
+vzbot stato             dice se i servizi sono accesi e se il Brain risponde
+vzbot versione          la release installata
+vzbot log [notifiche]   le ultime righe del registro (del Brain, o delle notifiche)
+vzbot riavvia [brain|notifiche|tutto]
+vzbot aggiorna          scarica l'ultima versione e riavvia (come il tasto Aggiorna della dashboard)
+vzbot notifiche prova   manda una notifica di prova al telefono   (anche: controlla)
+vzbot annulla           torna alla disposizione dei file precedente all'installazione di VzBot 1.0
+HELP
+    ;;
+esac

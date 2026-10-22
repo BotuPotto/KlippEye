@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# Il comando di prima ("vzbot-notifiche prova | controlla | stato | log | riavvia | disinstalla"), ora un vestito per "vzbot".
+V="$(dirname "$(readlink -f "$0")")/vzbot"
+SUDO="${VZBOT_SUDO-sudo}"
+case "${1:-aiuto}" in
+  prova)       exec "$V" notifiche prova ;;
+  controlla)   exec "$V" notifiche controlla ;;
+  stato)       $SUDO "${VZBOT_SYSTEMCTL:-systemctl}" status vzbot-notifier --no-pager -l 2>&1 | head -n 25 ;;
+  log)         exec "$V" log notifiche ;;
+  riavvia)     exec "$V" riavvia notifiche ;;
+  disinstalla)
+    $SUDO "${VZBOT_SYSTEMCTL:-systemctl}" disable --now vzbot-notifier 2>/dev/null
+    echo "Servizio delle notifiche fermato e disabilitato. Per riaccenderlo:  sudo systemctl enable --now vzbot-notifier" ;;
+  *) echo "vzbot-notifiche prova | controlla | stato | log | riavvia | disinstalla      (tutti i comandi: vzbot aiuto)" ;;
+esac
