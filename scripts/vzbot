@@ -39,6 +39,12 @@ try:
     print("  Il Brain risponde: release %s, interfaccia %s, acceso da %d minuti" % (d.get("release"), d.get("api"), d.get("uptime", 0) // 60))
 except Exception as e:
     print("  Il Brain NON risponde su %s (%s)" % (sys.argv[1], e))
+else:
+    try:
+        a = json.load(urllib.request.urlopen(sys.argv[1] + "/api/app/version", timeout=4))
+        print("  App Android: " + ("la %s e' pronta per il telefono" % a["version"] if a.get("available") else "niente da offrire (%s)" % a.get("reason", "?")))
+    except Exception:
+        pass
 PY
     ;;
   log)

@@ -2971,6 +2971,9 @@ body.is-pulling { overscroll-behavior-y: none; }
 .set-commits__date, .set-commits__more { flex-shrink: 0; color: var(--oui-text-3); font-size: 12px; }
 .set-commits__more { padding-top: 8px; }
 
+/* ---- the Android app block: the bar of the download under its status line ---- */
+.set-progress { margin: 0 6px; }
+
 /* ============================================================================
    Desktop layout (wide screens): tabs in the top bar, fixed-height pages whose
    columns scroll on their own, the console as a bar along the bottom.
@@ -3712,6 +3715,7 @@ function usePrinterCapabilities() {
      2  the file chooser ("Carica file" in the config card)
      3  saving files into the phone's Download folder (window.VzBotApp.saveUrl)
      4  using the addresses of the settings menu (window.VzBotApp.setAddresses / getAddresses, see app/16-settings.js)
+     5  updating itself with the APK the Brain offers (window.VzBotApp.appInfo / updateApp, see app/59c-app-update.js)
    A WebView without that marker still shows "; wv)" in its user agent.
    ========================================================================== */
 
@@ -3720,6 +3724,7 @@ const IN_APP_WEBVIEW = /; wv\)/.test(navigator.userAgent) || APP_VERSION > 0;
 const APP_CAN_PICK_FILES = !IN_APP_WEBVIEW || APP_VERSION >= 2;
 const APP_CAN_SAVE_FILES = !IN_APP_WEBVIEW || APP_VERSION >= 3;
 const APP_KNOWS_ADDRESSES = APP_VERSION >= 4;
+const APP_CAN_UPDATE = APP_VERSION >= 5;
 
 /**
  * Saves a file of the Raspberry as `name`. `url` is an address on this server ("/server/files/config/printer.cfg").
@@ -14146,7 +14151,7 @@ function settingsSummary(page, settings, brain) {
     case "detector":
       return detectorSummary(brain.version);
     case "software":
-      return softwareSummary(brain.version, brain.update);
+      return softwareSummary(brain.version, brain.update, appUpdateWaiting(brain.app, readInstalledApp()));
     case "camera":
       return CAMERA_METHODS.find((method) => method.id === camera.method).label + (camera.flipH || camera.flipV ? " • capovolta" : "");
     case "network":
@@ -14173,7 +14178,7 @@ const PAGE_TITLES = Object.fromEntries(SETTINGS_ENTRIES.map((entry) => [entry.id
 
 function SettingsHome({ menu }) {
   const { settings, sync } = useSettings();
-  const brain = { version: useBrainVersion(true), update: useVzbotUpdate(true) };
+  const brain = { version: useBrainVersion(true), update: useVzbotUpdate(true), app: useAppRelease(true) };
   return h(
     React.Fragment,
     null,
@@ -14186,7 +14191,7 @@ function SettingsHome({ menu }) {
           { key: entry.id, type: "button", className: "set-entry", "data-page": entry.id, onClick: () => menu.goTo(entry.id) },
           h("span", { className: "oui-row__icon oui-row__icon--accent" }, h(entry.icon)),
           h("span", { className: "oui-row__text" }, h("span", { className: "oui-row__name" }, entry.title), h("span", { className: "oui-row__meta set-entry__meta" }, settingsSummary(entry.id, settings, brain))),
-          entry.id === "software" && brain.update.phase === "ok" && Number(brain.update.raw.commits_behind_count) > 0 && h("span", { className: "set-entry__badge" }, "Nuovo"),
+          entry.id === "software" && ((brain.update.phase === "ok" && Number(brain.update.raw.commits_behind_count) > 0) || appUpdateWaiting(brain.app, readInstalledApp())) && h("span", { className: "set-entry__badge" }, "Nuovo"),
           h("span", { className: "set-entry__go", "aria-hidden": "true" }, h(Icons.Forward)),
         ),
       ),
@@ -14768,6 +14773,7 @@ function SoftwarePage({ active, menu, updates, printing, actions }) {
   const version = useBrainVersion(active);
   const update = useVzbotUpdate(active);
   const remoteRelease = useRemoteRelease(update.raw);
+  const app = useAppRelease(active);
   const [services, setServices] = useState(null);
   useEffect(() => {
     if (!active) return undefined;
@@ -14854,6 +14860,11 @@ function SoftwarePage({ active, menu, updates, printing, actions }) {
     ),
     h(
       SettingsGroup,
+      { title: "App Android", note: "GitHub costruisce l'app quando carichi la cartella android/; arriva sul Raspberry con «Aggiorna VzBot» e da qui la installi sul telefono." },
+      h(AppBlock, { app, installed: readInstalledApp() }),
+    ),
+    h(
+      SettingsGroup,
       { title: "Riavvio", note: "Il riavvio del Brain dura qualche secondo e la pagina si ricollega da sola. Una stampa in corso non si ferma (la guida Klipper, non il Brain); il monitor IA e le notifiche si fermano solo per un momento." },
       h(
         "div",
@@ -14865,13 +14876,238 @@ function SoftwarePage({ active, menu, updates, printing, actions }) {
   );
 }
 
-/** One line for the menu list: the release, and a sign when a newer one is waiting. */
-function softwareSummary(version, update) {
+/** One line for the menu list: the release, and a sign when a newer one is waiting (VzBot first, else the Android app). */
+function softwareSummary(version, update, appWaiting) {
   if (version.state === "old") return "Brain da aggiornare";
   if (version.state === "down") return "Brain non raggiungibile";
   if (version.state !== "ok") return "Release e aggiornamenti";
   const waiting = update.phase === "ok" && Number(update.raw.commits_behind_count) > 0;
-  return "Release " + version.info.release + (waiting ? " • aggiornamento disponibile" : "");
+  return "Release " + version.info.release + (waiting ? " • aggiornamento disponibile" : appWaiting ? " • app da aggiornare" : "");
+}
+
+/* ============================================================================
+   59c · APP ANDROID
+   The block "App Android" of the page Aggiornamenti. GitHub builds the app (apk/ of the repository) and Moonraker brings
+   it to the Raspberry with the update of VzBot; the Brain offers it: GET /api/app/version says which version it is and
+   whether the file is whole, /app/VzBot.apk is the file. What the block does depends on where the dashboard is open:
+     · in the Android app of release 5 or later (user agent VzBotApp/5): the app knows its own version
+       (window.VzBotApp.appInfo()) and installs the update itself (window.VzBotApp.updateApp(path, version, sha256, size));
+       it reports back by calling window.vzAppUpdate({ stato: "scarico" | "permesso" | "installazione" | "errore", ... });
+     · in an older app (VzBotApp/3 or 4): it can only save the APK into Download, to be installed by hand, once;
+     · in a browser: a plain download (to be opened on the phone).
+   Android always asks the user to confirm an installation, and installs only an APK signed with the key of the app it
+   replaces: this block cannot do more than ask.
+   ========================================================================== */
+
+const APP_APK_URL = "/app/VzBot.apk";
+const APP_POLL_MS = 15000;
+const APP_START_TIMEOUT_MS = 10000;
+const APP_SHA256 = /^[0-9a-f]{64}$/;
+const APP_EVENT_PHASES = { scarico: "downloading", permesso: "permission", installazione: "installing", errore: "error" };
+
+/**
+ * What the Brain offers: { state: "ok", info } (info.available says whether there is an app and, when there is,
+ * version, code, size, sha256, built; when there is not, reason) | { state: "old" } (a Brain that does not know apps)
+ * | { state: "down" }.
+ */
+async function readAppRelease() {
+  try {
+    const response = await fetchFresh("/api/app/version", { timeout: BRAIN_READ_TIMEOUT_MS });
+    if (response.status === 404) return { state: "old" };
+    if (!response.ok) return { state: "down" };
+    const info = await response.json();
+    if (!isPlainObject(info) || typeof info.available !== "boolean") return { state: "old" };
+    if (info.available && !(typeof info.version === "string" && Number(info.code) > 0 && Number(info.size) > 0 && APP_SHA256.test(String(info.sha256)))) return { state: "old" };
+    return { state: "ok", info };
+  } catch (error) {
+    return { state: "down" };
+  }
+}
+
+/** readAppRelease() read every few seconds while `active`. */
+function useAppRelease(active = true) {
+  const [app, setApp] = useState({ state: "loading" });
+  useEffect(() => {
+    if (!active) return undefined;
+    let cancelled = false;
+    const stop = startPolling(async () => {
+      const answer = await readAppRelease();
+      if (!cancelled) setApp(answer);
+    }, APP_POLL_MS);
+    return () => {
+      cancelled = true;
+      stop();
+    };
+  }, [active]);
+  return app;
+}
+
+/** The installed app according to the app itself: { version, code, canInstall }; null in a browser, in an app older than release 5 or if the bridge fails. */
+function readInstalledApp() {
+  const bridge = window.VzBotApp;
+  if (!APP_CAN_UPDATE || !bridge || typeof bridge.appInfo !== "function") return null;
+  try {
+    const info = JSON.parse(bridge.appInfo());
+    if (!isPlainObject(info) || typeof info.version !== "string" || !Number.isFinite(Number(info.code))) return null;
+    return { version: info.version, code: Number(info.code), canInstall: info.canInstall !== false };
+  } catch (error) {
+    return null;
+  }
+}
+
+/** A newer app is on the Raspberry than the one installed here (only an app of release 5 can tell). */
+const appUpdateWaiting = (app, installed) => Boolean(installed) && app.state === "ok" && app.info.available && installed.code < Number(app.info.code);
+
+/** What the app says about the update it is running (window.vzAppUpdate), as a { phase, ... } of this page; null if it is not understood. */
+function appEventToProgress(event) {
+  const phase = isPlainObject(event) ? APP_EVENT_PHASES[event.stato] : null;
+  if (!phase) return null;
+  if (phase === "downloading") {
+    const total = Math.max(0, Number(event.totale) || 0);
+    return { phase, total, done: Math.min(total, Math.max(0, Number(event.fatto) || 0)) };
+  }
+  if (phase === "error") return { phase, message: String(event.messaggio || "errore sconosciuto").slice(0, 300) };
+  return { phase };
+}
+
+/** { progress: { phase: "idle" | "starting" | "downloading" | "permission" | "installing" | "error", ... }, start(offer) } */
+function useAppUpdater() {
+  const [progress, setProgress] = useState({ phase: "idle" });
+  useEffect(() => {
+    const listener = (event) => {
+      const next = appEventToProgress(event);
+      if (next) setProgress(next);
+    };
+    window.vzAppUpdate = listener;
+    return () => {
+      if (window.vzAppUpdate === listener) window.vzAppUpdate = undefined;
+    };
+  }, []);
+  useEffect(() => {
+    if (progress.phase !== "starting") return undefined;
+    const timer = setTimeout(() => setProgress({ phase: "error", message: "l'app non ha risposto" }), APP_START_TIMEOUT_MS);
+    return () => clearTimeout(timer);
+  }, [progress.phase]);
+  const start = (offer) => {
+    setProgress({ phase: "starting" });
+    try {
+      window.VzBotApp.updateApp(APP_APK_URL, offer.version, offer.sha256, String(offer.size));
+    } catch (error) {
+      setProgress({ phase: "error", message: "l'app non ha accettato la richiesta" });
+    }
+  };
+  return { progress, start };
+}
+
+const AppStatus = ({ tone, children }) =>
+  h("div", { className: cx("set-status", tone && "set-status--" + tone), role: tone === "warn" ? "alert" : undefined }, h("span", { className: "set-status__dot" }), h("span", null, children));
+
+const ApkDownloadButton = ({ info, label }) =>
+  h("button", { type: "button", className: "oui-btn oui-btn--block", onClick: () => downloadFile(APP_APK_URL, "VzBot-" + info.version + ".apk") }, h(Icons.Download, { size: 18 }), label);
+
+/** The running update: a bar while the app downloads, then what the person has to do in Android. */
+function AppUpdateProgress({ progress, offer, onRetry }) {
+  const retry = h("button", { type: "button", className: "oui-btn oui-btn--block", onClick: onRetry }, h(Icons.RotateCw, { size: 18 }), "Riprova");
+  switch (progress.phase) {
+    case "starting":
+      return h(AppStatus, { tone: "update" }, "Avvio l'aggiornamento…");
+    case "downloading": {
+      const percent = progress.total ? Math.round((progress.done / progress.total) * 100) : 0;
+      return h(
+        React.Fragment,
+        null,
+        h(AppStatus, { tone: "update" }, "Scarico l'app " + offer.version + "… " + percent + " %"),
+        h("div", { className: "oui-progress set-progress", role: "progressbar", "aria-valuemin": 0, "aria-valuemax": 100, "aria-valuenow": percent }, h("div", { className: "oui-progress__bar", style: { width: percent + "%" } })),
+      );
+    }
+    case "permission":
+      return h(
+        React.Fragment,
+        null,
+        h(AppStatus, { tone: "warn" }, "Android deve prima permettere a VzBot di installare app. Nella pagina che si è aperta attiva «Consenti da questa fonte», poi torna qui: l'aggiornamento riparte da solo."),
+        h("p", { className: "set-group__note" }, "Con l'Auto Blocker di Samsung attivo il permesso non si può dare: spegnilo da Impostazioni → Sicurezza e privacy → Auto Blocker, poi riprova."),
+        retry,
+      );
+    case "installing":
+      return h(
+        React.Fragment,
+        null,
+        h(AppStatus, { tone: "update" }, "Conferma l'installazione nella finestra di Android (tasto «Aggiorna»). Quando ha finito, riapri VzBot dall'icona."),
+        retry,
+      );
+    default:
+      return h(React.Fragment, null, h(AppStatus, { tone: "warn" }, "Aggiornamento non riuscito: " + progress.message + "."), retry);
+  }
+}
+
+/** The block itself: what is installed, what the Raspberry has, and the way to get from one to the other. */
+function AppBlock({ app, installed }) {
+  const updater = useAppUpdater();
+  if (app.state === "loading") return h(AppStatus, null, "Chiedo al Brain se c'è un'app…");
+  if (app.state === "old") return h(AppStatus, { tone: "warn" }, "Il Brain sul Raspberry non conosce ancora l'app: aggiorna VzBot (qui sopra) e ricontrolla.");
+  if (app.state === "down") return h(AppStatus, { tone: "warn" }, "Il Brain non risponde: non posso sapere se c'è un'app.");
+  const info = app.info;
+  if (!info.available) {
+    const none = /nessuna app/i.test(String(info.reason));
+    return h(
+      React.Fragment,
+      null,
+      installed && h("div", { className: "oui-list set-info-list" }, h(InfoLine, { label: "App installata", value: installed.version })),
+      h(
+        AppStatus,
+        { tone: none ? undefined : "warn" },
+        none
+          ? "Sul Raspberry non c'è ancora nessuna app. GitHub la costruisce quando carichi la cartella android/ (guida: docs/GUIDA.md, «L'app Android»); poi arriva qui con «Aggiorna VzBot»."
+          : "L'app sul Raspberry non è completa (" + String(info.reason || "motivo sconosciuto") + "). Aggiorna VzBot e ricontrolla.",
+      ),
+    );
+  }
+
+  const waiting = appUpdateWaiting(app, installed);
+  const busy = updater.progress.phase !== "idle";
+  const offerLine = info.version + " • " + formatBytes(Number(info.size));
+  let body;
+  if (installed) {
+    if (busy) body = h(AppUpdateProgress, { progress: updater.progress, offer: info, onRetry: () => updater.start(info) });
+    else if (waiting) {
+      body = h(
+        React.Fragment,
+        null,
+        h(AppStatus, { tone: "update" }, "Disponibile l'app " + info.version + " (hai la " + installed.version + ")"),
+        h("button", { type: "button", className: "oui-btn oui-btn--primary oui-btn--block", onClick: () => updater.start(info) }, h(Icons.Download, { size: 18 }), "Aggiorna l'app"),
+        h("p", { className: "set-group__note" }, "Android ti chiede conferma" + (installed.canInstall ? "" : " e, la prima volta, il permesso «Installa app sconosciute» per VzBot") + ". Le impostazioni dell'app restano."),
+      );
+    } else if (installed.code > Number(info.code)) {
+      body = h(AppStatus, { tone: "ok" }, "L'app installata (" + installed.version + ") è più nuova di quella sul Raspberry: aggiorna prima VzBot, qui sopra.");
+    } else body = h(AppStatus, { tone: "ok" }, "L'app è aggiornata");
+  } else if (IN_APP_WEBVIEW) {
+    body = h(
+      React.Fragment,
+      null,
+      h(AppStatus, { tone: "warn" }, "Questa è una versione precedente dell'app e non sa aggiornarsi da sola. Installa quella nuova una volta: da lì in poi si aggiorna da qui."),
+      h(ApkDownloadButton, { info, label: "Scarica l'app " + info.version }),
+      h(
+        "p",
+        { className: "set-group__note" },
+        APP_CAN_SAVE_FILES ? "Il file va nella cartella Download: aprilo (dall'app File del telefono) per installarlo. " : "Questa app non sa scaricare: apri " + location.origin + APP_APK_URL + " nel browser del telefono. ",
+        "Se Android dice che l'app è in conflitto con quella già installata, disinstalla prima quella vecchia (le impostazioni stanno sul Raspberry).",
+      ),
+    );
+  } else {
+    body = h(
+      React.Fragment,
+      null,
+      h(AppStatus, { tone: "update" }, "L'app Android " + info.version + " è pronta."),
+      h(ApkDownloadButton, { info, label: "Scarica l'app" }),
+      h("p", { className: "set-group__note" }, "Apri questa pagina dal telefono, scarica il file e aprilo per installarlo (Android può chiedere di consentire l'installazione da questa fonte)."),
+    );
+  }
+  return h(
+    React.Fragment,
+    null,
+    h("div", { className: "oui-list set-info-list" }, installed && h(InfoLine, { label: "App installata", value: installed.version, warn: waiting }), h(InfoLine, { label: "Sul Raspberry", value: offerLine })),
+    body,
+  );
 }
 
 /* ============================================================================

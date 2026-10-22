@@ -1,0 +1,82 @@
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+}
+
+// La versione dell'app e' scritta in UN posto solo: il file android/VERSION ("1.0.0"). Da li' si ricavano il nome e il numero
+// interno che Android confronta per sapere se un APK e' piu' nuovo di quello installato:
+//   versionCode = maggiore * 10000 + minore * 100 + correzione   (1.0.0 -> 10000, 1.2.3 -> 10203)
+// Ogni numero va da 0 a 99. Per fare una versione nuova basta alzare il numero in android/VERSION.
+def versionText = rootProject.file('VERSION').text.trim()
+def versionMatch = (versionText =~ /^(\d{1,2})\.(\d{1,2})\.(\d{1,2})$/)
+if (!versionMatch.matches()) {
+    throw new GradleException("android/VERSION deve contenere tre numeri da 0 a 99 separati da punti (per esempio 1.0.1): trovato '${versionText}'")
+}
+def appVersionCode = versionMatch.group(1).toInteger() * 10000 + versionMatch.group(2).toInteger() * 100 + versionMatch.group(3).toInteger()
+
+// Firma dell'APK. La mette il computer di GitHub (vedi docs/GUIDA.md, "L'app Android"): passa il file della chiave e la
+// password con queste variabili. Sul proprio computer, senza variabili, la versione "release" resta non firmata (come prima)
+// e la versione "debug" di Android Studio si firma da sola con la chiave di prova.
+def keystoreFile = System.getenv('VZBOT_KEYSTORE')
+def keystorePassword = System.getenv('VZBOT_KEYSTORE_PASSWORD')
+
+// Notifiche push: Firebase legge la sua configurazione da app/google-services.json (scaricato dalla console Firebase).
+// Se il file non c'e' l'app si costruisce lo stesso e funziona come prima, ma senza notifiche: all'avvio lo dice con un messaggio.
+if (file('google-services.json').exists()) {
+    apply plugin: 'com.google.gms.google-services'
+}
+
+android {
+    namespace 'com.vzbot.dashboard'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.vzbot.dashboard"
+        minSdk 24
+        targetSdk 34
+        versionCode appVersionCode
+        versionName versionText
+    }
+
+    signingConfigs {
+        release {
+            if (keystoreFile) {
+                storeFile file(keystoreFile)
+                storePassword keystorePassword
+                keyAlias 'vzbot'
+                keyPassword keystorePassword
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            if (keystoreFile) {
+                signingConfig signingConfigs.release
+            }
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+    kotlinOptions {
+        jvmTarget = '1.8'
+    }
+    lint {
+        // Gli avvisi di "lint" non devono fermare la costruzione dell'APK sul computer di GitHub
+        checkReleaseBuilds false
+        abortOnError false
+    }
+}
+
+dependencies {
+    implementation 'androidx.core:core-ktx:1.12.0'
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'com.google.android.material:material:1.11.0'
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
+    implementation platform('com.google.firebase:firebase-bom:33.1.2')
+    implementation 'com.google.firebase:firebase-messaging'
+}

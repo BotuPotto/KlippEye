@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Gli stessi colori della dashboard (src/css/00-tokens.css e 10-base.css). -->
+<resources>
+    <color name="vz_bg">#040507</color>
+    <color name="vz_accent">#3e91ff</color>
+    <color name="vz_text2">#aeb3be</color>
+    <color name="vz_danger">#ff5d5d</color>
+    <color name="vz_pill_fill">#14FFFFFF</color>
+    <color name="vz_pill_stroke">#18FFFFFF</color>
+</resources>

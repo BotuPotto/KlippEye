@@ -13,6 +13,8 @@ reali, camera, ZeroTier fix, FIX 404 Groq, FIX 413 TPM) con queste aggiunte dell
     Raspberry e non del codice: impostazioni, chiave dell'IA (file con permessi 600), notifiche. Gli aggiornamenti
     del codice (Moonraker -> update manager) non la toccano mai;
   * il ponte verso Moonraker aspetta fino a 10 minuti le operazioni lunghe (/machine/update/...) invece di 10 secondi;
+  * l'app Android: l'APK costruito da GitHub arriva nella cartella apk/ del repository con l'aggiornamento di VzBot e il Brain
+    lo offre al telefono (/api/app/version dice quale versione e', /app/VzBot.apk e' il file);
   * la cartella dati e le vecchie posizioni (/home/pi/vzbot_ai_config.json...) si leggono entrambe: nessun dato perso.
 """
 from flask import Flask, request, Response, jsonify, send_file
@@ -24,6 +26,7 @@ import sys
 import json
 import math
 import copy
+import hashlib
 import time
 import tempfile
 import threading
@@ -1713,6 +1716,102 @@ def api_version():
         "data_dir": DATA_DIR,
         "frontend": find_frontend(),
     })
+
+
+# === APP ANDROID: l'APK che GitHub costruisce (apk/VzBot.apk + apk/versione.json) ===============================
+APK_DIR = os.path.join(REPO_DIR, "apk")
+APK_PATH = os.path.join(APK_DIR, "VzBot.apk")
+APK_INFO_PATH = os.path.join(APK_DIR, "versione.json")
+APK_MIMETYPE = "application/vnd.android.package-archive"
+_APK_VERSION_RE = re.compile(r"^(\d{1,2})\.(\d{1,2})\.(\d{1,2})$")
+_APK_SHA_RE = re.compile(r"^[0-9a-f]{64}$")
+_apk_cache = {"key": None, "value": None}
+_apk_lock = threading.Lock()
+
+
+def _apk_code(version):
+    """1.2.3 -> 10203: la stessa formula di android/app/build.gradle (None se il formato non va)."""
+    match = _APK_VERSION_RE.match(version or "")
+    return int(match.group(1)) * 10000 + int(match.group(2)) * 100 + int(match.group(3)) if match else None
+
+
+def _apk_sha256(path):
+    digest = hashlib.sha256()
+    with open(path, "rb") as f:
+        for block in iter(lambda: f.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def read_apk_info():
+    """
+    Cosa offre il Brain al telefono: {"available": True, "version", "code", "size", "sha256", "built", "url"} oppure
+    {"available": False, "reason": ...}. Il file apk/versione.json e' scritto da GitHub insieme all'APK; qui si controlla che
+    i due vadano d'accordo (grandezza e impronta SHA-256 del file vero), cosi' un aggiornamento a meta' o un file rovinato
+    non arriva mai al telefono. Il calcolo (qualche decimo di secondo sul Raspberry) si rifa' solo se i file cambiano.
+    """
+    try:
+        info_stat, apk_stat = os.stat(APK_INFO_PATH), os.stat(APK_PATH)
+    except OSError:
+        return {"available": False, "reason": "nessuna app pubblicata"}
+    key = (info_stat.st_mtime_ns, info_stat.st_size, apk_stat.st_mtime_ns, apk_stat.st_size)
+    with _apk_lock:
+        if _apk_cache["key"] == key:
+            return _apk_cache["value"]
+        value = _read_apk_info_uncached(apk_stat.st_size)
+        _apk_cache["key"], _apk_cache["value"] = key, value
+        return value
+
+
+def _read_apk_info_uncached(apk_size):
+    try:
+        with open(APK_INFO_PATH, encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, ValueError):
+        return {"available": False, "reason": "apk/versione.json non si legge"}
+    if not isinstance(data, dict):
+        return {"available": False, "reason": "apk/versione.json non e' valido"}
+    version, sha = data.get("version"), str(data.get("sha256") or "").lower()
+    if not isinstance(version, str) or _apk_code(version) is None or not _APK_SHA_RE.match(sha):
+        return {"available": False, "reason": "apk/versione.json non e' valido"}
+    if data.get("size") != apk_size:
+        return {"available": False, "reason": "l'APK non corrisponde a versione.json (aggiornamento a meta'?)"}
+    try:
+        actual = _apk_sha256(APK_PATH)
+    except OSError:
+        return {"available": False, "reason": "l'APK non si legge"}
+    if actual != sha:
+        return {"available": False, "reason": "l'APK non corrisponde a versione.json (impronta diversa)"}
+    built = data.get("built")
+    return {
+        "available": True,
+        "version": version,
+        "code": _apk_code(version),
+        "size": apk_size,
+        "sha256": sha,
+        "built": built if isinstance(built, str) and len(built) <= 40 else "",
+        "url": "/app/VzBot.apk",
+    }
+
+
+@app.route("/api/app/version", methods=["GET"])
+def api_app_version():
+    """L'app Android che il Brain puo' dare al telefono (vedi read_apk_info). Mai in cache: dopo un aggiornamento cambia."""
+    response = jsonify(dict(read_apk_info(), ok=True))
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+@app.route("/app/VzBot.apk", methods=["GET"])
+def app_apk():
+    """Il file dell'app. Si da' solo se e' coerente con versione.json (grandezza e impronta), altrimenti 404 con il motivo."""
+    info = read_apk_info()
+    if not info["available"]:
+        return jsonify({"ok": False, "error": info["reason"]}), 404
+    response = send_file(APK_PATH, mimetype=APK_MIMETYPE, as_attachment=True, download_name="VzBot-%s.apk" % info["version"], conditional=True, max_age=0)
+    response.headers["Cache-Control"] = "no-store"
+    return response
+# === fine APP ANDROID ==================================================================================
 
 
 def brain_config_reply(ok=True, status=200, **extra):

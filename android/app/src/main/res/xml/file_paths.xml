@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- L'APK dell'aggiornamento viene scaricato in <cache>/aggiornamenti/ (vedi Aggiornamento.kt) e solo quella cartella e' condivisa -->
+    <cache-path name="aggiornamenti" path="aggiornamenti/" />
+</paths>

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- Dalla mk218 gli indirizzi del Raspberry si scelgono dal menu Impostazioni della dashboard: il traffico in chiaro
+         (http) e' permesso verso qualunque indirizzo dal base-config qui sotto; Indirizzi.kt accetta solo reti private. -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">192.168.1.17</domain>
+        <domain includeSubdomains="true">172.25.170.177</domain>
+    </domain-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>
