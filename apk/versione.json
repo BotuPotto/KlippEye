@@ -1,9 +1,9 @@
 {
-  "built": "2026-10-23T00:32:25Z",
-  "code": 10001,
-  "firma": "1321637c35b5339cf90c50ca5539753c16d6273e00f7bcbcf6df3ff935a4b0d6",
-  "sha256": "10f417c072c78c769491c9c024ed0174c6d007ebe3ac98bfa14b4f2ee9e43617",
-  "size": 5933493,
-  "source": "17387ff13a81",
-  "version": "1.0.1"
+  "built": "2026-10-23T11:33:30Z",
+  "code": 10100,
+  "firma": "d880279d88aaacbaa73dccd75b5f117f2d2e6b328a7fa795381cd8fdcc19b694",
+  "sha256": "5839a2be40ca33a90d645c448ee4f32a5f96d12bf4adc8ff2c2157c482624e66",
+  "size": 5939423,
+  "source": "072ae45dd307",
+  "version": "1.1.0"
 }
