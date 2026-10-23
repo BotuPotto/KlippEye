@@ -20,6 +20,9 @@
   L'argomento delle notifiche non cambia. La chiave di firma nuova è `android/chiave/klippeye.p12`.
 * Le impostazioni condivise stanno ora in `klippeye` nel database di Moonraker (le vecchie, `vzbot_dashboard`, si leggono ancora la prima volta); le preferenze del browser (`vz_*`) diventano `ke_*` da sole.
 * Nelle schermate «Brain» è diventato «backend».
+* **Finestra dei parametri delle macro**: il testo dei pulsanti (per esempio «Esegui Axes shaper calibration») va a capo e si rimpicciolisce da solo, in base alla lunghezza e alla larghezza
+  del pulsante (cioè dello schermo), invece di essere tagliato; un titolo lungo va a capo e non spinge più fuori la X di chiusura.
+* **Console**: il tasto di invio ha l'icona dell'aeroplanino pieno, come quello di WhatsApp (telefono e PC).
 * La calibrazione scelta (prima in `printer_data/config/vzbot_calibration_selected.json`, che nessuna macro usa) ora sta nella cartella dati come `calibration_selected.json`; il file vecchio, se c'è, si legge ancora e non si perde niente.
 
 ## 1.0.1
