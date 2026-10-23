@@ -2,7 +2,7 @@
 """Icona piccola delle notifiche (la sagoma bianca che compare nella barra di stato).
 
 Android vuole un'immagine bianca su fondo trasparente, 24 dp: la sagoma e' quella del logo KlippEye (tools/assets/logo_klippeye_mono.png,
-la stessa del logo a colori, con un anello vuoto attorno alla pupilla). Scrive res/drawable-<densita>/ic_stat_vzbot.png.   Uso:  python3 tools/genera_icona_notifica.py
+la stessa del logo a colori, con un anello vuoto attorno alla pupilla). Scrive res/drawable-<densita>/ic_stat_klippeye.png.   Uso:  python3 tools/genera_icona_notifica.py
 (serve Pillow)
 """
 import os
@@ -26,7 +26,7 @@ def main():
         icon.paste(Image.new("RGBA", size, (255, 255, 255, 255)), ((side - size[0]) // 2, (side - size[1]) // 2), shape)
         folder = os.path.join(RES, "drawable-" + density)
         os.makedirs(folder, exist_ok=True)
-        icon.save(os.path.join(folder, "ic_stat_vzbot.png"), optimize=True)
+        icon.save(os.path.join(folder, "ic_stat_klippeye.png"), optimize=True)
         print(density, side, size)
 
 

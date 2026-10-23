@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <style name="Theme.VzBot.Base" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+    <style name="Theme.KlippEye.Base" parent="Theme.MaterialComponents.DayNight.NoActionBar">
         <item name="colorPrimary">@color/vz_accent</item>
         <item name="colorPrimaryDark">@color/vz_bg</item>
         <item name="android:statusBarColor">@color/vz_bg</item>
@@ -14,5 +14,5 @@
     </style>
 
     <!-- Da Android 12 la splash di sistema è in values-v31/themes.xml. -->
-    <style name="Theme.VzBot" parent="Theme.VzBot.Base" />
+    <style name="Theme.KlippEye" parent="Theme.KlippEye.Base" />
 </resources>

@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!--
-        L'argomento privato delle notifiche. DEVE essere identico a "topic" in ~/vzbot-notifier/notifier.json sul Raspberry
-        (l'installer lo scrive gia' uguale). Se lo cambi qui, cambialo anche li' e ricostruisci l'app.
+        L'argomento privato delle notifiche. DEVE essere identico a "topic" in ~/printer_data/klippeye/notifier.json sul Raspberry
+        (e' un identificativo privato: resta quello di prima, cosi' le notifiche continuano ad arrivare senza toccare nulla). Se lo cambi qui, cambialo anche li' e ricostruisci l'app.
     -->
     <string name="notification_topic" translatable="false">vzbot-pp3zt27qxb49fw3fsbvv</string>
 </resources>

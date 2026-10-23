@@ -17,8 +17,8 @@ def appVersionCode = versionMatch.group(1).toInteger() * 10000 + versionMatch.gr
 // Firma dell'APK. La mette il computer di GitHub (vedi docs/GUIDA.md, "L'app Android"): passa il file della chiave e la
 // password con queste variabili. Sul proprio computer, senza variabili, la versione "release" resta non firmata (come prima)
 // e la versione "debug" di Android Studio si firma da sola con la chiave di prova.
-def keystoreFile = System.getenv('VZBOT_KEYSTORE')
-def keystorePassword = System.getenv('VZBOT_KEYSTORE_PASSWORD')
+def keystoreFile = System.getenv('KLIPPEYE_KEYSTORE')
+def keystorePassword = System.getenv('KLIPPEYE_KEYSTORE_PASSWORD')
 
 // Notifiche push: Firebase legge la sua configurazione da app/google-services.json (scaricato dalla console Firebase).
 // Se il file non c'e' l'app si costruisce lo stesso e funziona come prima, ma senza notifiche: all'avvio lo dice con un messaggio.
@@ -27,11 +27,11 @@ if (file('google-services.json').exists()) {
 }
 
 android {
-    namespace 'com.vzbot.dashboard'
+    namespace 'com.klippeye.app'
     compileSdk 34
 
     defaultConfig {
-        applicationId "com.vzbot.dashboard"
+        applicationId "com.klippeye.app"
         minSdk 24
         targetSdk 34
         versionCode appVersionCode
@@ -43,7 +43,7 @@ android {
             if (keystoreFile) {
                 storeFile file(keystoreFile)
                 storePassword keystorePassword
-                keyAlias 'vzbot'
+                keyAlias 'klippeye'
                 keyPassword keystorePassword
             }
         }

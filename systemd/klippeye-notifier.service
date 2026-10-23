@@ -1,0 +1,21 @@
+# GESTITO-DA-KLIPPEYE: questo file e' riscritto da scripts/install.sh; le modifiche a mano si perdono al prossimo giro.
+# KlippEye - notifiche push sul telefono (Firebase). Modello: vedi klippeye.service.
+# Si riavvia da solo quando un aggiornamento sostituisce il suo programma (klippeye_notifier.py se ne accorge ed esce).
+[Unit]
+Description=KlippEye - notifiche push sul telefono
+After=network-online.target moonraker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=@UTENTE@
+WorkingDirectory=@DATI@
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=@PYTHON@ @CODICE@/notifier/klippeye_notifier.py --config @DATI@/notifier.json
+Restart=always
+RestartSec=10
+Nice=10
+
+[Install]
+WantedBy=multi-user.target

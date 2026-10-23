@@ -1,17 +1,18 @@
 #!/usr/bin/env bash
-# VzBot - installazione sul Raspberry (si fa UNA volta; si puo' rilanciare quando si vuole, e' fatta per non rompere niente)
+# KlippEye - installazione sul Raspberry (si fa UNA volta; si puo' rilanciare quando si vuole, e' fatta per non rompere niente)
 #
-#   bash ~/vzbot/scripts/install.sh                  installa o ripara
-#   bash ~/vzbot/scripts/install.sh --senza-moonraker   non tocca la configurazione di Moonraker
-#   bash ~/vzbot/scripts/install.sh --annulla        torna a come era prima (servizi vecchi, niente voce nell'update manager)
+#   bash ~/klippeye/scripts/install.sh                  installa o ripara
+#   bash ~/klippeye/scripts/install.sh --senza-moonraker   non tocca la configurazione di Moonraker
+#   bash ~/klippeye/scripts/install.sh --annulla        torna a come era prima (servizi vecchi, niente voce nell'update manager)
 #
 # Cosa fa, nell'ordine:
-#   1. controlla Python, git e i moduli che servono al Brain
-#   2. crea la cartella dei DATI (~/printer_data/vzbot: impostazioni, chiave dell'IA, notifiche) e ci COPIA quello che
-#      avevi gia' (~/vzbot_ai_config.json, ~/vzbot-notifier/...). I file vecchi restano dove sono: niente viene cancellato
-#   3. installa i servizi "vzbot" (Brain + dashboard) e "vzbot-notifier" (notifiche) e li fa partire a ogni accensione;
-#      se il Brain nuovo non risponde rimette il servizio com'era
-#   4. mette i comandi "vzbot" e "vzbot-notifiche" in /usr/local/bin
+#   1. controlla Python, git e i moduli che servono al backend
+#   2. crea la cartella dei DATI (~/printer_data/klippeye: impostazioni, chiave dell'IA, notifiche) e ci COPIA quello che
+#      avevi gia' (~/vzbot_ai_config.json, ~/vzbot-notifier/..., ~/printer_data/vzbot). I file vecchi restano dove sono: niente viene cancellato
+#   3. installa i servizi "klippeye" (backend + dashboard) e "klippeye-notifier" (notifiche) e li fa partire a ogni accensione;
+#      i servizi con i nomi di prima ("vzbot", "vzbot-notifier") vengono fermati e tolti (se ne tiene una copia);
+#      se il backend nuovo non risponde rimette tutto com'era
+#   4. mette i comandi "klippeye" e "klippeye-notifiche" in /usr/local/bin
 #   5. collega il programma all'UPDATE MANAGER di Moonraker (moonraker.conf e moonraker.asvc): e' quello che fa funzionare
 #      il tasto "Aggiorna" della dashboard e di Mainsail/Fluidd
 #
@@ -23,18 +24,18 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$HERE/.." && pwd)"
 
 RUN_USER="$(id -un)"
-SUDO="${VZBOT_SUDO-sudo}"
-SYSTEMCTL="${VZBOT_SYSTEMCTL:-systemctl}"
-UNIT_DIR="${VZBOT_SYSTEMD_DIR:-/etc/systemd/system}"
-BIN_DIR="${VZBOT_BIN_DIR:-/usr/local/bin}"
-PRINTER_DATA="${VZBOT_PRINTER_DATA:-$HOME/printer_data}"
-MOONRAKER_URL="${VZBOT_MOONRAKER_URL:-http://127.0.0.1:7125}"
-BRAIN_URL="${VZBOT_BRAIN_URL:-http://127.0.0.1:8085}"
-MOONRAKER_SERVICE="${VZBOT_MOONRAKER_SERVICE:-moonraker}"
-OLD_NOTIFIER_DIR="${VZBOT_OLD_NOTIFIER_DIR:-$HOME/vzbot-notifier}"
-if [ -n "${VZBOT_DATA:-}" ]; then DATA="$VZBOT_DATA"
-elif [ -d "$PRINTER_DATA" ]; then DATA="$PRINTER_DATA/vzbot"
-else DATA="$HOME/vzbot_data"; fi
+SUDO="${KLIPPEYE_SUDO-sudo}"
+SYSTEMCTL="${KLIPPEYE_SYSTEMCTL:-systemctl}"
+UNIT_DIR="${KLIPPEYE_SYSTEMD_DIR:-/etc/systemd/system}"
+BIN_DIR="${KLIPPEYE_BIN_DIR:-/usr/local/bin}"
+PRINTER_DATA="${KLIPPEYE_PRINTER_DATA:-$HOME/printer_data}"
+MOONRAKER_URL="${KLIPPEYE_MOONRAKER_URL:-http://127.0.0.1:7125}"
+BRAIN_URL="${KLIPPEYE_BRAIN_URL:-http://127.0.0.1:8085}"
+MOONRAKER_SERVICE="${KLIPPEYE_MOONRAKER_SERVICE:-moonraker}"
+OLD_NOTIFIER_DIR="${KLIPPEYE_OLD_NOTIFIER_DIR:-$HOME/vzbot-notifier}"   # prima di KlippEye (VzBot 1.0.x)
+if [ -n "${KLIPPEYE_DATA:-}" ]; then DATA="$KLIPPEYE_DATA"
+elif [ -d "$PRINTER_DATA" ]; then DATA="$PRINTER_DATA/klippeye"
+else DATA="$HOME/klippeye_data"; fi
 
 say()  { printf '%s\n' "$*"; }
 step() { printf '\n== %s\n' "$*"; }
@@ -60,21 +61,21 @@ sudo_run() { if [ -n "$SUDO" ]; then $SUDO "$@"; else "$@"; fi; }
 
 RELEASE="$(tr -d '[:space:]' < "$REPO/VERSION" 2>/dev/null || true)"
 RELEASE="${RELEASE:-sconosciuta}"
-say "VzBot $RELEASE - installazione sul Raspberry"
+say "KlippEye $RELEASE - installazione sul Raspberry"
 
 # --- 1. controlli -----------------------------------------------------------------------------------------------------
 step "1/6  Controllo il Raspberry"
-if [ "$(id -u)" = "0" ] && [ -z "${VZBOT_ALLOW_ROOT:-}" ]; then
+if [ "$(id -u)" = "0" ] && [ -z "${KLIPPEYE_ALLOW_ROOT:-}" ]; then
   stop "Non lanciarmi con sudo e non come utente root: devo girare come l'utente normale (di solito 'pi').
           Riprova cosi':   bash $REPO/scripts/install.sh
           (se serve la password di amministratore te la chiedo io al momento giusto)"
 fi
-PYTHON="${VZBOT_PYTHON:-$(command -v python3 || true)}"
+PYTHON="${KLIPPEYE_PYTHON:-$(command -v python3 || true)}"
 [ -n "$PYTHON" ] || stop "Python 3 non e' installato. Installalo con:  sudo apt install -y python3"
 "$PYTHON" -c 'import sys; sys.exit(0 if sys.version_info >= (3, 7) else 1)' || stop "Serve Python 3.7 o piu' recente (qui c'e' $("$PYTHON" --version 2>&1))."
 good "$("$PYTHON" --version 2>&1) ($PYTHON)"
 case "$REPO$DATA" in *" "*) stop "Le cartelle non devono avere spazi nel nome ($REPO, $DATA)." ;; esac
-[ -f "$REPO/brain/vzbot_brain.py" ] || stop "Non trovo $REPO/brain/vzbot_brain.py: questa non sembra la cartella di VzBot."
+[ -f "$REPO/backend/klippeye_backend.py" ] || stop "Non trovo $REPO/backend/klippeye_backend.py: questa non sembra la cartella di KlippEye."
 command -v git >/dev/null 2>&1 || warn "git non c'e': senza non funzionano gli aggiornamenti. Installalo con:  sudo apt install -y git"
 
 MISSING=""
@@ -82,22 +83,22 @@ for module in flask flask_cors requests; do
   "$PYTHON" -c "import $module" 2>/dev/null || MISSING="$MISSING $module"
 done
 if [ -n "$MISSING" ]; then
-  warn "Al Brain mancano questi moduli Python:$MISSING"
+  warn "Al backend mancano questi moduli Python:$MISSING"
   note "Installali con:   sudo apt install -y python3-flask python3-flask-cors python3-requests"
   note "poi rilancia questo comando."
-  if [ -z "${VZBOT_IGNORE_MISSING:-}" ]; then stop "Senza quei moduli il Brain non parte."; fi
+  if [ -z "${KLIPPEYE_IGNORE_MISSING:-}" ]; then stop "Senza quei moduli il backend non parte."; fi
 else
-  good "Moduli del Brain: flask, flask_cors, requests"
+  good "Moduli del backend: flask, flask_cors, requests"
 fi
 if "$PYTHON" -c 'import cv2, numpy' 2>/dev/null; then
   good "OpenCV e numpy (servono al monitor IA)"
 else
-  warn "OpenCV/numpy non ci sono: il Brain parte lo stesso, ma il monitor IA non potra' analizzare la camera."
+  warn "OpenCV/numpy non ci sono: il backend parte lo stesso, ma il monitor IA non potra' analizzare la camera."
   note "Se lo vuoi:   sudo apt install -y python3-opencv python3-numpy"
 fi
-[ -f "$REPO/dashboard/vzbot_dashboard.html" ] || warn "Manca $REPO/dashboard/vzbot_dashboard.html: il Brain parte, ma la pagina della dashboard non si apre."
+[ -f "$REPO/frontend/klippeye_frontend.html" ] || warn "Manca $REPO/frontend/klippeye_frontend.html: il backend parte, ma la pagina della dashboard non si apre."
 
-WORK="$(mktemp -d "${TMPDIR:-/tmp}/vzbot-install.XXXXXX")" || stop "Non riesco a creare una cartella temporanea."
+WORK="$(mktemp -d "${TMPDIR:-/tmp}/klippeye-install.XXXXXX")" || stop "Non riesco a creare una cartella temporanea."
 trap 'rm -rf "$WORK"' EXIT
 
 # --- funzioni comuni ----------------------------------------------------------------------------------------------------
@@ -117,7 +118,7 @@ oldest_backup_of() {  # nome_nel_backup -> percorso del backup piu' vecchio che 
   done
   return 1
 }
-brain_release() {  # secondi_massimi -> stampa la release se il Brain risponde entro quel tempo
+brain_release() {  # secondi_massimi -> stampa la release se il backend risponde entro quel tempo
   "$PYTHON" - "$BRAIN_URL/api/version" "$1" <<'PY'
 import json, sys, time, urllib.request
 end = time.time() + float(sys.argv[2])
@@ -153,15 +154,56 @@ install_unit() {  # nome (senza .service): 0 = installato o cambiato, 1 = gia' u
   local name="$1" dest="$UNIT_DIR/$1.service" tmp="$WORK/$1.service"
   render_unit "$REPO/systemd/$name.service" "$tmp"
   if [ -f "$dest" ] && cmp -s "$tmp" "$dest"; then return 1; fi
-  if [ -f "$dest" ] && ! grep -q 'GESTITO-DA-VZBOT' "$dest"; then backup_file "$dest" "units/$name.service"; fi
+  if [ -f "$dest" ] && ! grep -q 'GESTITO-DA-KLIPPEYE' "$dest"; then backup_file "$dest" "units/$name.service"; fi
   sudo_run install -m 644 "$tmp" "$dest" || stop "Non riesco a scrivere $dest (serve la password di amministratore?)."
   return 0
 }
-restore_unit() {  # nome: rimette il servizio com'era prima di VzBot 1.0 (0 = fatto)
-  local name="$1" old
-  old="$(oldest_backup_of "units/$name.service")" || return 1
-  sudo_run install -m 644 "$old" "$UNIT_DIR/$name.service"
+OLD_UNIT_NAMES="vzbot vzbot-notifier"   # i servizi di prima di KlippEye
+RETIRED=""
+retire_old_units() {  # ferma e toglie i servizi vecchi (con copia nel backup); $1 = "tutti" oppure "senza-notifiche"
+  local name f
+  for name in $OLD_UNIT_NAMES; do
+    f="$UNIT_DIR/$name.service"
+    [ -f "$f" ] || continue
+    if [ "$name" = "vzbot-notifier" ] && [ "${1:-tutti}" = "senza-notifiche" ]; then
+      warn "Lascio acceso il vecchio servizio $name: le notifiche nuove non sono ancora configurate."
+      continue
+    fi
+    backup_file "$f" "units/$name.service"
+    sudo_run "$SYSTEMCTL" disable --now "$name" >/dev/null 2>&1
+    sudo_run rm -f "$f"
+    RETIRED="$RETIRED $name"
+    good "Servizio vecchio $name fermato e tolto (copia nel backup)"
+  done
+  [ -n "$RETIRED" ] && sudo_run "$SYSTEMCTL" daemon-reload
 }
+bring_back_old_units() {  # rimette i servizi vecchi dalle copie del backup e li accende; 0 se ne ha rimesso almeno uno
+  local name old back=1
+  for name in $OLD_UNIT_NAMES; do
+    [ -f "$UNIT_DIR/$name.service" ] && continue
+    old="$(oldest_backup_of "units/$name.service")" || continue
+    sudo_run install -m 644 "$old" "$UNIT_DIR/$name.service" && back=0
+  done
+  [ "$back" = 0 ] && sudo_run "$SYSTEMCTL" daemon-reload
+  for name in $OLD_UNIT_NAMES; do
+    if [ -f "$UNIT_DIR/$name.service" ]; then
+      sudo_run "$SYSTEMCTL" enable "$name" >/dev/null 2>&1
+      sudo_run "$SYSTEMCTL" restart "$name" >/dev/null 2>&1
+    fi
+  done
+  return $back
+}
+stop_new_units() {
+  local name
+  for name in klippeye klippeye-notifier; do
+    if [ -f "$UNIT_DIR/$name.service" ] && grep -q 'GESTITO-DA-KLIPPEYE' "$UNIT_DIR/$name.service"; then
+      sudo_run "$SYSTEMCTL" disable --now "$name" >/dev/null 2>&1
+      sudo_run rm -f "$UNIT_DIR/$name.service"
+    fi
+  done
+  sudo_run "$SYSTEMCTL" daemon-reload
+}
+
 install_command() {  # nome: scrive /usr/local/bin/<nome>, che lancia lo script dentro la cartella del programma
   local name="$1" tmp="$WORK/cmd-$1"
   printf '#!/bin/sh\n# scritto da %s/scripts/install.sh\nexec bash "%s/scripts/%s" "$@"\n' "$REPO" "$REPO" "$name" > "$tmp"
@@ -188,30 +230,21 @@ PY
 #  --annulla
 # ====================================================================================================================
 if [ "$MODE" = "undo" ]; then
-  step "Annullo VzBot $RELEASE: torno ai servizi di prima"
-  restored=0
-  for name in vzbot vzbot-notifier; do
-    if [ -f "$UNIT_DIR/$name.service" ] && grep -q 'GESTITO-DA-VZBOT' "$UNIT_DIR/$name.service"; then
-      if restore_unit "$name"; then
-        good "Servizio $name rimesso com'era prima"; restored=1
-      else
-        sudo_run "$SYSTEMCTL" disable --now "$name" >/dev/null 2>&1
-        good "Servizio $name fermato e disabilitato (prima non esisteva)"
-      fi
-    fi
-  done
-  sudo_run "$SYSTEMCTL" daemon-reload
-  if [ "$restored" = 1 ]; then
-    sudo_run "$SYSTEMCTL" restart vzbot 2>/dev/null
-    sudo_run "$SYSTEMCTL" restart vzbot-notifier 2>/dev/null
+  step "Annullo KlippEye $RELEASE: torno ai servizi di prima"
+  stop_new_units
+  good "Servizi klippeye e klippeye-notifier fermati e tolti"
+  if bring_back_old_units; then
+    good "Servizi di prima (vzbot, vzbot-notifier) rimessi com'erano e riaccesi"
+  else
+    note "Non c'erano servizi di prima da rimettere (KlippEye e' stato installato da zero)."
   fi
-  for name in vzbot vzbot-notifiche; do
+  for name in klippeye klippeye-notifiche; do
     if [ -f "$BIN_DIR/$name" ] && grep -q "$REPO/scripts" "$BIN_DIR/$name" 2>/dev/null; then sudo_run rm -f "$BIN_DIR/$name"; fi
   done
-  good "Comandi $BIN_DIR/vzbot e vzbot-notifiche tolti"
+  good "Comandi $BIN_DIR/klippeye e klippeye-notifiche tolti"
   if [ "$WITH_MOONRAKER" = 1 ]; then
     conf="$PRINTER_DATA/config/moonraker.conf"; asvc="$PRINTER_DATA/moonraker.asvc"
-    if [ -f "$conf" ] && grep -Eq '^\[update_manager[[:space:]]+vzbot\]' "$conf"; then
+    if [ -f "$conf" ] && grep -Eq '^\[update_manager[[:space:]]+klippeye\]' "$conf"; then
       backup_file "$conf" moonraker.conf
       "$PYTHON" - "$conf" <<'PY'
 import re, sys
@@ -220,19 +253,19 @@ lines = open(p, encoding="utf-8").read().split("\n")
 out, skip = [], False
 for line in lines:
     if re.match(r"^\[", line):
-        skip = bool(re.match(r"^\[update_manager\s+vzbot\]\s*$", line))
+        skip = bool(re.match(r"^\[update_manager\s+klippeye\]\s*$", line))
     if not skip:
         out.append(line)
 text = "\n".join(out).rstrip("\n") + "\n"
-text = re.sub(r"\n\n+# VzBot: aggiornamenti dalla dashboard[^\n]*\n*$", "\n", text)
+text = re.sub(r"\n\n+# KlippEye: aggiornamenti dalla dashboard[^\n]*\n*$", "\n", text)
 open(p, "w", encoding="utf-8").write(text)
 PY
-      good "Voce [update_manager vzbot] tolta da moonraker.conf"
+      good "Voce [update_manager klippeye] tolta da moonraker.conf"
     fi
     if [ -f "$asvc" ]; then
       backup_file "$asvc" moonraker.asvc
-      grep -vx -e vzbot -e vzbot-notifier "$asvc" > "$WORK/asvc" ; cat "$WORK/asvc" > "$asvc"
-      good "vzbot e vzbot-notifier tolti da moonraker.asvc"
+      grep -vx -e klippeye -e klippeye-notifier "$asvc" > "$WORK/asvc" ; cat "$WORK/asvc" > "$asvc"
+      good "klippeye e klippeye-notifier tolti da moonraker.asvc"
     fi
     if is_printing; then
       warn "Sta stampando: non riavvio Moonraker. Riavvialo tu a fine stampa (menu Riavvia della dashboard) per far sparire la voce."
@@ -254,6 +287,18 @@ fi
 step "2/6  Cartella dei dati: $DATA"
 mkdir -p "$DATA" || stop "Non riesco a creare $DATA"
 chmod 700 "$DATA"
+# Se prima c'era VzBot 1.0.x, la sua cartella dati (stesso contenuto) viene COPIATA qui senza sovrascrivere nulla.
+if [ -n "${KLIPPEYE_OLD_DATA:-}" ]; then OLD_DATA="$KLIPPEYE_OLD_DATA"
+elif [ -d "$PRINTER_DATA/vzbot" ]; then OLD_DATA="$PRINTER_DATA/vzbot"
+else OLD_DATA="$HOME/vzbot_data"; fi
+if [ -d "$OLD_DATA" ] && [ "$OLD_DATA" != "$DATA" ] && [ -n "$(ls -A "$OLD_DATA" 2>/dev/null)" ] && [ ! -f "$DATA/.copiato-da-vzbot" ]; then
+  if cp -an "$OLD_DATA"/. "$DATA"/ 2>/dev/null; then
+    : > "$DATA/.copiato-da-vzbot"
+    good "Impostazioni e dati di VzBot copiati da $OLD_DATA (gli originali restano li')"
+  else
+    warn "Non sono riuscito a copiare i dati da $OLD_DATA"
+  fi
+fi
 good "Qui restano impostazioni, chiave dell'IA e notifiche. Gli aggiornamenti non la toccano."
 
 if [ -d "$REPO/.git" ]; then
@@ -262,7 +307,7 @@ if [ -d "$REPO/.git" ]; then
   git -C "$REPO" config core.fileMode false 2>/dev/null
 fi
 
-AI_OLD="$HOME/vzbot_ai_config.json"
+AI_OLD="${KLIPPEYE_OLD_AI_CONFIG:-$HOME/vzbot_ai_config.json}"   # prima di KlippEye (VzBot 1.0.x)
 if [ -f "$DATA/ai.json" ]; then
   chmod 600 "$DATA/ai.json"
   good "Chiave dell'IA: gia' nella cartella dati"
@@ -302,52 +347,53 @@ fi
 
 # --- 3. servizi --------------------------------------------------------------------------------------------------------
 step "3/6  Servizi (partono da soli a ogni accensione)"
-for need in "$REPO/systemd/vzbot.service" "$REPO/systemd/vzbot-notifier.service"; do
+for need in "$REPO/systemd/klippeye.service" "$REPO/systemd/klippeye-notifier.service"; do
   [ -f "$need" ] || stop "Manca il modello $need"
 done
 [ -d "$UNIT_DIR" ] || stop "Non trovo la cartella dei servizi di sistema ($UNIT_DIR)."
 
-BRAIN_CHANGED=0
-if install_unit vzbot; then BRAIN_CHANGED=1; fi
-NOTIFIER_CHANGED=0
 NOTIFIER_ON=0
-if notifier_ready; then
-  NOTIFIER_ON=1
-  if install_unit vzbot-notifier; then NOTIFIER_CHANGED=1; fi
+if notifier_ready; then NOTIFIER_ON=1; fi
+# I servizi di prima usano la stessa porta e gli stessi dati: vanno fermati prima di accendere quelli nuovi.
+if [ "$NOTIFIER_ON" = 1 ]; then retire_old_units tutti; else retire_old_units senza-notifiche; fi
+BRAIN_CHANGED=0
+if install_unit klippeye; then BRAIN_CHANGED=1; fi
+NOTIFIER_CHANGED=0
+if [ "$NOTIFIER_ON" = 1 ]; then
+  if install_unit klippeye-notifier; then NOTIFIER_CHANGED=1; fi
 fi
 sudo_run "$SYSTEMCTL" daemon-reload || stop "systemctl daemon-reload non e' riuscito."
-sudo_run "$SYSTEMCTL" enable vzbot >/dev/null 2>&1
-[ "$NOTIFIER_ON" = 1 ] && sudo_run "$SYSTEMCTL" enable vzbot-notifier >/dev/null 2>&1
+sudo_run "$SYSTEMCTL" enable klippeye >/dev/null 2>&1
+[ "$NOTIFIER_ON" = 1 ] && sudo_run "$SYSTEMCTL" enable klippeye-notifier >/dev/null 2>&1
 
-if [ "$BRAIN_CHANGED" = 1 ] || ! unit_active vzbot; then
-  sudo_run "$SYSTEMCTL" restart vzbot || warn "systemctl restart vzbot ha dato errore"
-  printf '   ...     aspetto che il Brain risponda (fino a 40 secondi)\n'
+if [ "$BRAIN_CHANGED" = 1 ] || ! unit_active klippeye; then
+  sudo_run "$SYSTEMCTL" restart klippeye || warn "systemctl restart klippeye ha dato errore"
+  printf '   ...     aspetto che il backend risponda (fino a 40 secondi)\n'
   if NEWREL="$(brain_release 40)"; then
-    good "Il Brain risponde: release $NEWREL"
+    good "Il backend risponde: release $NEWREL"
   else
-    printf '\n   ERRORE  Il Brain nuovo non risponde su %s.\n' "$BRAIN_URL"
+    printf '\n   ERRORE  Il backend nuovo non risponde su %s.\n' "$BRAIN_URL"
     note "Ultime righe del suo registro:"
-    (journalctl -u vzbot -n 12 --no-pager 2>/dev/null || sudo_run journalctl -u vzbot -n 12 --no-pager 2>/dev/null) | sed 's/^/           /'
-    if restore_unit vzbot; then
-      sudo_run "$SYSTEMCTL" daemon-reload
-      sudo_run "$SYSTEMCTL" restart vzbot
-      note "Ho rimesso il servizio com'era: il Brain di prima dovrebbe essere di nuovo acceso."
+    (journalctl -u klippeye -n 12 --no-pager 2>/dev/null || sudo_run journalctl -u klippeye -n 12 --no-pager 2>/dev/null) | sed 's/^/           /'
+    stop_new_units
+    if bring_back_old_units; then
+      note "Ho rimesso i servizi com'erano: il backend di prima dovrebbe essere di nuovo acceso."
     fi
     stop "Installazione interrotta. Se la porta 8085 e' occupata da un altro programma, fermalo e rilancia. Se manca un modulo Python, vedi sopra."
   fi
 else
-  good "Servizio vzbot gia' a posto"
+  good "Servizio klippeye gia' a posto"
 fi
 
 if [ "$NOTIFIER_ON" = 1 ]; then
-  if [ "$NOTIFIER_CHANGED" = 1 ] || ! unit_active vzbot-notifier; then
-    sudo_run "$SYSTEMCTL" restart vzbot-notifier || warn "systemctl restart vzbot-notifier ha dato errore"
+  if [ "$NOTIFIER_CHANGED" = 1 ] || ! unit_active klippeye-notifier; then
+    sudo_run "$SYSTEMCTL" restart klippeye-notifier || warn "systemctl restart klippeye-notifier ha dato errore"
   fi
-  good "Servizio vzbot-notifier acceso"
-  if "$PYTHON" "$REPO/notifier/vzbot_notifier.py" --config "$DATA/notifier.json" --check >"$WORK/check.out" 2>&1; then
+  good "Servizio klippeye-notifier acceso"
+  if "$PYTHON" "$REPO/notifier/klippeye_notifier.py" --config "$DATA/notifier.json" --check >"$WORK/check.out" 2>&1; then
     good "Controllo delle notifiche superato"
   else
-    warn "Il controllo delle notifiche segnala qualcosa (vedi sotto). Il Brain e la dashboard funzionano lo stesso."
+    warn "Il controllo delle notifiche segnala qualcosa (vedi sotto). Il backend e la dashboard funzionano lo stesso."
     sed 's/^/           /' "$WORK/check.out" | tail -n 8
   fi
 else
@@ -356,8 +402,8 @@ fi
 
 # --- 4. comandi --------------------------------------------------------------------------------------------------------
 step "4/6  Comandi da terminale"
-if install_command vzbot && install_command vzbot-notifiche; then
-  good "Scritti $BIN_DIR/vzbot e $BIN_DIR/vzbot-notifiche   (prova:  vzbot stato)"
+if install_command klippeye && install_command klippeye-notifiche; then
+  good "Scritti $BIN_DIR/klippeye e $BIN_DIR/klippeye-notifiche   (prova:  klippeye stato)"
 fi
 
 # --- 5. Moonraker --------------------------------------------------------------------------------------------------------
@@ -375,16 +421,16 @@ else
   fi
   if [ ! -d "$REPO/.git" ]; then
     warn "$REPO non e' un repository git (l'hai scaricato come zip?). Senza, il tasto Aggiorna non puo' funzionare."
-    note "Rifai l'installazione con:   git clone <indirizzo del tuo repository GitHub> ~/vzbot"
+    note "Rifai l'installazione con:   git clone <indirizzo del tuo repository GitHub> ~/klippeye"
   elif [ -z "$ORIGIN" ]; then
     warn "Il repository non ha un 'origin' (un indirizzo GitHub da cui aggiornarsi): salto la configurazione di Moonraker."
   else
     [ -n "$BRANCH" ] || { BRANCH=main; warn "Non riconosco il ramo corrente, uso 'main'."; }
     if [ ! -f "$CONF" ]; then
-      warn "Non trovo $CONF: salto la configurazione di Moonraker (se il tuo e' altrove: VZBOT_PRINTER_DATA=... bash $0)."
+      warn "Non trovo $CONF: salto la configurazione di Moonraker (se il tuo e' altrove: KLIPPEYE_PRINTER_DATA=... bash $0)."
     else
-      if grep -Eq '^\[update_manager[[:space:]]+vzbot\][[:space:]]*$' "$CONF"; then
-        good "moonraker.conf ha gia' la voce [update_manager vzbot]"
+      if grep -Eq '^\[update_manager[[:space:]]+klippeye\][[:space:]]*$' "$CONF"; then
+        good "moonraker.conf ha gia' la voce [update_manager klippeye]"
       else
         backup_file "$CONF" moonraker.conf
         {
@@ -392,17 +438,17 @@ else
           if ! grep -Eq '^\[update_manager[[:space:]]*\][[:space:]]*$' "$CONF"; then
             printf '[update_manager]\n\n'
           fi
-          printf '# VzBot: aggiornamenti dalla dashboard (Impostazioni -> Sistema VzBot) e da Mainsail/Fluidd. Scritto da scripts/install.sh.\n'
-          printf '[update_manager vzbot]\ntype: git_repo\npath: %s\norigin: %s\nprimary_branch: %s\nchannel: dev\nmanaged_services: vzbot\ninfo_tags:\n  desc=VzBot: Brain, dashboard e notifiche\n' "$REPO" "$ORIGIN" "$BRANCH"
+          printf '# KlippEye: aggiornamenti dalla dashboard (Impostazioni -> Sistema KlippEye) e da Mainsail/Fluidd. Scritto da scripts/install.sh.\n'
+          printf '[update_manager klippeye]\ntype: git_repo\npath: %s\norigin: %s\nprimary_branch: %s\nchannel: dev\nmanaged_services: klippeye\ninfo_tags:\n  desc=KlippEye: backend, dashboard e notifiche\n' "$REPO" "$ORIGIN" "$BRANCH"
         } >> "$CONF"
-        good "Aggiunta a moonraker.conf la voce [update_manager vzbot]"
+        good "Aggiunta a moonraker.conf la voce [update_manager klippeye]"
         MR_RESTART=1
       fi
     fi
     if [ ! -f "$ASVC" ]; then
-      warn "Non trovo $ASVC (l'elenco dei servizi che Moonraker puo' riavviare): senza, Moonraker non riavvia 'vzbot' dopo un aggiornamento."
+      warn "Non trovo $ASVC (l'elenco dei servizi che Moonraker puo' riavviare): senza, Moonraker non riavvia 'klippeye' dopo un aggiornamento."
     else
-      WANT="vzbot"; [ "$NOTIFIER_ON" = 1 ] && WANT="vzbot vzbot-notifier"
+      WANT="klippeye"; [ "$NOTIFIER_ON" = 1 ] && WANT="klippeye klippeye-notifier"
       ADDED=""
       for s in $WANT; do
         if ! grep -qx "$s" "$ASVC"; then
@@ -437,29 +483,29 @@ PY
     fi
   fi
 
-  # Moonraker riconosce VzBot?
+  # Moonraker riconosce KlippEye?
   "$PYTHON" - "$MOONRAKER_URL/machine/update/status?refresh=false" <<'PY'
 import json, sys, urllib.request
 try:
     d = json.loads(urllib.request.urlopen(sys.argv[1], timeout=20).read().decode("utf-8", "replace"))
-    info = d["result"]["version_info"].get("vzbot")
+    info = d["result"]["version_info"].get("klippeye")
 except Exception as e:
-    print("   AVVISO  Non riesco a chiedere a Moonraker se vede VzBot (%s)." % e); sys.exit(0)
+    print("   AVVISO  Non riesco a chiedere a Moonraker se vede KlippEye (%s)." % e); sys.exit(0)
 if not info:
-    print("   AVVISO  Moonraker non mostra ancora VzBot tra i programmi aggiornabili: riavvialo (menu Riavvia) e riguarda tra poco.")
+    print("   AVVISO  Moonraker non mostra ancora KlippEye tra i programmi aggiornabili: riavvialo (menu Riavvia) e riguarda tra poco.")
 elif info.get("is_valid") is False or info.get("is_dirty"):
-    print("   AVVISO  Moonraker vede VzBot ma lo segna come non aggiornabile: %s" % "; ".join(info.get("warnings") or ["file modificati a mano"]))
+    print("   AVVISO  Moonraker vede KlippEye ma lo segna come non aggiornabile: %s" % "; ".join(info.get("warnings") or ["file modificati a mano"]))
 else:
-    print("   OK      Moonraker vede VzBot (versione %s): il tasto Aggiorna e' attivo" % info.get("version", "?"))
+    print("   OK      Moonraker vede KlippEye (versione %s): il tasto Aggiorna e' attivo" % info.get("version", "?"))
 PY
 fi
 
 # --- 6. fine -------------------------------------------------------------------------------------------------------------
 step "6/6  Fatto"
 IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
-say "   VzBot $RELEASE e' installato."
+say "   KlippEye $RELEASE e' installato."
 say "   Dashboard:   http://${IP:-<indirizzo del Raspberry>}:8085"
 say "   Per aggiornare in futuro: carica i file nuovi su GitHub, poi nella dashboard apri"
-say "   Impostazioni -> Sistema VzBot -> Controlla -> Aggiorna. Dal terminale basta  vzbot stato."
+say "   Impostazioni -> Sistema KlippEye -> Controlla -> Aggiorna. Dal terminale basta  klippeye stato."
 [ -n "$BK" ] && say "   Copie di sicurezza di quello che ho cambiato: $BK"
 exit 0

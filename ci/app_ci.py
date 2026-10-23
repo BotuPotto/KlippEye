@@ -24,8 +24,8 @@ import sys
 import tempfile
 import zipfile
 
-PACCHETTO = "com.vzbot.dashboard"
-ALIAS_CHIAVE = "vzbot"
+PACCHETTO = "com.klippeye.app"
+ALIAS_CHIAVE = "klippeye"
 FORMATO_VERSIONE = re.compile(r"^(\d{1,2})\.(\d{1,2})\.(\d{1,2})$")
 PASSWORD_MINIMA = 16
 APK_DI_COSTRUZIONE = os.path.join("android", "app", "build", "outputs", "apk", "release", "app-release.apk")
@@ -39,9 +39,9 @@ def percorsi(radice):
     return {
         "radice": radice,
         "versione_app": os.path.join(radice, "android", "VERSION"),
-        "chiave": os.path.join(radice, "android", "chiave", "vzbot.p12"),
+        "chiave": os.path.join(radice, "android", "chiave", "klippeye.p12"),
         "google": os.path.join(radice, "android", "app", "google-services.json"),
-        "apk": os.path.join(radice, "apk", "VzBot.apk"),
+        "apk": os.path.join(radice, "apk", "KlippEye.apk"),
         "info": os.path.join(radice, "apk", "versione.json"),
     }
 
@@ -109,7 +109,7 @@ def decidi(p, forza=False, evento="", password=""):
     esito = _decidi(p, forza)
     if esito["build"] == "true" and evento == "push" and not password:
         return dict(build="false", version=esito["version"], code=esito["code"],
-                    motivo="manca il segreto VZBOT_CHIAVE_PASSWORD: crealo (docs/GUIDA.md, parte C1) e poi avvia a mano il workflow «App Android»")
+                    motivo="manca il segreto KLIPPEYE_CHIAVE_PASSWORD: crealo (docs/GUIDA.md, parte C1) e poi avvia a mano il workflow «App Android»")
     return esito
 
 
@@ -132,18 +132,18 @@ def _decidi(p, forza):
 
 # ---------------------------------------------------------------------------------------------------- chiave
 def keytool(argomenti, password):
-    ambiente = dict(os.environ, VZBOT_KEYSTORE_PASSWORD=password)
+    ambiente = dict(os.environ, KLIPPEYE_KEYSTORE_PASSWORD=password)
     return subprocess.run(["keytool"] + argomenti, capture_output=True, text=True, env=ambiente)
 
 
 def controlla_password(password):
     if not password:
-        raise Errore("Manca il segreto VZBOT_CHIAVE_PASSWORD: in GitHub vai su Settings → Secrets and variables → Actions → New repository secret, "
-                     "chiamalo VZBOT_CHIAVE_PASSWORD e come valore scrivi una frase lunga (vedi docs/GUIDA.md, «L'app Android»).")
+        raise Errore("Manca il segreto KLIPPEYE_CHIAVE_PASSWORD: in GitHub vai su Settings → Secrets and variables → Actions → New repository secret, "
+                     "chiamalo KLIPPEYE_CHIAVE_PASSWORD e come valore scrivi una frase lunga (vedi docs/GUIDA.md, «L'app Android»).")
     if "\n" in password or "\r" in password:
-        raise Errore("La password nel segreto VZBOT_CHIAVE_PASSWORD ha un «a capo»: rimettila su una riga sola.")
+        raise Errore("La password nel segreto KLIPPEYE_CHIAVE_PASSWORD ha un «a capo»: rimettila su una riga sola.")
     if len(password) < PASSWORD_MINIMA:
-        raise Errore("La password nel segreto VZBOT_CHIAVE_PASSWORD è troppo corta (%d caratteri): ne servono almeno %d, perché la chiave sta nel repository "
+        raise Errore("La password nel segreto KLIPPEYE_CHIAVE_PASSWORD è troppo corta (%d caratteri): ne servono almeno %d, perché la chiave sta nel repository "
                      "e solo la password la protegge. Una frase di quattro o cinque parole va bene." % (len(password), PASSWORD_MINIMA))
 
 
@@ -152,17 +152,17 @@ def chiave(p, password):
     controlla_password(password)
     file_chiave = p["chiave"]
     if os.path.isfile(file_chiave):
-        r = keytool(["-list", "-keystore", file_chiave, "-storetype", "PKCS12", "-storepass:env", "VZBOT_KEYSTORE_PASSWORD", "-alias", ALIAS_CHIAVE], password)
+        r = keytool(["-list", "-keystore", file_chiave, "-storetype", "PKCS12", "-storepass:env", "KLIPPEYE_KEYSTORE_PASSWORD", "-alias", ALIAS_CHIAVE], password)
         if r.returncode != 0:
-            raise Errore("La password nel segreto VZBOT_CHIAVE_PASSWORD non apre la chiave android/chiave/vzbot.p12. Se l'hai cambiata rimetti quella di prima. "
-                         "Se l'hai persa, cancella android/chiave/vzbot.p12 da GitHub: ne verrà creata una nuova, ma le app già installate non potranno più "
+            raise Errore("La password nel segreto KLIPPEYE_CHIAVE_PASSWORD non apre la chiave android/chiave/klippeye.p12. Se l'hai cambiata rimetti quella di prima. "
+                         "Se l'hai persa, cancella android/chiave/klippeye.p12 da GitHub: ne verrà creata una nuova, ma le app già installate non potranno più "
                          "aggiornarsi sopra (vanno disinstallate e reinstallate una volta) e serve «nuova_chiave» nell'avvio manuale.")
         return "esistente"
     os.makedirs(os.path.dirname(file_chiave), exist_ok=True)
     r = keytool([
         "-genkeypair", "-keystore", file_chiave, "-storetype", "PKCS12", "-alias", ALIAS_CHIAVE,
-        "-keyalg", "RSA", "-keysize", "4096", "-validity", "36500", "-dname", "CN=VzBot, O=VzBot",
-        "-storepass:env", "VZBOT_KEYSTORE_PASSWORD", "-keypass:env", "VZBOT_KEYSTORE_PASSWORD",
+        "-keyalg", "RSA", "-keysize", "4096", "-validity", "36500", "-dname", "CN=KlippEye, O=KlippEye",
+        "-storepass:env", "KLIPPEYE_KEYSTORE_PASSWORD", "-keypass:env", "KLIPPEYE_KEYSTORE_PASSWORD",
     ], password)
     if r.returncode != 0 or not os.path.isfile(file_chiave):
         raise Errore("Non sono riuscito a creare la chiave di firma: %s" % (r.stderr.strip() or r.stdout.strip() or "errore sconosciuto"))
@@ -182,7 +182,7 @@ def google(p, contenuto):
     except (ValueError, KeyError, TypeError):
         raise Errore("Il segreto GOOGLE_SERVICES_JSON non è un file google-services.json: incolla tutto il contenuto del file scaricato da Firebase, dalla prima all'ultima graffa.")
     if PACCHETTO not in pacchetti:
-        raise Errore("Il google-services.json nel segreto GOOGLE_SERVICES_JSON è di un'altra app (%s): in Firebase l'app Android deve chiamarsi %s."
+        raise Errore("Il google-services.json nel segreto GOOGLE_SERVICES_JSON è di un'altra app (%s): in Firebase aggiungi un'app Android chiamata %s, scarica il nuovo google-services.json e incolla il suo contenuto nel segreto GOOGLE_SERVICES_JSON."
                      % (", ".join(pacchetti) or "nessuna", PACCHETTO))
     with open(p["google"], "w", encoding="utf-8") as f:
         f.write(contenuto + "\n")
@@ -274,7 +274,7 @@ def git(radice, *argomenti, controlla=True):
     return r
 
 
-def salva(radice, ramo, messaggio, cartelle, tentativi=4, utente=("VzBot (GitHub Actions)", "actions@users.noreply.github.com")):
+def salva(radice, ramo, messaggio, cartelle, tentativi=4, utente=("KlippEye (GitHub Actions)", "actions@users.noreply.github.com")):
     """
     Commit di `cartelle` (le sole cose che il workflow cambia) e push. Se nel frattempo qualcuno ha spedito altro, il push viene
     rifiutato: allora si riparte dall'ultimo stato di GitHub e si rimette sopra lo stesso contenuto (niente rebase, che su una copia
@@ -350,14 +350,14 @@ def main(argv=None):
 
     try:
         if args.comando == "decidi":
-            esito = decidi(p, vero(args.forza), args.evento, os.environ.get("VZBOT_KEYSTORE_PASSWORD", ""))
+            esito = decidi(p, vero(args.forza), args.evento, os.environ.get("KLIPPEYE_KEYSTORE_PASSWORD", ""))
             scrivi_uscite(**esito)
             if esito["build"] == "false":
                 livello = "warning" if "manca il segreto" in esito["motivo"] else "notice"
                 print("::%s title=App non costruita::%s" % (livello, esito["motivo"]))
         elif args.comando == "chiave":
-            esito = chiave(p, os.environ.get("VZBOT_KEYSTORE_PASSWORD", ""))
-            print("Chiave di firma: %s (android/chiave/vzbot.p12)" % esito)
+            esito = chiave(p, os.environ.get("KLIPPEYE_KEYSTORE_PASSWORD", ""))
+            print("Chiave di firma: %s (android/chiave/klippeye.p12)" % esito)
             scrivi_uscite(chiave=esito)
         elif args.comando == "google":
             if google(p, os.environ.get("GOOGLE_SERVICES_JSON", "")):
@@ -367,7 +367,7 @@ def main(argv=None):
         elif args.comando == "pubblica":
             apk = args.apk or os.path.join(p["radice"], APK_DI_COSTRUZIONE)
             info = pubblica(p, apk, trova_strumento("aapt2"), trova_strumento("apksigner"), vero(args.nuova_chiave), args.sorgente)
-            print("Pubblicato apk/VzBot.apk: versione %s, %d byte, sha256 %s" % (info["version"], info["size"], info["sha256"]))
+            print("Pubblicato apk/KlippEye.apk: versione %s, %d byte, sha256 %s" % (info["version"], info["size"], info["sha256"]))
         elif args.comando == "salva":
             spedito = salva(p["radice"], args.ramo, args.messaggio, ["apk", os.path.join("android", "chiave")])
             print("Salvato su GitHub." if spedito else "Niente di cambiato: non salvo niente.")

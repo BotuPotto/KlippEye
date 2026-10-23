@@ -1,5 +1,27 @@
 # Cosa cambia in ogni release
 
+## 1.1.0
+
+**Il progetto si chiama KlippEye** (prima VzBot), in tutto: cartelle, file, servizi, comandi, dashboard e app.
+
+* **Passaggio con un tasto**: chi ha VzBot 1.0.x aggiorna come sempre, poi in *Impostazioni → Aggiornamenti* compare **Passa a KlippEye** (o da terminale:
+  `bash ~/vzbot/scripts/passa-a-klippeye.sh`). In 6 passi, con ripristino automatico se qualcosa non va: copia i dati (`~/printer_data/vzbot` → `klippeye`, gli originali
+  restano), sposta il programma da `~/vzbot` a `~/klippeye`, installa i servizi `klippeye` e `klippeye-notifier`, aggiorna la voce di Moonraker (`[update_manager klippeye]`
+  e `moonraker.asvc`), toglie i servizi e i comandi vecchi (con copia di sicurezza) e controlla che il backend risponda.
+* **Nuovi nomi** — cartelle: `backend/` (era `brain/`), `frontend/` (era `dashboard/`), `logos/`; file: `klippeye_backend.py`, `klippeye_frontend.html`, `klippeye_notifier.py`;
+  servizi: `klippeye`, `klippeye-notifier`; comandi: `klippeye`, `klippeye-notifiche`; cartella dati `~/printer_data/klippeye`; variabili `KLIPPEYE_*`; segreto GitHub `KLIPPEYE_CHIAVE_PASSWORD`
+  (il vecchio `VZBOT_CHIAVE_PASSWORD` vale ancora). In codice e nomi di file i nomi sono in minuscolo (`klippeye`), nei testi `KlippEye`.
+  I file vecchi (`brain/vzbot_brain.py`, `notifier/vzbot_notifier.py`, `scripts/vzbot*`) restano come rimandi ai nuovi finché serve il passaggio: dopo si possono cancellare.
+* **Stampante: nome e logo** (*Impostazioni → Stampante*): scegli il logo della barra in alto tra **KlippEye** (predefinito), **VzBot**, **Voron** e **RatRig** e, se vuoi, un nome tuo
+  (per esempio `VzBot.287`). Cambiano anche il **titolo e l'icona della scheda del browser**. La scelta è nelle impostazioni condivise, uguale su ogni dispositivo.
+  I loghi di Voron e RatRig vanno messi (file ufficiali) nella cartella `logos/` del repository: vedi `logos/README.md`.
+* **App Android 1.1.0 con nome interno nuovo**: `com.klippeye.app` (era `com.vzbot.dashboard`), ponte `KlippEyeApp`. Si installa accanto alla vecchia, poi si disinstalla quella; la dashboard
+  dentro la vecchia app propone *Installa la nuova app KlippEye*. Serve registrare l'app nuova in Firebase e aggiornare il segreto `GOOGLE_SERVICES_JSON` (guida, parte P5).
+  L'argomento delle notifiche non cambia. La chiave di firma nuova è `android/chiave/klippeye.p12`.
+* Le impostazioni condivise stanno ora in `klippeye` nel database di Moonraker (le vecchie, `vzbot_dashboard`, si leggono ancora la prima volta); le preferenze del browser (`vz_*`) diventano `ke_*` da sole.
+* Nelle schermate «Brain» è diventato «backend».
+* La calibrazione scelta (prima in `printer_data/config/vzbot_calibration_selected.json`, che nessuna macro usa) ora sta nella cartella dati come `calibration_selected.json`; il file vecchio, se c'è, si legge ancora e non si perde niente.
+
 ## 1.0.1
 
 Nuovo logo e nuovi colori: **KlippEye**.

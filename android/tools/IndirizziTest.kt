@@ -1,8 +1,8 @@
 // Prova da sola degli indirizzi dell'app (pulizia, reti private, elenco dei tentativi): niente Android, niente telefono.
 // Si lancia da fuori di Gradle (vedi README, "Indirizzi dell'app"):
-//   kotlinc -cp android.jar ../app/src/main/java/com/vzbot/dashboard/Indirizzi.kt IndirizziTest.kt -d prova
-//   java -cp prova:kotlin-stdlib.jar:android.jar com.vzbot.dashboard.IndirizziTestKt
-package com.vzbot.dashboard
+//   kotlinc -cp android.jar ../app/src/main/java/com/klippeye/app/Indirizzi.kt IndirizziTest.kt -d prova
+//   java -cp prova:kotlin-stdlib.jar:android.jar com.klippeye.app.IndirizziTestKt
+package com.klippeye.app
 
 var errori = 0
 
@@ -16,7 +16,7 @@ fun main() {
     val casi = listOf(
         "192.168.1.17" to "192.168.1.17", "  192.168.1.17  " to "192.168.1.17", "http://192.168.1.17/" to "192.168.1.17",
         "HTTP://192.168.1.17:8085/dashboard?x=1#y" to "192.168.1.17", "https://172.25.170.177:443" to "172.25.170.177",
-        "VzBot.LOCAL" to "vzbot.local", "vzbot" to "vzbot", "10.0.0.5:8080" to "10.0.0.5",
+        "KlippEye.LOCAL" to "klippeye.local", "klippeye" to "klippeye", "10.0.0.5:8080" to "10.0.0.5",
         "999.1.1.1" to null, "192.168.1" to null, "192.168.1.1.1" to null, "192.168..1" to null, "1.2.3.256" to null, "1234.1.1.1" to null,
         "" to null, "   " to null, "due parole" to null, "http://" to null, "-abc" to null, "abc-" to null, "a_b" to null, "<script>" to null,
         "javascript:alert(1)" to null, "192.168.1.17:99999" to "192.168.1.17", "a".repeat(120) to null,
@@ -25,8 +25,8 @@ fun main() {
     prova("pulisci(null) = null", Indirizzi.pulisci(null) == null)
 
     // privato: casa, VPN, ZeroTier, nomi locali; mai internet
-    val privati = listOf("192.168.1.17", "192.168.255.1", "10.0.0.1", "10.255.255.255", "172.16.0.1", "172.25.170.177", "172.31.9.9", "100.64.0.1", "100.127.1.1", "vzbot", "vzbot.local", "pi.lan", "pi.home.arpa", "stampante.internal")
-    val pubblici = listOf("8.8.8.8", "172.15.0.1", "172.32.0.1", "192.169.1.1", "192.167.1.1", "100.63.0.1", "100.128.0.1", "11.0.0.1", "127.0.0.1", "169.254.1.1", "example.com", "vzbot.example.org", "pi.local.evil.com")
+    val privati = listOf("192.168.1.17", "192.168.255.1", "10.0.0.1", "10.255.255.255", "172.16.0.1", "172.25.170.177", "172.31.9.9", "100.64.0.1", "100.127.1.1", "klippeye", "klippeye.local", "pi.lan", "pi.home.arpa", "stampante.internal")
+    val pubblici = listOf("8.8.8.8", "172.15.0.1", "172.32.0.1", "192.169.1.1", "192.167.1.1", "100.63.0.1", "100.128.0.1", "11.0.0.1", "127.0.0.1", "169.254.1.1", "example.com", "klippeye.example.org", "pi.local.evil.com")
     for (h in privati) prova("privato($h)", Indirizzi.privato(h))
     for (h in pubblici) prova("NON privato($h)", !Indirizzi.privato(h))
 
