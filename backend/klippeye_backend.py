@@ -342,6 +342,76 @@ def find_frontend():
         pass
     return None
 
+# === AUTORIPARAZIONE: dopo un blackout un file del programma puo' restare vuoto o a meta' =========================
+# scripts/ripara.sh confronta i file con la copia "buona" che git ha sul Raspberry (niente internet) e rimette a posto solo quelli
+# rovinati. Parte: prima del backend (riga ExecStartPre del servizio), all'avvio del backend (qui sotto) e quando la pagina della
+# dashboard risulta vuota o troncata (index). Spenta se esiste il file <cartella dati>/non-riparare.
+REPAIR_SCRIPT = os.path.join(REPO_DIR, "scripts", "ripara.sh")
+REPAIR_MARK_PATH = os.path.join(DATA_DIR, "ripristino.json")
+REPAIR_MIN_GAP = 5  # secondi minimi fra due controlli lanciati da una pagina rovinata (la pagina d'emergenza si ricarica ogni 8)
+_repair_lock = threading.Lock()
+_repair_state = {"last": 0.0}
+
+
+def frontend_ok(path):
+    """La dashboard e' un file HTML unico: se e' piccolo o non finisce con </html> e' vuoto o troncato (spegnimento a meta' scrittura)."""
+    try:
+        size = os.path.getsize(path)
+        if size < 64:
+            return False
+        with open(path, "rb") as fh:
+            fh.seek(max(0, size - 512))
+            tail = fh.read()
+        return b"</html>" in tail.lower()
+    except OSError:
+        return False
+
+
+def run_repair(extra=(), force=False):
+    """Lancia scripts/ripara.sh. Ritorna True se l'ha eseguito (non se e' stato saltato per il limite di frequenza o l'assenza dello script)."""
+    if not os.path.isfile(REPAIR_SCRIPT):
+        return False
+    with _repair_lock:
+        if not force and time.time() - _repair_state["last"] < REPAIR_MIN_GAP:
+            return False
+        _repair_state["last"] = time.time()
+        try:
+            subprocess.run(["bash", REPAIR_SCRIPT, "--silenzioso", *extra], cwd=REPO_DIR, timeout=90,
+                           stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                           env=dict(os.environ, KLIPPEYE_DATA=DATA_DIR))
+            return True
+        except Exception as e:
+            print(f"[RIPARA] controllo non riuscito: {e}")
+            return False
+
+
+def read_repair_mark():
+    """L'ultimo ripristino fatto: {"time", "restored": [...], "failed": [...]} oppure None."""
+    try:
+        with open(REPAIR_MARK_PATH, encoding="utf-8") as fh:
+            d = json.load(fh)
+        return d if isinstance(d, dict) else None
+    except (OSError, ValueError):
+        return None
+
+
+def _repair_at_startup():
+    time.sleep(2)  # prima il backend si mette in ascolto
+    if run_repair(force=True):
+        run_repair(("--attiva-avvio",), force=True)
+        mark = read_repair_mark()
+        if mark and time.time() - mark.get("time", 0) < 600:
+            print(f"[RIPARA] {time.strftime('%H:%M:%S')} ripristinati: {mark.get('restored')} - non riusciti: {mark.get('failed')}")
+
+
+EMERGENCY_PAGE = """<!doctype html><html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="refresh" content="8"><title>KlippEye</title>
+<style>body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#120d22;color:#e8e1ff;font:16px/1.5 system-ui,sans-serif;text-align:center;padding:24px;box-sizing:border-box}
+h1{font-size:20px;margin:0 0 8px}p{margin:6px 0;color:#b9afd6;max-width:420px}</style></head><body><div>
+<h1>KlippEye sta rimettendo a posto i suoi file</h1>
+<p>Dopo uno spegnimento improvviso la pagina della dashboard risulta rovinata. La sto ripristinando da sola: questa pagina si ricarica ogni pochi secondi.</p>
+<p>Se non cambia nulla, apri Mainsail &rarr; Machine &rarr; Update Manager &rarr; klippeye &rarr; <b>Recover</b> (hard).</p></div></body></html>"""
+
 # Le operazioni che Moonraker finisce solo a lavoro fatto (aggiornamenti, riavvii di servizi): 10 secondi non bastano.
 LONG_MOONRAKER_PATHS = ("machine/update/", "machine/services/")
 
@@ -362,7 +432,17 @@ def proxy_moonraker(path):
 @app.route("/")
 def index():
     f = find_frontend()
+    if f and not frontend_ok(f):
+        ran = run_repair()    # pagina vuota o troncata (blackout): la rimetto a posto adesso, prima di servirla
+        f = find_frontend()
+        print(f"[RIPARA] {time.strftime('%H:%M:%S')} la pagina {os.path.basename(str(f))} e' rovinata: controllo {'eseguito' if ran else 'saltato (appena fatto un altro)'}")
+        if not f or not frontend_ok(f):
+            return Response(EMERGENCY_PAGE, status=503, mimetype="text/html", headers={"Retry-After": "8", "Cache-Control": "no-store"})
     if f:
+        return send_file(f)
+    run_repair()              # file mancante: stessa cosa
+    f = find_frontend()
+    if f and frontend_ok(f):
         return send_file(f)
     return "frontend/klippeye_frontend.html non trovato in " + REPO_DIR, 404
 
@@ -1724,6 +1804,7 @@ def api_version():
         "has_cv2": HAS_CV2,
         "data_dir": DATA_DIR,
         "frontend": find_frontend(),
+        "repair": read_repair_mark(),  # l'ultima autoriparazione dei file (dopo un blackout), se c'e' stata
         "legacy": LEGACY_INSTALL,  # True: sta ancora in ~/vzbot (servizio "vzbot"): la dashboard propone il passaggio a KlippEye
     })
 
@@ -2357,6 +2438,7 @@ except Exception as e:
     print(f"[OPENCV] Auto-start fail: {e}")
 
 if __name__ == "__main__":
+    threading.Thread(target=_repair_at_startup, name="ripara", daemon=True).start()
     print(f"KlippEye backend {RELEASE} (api {API_LEVEL}) - dati in {DATA_DIR} - impostazioni {'lette da ' + BRAIN_CONFIG_PATH if brain_config.saved else 'di serie (nessun file salvato)'}")
     print(f"KlippEye backend running on 0.0.0.0:{PORT}")
     app.run(host="0.0.0.0", port=PORT, debug=False)

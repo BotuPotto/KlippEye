@@ -22,6 +22,7 @@ Klipper + Moonraker + Raspberry Pi. Questo repository è il **contenitore**: que
 
 * Il programma sta in **una cartella sola** (`~/klippeye`), le **tue cose** (soglie del monitor, chiave dell'IA, notifiche) in un'altra
   (`~/printer_data/klippeye`): un aggiornamento tocca solo la prima.
+* Dopo un **blackout** i file rovinati si rimettono a posto da soli a ogni avvio ([guida, parte G](docs/GUIDA.md)).
 * Se qualcosa va storto: **"Torna alla versione precedente"** nella stessa pagina (o Rollback in Mainsail/Fluidd).
 * L'update manager è quello di Moonraker, quindi l'aggiornamento si vede e si lancia anche da Mainsail e Fluidd.
 
@@ -48,7 +49,7 @@ Preparazione (una volta) e passaggi: [docs/GUIDA.md](docs/GUIDA.md), parte C. De
 | `~/klippeye/frontend/klippeye_frontend.html` | la dashboard (un file solo) | l'aggiornamento |
 | `~/klippeye/logos/` | i loghi ufficiali di Voron, RatRig (e VzBot) per la scelta della stampante ([logos/README.md](logos/README.md)) | tu, una volta |
 | `~/klippeye/notifier/klippeye_notifier.py` | il servizio delle notifiche al telefono | l'aggiornamento |
-| `~/klippeye/scripts/` | `install.sh` (si lancia una volta), `passa-a-klippeye.sh` (il passaggio da VzBot), `klippeye` e `klippeye-notifiche` (comandi di soccorso) | l'aggiornamento |
+| `~/klippeye/scripts/` | `install.sh` (si lancia una volta), `passa-a-klippeye.sh` (il passaggio da VzBot), `ripara.sh` (la riparazione dopo un blackout, parte da sola), `klippeye` e `klippeye-notifiche` (comandi di soccorso) | l'aggiornamento |
 | `~/klippeye/systemd/` | i modelli dei servizi `klippeye` e `klippeye-notifier` | l'aggiornamento |
 | `~/klippeye/android/` | i sorgenti dell'app Android (`android/VERSION` = la versione dell'app) | tu, quando fai un'app nuova |
 | `~/klippeye/apk/` | `KlippEye.apk` e `versione.json`: l'ultima app costruita da GitHub | GitHub (workflow `.github/workflows/app.yml`) |
@@ -57,6 +58,7 @@ Preparazione (una volta) e passaggi: [docs/GUIDA.md](docs/GUIDA.md), parte C. De
 | `~/printer_data/klippeye/brain.json` | le soglie del monitor IA (si cambiano dalla dashboard) | la dashboard |
 | `~/printer_data/klippeye/ai.json` | la chiave del servizio IA (visibile solo al tuo utente) | la dashboard |
 | `~/printer_data/klippeye/notifier.json`, `service-account.json` | impostazioni e chiave delle notifiche | tu, una volta |
+| `~/printer_data/klippeye/riparazioni.log`, `ripristino.json` | cosa ha rimesso a posto la riparazione automatica | `ripara.sh` |
 | `~/printer_data/klippeye/backup/` | copie di sicurezza fatte dall'installer | l'installer |
 
 I servizi si chiamano **`klippeye`** (backend + dashboard, porta 8085) e **`klippeye-notifier`** (notifiche). Il nome `klippeye` non va cambiato:

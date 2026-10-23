@@ -5,7 +5,7 @@
 
 Le parti: **P.** il passaggio da VzBot a KlippEye (una volta, solo per chi ha già VzBot), **A.** la preparazione (si fa **una volta sola**),
 **B.** gli aggiornamenti (si fanno **ogni volta** che c'è una release nuova, e non servono più né SSH né il terminale), **C.** l'app Android
-(anche lei si aggiorna da sola, dopo una preparazione una tantum) ed **F.** il nome e il logo della stampante.
+(anche lei si aggiorna da sola, dopo una preparazione una tantum), **F.** il nome e il logo della stampante e **G.** la riparazione automatica dopo un blackout.
 
 ---
 
@@ -143,6 +143,7 @@ Si può fare lo stesso da **Mainsail/Fluidd** → *Machine* → *Update Manager*
 |---|---|
 | La nuova release non funziona come speravi | Dashboard → Aggiornamenti → **Torna alla versione precedente** |
 | La pagina dice che i file sul Raspberry sono "modificati a mano" | Dashboard → Aggiornamenti → **Ripristina i file del programma** (impostazioni e chiavi non si toccano) |
+| La dashboard è **bianca** o non si apre dopo un blackout | Di solito **non devi fare niente**: i file rovinati si rimettono a posto da soli a ogni avvio (parte **G**). Se dopo un minuto non è cambiato nulla: Mainsail → *Update Manager* → **klippeye** → *Recover* |
 | La dashboard non si apre più | Mainsail → *Update Manager* → **klippeye** → *Rollback* (o *Recover*). Oppure SSH: `klippeye stato`, `klippeye log`, `klippeye aggiorna --forza` |
 | Il backend non risponde | SSH: `klippeye riavvia` (oppure Mainsail → *Machine* → servizio `klippeye` → Restart) |
 | Moonraker "non conosce ancora KlippEye" | SSH: `bash ~/klippeye/scripts/install.sh`, poi riavvia Moonraker dal menu Riavvia |
@@ -291,3 +292,25 @@ I loghi dei costruttori sono marchi loro: KlippEye **non li disegna** e usa solo
 (o per sostituire quello di VzBot) metti il file ufficiale nella cartella `logos/` del repository, con questi nomi: `voron.svg` (oppure `.png` o `.webp`), `ratrig.svg`, `vzbot.svg`…
 Si carica come ogni altro file (**Add file → Upload files**, vedi B1), poi dalla dashboard **Aggiorna KlippEye**: il logo compare subito, senza ricostruire niente. Le regole
 (formati, grandezza massima 2 MB) sono in `logos/README.md`. Finché il file non c'è, per quella marca la barra mostra solo il nome.
+
+## G. Dopo un blackout: la riparazione automatica
+
+Se la corrente salta mentre il Raspberry scrive sulla scheda, un file del programma può restare **vuoto o a metà**. Prima il risultato era la dashboard **bianca**
+(oppure il servizio che non partiva) finché non facevi *Recover* da Mainsail. Ora ci pensa KlippEye da solo, **senza internet e senza che tu faccia niente**:
+
+1. **Prima di ogni avvio del servizio** (quindi anche a ogni riaccensione del Raspberry) lo script `scripts/ripara.sh` confronta i file del programma
+   (backend, dashboard, notifiche, comandi, servizi, app) con la copia «buona» che git tiene dentro `~/klippeye/.git`, sullo stesso Raspberry.
+   Quelli vuoti, troncati, rovinati o spariti vengono rimessi a posto uno per uno; gli altri non si toccano. Se git è rimasto «bloccato» dal blackout, toglie il blocco.
+2. **All'avvio del backend** rifà lo stesso controllo (copre anche i Raspberry il cui servizio non ha ancora la riga di cui sopra: se il sistema lo permette senza password,
+   il backend la aggiunge da solo come integrazione `klippeye.service.d/ripara.conf`; `install.sh` poi la sostituisce con quella definitiva).
+3. **Quando apri la dashboard** e la pagina risulta vuota o tagliata, la rimette a posto al volo prima di mostrartela. Se non ci riesce vedi per qualche secondo una pagina
+   «KlippEye sta rimettendo a posto i suoi file» che si ricarica da sola, invece di una pagina bianca.
+
+**Cosa non tocca mai:** le tue impostazioni, la chiave dell'IA, le notifiche, i `.cfg` di Klipper (stanno fuori dal programma) e i file *tuoi* che hai aggiunto dentro la cartella.
+**Cosa non può fare:** se è rovinata la memoria di git stessa (`~/klippeye/.git`) o la scheda SD è guasta, lo scrive nel registro e serve il solito *Recover* da Mainsail
+(o `klippeye aggiorna --forza` da SSH). Non sostituisce il buon senso: un gruppo di continuità (UPS) o lo spegnimento da Mainsail evitano il problema alla radice.
+
+Per sapere cosa è successo: `klippeye ripara log` (SSH) oppure il file `~/printer_data/klippeye/riparazioni.log`; `klippeye stato` mostra l'ultimo ripristino e
+`/api/version` il campo `repair`. Per controllare a mano: `klippeye ripara`.
+**Se modifichi i file del programma a mano** (sconsigliato, ma succede) la riparazione li rimetterebbe com'erano: prima crea un file vuoto
+`~/printer_data/klippeye/non-riparare` (`touch ~/printer_data/klippeye/non-riparare`), e toglilo quando hai finito.

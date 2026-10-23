@@ -2,6 +2,12 @@
 
 ## 1.1.0
 
+* **Riparazione automatica dopo un blackout**: se la corrente salta e un file del programma resta vuoto o a metà (dashboard bianca, servizio che non parte), a ogni avvio
+  `scripts/ripara.sh` confronta i file con la copia buona che git ha sul Raspberry (niente internet) e rimette a posto solo quelli rovinati o spariti, toglie anche il blocco di git
+  rimasto. Parte prima del servizio (`ExecStartPre`), all'avvio del backend e quando la pagina risulta vuota/troncata (che mostra intanto una pagina d'emergenza 503 che si ricarica
+  da sola). Il servizio già installato riceve la riga da solo (integrazione `klippeye.service.d/ripara.conf`) se il sistema lo permette senza password; `install.sh` la rende definitiva.
+  Non tocca dati e impostazioni; si spegne con un file vuoto `~/printer_data/klippeye/non-riparare`. Nuovo comando `klippeye ripara [log]`, registro `riparazioni.log`, campo `repair` in `/api/version`.
+  Guida: parte G.
 **Il progetto si chiama KlippEye** (prima VzBot), in tutto: cartelle, file, servizi, comandi, dashboard e app.
 
 * **Passaggio con un tasto**: chi ha VzBot 1.0.x aggiorna come sempre, poi in *Impostazioni → Aggiornamenti* compare **Passa a KlippEye** (o da terminale:

@@ -36,6 +36,9 @@ case "${1:-aiuto}" in
     for s in $SVC $NSVC moonraker; do
       printf '  %-16s %s\n' "$s" "$($SYSTEMCTL is-active "$s" 2>/dev/null || echo 'non trovato')"
     done
+    if [ -e "$DATA/non-riparare" ]; then echo "  Autoriparazione    SPENTA (c'e' il file $DATA/non-riparare)"
+    elif [ -f "$DATA/ripristino.json" ]; then echo "  Autoriparazione    attiva; ultimo ripristino: $(cat "$DATA/ripristino.json")"
+    else echo "  Autoriparazione    attiva (nessun file rovinato finora)"; fi
     python3 - "$BRAIN_URL" <<'PY'
 import json, sys, urllib.request
 try:
@@ -81,6 +84,12 @@ PY
       *) echo "klippeye notifiche prova | controlla" ;;
     esac
     ;;
+  ripara)
+    # controlla i file del programma e rimette a posto quelli rovinati (dopo un blackout); "klippeye ripara log" = cosa e' stato fatto
+    if [ "${2:-}" = "log" ]; then tail -n 40 "$DATA/riparazioni.log" 2>/dev/null || echo "Nessuna riparazione registrata."; exit 0; fi
+    bash "$REPO/scripts/ripara.sh" && { [ -f "$DATA/ripristino.json" ] && echo "Ultimo ripristino: $(cat "$DATA/ripristino.json")"; }
+    echo "Se i file sono stati rimessi a posto: klippeye riavvia"
+    ;;
   annulla)
     exec bash "$REPO/scripts/install.sh" --annulla
     ;;
@@ -90,6 +99,7 @@ klippeye stato             dice se i servizi sono accesi e se il backend rispond
 klippeye versione          la release installata
 klippeye log [notifiche]   le ultime righe del registro (del backend, o delle notifiche)
 klippeye riavvia [backend|notifiche|tutto]
+klippeye ripara            controlla i file del programma e rimette a posto quelli rovinati da un blackout  (ripara log: cosa e' stato fatto)
 klippeye aggiorna          scarica l'ultima versione e riavvia (come il tasto Aggiorna della dashboard)
 klippeye notifiche prova   manda una notifica di prova al telefono   (anche: controlla)
 klippeye annulla           torna alla disposizione dei file di prima dell'installazione a contenitore (release 1.0)

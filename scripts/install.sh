@@ -358,6 +358,10 @@ if notifier_ready; then NOTIFIER_ON=1; fi
 if [ "$NOTIFIER_ON" = 1 ]; then retire_old_units tutti; else retire_old_units senza-notifiche; fi
 BRAIN_CHANGED=0
 if install_unit klippeye; then BRAIN_CHANGED=1; fi
+# l'integrazione "klippeye.service.d/ripara.conf" (messa dal backend) non serve piu': la riga e' nel file del servizio
+if [ -f "$UNIT_DIR/klippeye.service.d/ripara.conf" ]; then
+  sudo_run rm -f "$UNIT_DIR/klippeye.service.d/ripara.conf"; sudo_run rmdir "$UNIT_DIR/klippeye.service.d" 2>/dev/null; BRAIN_CHANGED=1
+fi
 NOTIFIER_CHANGED=0
 if [ "$NOTIFIER_ON" = 1 ]; then
   if install_unit klippeye-notifier; then NOTIFIER_CHANGED=1; fi
