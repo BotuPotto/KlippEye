@@ -1,7 +1,7 @@
 name: App Android
 
-# Costruisce l'APK dell'app VzBot sul computer di GitHub, lo firma e lo mette nella cartella apk/ del repository.
-# Il Raspberry lo riceve con il normale «Aggiorna» di VzBot e la dashboard (Impostazioni → Aggiornamenti → App Android)
+# Costruisce l'APK dell'app KlippEye sul computer di GitHub, lo firma e lo mette nella cartella apk/ del repository.
+# Il Raspberry lo riceve con il normale «Aggiorna» di KlippEye e la dashboard (Impostazioni → Aggiornamenti → App Android)
 # lo offre al telefono. Si mette in moto da solo quando in android/ cambia qualcosa E il numero in android/VERSION è nuovo;
 # oppure a mano da Actions → App Android → Run workflow.
 # Cosa serve e come si fa: docs/GUIDA.md, «L'app Android». I passi veri sono in ci/app_ci.py (provato a parte).
@@ -39,9 +39,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 40
     env:
-      # La chiave di firma sta in android/chiave/vzbot.p12 (criptata); la password è il segreto che hai creato su GitHub
-      VZBOT_KEYSTORE: ${{ github.workspace }}/android/chiave/vzbot.p12
-      VZBOT_KEYSTORE_PASSWORD: ${{ secrets.VZBOT_CHIAVE_PASSWORD }}
+      # La chiave di firma sta in android/chiave/klippeye.p12 (criptata); la password è il segreto che hai creato su GitHub
+      KLIPPEYE_KEYSTORE: ${{ github.workspace }}/android/chiave/klippeye.p12
+      # (se hai ancora il vecchio segreto VZBOT_CHIAVE_PASSWORD va bene lo stesso: vale come password della nuova chiave)
+      KLIPPEYE_KEYSTORE_PASSWORD: ${{ secrets.KLIPPEYE_CHIAVE_PASSWORD || secrets.VZBOT_CHIAVE_PASSWORD }}
       # Facoltativo: il file di Firebase per le notifiche (senza, l'app si costruisce lo stesso ma senza notifiche)
       GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
     steps:
@@ -111,7 +112,7 @@ jobs:
           {
             echo "### App Android"
             if [ "$ESITO" = "success" ] && [ "$COSTRUITA" = "true" ]; then
-              echo "App **$VERSIONE** costruita e salvata in \`apk/\`. Sul Raspberry: dashboard → Impostazioni → Aggiornamenti → «Controlla», poi «Aggiorna VzBot»; infine «Aggiorna l'app» sul telefono."
+              echo "App **$VERSIONE** costruita e salvata in \`apk/\`. Sul Raspberry: dashboard → Impostazioni → Aggiornamenti → «Controlla», poi «Aggiorna KlippEye»; infine «Aggiorna l'app» sul telefono."
             elif [ "$ESITO" = "success" ]; then
               echo "Niente da costruire: $MOTIVO."
             else
