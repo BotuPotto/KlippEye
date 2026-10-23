@@ -4,7 +4,7 @@
     android:layout_height="match_parent"
     android:background="@color/vz_bg">
 
-    <!-- Fondo della splash: la stessa atmosfera della pagina (blu in alto, viola a destra, verde acqua in basso).
+    <!-- Fondo della splash: la stessa atmosfera della pagina (viola scuro in alto che sfuma verso il nero).
          Sta sotto la WebView: quando la pagina è pronta la WebView lo copre e basta nascondere `splash`. -->
     <ImageView
         android:id="@+id/splash_bg"

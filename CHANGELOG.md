@@ -1,5 +1,20 @@
 # Cosa cambia in ogni release
 
+## 1.0.1
+
+Nuovo logo e nuovi colori: **KlippEye**.
+
+* **Logo KlippEye** (la «lente stampata»: strati viola che formano un occhio, con l'ugello sopra e la pupilla al centro) al posto di quello di VzBot:
+  nella barra in alto, nel menu delle impostazioni, nell'icona della scheda del browser e nella schermata «aggiungi alla home».
+* **Barra in alto**: la scritta *VzBot.287* diventa **KlippEye** (*Klipp* bianco, *Eye* viola). Il font della scritta (Outfit, 1 KB) è dentro la pagina: funziona anche senza internet.
+* **Colori della dashboard**: l'accento non è più l'azzurro di One UI ma il **viola chiaro del logo** (`#b79cff`): tasto di homing, tasti di conferma, barre di avanzamento e
+  cursori, interruttori e caselle spuntate, evidenziazione dei tasti della barra in basso, schede e file selezionati. I tasti pieni hanno il testo scuro (si leggeva male il bianco sul viola chiaro).
+  Lo **sfondo** è il viola scuro del riquadro del logo che sfuma verso il nero. I file di codice (`.py`, `.sh`…) passano dal viola all'azzurro per restare distinguibili dai file di configurazione.
+* Sui telefoni larghi 341-374 px (per esempio 360) il logo ora si vede anche nella barra in alto.
+* **App Android 1.0.1**: icona con il logo sul riquadro viola scuro (come fondo dell'icona), icona delle notifiche e splash nuove, colore d'accento viola.
+  GitHub costruisce l'app da solo perché `android/VERSION` è già alzato; poi, nell'app, **Aggiorna l'app**.
+* Restano per ora i nomi «VzBot» (titolo della scheda, servizi, cartelle, nome dell'app): il cambio di nome completo a KlippEye è un lavoro a parte.
+
 ## 1.0.0
 
 Prima release "a contenitore": programma e dati separati, aggiornamento dalla dashboard.

@@ -1,6 +1,6 @@
 # VzBot — app Android
 
-L'app è una finestra a tutto schermo (WebView) sulla dashboard che gira sul Raspberry, con icona e splash VzBot, notifiche
+L'app è una finestra a tutto schermo (WebView) sulla dashboard che gira sul Raspberry, con icona e splash KlippEye, notifiche
 push, download dei file e **aggiornamento da sola**. Versione attuale: il numero scritto in [`VERSION`](VERSION).
 
 ```
@@ -105,8 +105,10 @@ Arrivano da Firebase Cloud Messaging anche con app chiusa e schermo spento. Il R
 
 ## Icona e splash
 
-Stile One UI 9 (fondo `#040507`, bagliori blu/viola/verde acqua, «pillola» di vetro per lo stato). Icona adattiva con fondo e logo su livelli separati (anche tematica su Android 13+).
-Le immagini si rigenerano con `python3 tools/genera_icone.py` (Pillow e numpy; il logo è in `tools/assets/logo_vzbot.png`). Colori in `res/values/colors.xml`, temi in `res/values/` e `res/values-v31/`.
+Stile One UI 9 con i colori del logo KlippEye: accento viola chiaro `#b79cff`, fondo `#040507` con il viola scuro `#7a5cff` che sfuma verso il nero (come la dashboard), «pillola» di vetro per lo stato.
+L'icona adattiva ha per fondo il riquadro viola scuro del logo e, sopra, il logo su un livello separato (anche la versione tematica di Android 13+, a un solo colore); la splash e la notifica usano il logo senza riquadro.
+Le immagini si rigenerano con `python3 tools/genera_icone.py` e `python3 tools/genera_icona_notifica.py` (Pillow e numpy; il logo è in `tools/assets/`: `klippeye_g4.svg` è il sorgente, `logo_klippeye.png` a colori e `logo_klippeye_mono.png` a un colore).
+Colori in `res/values/colors.xml`, temi in `res/values/` e `res/values-v31/`.
 
 ## Prove
 

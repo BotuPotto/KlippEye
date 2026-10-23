@@ -66,6 +66,10 @@ file in quella cartella e rilancia `bash ~/vzbot/scripts/install.sh`. Poi: `vzbo
 
 ## B. Aggiornare (ogni volta)
 
+> **La release 1.0.1 (logo e colori KlippEye)** si installa così: **B1** (carica i file su GitHub); poi **aspetta il ✓ verde** nella scheda **Actions** → *App Android*
+> (5-10 minuti: in questa release `android/VERSION` è già `1.0.1`, quindi GitHub costruisce l'app da solo, **non devi alzare nessun numero**);
+> poi **B2** (*Aggiorna VzBot*: porta sul Raspberry la dashboard e l'app nuova); infine, sul telefono, i passi 4 e 5 di **C7**.
+
 ### B1. Carica i file nuovi su GitHub (dal PC)
 
 1. Estrai il pacchetto della release nuova (per esempio `VzBot-repo-1.0.1.zip`).

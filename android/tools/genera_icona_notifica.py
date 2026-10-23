@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Icona piccola delle notifiche (la sagoma bianca che compare nella barra di stato).
 
-Android vuole un'immagine bianca su fondo trasparente, 24 dp: la sagoma e' presa dal logo VzBot (tools/assets/logo_vzbot.png),
-identico, senza colori. Scrive res/drawable-<densita>/ic_stat_vzbot.png.   Uso:  python3 tools/genera_icona_notifica.py
+Android vuole un'immagine bianca su fondo trasparente, 24 dp: la sagoma e' quella del logo KlippEye (tools/assets/logo_klippeye_mono.png,
+la stessa del logo a colori, con un anello vuoto attorno alla pupilla). Scrive res/drawable-<densita>/ic_stat_vzbot.png.   Uso:  python3 tools/genera_icona_notifica.py
 (serve Pillow)
 """
 import os
@@ -15,7 +15,7 @@ MARGIN = 0.06  # aria attorno alla sagoma, in frazione del lato
 
 
 def main():
-    alpha = Image.open(os.path.join(HERE, "assets", "logo_vzbot.png")).convert("RGBA").split()[-1]
+    alpha = Image.open(os.path.join(HERE, "assets", "logo_klippeye_mono.png")).convert("RGBA").split()[-1]
     alpha = alpha.crop(alpha.getbbox())
     for density, side in SIZES.items():
         room = side * (1 - 2 * MARGIN)
