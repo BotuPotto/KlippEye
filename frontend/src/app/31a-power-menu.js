@@ -20,10 +20,10 @@ const CAMERA_RELOAD_AFTER_RESTART_MS = 7000;
 const capitalize = (text) => (text ? text.charAt(0).toUpperCase() + text.slice(1) : text);
 /** Friendly names of the services of KlippEye (the others keep their own name, capitalised). */
 // (vzbot, vzbot-notifier: the names before the move to KlippEye, see scripts/passa-a-klippeye.sh)
-const SERVICE_LABELS = { klippeye: "KlippEye (backend)", "klippeye-notifier": "KlippEye notifiche", vzbot: "KlippEye (backend)", "vzbot-notifier": "KlippEye notifiche" };
+const SERVICE_LABELS = { klippeye: "KlippEye (backend)", "klippeye-notifier": tx("KlippEye notifications"), vzbot: "KlippEye (backend)", "vzbot-notifier": tx("KlippEye notifications") };
 const serviceLabel = (name) => SERVICE_LABELS[name] || capitalize(name);
 const isCameraService = (name) => /crowsnest|webcam|camera|streamer|mjpg/i.test(name);
-const SERVICE_STATE_TEXT = { active: "attivo", inactive: "fermo", failed: "in errore", activating: "in avvio", deactivating: "in arresto" };
+const SERVICE_STATE_TEXT = { active: txc("service", "running"), inactive: txc("service", "stopped"), failed: txc("service", "failed"), activating: txc("service", "starting"), deactivating: txc("service", "stopping") };
 
 /** The services Moonraker manages, as [{ name, state, sub }] sorted by name (klipper_mcu is Klipper's own helper: not offered, as in Mainsail). */
 async function loadServices() {
@@ -35,28 +35,28 @@ async function loadServices() {
     .map((name) => ({ name, state: (states[name] || {}).active_state || "", sub: (states[name] || {}).sub_state || "" }));
 }
 
-const PRINT_WARNING = "Una stampa è in corso e fallirà!";
+const PRINT_WARNING = tx("A print is running and it will fail!");
 
 /** What each confirmation says. `always`: asked even when nothing prints. `service`: the systemd name, for the ones that need their own words. */
 function powerConfirmation(kind, label, service) {
   if (kind === "restart" && (service === "klippeye" || service === "vzbot")) {
-    return { title: "Riavviare il backend?", message: "Il backend (dashboard, monitor IA, collegamento con Moonraker) si riavvia: per qualche secondo la pagina non risponde, poi si ricarica da sola. Una stampa in corso non si ferma.", confirmLabel: "Riavvia" };
+    return { title: tx("Restart the backend?"), message: tx("The backend (dashboard, AI monitor, link to Moonraker) restarts: the page does not answer for a few seconds, then reloads by itself. A running print does not stop."), confirmLabel: tx("Restart") };
   }
   switch (kind) {
     case "klipper":
-      return { title: "Riavviare Klipper?", message: "Klipper viene riavviato e la configurazione ricaricata.", confirmLabel: "Riavvia" };
+      return { title: tx("Restart Klipper?"), message: tx("Klipper restarts and the configuration is reloaded."), confirmLabel: tx("Restart") };
     case "firmware":
-      return { title: "Riavviare il firmware?", message: "Klipper e il firmware delle schede vengono riavviati.", confirmLabel: "Riavvia" };
+      return { title: tx("Restart the firmware?"), message: tx("Klipper and the firmware of the boards restart."), confirmLabel: tx("Restart") };
     case "restart":
-      return { title: "Riavviare " + label + "?", message: "Il servizio viene riavviato.", confirmLabel: "Riavvia" };
+      return { title: tx("Restart {service}?", { service: label }), message: tx("The service restarts."), confirmLabel: tx("Restart") };
     case "start":
-      return { title: "Avviare " + label + "?", message: "Il servizio viene avviato.", confirmLabel: "Avvia" };
+      return { title: tx("Start {service}?", { service: label }), message: tx("The service starts."), confirmLabel: tx("Start") };
     case "stop":
-      return { title: "Fermare " + label + "?", message: "Il servizio viene fermato finché non lo riavvii.", confirmLabel: "Ferma" };
+      return { title: tx("Stop {service}?", { service: label }), message: tx("The service stops until you start it again."), confirmLabel: tx("Stop") };
     case "reboot":
-      return { always: true, title: "Riavviare il Raspberry?", message: "Il Raspberry si riavvia: stampante, camera e dashboard restano irraggiungibili per circa un minuto.", confirmLabel: "Riavvia" };
+      return { always: true, title: tx("Restart the Raspberry?"), message: tx("The Raspberry restarts: printer, camera and dashboard cannot be reached for about a minute."), confirmLabel: tx("Restart") };
     default:
-      return { always: true, title: "Spegnere il Raspberry?", message: "Il Raspberry si spegne e la dashboard non risponde più. Per riaccenderlo devi togliere e ridare l'alimentazione.", confirmLabel: "Spegni" };
+      return { always: true, title: tx("Shut down the Raspberry?"), message: tx("The Raspberry shuts down and the dashboard stops answering. To turn it on again you have to unplug and plug the power back in."), confirmLabel: tx("Shut down") };
   }
 }
 
@@ -91,7 +91,7 @@ function usePowerMenu({ klipper, printing }) {
     const label = serviceLabel(service);
     const ok = await klipper.serviceAction(action, service);
     if (ok === true) {
-      toast.notice({ restart: "Riavvio di ", start: "Avvio di ", stop: "Arresto di " }[action] + label + " richiesto", 2400);
+      toast.notice({ restart: tx("{service}: restart requested", { service: label }), start: tx("{service}: start requested", { service: label }), stop: tx("{service}: stop requested", { service: label }) }[action], 2400);
       if (isCameraService(service) && action !== "stop") setTimeout(requestCameraReload, CAMERA_RELOAD_AFTER_RESTART_MS);
     }
   };
@@ -127,7 +127,7 @@ function ServiceRow({ service, menu }) {
   const label = serviceLabel(name);
   const stopped = state === "inactive";
   const tone = state === "active" ? "on" : state === "failed" ? "bad" : "off";
-  const stateText = (SERVICE_STATE_TEXT[state] || state || "stato sconosciuto") + (sub && sub !== state ? " • " + sub : "");
+  const stateText = (SERVICE_STATE_TEXT[state] || state || tx("unknown state")) + (sub && sub !== state ? " • " + sub : "");
   return h(
     "div",
     { className: "svc-row" },
@@ -137,12 +137,12 @@ function ServiceRow({ service, menu }) {
       "span",
       { className: "svc-row__actions" },
       stopped
-        ? h("button", { className: "svc-row__btn", "aria-label": "Avvia " + label, title: "Avvia", onClick: () => menu.service("start", name) }, h(Icons.Play, { size: 18 }))
-        : h("button", { className: "svc-row__btn", "aria-label": "Riavvia " + label, title: "Riavvia", onClick: () => menu.service("restart", name) }, h(Icons.RotateCw, { size: 18 })),
+        ? h("button", { className: "svc-row__btn", "aria-label": tx("Start ") + label, title: tx("Start"), onClick: () => menu.service("start", name) }, h(Icons.Play, { size: 18 }))
+        : h("button", { className: "svc-row__btn", "aria-label": tx("Restart ") + label, title: tx("Restart"), onClick: () => menu.service("restart", name) }, h(Icons.RotateCw, { size: 18 })),
       // Moonraker cannot stop itself from here, nor the backend that serves this page (nothing would be left to start it again): the place stays, empty
       CUTS_CONNECTION.includes(name)
         ? h("span", { className: "svc-row__btn svc-row__btn--none", "aria-hidden": "true" })
-        : h("button", { className: "svc-row__btn svc-row__btn--stop", "aria-label": "Ferma " + label, title: "Ferma", disabled: stopped, onClick: () => menu.service("stop", name) }, h(Icons.Stop, { size: 18 })),
+        : h("button", { className: "svc-row__btn svc-row__btn--stop", "aria-label": tx("Stop ") + label, title: tx("Stop"), disabled: stopped, onClick: () => menu.service("stop", name) }, h(Icons.Stop, { size: 18 })),
     ),
   );
 }
@@ -154,9 +154,9 @@ function PowerSheet({ menu, klipper }) {
   const noKlipper = Boolean(view) && !view.restart && view.phase === "disconnected";
   const restarting = Boolean(view) && Boolean(view.restart);
   let serviceList;
-  if (!services) serviceList = h("div", { className: "oui-notice" }, "Leggo i servizi...");
-  else if (services.failed) serviceList = h("div", { className: "oui-notice" }, "Elenco dei servizi non disponibile: Moonraker non risponde.");
-  else if (services.list.length === 0) serviceList = h("div", { className: "oui-notice" }, "Moonraker non gestisce nessun servizio.");
+  if (!services) serviceList = h("div", { className: "oui-notice" }, tx("Reading the services..."));
+  else if (services.failed) serviceList = h("div", { className: "oui-notice" }, tx("List of services not available: Moonraker does not answer."));
+  else if (services.list.length === 0) serviceList = h("div", { className: "oui-notice" }, tx("Moonraker manages no services."));
   else serviceList = h("div", { className: "oui-list" }, services.list.map((service) => h(ServiceRow, { key: service.name, service, menu })));
 
   return h(
@@ -164,12 +164,12 @@ function PowerSheet({ menu, klipper }) {
     { className: "sheet-overlay sheet-overlay--power", onClick: (e) => e.target === e.currentTarget && menu.close() },
     h(
       "div",
-      { className: "sheet-card sheet-card--column", role: "dialog", "aria-label": "Alimentazione e servizi" },
+      { className: "sheet-card sheet-card--column", role: "dialog", "aria-label": tx("Power and services") },
       h(
         "div",
         { className: "power-sheet__head" },
         h("div", { className: "dialog-head__icon" }, h(Icons.Power)),
-        h("div", null, h("div", { className: "dialog-title" }, "Alimentazione e servizi"), h("div", { className: "dialog-sub" }, menu.printing ? "Stampa in corso: attenzione" : "Klipper, servizi e Raspberry")),
+        h("div", null, h("div", { className: "dialog-title" }, tx("Power and services")), h("div", { className: "dialog-sub" }, menu.printing ? tx("Printing: be careful") : tx("Klipper, services and Raspberry"))),
       ),
       h(
         "div",
@@ -182,21 +182,21 @@ function PowerSheet({ menu, klipper }) {
             h(
               "div",
               { className: "oui-list" },
-              h(FileActionRow, { icon: h(Icons.RotateCw), title: "Klipper restart", subtitle: "Ricarica la configurazione e riavvia Klipper", disabled: restarting, onClick: () => menu.restartKlipper(false) }),
-              h(FileActionRow, { icon: h(Icons.Chip), title: "Firmware restart", subtitle: "Riavvia anche il firmware delle schede", disabled: restarting, onClick: () => menu.restartKlipper(true) }),
+              h(FileActionRow, { icon: h(Icons.RotateCw), title: "Klipper restart", subtitle: tx("Reload the configuration and restart Klipper"), disabled: restarting, onClick: () => menu.restartKlipper(false) }),
+              h(FileActionRow, { icon: h(Icons.Chip), title: "Firmware restart", subtitle: tx("Also restart the firmware of the boards"), disabled: restarting, onClick: () => menu.restartKlipper(true) }),
             ),
           ),
-        h("div", { className: "power-sheet__label" }, "Servizi"),
+        h("div", { className: "power-sheet__label" }, tx("Services")),
         serviceList,
         h("div", { className: "power-sheet__label" }, "Raspberry"),
         h(
           "div",
           { className: "oui-list" },
-          h(FileActionRow, { icon: h(Icons.RotateCw), title: "Riavvia il Raspberry", subtitle: "Spegne e riaccende il computer della stampante", disabled: restarting, onClick: menu.rebootHost }),
-          h(FileActionRow, { icon: h(Icons.Power), title: "Spegni il Raspberry", subtitle: "Per riaccenderlo serve togliere e ridare l'alimentazione", danger: true, disabled: restarting, onClick: menu.shutdownHost }),
+          h(FileActionRow, { icon: h(Icons.RotateCw), title: tx("Restart the Raspberry"), subtitle: tx("Turns the printer's computer off and on again"), disabled: restarting, onClick: menu.rebootHost }),
+          h(FileActionRow, { icon: h(Icons.Power), title: tx("Shut down the Raspberry"), subtitle: tx("To turn it on again, unplug and plug the power back in"), danger: true, disabled: restarting, onClick: menu.shutdownHost }),
         ),
       ),
-      h("div", { className: "sheet-footer" }, h("button", { className: "oui-btn", onClick: menu.close }, "Chiudi")),
+      h("div", { className: "sheet-footer" }, h("button", { className: "oui-btn", onClick: menu.close }, tx("Close"))),
     ),
   );
 }

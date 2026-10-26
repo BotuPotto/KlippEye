@@ -112,7 +112,7 @@ function useFileList(active, metadataLimit = FILES_METADATA_LIMIT) {
           } catch (e) {}
         }
       } catch (e) {
-        if (!cancelled) setState((previous) => ({ ...previous, loading: false, error: e.message || "Errore" }));
+        if (!cancelled) setState((previous) => ({ ...previous, loading: false, error: e.message || tx("Error") }));
       }
     };
 
@@ -159,9 +159,9 @@ function FileCard({ file, meta, thumbnail, onPrint, onMenu, selected, onSelect }
     ),
     h(
       "button",
-      { onClick: () => onPrint({ path: file.path, fileName, thumbnail }), "aria-label": "Avvia stampa", className: "oui-btn oui-btn--accent-soft oui-btn--sm oui-btn--block" },
-      h("span", { className: "file-card__print-long" }, "Avvia stampa"),
-      h("span", { className: "file-card__print-short" }, "Stampa"),
+      { onClick: () => onPrint({ path: file.path, fileName, thumbnail }), "aria-label": tx("Start print"), className: "oui-btn oui-btn--accent-soft oui-btn--sm oui-btn--block" },
+      h("span", { className: "file-card__print-long" }, tx("Start print")),
+      h("span", { className: "file-card__print-short" }, txc("verb", "Print")),
     ),
   );
 }
@@ -169,9 +169,9 @@ function FileCard({ file, meta, thumbnail, onPrint, onMenu, selected, onSelect }
 function FilesCard({ list, onPrint, onMenu, selectedPath, onSelect }) {
   const notice = (className, text) => h("div", { className: cx("oui-caption", className) }, text);
   let body;
-  if (list.loading) body = notice("files-notice", "Caricamento...");
+  if (list.loading) body = notice("files-notice", tx("Loading..."));
   else if (list.error) body = notice("files-notice", list.error);
-  else if (list.files.length === 0) body = notice("files-notice", "Nessun file");
+  else if (list.files.length === 0) body = notice("files-notice", tx("No files"));
   else
     body = list.files.map((file) =>
       h(FileCard, {
@@ -189,15 +189,15 @@ function FilesCard({ list, onPrint, onMenu, selectedPath, onSelect }) {
   return h(
     Card,
     null,
-    h(CardHeader, { title: "File di stampa" }),
+    h(CardHeader, { title: tx("Print files") }),
     h(
       "div",
       { className: "files-sort" },
       h("span", { className: "files-sort__icon" }, h(Icons.Sort)),
-      h("span", { className: "files-sort__label" }, "Ordinati dal più recente"),
-      h("span", { className: "oui-badge" }, list.loading ? "..." : list.files.length + " file"),
+      h("span", { className: "files-sort__label" }, tx("Newest first")),
+      h("span", { className: "oui-badge" }, list.loading ? "..." : list.files.length + tx(" files")),
     ),
-    !list.loading && !list.error && list.files.length > 0 && h("div", { className: "oui-caption files-hint" }, "Tieni premuto su un file per aprirlo nell'editor o eliminarlo"),
+    !list.loading && !list.error && list.files.length > 0 && h("div", { className: "oui-caption files-hint" }, tx("Long-press a file to open it in the editor or delete it")),
     h("div", { className: "grid grid-cols-2 files-grid" }, body),
   );
 }
@@ -213,7 +213,7 @@ function PrintConfirmDialog({ job, onConfirm, onCancel }) {
     h(
       "div",
       { className: "confirm-card", onClick: (e) => e.stopPropagation() },
-      h("div", { className: "dialog-title mb-4" }, "Conferma stampa"),
+      h("div", { className: "dialog-title mb-4" }, tx("Confirm print")),
       h(
         "div",
         { className: "print-preview oui-well" },
@@ -222,15 +222,15 @@ function PrintConfirmDialog({ job, onConfirm, onCancel }) {
       h(
         "div",
         { className: "dialog-text" },
-        "Vuoi far partire la stampa di ",
+        tx("Start printing "),
         h("b", null, job.fileName || job.path || ""),
         "?",
       ),
       h(
         "div",
         { className: "oui-btn-row" },
-        h("button", { onClick: onCancel, className: "oui-btn" }, "Annulla"),
-        h("button", { onClick: onConfirm, className: "oui-btn oui-btn--primary" }, "Stampa"),
+        h("button", { onClick: onCancel, className: "oui-btn" }, tx("Cancel")),
+        h("button", { onClick: onConfirm, className: "oui-btn oui-btn--primary" }, txc("verb", "Print")),
       ),
     ),
   );

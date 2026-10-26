@@ -16,7 +16,7 @@ function useSaveConfig(onRestart = noop) {
     setBusy(true);
     fireGcode("SAVE_CONFIG");
     moonraker.saveConfig().catch(noop);
-    toast.notice("SAVE_CONFIG inviato - riavvio...", SAVE_TOAST_MS);
+    toast.notice(tx("SAVE_CONFIG sent - restarting..."), SAVE_TOAST_MS);
     onRestart();
     setDialogOpen(false);
     setTimeout(() => setBusy(false), SAVE_BUTTON_DIM_MS);
@@ -31,13 +31,13 @@ function SaveConfigDialog({ open, onConfirm, onCancel }) {
     tone: "neutral",
     icon: h(Icons.Save),
     title: "SAVE_CONFIG",
-    subtitle: "Salva configurazione",
+    subtitle: tx("Save configuration"),
     message: [
-      "Verrà eseguito ",
+      tx("This will run "),
       h("code", { key: "cmd" }, "SAVE_CONFIG"),
-      " — Klipper salverà la configurazione e riavvierà il firmware. Confermi?",
+      tx(" — Klipper will save the configuration and restart the firmware. Confirm?"),
     ],
-    confirmLabel: "Salva",
+    confirmLabel: tx("Save"),
     onConfirm,
     onCancel,
   });

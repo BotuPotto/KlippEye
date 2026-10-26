@@ -1,6 +1,6 @@
 /* ============================================================================
    44a · BED & GANTRY TOOLS
-   The "Calibra" menu of the Movement card:
+   The "Calibrate" menu of the Movement card:
      · SCREWS_TILT_CALCULATE   how much to turn each bed screw (result sheet);
      · CARTOGRAPHER_AXIS_TWIST_COMPENSATION AXIS=X|Y   measures the twist of an
        axis with the probe, then offers SAVE_CONFIG.
@@ -42,10 +42,10 @@ function buildBedTools(capabilities) {
     tools.push({
       id: "screws",
       kind: "screws",
-      group: "Piano di stampa",
+      group: tx("Print bed"),
       title: "Screws tilt calculate",
-      subtitle: "Quanto girare ogni vite del piano",
-      short: "Viti piano",
+      subtitle: tx("How much to turn each bed screw"),
+      short: tx("Screws"),
       icon: h(Icons.Screw),
       script: "SCREWS_TILT_CALCULATE",
       observe: bedToolsApi.screwsStatus,
@@ -57,14 +57,14 @@ function buildBedTools(capabilities) {
         id: "twist-" + axis.toLowerCase(),
         kind: "twist",
         group: "Axis twist compensation · Cartographer",
-        title: "Asse " + axis,
-        subtitle: "Compensa la torsione lungo " + axis,
+        title: tx("Axis ") + axis,
+        subtitle: tx("Compensate the twist along ") + axis,
         short: "Twist " + axis,
         axis,
         icon: h(Icons.Wave),
         script: (capabilities.twistCommand || "") + " AXIS=" + axis,
         observe: bedToolsApi.pendingTwist,
-        unavailable: capabilities.twistCommand ? null : "Aggiungi [axis_twist_compensation] a printer.cfg",
+        unavailable: capabilities.twistCommand ? null : tx("Add [axis_twist_compensation] to printer.cfg"),
       });
     }
   }
@@ -93,7 +93,7 @@ function useBedTools({ capabilities, homedAxes, lockReason, onSaveConfig }) {
 
   const tools = buildBedTools(capabilities);
   const homed = ["x", "y", "z"].every((axis) => (homedAxes || "").includes(axis));
-  const lockedReason = lockReason || (!homed ? "Esegui prima l'homing" : null);
+  const lockedReason = lockReason || (!homed ? tx("Home the printer first") : null);
 
   const end = (current) => {
     if (runRef.current !== current) return false; // already ended (or replaced)
@@ -103,7 +103,7 @@ function useBedTools({ capabilities, homedAxes, lockReason, onSaveConfig }) {
   };
   const fail = (current, message) => {
     if (!end(current)) return;
-    const text = (message || "errore sconosciuto").replace(/^\s*!!\s*/, "").slice(0, BED_TOOL_ERROR_MAX_CHARS);
+    const text = (message || tx("unknown error")).replace(/^\s*!!\s*/, "").slice(0, BED_TOOL_ERROR_MAX_CHARS);
     toast.action(current.tool.short + ": " + text);
   };
   const complete = (current, observed) => {
@@ -129,7 +129,7 @@ function useBedTools({ capabilities, homedAxes, lockReason, onSaveConfig }) {
       if (busy) return;
       busy = true;
       try {
-        if (Date.now() - run.startedAt > BED_TOOL_TIMEOUT_MS) return fail(run, "nessuna risposta da Klipper");
+        if (Date.now() - run.startedAt > BED_TOOL_TIMEOUT_MS) return fail(run, tx("no answer from Klipper"));
         const observed = await run.tool.observe().catch(() => null);
         if (observed !== null && JSON.stringify(observed) !== run.baseline) complete(run, observed);
       } finally {
@@ -184,7 +184,7 @@ function useBedTools({ capabilities, homedAxes, lockReason, onSaveConfig }) {
 }
 
 /* ---------------------------------------------------------------------------
-   Movement card: the "Calibra" button and its menu
+   Movement card: the "Calibrate" button and its menu
    ------------------------------------------------------------------------- */
 function BedToolsMenuButton({ bedTools }) {
   const menu = useDropdown();
@@ -208,7 +208,7 @@ function BedToolsMenuButton({ bedTools }) {
       "button",
       { ref: menu.anchorRef, className: cx("oui-btn oui-btn--accent-soft", Boolean(run) && "is-busy"), disabled: Boolean(run), "aria-haspopup": "menu", "aria-expanded": menu.open, onClick: menu.toggle },
       run ? h(Icons.Refresh, { size: 18 }) : h(Icons.Level),
-      run ? run.tool.short + "…" : "Calibra",
+      run ? run.tool.short + "…" : tx("Calibrate"),
       !run && h("span", { className: cx("menu-chevron", menu.open && "is-open") }, h(Icons.Chevron, { size: 16 })),
     ),
     h(
@@ -240,7 +240,7 @@ function ScrewRow({ id, result, layout }) {
   const adjust = result.adjust || "00:00";
   const done = !result.is_base && /^0+:0+$/.test(adjust);
   let badge;
-  if (result.is_base) badge = h("span", { className: "oui-badge oui-badge--info" }, "Riferimento");
+  if (result.is_base) badge = h("span", { className: "oui-badge oui-badge--info" }, tx("Reference"));
   else if (done) badge = h("span", { className: "oui-badge oui-badge--ok" }, "OK");
   else badge = h("span", { className: "oui-badge oui-badge--warn" }, result.sign === "CCW" ? h(Icons.RotateCcw, { size: 14 }) : h(Icons.RotateCw, { size: 14 }), (result.sign || "") + " " + adjust);
 
@@ -266,23 +266,23 @@ function ScrewsSheet({ controller }) {
       h(
         "div",
         { className: "sheet-header sheet-header--bar" },
-        h("div", null, h("div", { className: "dialog-title" }, "Viti del piano"), h("div", { className: "dialog-sub" }, "Screws tilt calculate")),
-        h("button", { className: "dialog-close", onClick: controller.closeScrews, "aria-label": "Chiudi" }, "✕"),
+        h("div", null, h("div", { className: "dialog-title" }, tx("Bed screws")), h("div", { className: "dialog-sub" }, "Screws tilt calculate")),
+        h("button", { className: "dialog-close", onClick: controller.closeScrews, "aria-label": tx("Close") }, "✕"),
       ),
       h(
         "div",
         { className: "screws-body" },
-        screws.error && h("div", { className: "oui-tile oui-tile--danger screws-alert" }, "Una o più viti superano la deviazione massima consentita: regola e ripeti la misura."),
+        screws.error && h("div", { className: "oui-tile oui-tile--danger screws-alert" }, tx("One or more screws exceed the maximum allowed deviation: adjust them and measure again.")),
         ids.length === 0
-          ? h("div", { className: "oui-notice" }, "Klipper non ha restituito risultati.")
+          ? h("div", { className: "oui-notice" }, tx("Klipper returned no results."))
           : h("div", { className: "oui-list" }, ids.map((id) => h(ScrewRow, { key: id, id, result: screws.results[id], layout: screwLayout }))),
-        h("div", { className: "oui-caption screws-legend" }, "CW = senso orario, CCW = antiorario. 01:15 vale un giro e 15 minuti (come le lancette di un orologio)."),
+        h("div", { className: "oui-caption screws-legend" }, tx("CW = clockwise, CCW = counter-clockwise. 01:15 means one turn and 15 minutes (like the hands of a clock).")),
       ),
       h(
         "div",
         { className: "sheet-footer" },
-        h("button", { className: "oui-btn", onClick: controller.retryScrews }, "Riprova"),
-        h("button", { className: "oui-btn oui-btn--primary", onClick: controller.closeScrews }, "Fatto"),
+        h("button", { className: "oui-btn", onClick: controller.retryScrews }, tx("Retry")),
+        h("button", { className: "oui-btn oui-btn--primary", onClick: controller.closeScrews }, tx("Done")),
       ),
     ),
   );
@@ -299,11 +299,11 @@ function BedToolsDialogs({ controller }) {
       open: Boolean(twistDone),
       tone: "neutral",
       icon: h(Icons.Wave),
-      title: "Compensazione calcolata",
-      subtitle: twistDone ? "Axis twist · asse " + twistDone.axis : "",
-      message: ["I valori sono attivi ma non ancora scritti in printer.cfg. ", h("code", { key: "cmd" }, "SAVE_CONFIG"), " li salva e riavvia Klipper. Salvare ora?"],
-      confirmLabel: "Salva",
-      cancelLabel: "Più tardi",
+      title: tx("Compensation calculated"),
+      subtitle: twistDone ? tx("Axis twist · axis ") + twistDone.axis : "",
+      message: [tx("The values are active but not written to printer.cfg yet. "), h("code", { key: "cmd" }, "SAVE_CONFIG"), tx(" saves them and restarts Klipper. Save now?")],
+      confirmLabel: tx("Save"),
+      cancelLabel: tx("Later"),
       onConfirm: controller.saveTwist,
       onCancel: controller.dismissTwist,
     }),

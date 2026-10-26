@@ -1,7 +1,7 @@
 /* ============================================================================
    50a · CONFIG FILE MANAGER
    What can be done to the files and folders of the config card:
-     · the "Nuovo" menu: new file, new folder, upload (files can also be
+     · the "New" menu: new file, new folder, upload (files can also be
        dropped on the card from a computer);
      · a menu for every row (the ⋯ button, a long press or a right click):
        open, download (files), rename, move to another folder, delete;
@@ -20,16 +20,16 @@ const DESKTOP_POINTER = "(hover: hover) and (pointer: fine)"; // rows are dragge
 
 const showPath = (path) => "/" + path;
 const isCriticalConfigFile = (item) => item.type === "file" && CRITICAL_CONFIG_FILES.includes(item.path);
-const CRITICAL_WARNING = "Klipper e Moonraker leggono questo file all'avvio: se lo sposti, lo rinomini o lo elimini la stampante non riparte.";
-const CRITICAL_DELETE_MESSAGE = "Klipper e Moonraker leggono questo file all'avvio: senza di esso la stampante non riparte. Eliminarlo comunque?";
+const CRITICAL_WARNING = tx("Klipper and Moonraker read this file at startup: if you move, rename or delete it the printer will not start again.");
+const CRITICAL_DELETE_MESSAGE = tx("Klipper and Moonraker read this file at startup: without it the printer will not start again. Delete it anyway?");
 
 /** Why `name` cannot be used, or "" when it can. `taken`: the names already in the folder. */
 function nameProblem(name, taken) {
-  if (name.length > MAX_NAME_LENGTH) return "Nome troppo lungo (massimo " + MAX_NAME_LENGTH + " caratteri)";
-  if (name.startsWith(".")) return "Il nome non può iniziare con un punto: resterebbe nascosto";
-  if (INVALID_NAME_CHARS.test(name)) return "Non sono ammessi i caratteri  /  \\  ?  #  %";
-  if (HIDDEN_CONFIG_FILE.test(name)) return "Nome riservato ai backup di Klipper, che non vengono mostrati";
-  if (taken.has(name)) return "Esiste già un elemento con questo nome";
+  if (name.length > MAX_NAME_LENGTH) return tx("Name too long (at most {max} characters)", { max: MAX_NAME_LENGTH });
+  if (name.startsWith(".")) return tx("The name cannot start with a dot: the file would stay hidden");
+  if (INVALID_NAME_CHARS.test(name)) return tx("These characters are not allowed:  /  \\  ?  #  %");
+  if (HIDDEN_CONFIG_FILE.test(name)) return tx("Name reserved for Klipper's backups, which are not shown");
+  if (taken.has(name)) return tx("Something with this name already exists");
   return "";
 }
 
@@ -165,9 +165,9 @@ function useConfigFileManager(folder, openItem) {
     if (!canSubmit) return;
     const { mode, item } = nameDialog;
     let done;
-    if (mode === "file") done = await perform(() => configFilesApi.createFile(folder.currentPath, name), "Creato: " + name, "Creazione non riuscita");
-    else if (mode === "folder") done = await perform(() => configFilesApi.createFolder(joinPath(folder.currentPath, name)), "Cartella creata: " + name, "Creazione non riuscita");
-    else done = await perform(() => configFilesApi.move(item.path, joinPath(parentPath(item.path), name)), "Rinominato: " + name, "Rinomina non riuscita");
+    if (mode === "file") done = await perform(() => configFilesApi.createFile(folder.currentPath, name), tx("Created: ") + name, tx("Could not create it"));
+    else if (mode === "folder") done = await perform(() => configFilesApi.createFolder(joinPath(folder.currentPath, name)), tx("Folder created: ") + name, tx("Could not create it"));
+    else done = await perform(() => configFilesApi.move(item.path, joinPath(parentPath(item.path), name)), tx("Renamed: ") + name, tx("Could not rename it"));
     if (!done) return;
     setNameDialog(null);
     if (mode === "file" && !isImagePath(name)) {
@@ -187,11 +187,11 @@ function useConfigFileManager(folder, openItem) {
     if (!canMoveInto(item, target)) return false;
     try {
       if (takenNames(await configFilesApi.listDirectory(target)).has(item.name)) {
-        toast.action("In " + showPath(target) + " esiste già «" + item.name + "»");
+        toast.action(tx("«{name}» already exists in {folder}", { name: item.name, folder: showPath(target) }));
         return false;
       }
     } catch (error) {} // cannot tell: Moonraker will refuse if the name is taken
-    return perform(() => configFilesApi.move(item.path, joinPath(target, item.name)), "Spostato in " + showPath(target), "Spostamento non riuscito");
+    return perform(() => configFilesApi.move(item.path, joinPath(target, item.name)), tx("Moved to ") + showPath(target), tx("Could not move it"));
   };
   const confirmMove = async (target) => {
     if (await moveTo(moveItem, target)) setMoveItem(null);
@@ -207,7 +207,7 @@ function useConfigFileManager(folder, openItem) {
   };
   const confirmDelete = async () => {
     const item = deleteItem;
-    await perform(() => (item.type === "folder" ? configFilesApi.removeFolder(item.path) : configFilesApi.removeFile(item.path)), "Eliminato: " + item.name, "Eliminazione non riuscita");
+    await perform(() => (item.type === "folder" ? configFilesApi.removeFolder(item.path) : configFilesApi.removeFile(item.path)), tx("Deleted: ") + item.name, tx("Could not delete it"));
     setDeleteItem(null);
   };
 
@@ -226,8 +226,8 @@ function useConfigFileManager(folder, openItem) {
         }
         if (failed.length) throw new Error(failed.join(", "));
       },
-      files.length === 1 ? "Caricato: " + files[0].name : "Caricati " + files.length + " file",
-      "Caricamento non riuscito",
+      files.length === 1 ? tx("Uploaded: {name}", { name: files[0].name }) : tx("Uploaded {count} files", { count: files.length }),
+      tx("Upload failed"),
     );
   /** Sorts what was chosen or dropped: usable names go up (after a yes if they replace a file), the others are reported. */
   const receiveFiles = (files) => {
@@ -239,7 +239,7 @@ function useConfigFileManager(folder, openItem) {
       if (!file.name || nameProblem(file.name, folders) || file.name.trim() !== file.name) refused++;
       else accepted.push(file);
     }
-    if (refused) toast.action(refused === 1 ? "Un file ha un nome non valido o è una cartella: saltato" : refused + " file hanno un nome non valido: saltati");
+    if (refused) toast.action(refused === 1 ? tx("One file has an invalid name or is a folder: skipped") : tx("{count} files have an invalid name: skipped", { count: refused }));
     const replaced = accepted.filter((file) => existing.has(file.name)).map((file) => file.name);
     if (replaced.length) setPendingUpload({ files: accepted, replaced });
     else if (accepted.length) uploadFiles(accepted);
@@ -294,7 +294,7 @@ function useConfigFileManager(folder, openItem) {
 }
 
 /* ---------------------------------------------------------------------------
-   UI: the "Nuovo" menu
+   UI: the "New" menu
    ------------------------------------------------------------------------- */
 function ConfigNewMenuButton({ manager }) {
   const menu = useDropdown();
@@ -309,18 +309,18 @@ function ConfigNewMenuButton({ manager }) {
       "button",
       { ref: menu.anchorRef, className: cx("oui-btn oui-btn--sm oui-btn--accent-soft", manager.busy && "is-busy"), disabled: manager.busy, "aria-haspopup": "menu", "aria-expanded": menu.open, onClick: menu.toggle },
       manager.busy
-        ? [h(Icons.Refresh, { key: "icon", size: 16 }), "In corso..."]
-        : [h(Icons.Plus, { key: "icon", size: 16 }), "Nuovo", h("span", { key: "arrow", className: cx("menu-chevron", menu.open && "is-open") }, h(Icons.Chevron, { size: 16 }))],
+        ? [h(Icons.Refresh, { key: "icon", size: 16 }), tx("Working...")]
+        : [h(Icons.Plus, { key: "icon", size: 16 }), tx("New"), h("span", { key: "arrow", className: cx("menu-chevron", menu.open && "is-open") }, h(Icons.Chevron, { size: 16 }))],
     ),
     h(
       DropdownMenu,
       { menu },
-      h(MenuItem, { icon: h(Icons.FilePlus), title: "Nuovo file", subtitle: "Crea un file vuoto e aprilo nell'editor", onClick: choose(manager.newFile) }),
-      h(MenuItem, { icon: h(Icons.FolderPlus), title: "Nuova cartella", subtitle: "Crea una cartella vuota", onClick: choose(manager.newFolder) }),
+      h(MenuItem, { icon: h(Icons.FilePlus), title: tx("New file"), subtitle: tx("Create an empty file and open it in the editor"), onClick: choose(manager.newFile) }),
+      h(MenuItem, { icon: h(Icons.FolderPlus), title: tx("New folder"), subtitle: tx("Create an empty folder"), onClick: choose(manager.newFolder) }),
       h(MenuItem, {
         icon: h(Icons.Upload),
-        title: "Carica file",
-        subtitle: APP_CAN_PICK_FILES ? "Dal dispositivo, anche più file insieme" : "Non disponibile in questa versione dell'app: aggiornala o usa il browser",
+        title: tx("Upload files"),
+        subtitle: APP_CAN_PICK_FILES ? tx("From this device, also several at once") : tx("Not available in this version of the app: update it or use the browser"),
         disabled: !APP_CAN_PICK_FILES,
         onClick: choose(manager.chooseFiles),
       }),
@@ -341,12 +341,12 @@ function ConfigActionSheet({ manager }) {
     manager.closeMenu();
     action(item);
   };
-  const details = [isFolder ? "Cartella" : formatBytes(item.size), formatFileDate(item.modified)].filter(Boolean).join(" • ");
+  const details = [isFolder ? tx("Folder") : formatBytes(item.size), formatFileDate(item.modified)].filter(Boolean).join(" • ");
   const open = isFolder
-    ? { icon: h(Icons.Folder), title: "Apri cartella", subtitle: "Mostra il contenuto" }
+    ? { icon: h(Icons.Folder), title: tx("Open folder"), subtitle: tx("Show what it contains") }
     : isImage
-      ? { icon: h(Icons.Image), title: "Visualizza immagine", subtitle: "Anteprima a schermo intero" }
-      : { icon: h(Icons.Code), title: "Apri nell'editor", subtitle: "Leggi e modifica il testo" };
+      ? { icon: h(Icons.Image), title: tx("View image"), subtitle: tx("Full-screen preview") }
+      : { icon: h(Icons.Code), title: tx("Open in the editor"), subtitle: tx("Read and edit the text") };
   return h(
     "div",
     { className: "sheet-overlay sheet-overlay--actions", onClickCapture: ignoreEarlyClick, onClick: (e) => e.target === e.currentTarget && manager.closeMenu() },
@@ -363,12 +363,12 @@ function ConfigActionSheet({ manager }) {
         "div",
         { className: "oui-list file-sheet__actions" },
         h(FileActionRow, { ...open, onClick: act(manager.openItem) }),
-        !isFolder && h(FileActionRow, { icon: h(Icons.Download, { size: 20 }), title: "Scarica", subtitle: IN_APP_WEBVIEW ? "Salva una copia nella cartella Download" : "Salva una copia sul dispositivo", onClick: act(manager.download) }),
-        h(FileActionRow, { icon: h(Icons.Pencil), title: "Rinomina", subtitle: isFolder ? "Cambia il nome della cartella" : "Cambia il nome del file", onClick: act(manager.askRename) }),
-        h(FileActionRow, { icon: h(Icons.Move), title: "Sposta in…", subtitle: "Scegli un'altra cartella", onClick: act(manager.askMove) }),
-        h(FileActionRow, { icon: h(Icons.Trash), title: "Elimina dal Raspberry", subtitle: isFolder ? "Cancella la cartella e tutto il suo contenuto" : "Cancella il file per sempre", danger: true, onClick: act(manager.askDelete) }),
+        !isFolder && h(FileActionRow, { icon: h(Icons.Download, { size: 20 }), title: tx("Download"), subtitle: IN_APP_WEBVIEW ? tx("Save a copy in the Download folder") : tx("Save a copy on this device"), onClick: act(manager.download) }),
+        h(FileActionRow, { icon: h(Icons.Pencil), title: tx("Rename"), subtitle: isFolder ? tx("Change the name of the folder") : tx("Change the name of the file"), onClick: act(manager.askRename) }),
+        h(FileActionRow, { icon: h(Icons.Move), title: tx("Move to…"), subtitle: tx("Choose another folder"), onClick: act(manager.askMove) }),
+        h(FileActionRow, { icon: h(Icons.Trash), title: tx("Delete from the Raspberry"), subtitle: isFolder ? tx("Delete the folder and everything in it") : tx("Delete the file for good"), danger: true, onClick: act(manager.askDelete) }),
       ),
-      h("div", { className: "sheet-footer" }, h("button", { className: "oui-btn", onClick: manager.closeMenu }, "Annulla")),
+      h("div", { className: "sheet-footer" }, h("button", { className: "oui-btn", onClick: manager.closeMenu }, tx("Cancel"))),
     ),
   );
 }
@@ -377,9 +377,9 @@ function ConfigActionSheet({ manager }) {
    UI: new file, new folder, rename
    ------------------------------------------------------------------------- */
 const NAME_DIALOGS = {
-  file: { icon: Icons.FilePlus, title: "Nuovo file", placeholder: "nome.cfg", confirm: "Crea" },
-  folder: { icon: Icons.FolderPlus, title: "Nuova cartella", placeholder: "nome", confirm: "Crea" },
-  rename: { icon: Icons.Pencil, title: "Rinomina", placeholder: "", confirm: "Rinomina" },
+  file: { icon: Icons.FilePlus, title: tx("New file"), placeholder: tx("name.cfg"), confirm: tx("Create") },
+  folder: { icon: Icons.FolderPlus, title: tx("New folder"), placeholder: tx("name"), confirm: tx("Create") },
+  rename: { icon: Icons.Pencil, title: tx("Rename"), placeholder: "", confirm: tx("Rename") },
 };
 
 function ConfigNameDialog({ manager }) {
@@ -404,7 +404,7 @@ function ConfigNameDialog({ manager }) {
   const spec = NAME_DIALOGS[dialog.mode];
   const { problem, canSubmit } = checkName(dialog, manager.names);
   const where = dialog.mode === "rename" ? parentPath(dialog.item.path) : manager.currentPath;
-  const title = dialog.mode === "rename" ? (dialog.item.type === "folder" ? "Rinomina cartella" : "Rinomina file") : spec.title;
+  const title = dialog.mode === "rename" ? (dialog.item.type === "folder" ? tx("Rename folder") : tx("Rename file")) : spec.title;
   const submit = () => canSubmit && !manager.busy && manager.submitName();
   return h(
     "div",
@@ -422,7 +422,7 @@ function ConfigNameDialog({ manager }) {
         autoCapitalize: "off",
         autoCorrect: "off",
         spellCheck: false,
-        "aria-label": "Nome",
+        "aria-label": tx("Name"),
         "aria-invalid": Boolean(problem),
         onChange: (e) => manager.setNameValue(e.target.value),
         onKeyDown: (e) => {
@@ -436,7 +436,7 @@ function ConfigNameDialog({ manager }) {
       h(
         "div",
         { className: "oui-btn-row" },
-        h("button", { className: "oui-btn", onClick: manager.closeName }, "Annulla"),
+        h("button", { className: "oui-btn", onClick: manager.closeName }, tx("Cancel")),
         h("button", { className: cx("oui-btn oui-btn--primary", manager.busy && "is-busy"), disabled: !canSubmit || manager.busy, onClick: submit }, spec.confirm),
       ),
     ),
@@ -471,7 +471,7 @@ function ConfigMoveSheet({ manager }) {
         directoryCache.set(browse, entries);
         if (current) setListing({ entries, error: "" });
       },
-      (error) => current && setListing({ entries: null, error: error.message || "Impossibile leggere la cartella" }),
+      (error) => current && setListing({ entries: null, error: error.message || tx("Cannot read the folder") }),
     );
     return () => {
       current = false;
@@ -482,16 +482,16 @@ function ConfigMoveSheet({ manager }) {
   const isHome = browse === parentPath(item.path);
   const taken = Boolean(listing.entries) && !isHome && takenNames(listing.entries).has(item.name);
   const canMove = Boolean(listing.entries) && canMoveInto(item, browse) && !taken && !manager.busy;
-  const hint = isHome ? "Si trova già in questa cartella" : taken ? "In questa cartella esiste già «" + item.name + "»" : "";
+  const hint = isHome ? tx("It is already in this folder") : taken ? tx("This folder already contains «{name}»", { name: item.name }) : "";
 
   let body;
   if (listing.error) body = h("div", { className: "oui-notice" }, listing.error);
-  else if (!listing.entries) body = h("div", { className: "oui-notice" }, "Caricamento...");
+  else if (!listing.entries) body = h("div", { className: "oui-notice" }, tx("Loading..."));
   else
     body = h(
       "div",
       { className: "oui-list cfg-pick__list" },
-      browse && h(PickRow, { key: "up", icon: h(Icons.ArrowUp, { size: 18 }), name: "Cartella superiore", meta: showPath(parentPath(browse)), onClick: () => setBrowse(parentPath(browse)) }),
+      browse && h(PickRow, { key: "up", icon: h(Icons.ArrowUp, { size: 18 }), name: tx("Parent folder"), meta: showPath(parentPath(browse)), onClick: () => setBrowse(parentPath(browse)) }),
       subfolders.map((entry) => h(PickRow, { key: entry.path, glyph: h(FileGlyph, { kind: fileKind(entry.name, { folder: true }) }), name: entry.name, onClick: () => setBrowse(entry.path) })),
     );
 
@@ -504,18 +504,18 @@ function ConfigMoveSheet({ manager }) {
       h(
         "div",
         { className: "sheet-header" },
-        h("div", { className: "dialog-head cfg-pick__head" }, h("div", { className: "dialog-head__icon" }, h(Icons.Move)), h("div", null, h("div", { className: "dialog-title" }, "Sposta in…"), h("div", { className: "dialog-sub cfg-pick__item" }, item.name))),
-        h("div", { className: "oui-label" }, "Destinazione"),
+        h("div", { className: "dialog-head cfg-pick__head" }, h("div", { className: "dialog-head__icon" }, h(Icons.Move)), h("div", null, h("div", { className: "dialog-title" }, tx("Move to…")), h("div", { className: "dialog-sub cfg-pick__item" }, item.name))),
+        h("div", { className: "oui-label" }, tx("Destination")),
         h("div", { className: "cfg-pick__path oui-mono" }, showPath(browse)),
         isCriticalConfigFile(item) && h("div", { className: "oui-tile oui-tile--warn cfg-warning" }, CRITICAL_WARNING),
       ),
-      h("div", { className: "cfg-pick__body" }, body, listing.entries && !listing.error && subfolders.length === 0 && h("div", { className: "oui-notice" }, "Nessuna sottocartella")),
+      h("div", { className: "cfg-pick__body" }, body, listing.entries && !listing.error && subfolders.length === 0 && h("div", { className: "oui-notice" }, tx("No subfolders"))),
       h("div", { className: "cfg-pick__hint" }, hint),
       h(
         "div",
         { className: "sheet-footer" },
-        h("button", { className: "oui-btn", onClick: manager.closeMove }, "Annulla"),
-        h("button", { className: cx("oui-btn oui-btn--primary", manager.busy && "is-busy"), disabled: !canMove, onClick: () => manager.confirmMove(browse) }, "Sposta qui"),
+        h("button", { className: "oui-btn", onClick: manager.closeMove }, tx("Cancel")),
+        h("button", { className: cx("oui-btn oui-btn--primary", manager.busy && "is-busy"), disabled: !canMove, onClick: () => manager.confirmMove(browse) }, tx("Move here")),
       ),
     ),
   );
@@ -528,8 +528,8 @@ function ConfigManagerDialogs({ manager }) {
   const { deleteItem, pendingUpload } = manager;
   const deletingFolder = Boolean(deleteItem) && deleteItem.type === "folder";
   const critical = Boolean(deleteItem) && isCriticalConfigFile(deleteItem);
-  let deleteMessage = "Il file verrà cancellato per sempre dal Raspberry. L'operazione non si può annullare.";
-  if (deletingFolder) deleteMessage = "La cartella e tutto quello che contiene verranno cancellati per sempre dal Raspberry. L'operazione non si può annullare.";
+  let deleteMessage = tx("The file will be deleted from the Raspberry for good. This cannot be undone.");
+  if (deletingFolder) deleteMessage = tx("The folder and everything in it will be deleted from the Raspberry for good. This cannot be undone.");
   if (critical) deleteMessage = CRITICAL_DELETE_MESSAGE;
   return h(
     React.Fragment,
@@ -541,10 +541,10 @@ function ConfigManagerDialogs({ manager }) {
       open: Boolean(deleteItem),
       tone: "danger",
       icon: h(Icons.Trash),
-      title: deletingFolder ? "Eliminare la cartella?" : "Eliminare il file?",
+      title: deletingFolder ? tx("Delete the folder?") : tx("Delete the file?"),
       subtitle: deleteItem ? deleteItem.name : "",
       message: deleteMessage,
-      confirmLabel: "Elimina",
+      confirmLabel: tx("Delete"),
       onConfirm: manager.confirmDelete,
       onCancel: manager.cancelDelete,
     }),
@@ -552,10 +552,10 @@ function ConfigManagerDialogs({ manager }) {
       open: Boolean(pendingUpload),
       tone: "danger",
       icon: h(Icons.Upload),
-      title: "Sostituire i file?",
-      subtitle: pendingUpload ? (pendingUpload.replaced.length === 1 ? pendingUpload.replaced[0] : pendingUpload.replaced.length + " file già presenti") : "",
-      message: pendingUpload && pendingUpload.replaced.length > 1 ? "Questi file esistono già e verranno sostituiti: " + pendingUpload.replaced.join(", ") + "." : "Esiste già un file con questo nome: il contenuto attuale verrà sostituito.",
-      confirmLabel: "Sostituisci",
+      title: tx("Replace the files?"),
+      subtitle: pendingUpload ? (pendingUpload.replaced.length === 1 ? pendingUpload.replaced[0] : tx("{count} files already there", { count: pendingUpload.replaced.length })) : "",
+      message: pendingUpload && pendingUpload.replaced.length > 1 ? tx("These files already exist and will be replaced: ") + pendingUpload.replaced.join(", ") + "." : tx("A file with this name already exists: its content will be replaced."),
+      confirmLabel: tx("Replace"),
       onConfirm: manager.confirmUpload,
       onCancel: manager.cancelUpload,
     }),

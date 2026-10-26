@@ -174,7 +174,7 @@ function usePrintStatus() {
  * Why actions that move the machine or query its sensors must wait, or null when they may go ahead.
  * Until Klipper has answered once the printer might be printing, so that counts as busy too.
  */
-const printLockReason = (printStatus) => (printStatus.printing ? "Non disponibile durante una stampa" : !printStatus.loaded ? "Attendo lo stato della stampante" : null);
+const printLockReason = (printStatus) => (printStatus.printing ? tx("Not available during a print") : !printStatus.loaded ? tx("Waiting for the printer status") : null);
 
 /** PAUSA/RIPRENDI and CANCELLA STAMPA (with confirmation); each locks for 1.5 s. */
 function usePrintControls(state) {
@@ -201,7 +201,7 @@ function usePrintControls(state) {
     cancelLocked.current = true;
     try {
       await sendGcode("CANCEL_PRINT");
-      toast.notice("CANCELLA STAMPA inviato", CANCEL_TOAST_MS);
+      toast.notice(tx("CANCEL PRINT sent"), CANCEL_TOAST_MS);
     } catch (e) {}
     lockFor(cancelLocked);
   };
@@ -224,7 +224,7 @@ function PrintProgressCard({ status, controls }) {
   return h(
     Card,
     { className: "md:col-span-2" },
-    h(CardHeader, { title: "Stampa in corso" }, h("span", { className: "oui-badge oui-badge--info print-pct" }, status.pct + "%")),
+    h(CardHeader, { title: tx("Printing") }, h("span", { className: "oui-badge oui-badge--info print-pct" }, status.pct + "%")),
     h(
       "div",
       { className: "flex items-center gap-4 mb-4" },
@@ -249,15 +249,15 @@ function PrintProgressCard({ status, controls }) {
     h(
       "div",
       { className: "grid grid-cols-3 mb-4" },
-      h(PrintStat, { label: "Tempo", value: status.time }),
-      h(PrintStat, { label: "Rimanente", value: status.remaining }),
+      h(PrintStat, { label: tx("Time"), value: status.time }),
+      h(PrintStat, { label: tx("Remaining"), value: status.remaining }),
       h(PrintStat, { label: "Layer", value: status.layer }),
     ),
     h(
       "div",
       { className: "oui-btn-row" },
-      h("button", { onClick: controls.togglePause, className: "oui-btn" }, status.state === "paused" ? "Riprendi" : "Pausa"),
-      h("button", { onClick: controls.askCancel, className: "oui-btn oui-btn--danger-soft" }, "Cancella stampa"),
+      h("button", { onClick: controls.togglePause, className: "oui-btn" }, status.state === "paused" ? tx("Resume") : tx("Pause")),
+      h("button", { onClick: controls.askCancel, className: "oui-btn oui-btn--danger-soft" }, tx("Cancel print")),
     ),
   );
 }
@@ -267,14 +267,14 @@ function CancelPrintDialog({ open, onConfirm, onCancel }) {
     open,
     tone: "danger",
     icon: h(Icons.CancelCircle),
-    title: "Cancella stampa",
-    subtitle: "Azione irreversibile",
+    title: tx("Cancel print"),
+    subtitle: tx("Cannot be undone"),
     message: [
-      "La stampa in corso verrà ",
-      h("b", { key: "warn" }, "interrotta immediatamente"),
-      ". File, progresso e riscaldatori verranno resettati. Confermi?",
+      tx("The current print will be "),
+      h("b", { key: "warn" }, tx("stopped immediately")),
+      tx(". File, progress and heaters will be reset. Confirm?"),
     ],
-    confirmLabel: "Cancella",
+    confirmLabel: txc("action", "Cancel"),
     onConfirm,
     onCancel,
   });

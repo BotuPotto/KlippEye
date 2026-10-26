@@ -174,7 +174,7 @@ function drawOrigin(ctx, { project }, stats, heightAt) {
   });
   ctx.fillStyle = "rgba(255,255,255,0.95)";
   ctx.font = "600 12px system-ui, sans-serif";
-  ctx.fillText("Origine (0,0)", origin.x - 10, origin.y + 20);
+  ctx.fillText(tx("Origin (0,0)"), origin.x - 10, origin.y + 20);
 }
 
 function drawMesh3D(canvas, stats, view) {
@@ -338,7 +338,7 @@ function BedMeshCard({ onGcode }) {
   return h(
     Card,
     null,
-    h(CardHeader, { title: "Mappa dell'altezza / mesh" }),
+    h(CardHeader, { title: tx("Height map / mesh") }),
     h(
       "div",
       { className: "mesh-toolbar" },
@@ -351,10 +351,10 @@ function BedMeshCard({ onGcode }) {
       ),
     ),
     !stats
-      ? h("div", { className: "mesh-well oui-well mesh-empty" }, loading ? "Caricamento..." : "Nessuna mesh")
+      ? h("div", { className: "mesh-well oui-well mesh-empty" }, loading ? tx("Loading...") : tx("No mesh"))
       : viewMode === "2d"
         ? h(MeshGrid, { stats })
         : h(MeshSurface, { stats }),
-    h("div", { className: "mt-4" }, h("button", { onClick: () => send("BED_MESH_CALIBRATE", "CALIBRA"), className: "oui-btn oui-btn--primary oui-btn--block" }, "Calibra mesh")),
+    h("div", { className: "mt-4" }, h("button", { onClick: () => send("BED_MESH_CALIBRATE", tx("CALIBRATE")), className: "oui-btn oui-btn--primary oui-btn--block" }, tx("Calibrate mesh"))),
   );
 }

@@ -177,7 +177,7 @@ async function startUpgrade(name) {
       lastError = error;
     }
   }
-  throw lastError || new Error("Tutti i metodi falliti");
+  throw lastError || new Error(tx("All the methods failed"));
 }
 
 async function rollbackComponent(name) {
@@ -221,15 +221,15 @@ function describeComponent(key, info) {
   const remote = isSystem ? "" : info.remote_version || shortHash(info.remote_hash);
   const behind = info.commits_behind ? info.commits_behind.length : 0;
   const hasUpdate = isSystem ? info.package_count > 0 : (current !== remote && remote && remote !== "-" && remote !== "system") || behind > 0 || (info.package_count && info.package_count > 0);
-  let badge = { tone: "ok", text: "Aggiornato" };
-  if (info.corrupt) badge = { tone: "error", text: "Corrotto" };
-  else if (!isSystem && info.is_valid === false) badge = { tone: "error", text: "Invalido" };
+  let badge = { tone: "ok", text: tx("Up to date") };
+  if (info.corrupt) badge = { tone: "error", text: tx("Corrupt") };
+  else if (!isSystem && info.is_valid === false) badge = { tone: "error", text: tx("Invalid") };
   else if (hasUpdate) badge = { tone: "update", text: isSystem ? info.package_count + " update" : "Update" };
   return {
     key,
     raw: info,
     isSystem,
-    name: key === PROGRAM_COMPONENT ? "KlippEye (backend, dashboard, notifiche)" : info.name || key,
+    name: key === PROGRAM_COMPONENT ? tx("KlippEye (backend, dashboard, notifications)") : info.name || key,
     current,
     remote,
     behind,
@@ -252,7 +252,7 @@ function describeUpdates(updates) {
 }
 
 /**
- * Components named by "Aggiorna tutto". Decided on versions and pending
+ * Components named by "Update all". Decided on versions and pending
  * commits/packages only, so it can differ from the per-row "Update" badge.
  */
 function fullUpdateTargets(updates) {
@@ -309,11 +309,11 @@ function ProgramUpdateInfo({ component }) {
     h(
       "div",
       { className: "update-info--versions" },
-      h("div", null, h("div", { className: "update-info-label" }, "Installata"), h("div", { className: "update-version" }, current)),
-      h("div", { className: "update-info-right" }, h("div", { className: "update-info-label" }, "Nuova"), h("div", { className: "update-version update-version--new" }, remote || behind + (behind === 1 ? " modifica" : " modifiche"))),
+      h("div", null, h("div", { className: "update-info-label" }, tx("Installed")), h("div", { className: "update-version" }, current)),
+      h("div", { className: "update-info-right" }, h("div", { className: "update-info-label" }, txc("release", "New")), h("div", { className: "update-version update-version--new" }, remote || (behind === 1 ? tx("1 change") : tx("{count} changes", { count: behind })))),
     ),
     h(CommitList, { commits: raw.commits_behind }),
-    h("p", { className: "update-note" }, "Moonraker scarica i file nuovi e riavvia il backend: per qualche secondo la pagina non risponde, poi si ricarica da sola. Impostazioni, chiave dell'IA e notifiche non vengono toccate."),
+    h("p", { className: "update-note" }, tx("Moonraker downloads the new files and restarts the backend: the page does not answer for a few seconds, then reloads by itself. Settings, AI key and notifications are not touched.")),
   );
 }
 
@@ -322,38 +322,38 @@ function confirmationFor(kind, subject) {
   if (kind === "recover") {
     return {
       mode: "confirm-recover",
-      confirmText: "Ripristina",
+      confirmText: tx("Restore"),
       view: {
-        title: "Ripristinare i file di KlippEye?",
-        sub: "Torna la versione ufficiale installata",
+        title: tx("Restore the KlippEye files?"),
+        sub: tx("Back to the official installed release"),
         info: h(
           InfoBox,
           null,
-          h("p", { className: "update-note" }, "I file del programma sul Raspberry sono stati modificati a mano e Moonraker per questo non li aggiorna. Il ripristino li riporta come sono su GitHub; poi il backend si riavvia."),
-          h("p", { className: "update-note" }, "Impostazioni, chiave dell'IA e notifiche stanno in un'altra cartella e non si toccano."),
+          h("p", { className: "update-note" }, tx("The program files on the Raspberry were changed by hand, so Moonraker does not update them. Restoring brings them back as they are on GitHub; then the backend restarts.")),
+          h("p", { className: "update-note" }, tx("Settings, AI key and notifications live in another folder and are not touched.")),
         ),
       },
     };
   }
   if (kind === "update" && subject.key === PROGRAM_COMPONENT) {
-    return { mode: "confirm-update", confirmText: "Aggiorna", view: { title: "Aggiornare KlippEye?", sub: "backend, dashboard e notifiche", info: h(ProgramUpdateInfo, { component: subject }) } };
+    return { mode: "confirm-update", confirmText: tx("Update"), view: { title: tx("Update KlippEye?"), sub: tx("backend, dashboard and notifications"), info: h(ProgramUpdateInfo, { component: subject }) } };
   }
   if (kind === "rollback" && subject.key === PROGRAM_COMPONENT) {
     return {
       mode: "confirm-rollback",
-      confirmText: "Torna indietro",
+      confirmText: tx("Go back"),
       view: {
-        title: "Tornare alla versione precedente?",
-        sub: "Versione " + subject.rollbackVersion,
-        info: h(InfoBox, null, h("p", { className: "update-note" }, "KlippEye torna com'era prima dell'ultimo aggiornamento e il backend si riavvia. Le impostazioni non cambiano. Per aggiornare di nuovo basta ripremere Aggiorna.")),
+        title: tx("Go back to the previous release?"),
+        sub: tx("Release ") + subject.rollbackVersion,
+        info: h(InfoBox, null, h("p", { className: "update-note" }, tx("KlippEye goes back to how it was before the last update and the backend restarts. Settings do not change. To update again just press Update."))),
       },
     };
   }
   if (kind === "update-all") {
     return {
       mode: "confirm-full",
-      confirmText: "Aggiorna tutto",
-      view: { title: "Aggiornare tutto?", sub: subject.length + " componenti", info: h(InfoBox, null, h(InfoValue, null, subject.join(", "))) },
+      confirmText: tx("Update all"),
+      view: { title: tx("Update everything?"), sub: tx("{count} components", { count: subject.length }), info: h(InfoBox, null, h(InfoValue, null, subject.join(", "))) },
     };
   }
   if (kind === "rollback") {
@@ -362,39 +362,39 @@ function confirmationFor(kind, subject) {
       confirmText: "Rollback",
       view: {
         title: "Rollback " + subject.key + "?",
-        sub: "Ripristina " + subject.rollbackVersion.substring(0, 7),
-        info: h(InfoBox, null, h(InfoValue, null, "Rollback a: " + subject.rollbackVersion)),
+        sub: tx("Restore ") + subject.rollbackVersion.substring(0, 7),
+        info: h(InfoBox, null, h(InfoValue, null, tx("Rollback to: ") + subject.rollbackVersion)),
       },
     };
   }
   if (subject.isSystem) {
     return {
       mode: "confirm-update",
-      confirmText: "Aggiorna sistema",
+      confirmText: tx("Update system"),
       view: {
-        title: "Aggiornare sistema?",
-        sub: subject.packageCount ? subject.packageCount + " pacchetti" : "Aggiornamento OS",
+        title: tx("Update the system?"),
+        sub: subject.packageCount ? tx("{count} packages", { count: subject.packageCount }) : tx("OS update"),
         info: h(
           InfoBox,
           { className: "update-info--packages" },
-          h("div", { className: "update-info-label" }, "Pacchetti"),
+          h("div", { className: "update-info-label" }, tx("Packages")),
           h(InfoValue, { wrap: true }, subject.packageList || "system"),
-          h("div", { className: "update-info-count" }, subject.packageCount + " pacchetti"),
+          h("div", { className: "update-info-count" }, tx("{count} packages", { count: subject.packageCount })),
         ),
       },
     };
   }
   return {
     mode: "confirm-update",
-    confirmText: "Aggiorna",
+    confirmText: tx("Update"),
     view: {
-      title: "Aggiornare " + subject.key + "?",
+      title: tx("Update {name}?", { name: subject.key }),
       sub: subject.current + " -> " + subject.remote + " " + (subject.behind ? "• " + subject.behind + " behind" : ""),
       info: h(
         InfoBox,
         { className: "update-info--versions" },
-        h("div", null, h("div", { className: "update-info-label" }, "Attuale"), h("div", { className: "update-version" }, subject.current)),
-        h("div", { className: "update-info-right" }, h("div", { className: "update-info-label" }, "Nuova"), h("div", { className: "update-version update-version--new" }, subject.remote)),
+        h("div", null, h("div", { className: "update-info-label" }, tx("Current")), h("div", { className: "update-version" }, subject.current)),
+        h("div", { className: "update-info-right" }, h("div", { className: "update-info-label" }, txc("release", "New")), h("div", { className: "update-version update-version--new" }, subject.remote)),
       ),
     },
   };
@@ -403,8 +403,8 @@ function confirmationFor(kind, subject) {
 /** Moonraker's refusals in plain Italian (the original text stays in the log). */
 function friendlyUpdateError(message) {
   const text = String(message || "");
-  if (/print|busy/i.test(text)) return "C'è una stampa in corso (o un altro aggiornamento): riprova quando ha finito. (" + text + ")";
-  if (/not valid|repo not valid|dirty/i.test(text)) return "I file del programma sul Raspberry non sono in ordine (modificati a mano?). In Impostazioni → Aggiornamenti c'è il tasto «Ripristina i file del programma». (" + text + ")";
+  if (/print|busy/i.test(text)) return tx("A print (or another update) is running: try again when it has finished. ({error})", { error: text });
+  if (/not valid|repo not valid|dirty/i.test(text)) return tx("The program files on the Raspberry are not in order (changed by hand?). Settings → Updates has the button «Restore the program files». ({error})", { error: text });
   return text;
 }
 
@@ -434,13 +434,13 @@ function useUpdateDialog() {
   // ignores, so it never showed that initial fill: the first real value is the one set by progress().)
   const startProgress = (title, sub, working) =>
     setDialog({ ...CLOSED_DIALOG, open: true, mode: "progress", title, sub, info: h(UpdateWorking, { text: working }), log: [], progress: 0 });
-  const showDone = (info) => patch({ mode: "progress-done", info, cancel: null, confirm: { text: "Ricarica" } });
+  const showDone = (info) => patch({ mode: "progress-done", info, cancel: null, confirm: { text: tx("Reload") } });
   const brainLost = () =>
     showFailure(
-      "Il backend non è tornato entro due minuti e mezzo. Da Mainsail apri Aggiornamenti e usa Rollback sulla voce klippeye (o riavvia il servizio klippeye); dal terminale: klippeye log.",
+      tx("The backend did not come back within two and a half minutes. In Mainsail open Updates and use Rollback on the klippeye entry (or restart the klippeye service); from the terminal: klippeye log."),
     );
   function showFailure(message) {
-    patch({ cancel: { text: "Chiudi" }, confirm: null, info: h(ResultBox, { tone: "error", title: "Fallito", text: message }) });
+    patch({ cancel: { text: tx("Close") }, confirm: null, info: h(ResultBox, { tone: "error", title: tx("Failed"), text: message }) });
   }
 
   /** Polls Moonraker until the update stops being busy, then reloads the page. */
@@ -450,7 +450,7 @@ function useUpdateDialog() {
     pollTimer.current = setInterval(async () => {
       if (Date.now() - startedAt > UPDATE_POLL_LIMIT_MS) {
         clearInterval(pollTimer.current);
-        patch({ cancel: { text: "Chiudi" } }); // still running: let the user leave the dialog
+        patch({ cancel: { text: tx("Close") } }); // still running: let the user leave the dialog
         return;
       }
       const status = await fetchResult("/machine/update/status");
@@ -460,9 +460,9 @@ function useUpdateDialog() {
         return progress(percent, "BUSY...");
       }
       clearInterval(pollTimer.current);
-      progress(100, "Completato!");
-      log("Completato!");
-      showDone(h(ResultBox, { tone: "ok", title: "Aggiornamento completato", text: "Riavvio servizi..." }));
+      progress(100, tx("Completed!"));
+      log(tx("Completed!"));
+      showDone(h(ResultBox, { tone: "ok", title: tx("Update completed"), text: tx("Restarting the services...") }));
       setTimeout(() => location.reload(), UPDATE_RELOAD_DELAY_MS);
     }, UPDATE_POLL_MS);
   };
@@ -472,85 +472,85 @@ function useUpdateDialog() {
    * reload the page. If Moonraker did the work but did not restart the backend, restart it here: the new files must run.
    */
   const finishAfterBrainRestart = async (before, doneTitle, verify) => {
-    progress(40, "Il backend si riavvia...");
-    patch({ info: h(UpdateWorking, { text: "Il backend si riavvia: la pagina si ricollega da sola..." }) });
-    let result = await waitForBrain(before, (seconds) => progress(Math.min(92, 40 + seconds), "Attendo il backend... " + seconds + " s"), verify);
+    progress(40, tx("The backend is restarting..."));
+    patch({ info: h(UpdateWorking, { text: tx("The backend is restarting: the page reconnects by itself...") }) });
+    let result = await waitForBrain(before, (seconds) => progress(Math.min(92, 40 + seconds), tx("Waiting for the backend... ") + seconds + " s"), verify);
     if (result.ok && result.restarted === false) {
-      log("Il backend non si è riavviato da solo: lo riavvio io.");
+      log(tx("The backend did not restart by itself: restarting it."));
       const again = await readBrainVersion();
       try {
         await moonraker.serviceAction("restart", PROGRAM_COMPONENT);
       } catch (error) {} // the connection is cut as the backend goes down: expected
-      result = await waitForBrain(again, (seconds) => progress(Math.min(95, 60 + seconds), "Attendo il backend... " + seconds + " s"));
+      result = await waitForBrain(again, (seconds) => progress(Math.min(95, 60 + seconds), tx("Waiting for the backend... ") + seconds + " s"));
     }
     if (!result.ok) {
-      progress(100, "Il backend non è tornato");
-      log("Il backend non risponde più.");
+      progress(100, tx("The backend did not come back"));
+      log(tx("The backend no longer answers."));
       return brainLost();
     }
-    log("Il backend è tornato (release " + result.info.release + ").");
+    log(tx("The backend is back (release {release}).", { release: result.info.release }));
     const outcome = await verify();
     if (outcome !== true) {
-      progress(100, "Non completato");
+      progress(100, tx("Not completed"));
       log("ESITO: " + outcome);
       return showFailure(outcome);
     }
-    progress(100, "Completato!");
-    log("Completato!");
-    showDone(h(ResultBox, { tone: "ok", title: doneTitle, text: "Release " + result.info.release + ": ricarico la pagina..." }));
+    progress(100, tx("Completed!"));
+    log(tx("Completed!"));
+    showDone(h(ResultBox, { tone: "ok", title: doneTitle, text: tx("Release {release}: reloading the page...", { release: result.info.release }) }));
     return setTimeout(() => location.reload(), BRAIN_RELOAD_DELAY_MS);
   };
 
   const runUpdate = async (name, full, brain) => {
-    startProgress(full ? "Aggiornamento completo" : name === PROGRAM_COMPONENT ? "Aggiornamento KlippEye" : "Aggiornamento " + name, "Avvio...", "Preparazione...");
-    log("Avvio upgrade " + (name || "FULL"));
+    startProgress(full ? tx("Full update") : name === PROGRAM_COMPONENT ? tx("Updating KlippEye") : tx("Updating {name}", { name }), tx("Starting..."), tx("Preparing..."));
+    log(tx("Starting upgrade ") + (name || "FULL"));
     const before = brain ? await readBrainVersion() : null;
     const verify = async () => {
       const entry = await readProgramEntry();
       if (!entry) return true; // Moonraker did not answer: the backend is back, which is what could be checked
-      return Number(entry.commits_behind_count) > 0 ? "Il backend è tornato ma l'aggiornamento non risulta completato: in Mainsail, Aggiornamenti, c'è scritto il motivo." : true;
+      return Number(entry.commits_behind_count) > 0 ? tx("The backend is back but the update does not look completed: Mainsail's Updates page tells why.") : true;
     };
     try {
-      progress(20, "Connessione...");
+      progress(20, tx("Connecting..."));
       const result = await startUpgrade(name);
-      progress(30, "Avviato - in corso...");
-      log("Avviato: " + JSON.stringify(result).substring(0, 200));
-      if (brain) return finishAfterBrainRestart(before, "Aggiornamento completato", verify);
+      progress(30, tx("Started - running..."));
+      log(tx("Started: ") + JSON.stringify(result).substring(0, 200));
+      if (brain) return finishAfterBrainRestart(before, tx("Update completed"), verify);
       return watchUpdate();
     } catch (error) {
-      if (brain && isCutConnection(error)) return finishAfterBrainRestart(before, "Aggiornamento completato", verify);
-      progress(100, "Errore");
-      log("ERRORE: " + error.message);
+      if (brain && isCutConnection(error)) return finishAfterBrainRestart(before, tx("Update completed"), verify);
+      progress(100, tx("Error"));
+      log(tx("ERROR: ") + error.message);
       return showFailure(friendlyUpdateError(error.message));
     }
   };
 
   const runRollback = async (name) => {
     const brain = name === PROGRAM_COMPONENT;
-    startProgress(brain ? "Versione precedente di KlippEye" : "Rollback " + name, "Ripristino...", "Rollback...");
+    startProgress(brain ? tx("Previous release of KlippEye") : "Rollback " + name, tx("Restoring..."), "Rollback...");
     log("Rollback " + name);
     const before = brain ? await readBrainVersion() : null;
     try {
       await rollbackComponent(name);
       log("Rollback OK");
-      if (brain) return finishAfterBrainRestart(before, "Versione precedente ripristinata", async () => true);
-      progress(100, "Completato");
+      if (brain) return finishAfterBrainRestart(before, tx("Previous release restored"), async () => true);
+      progress(100, tx("Finished"));
       showDone(null);
       return setTimeout(() => location.reload(), ROLLBACK_RELOAD_DELAY_MS);
     } catch (error) {
-      if (brain && isCutConnection(error)) return finishAfterBrainRestart(before, "Versione precedente ripristinata", async () => true);
-      log("Fallito: " + error.message);
+      if (brain && isCutConnection(error)) return finishAfterBrainRestart(before, tx("Previous release restored"), async () => true);
+      log(tx("Failure: ") + error.message);
       return showFailure(friendlyUpdateError(error.message));
     }
   };
 
   const runRecover = async (name) => {
-    startProgress("Ripristino dei file di KlippEye", "Ripristino...", "Ripristino...");
-    log("Ripristino di " + name);
+    startProgress(tx("Restoring the KlippEye files"), tx("Restoring..."), tx("Restoring..."));
+    log(tx("Restoring ") + name);
     const before = await readBrainVersion();
     const verify = async () => {
       const entry = await readProgramEntry();
-      return !entry || (entry.is_valid !== false && !entry.is_dirty && !entry.corrupt) ? true : "Il backend è tornato ma Moonraker segna ancora il programma come non in ordine: prova il ripristino da Mainsail (Aggiornamenti, voce klippeye).";
+      return !entry || (entry.is_valid !== false && !entry.is_dirty && !entry.corrupt) ? true : tx("The backend is back but Moonraker still marks the program as not in order: try restoring it from Mainsail (Updates, klippeye entry).");
     };
     const attempt = async (hard) => {
       try {
@@ -562,20 +562,20 @@ function useUpdateDialog() {
     };
     let error = await attempt(false);
     if (error && !isCutConnection(error)) {
-      log("Il ripristino semplice non è bastato (" + error.message + "): riscarico il programma da GitHub.");
+      log(tx("The simple restore was not enough ({error}): downloading the program again from GitHub.", { error: error.message }));
       error = await attempt(true);
     }
     if (error && !isCutConnection(error)) {
-      log("Fallito: " + error.message);
+      log(tx("Failure: ") + error.message);
       return showFailure(friendlyUpdateError(error.message));
     }
-    return finishAfterBrainRestart(before, "File ripristinati", verify);
+    return finishAfterBrainRestart(before, tx("Files restored"), verify);
   };
 
   const ask = (kind, subject, name, full) => {
     const confirmation = confirmationFor(kind, subject);
     target.current = { name, full, brain: full ? Array.isArray(subject) && subject.includes(PROGRAM_COMPONENT) : name === PROGRAM_COMPONENT };
-    setDialog({ ...CLOSED_DIALOG, open: true, mode: confirmation.mode, ...confirmation.view, cancel: { text: "Annulla" }, confirm: { text: confirmation.confirmText } });
+    setDialog({ ...CLOSED_DIALOG, open: true, mode: confirmation.mode, ...confirmation.view, cancel: { text: tx("Cancel") }, confirm: { text: confirmation.confirmText } });
   };
 
   return {
@@ -675,20 +675,20 @@ function StatBox({ label, value, percent, tone, footnote }) {
 }
 
 function HostCard({ data, onRefresh }) {
-  if (!data.system && !data.proc) return h(LoadingCard, { label: "Host", text: "Caricamento..." });
+  if (!data.system && !data.proc) return h(LoadingCard, { label: "Host", text: tx("Loading...") });
   const host = describeHost(data.system, data.proc);
   return h(
     SystemCard,
     {
       label: "Host • " + host.model,
       sublabel: host.distribution,
-      actions: h("button", { onClick: onRefresh, className: "oui-btn oui-btn--sm" }, h(Icons.Refresh, { size: 16 }), "Aggiorna dati"),
+      actions: h("button", { onClick: onRefresh, className: "oui-btn oui-btn--sm" }, h(Icons.Refresh, { size: 16 }), tx("Refresh data")),
     },
     h(
       "div",
       { className: "stat-grid" },
       h(StatBox, { label: "CPU" + (host.cpuTemp != null ? " • " + host.cpuTemp.toFixed(1) + "°C" : ""), value: host.cpuPercent.toFixed(1) + "%", percent: host.cpuPercent, tone: host.cpuTone }),
-      h(StatBox, { label: "Memoria", value: host.memoryPercent.toFixed(0) + "%", percent: host.memoryPercent, tone: host.memoryTone, footnote: host.memoryText }),
+      h(StatBox, { label: tx("Memory"), value: host.memoryPercent.toFixed(0) + "%", percent: host.memoryPercent, tone: host.memoryTone, footnote: host.memoryText }),
     ),
   );
 }
@@ -699,7 +699,7 @@ function McuCard({ data }) {
   const names = Object.keys(mcus).length ? Object.keys(mcus) : ["mcu"];
   return h(
     SystemCard,
-    { label: "MCU e firmware", sublabel: "Klipper " + (printer.software_version || "") },
+    { label: tx("MCU and firmware"), sublabel: "Klipper " + (printer.software_version || "") },
     h(
       "div",
       { className: "oui-list" },
@@ -709,7 +709,7 @@ function McuCard({ data }) {
           "div",
           { key: name, className: "mcu-row" },
           h("div", { className: "min-w-0" }, h("div", { className: "oui-label" }, name), h("div", { className: "mcu-row__version" }, info.mcu_version || info.version || printer.software_version || "-")),
-          h("span", { className: "oui-badge oui-badge--ok" }, h("span", { className: "oui-dot" }), "Connesso"),
+          h("span", { className: "oui-badge oui-badge--ok" }, h("span", { className: "oui-dot" }), tx("Connected")),
         );
       }),
     ),
@@ -722,8 +722,8 @@ function UpdateRow({ component, onUpdate, onRollback }) {
   const { badge } = component;
   const versions = component.key === PROGRAM_COMPONENT
     ? component.behind
-      ? component.behind + (component.behind === 1 ? " modifica in arrivo" : " modifiche in arrivo")
-      : "aggiornato"
+      ? (component.behind === 1 ? tx("1 change coming") : tx("{count} changes coming", { count: component.behind }))
+      : tx("up to date")
     : component.current +
     (component.remote ? " -> " + component.remote : "") +
     " " +
@@ -743,28 +743,28 @@ function UpdateRow({ component, onUpdate, onRollback }) {
       h(
         "div",
         { className: "update-row-actions" },
-        component.hasUpdate && h("button", { className: "oui-btn oui-btn--sm oui-btn--primary", onClick: () => onUpdate(component) }, "Aggiorna"),
+        component.hasUpdate && h("button", { className: "oui-btn oui-btn--sm oui-btn--primary", onClick: () => onUpdate(component) }, tx("Update")),
         component.canRollback && h("button", { className: "oui-btn oui-btn--sm", onClick: () => onRollback(component) }, "Rollback"),
       ),
   );
 }
 
 function UpdatesCard({ data, controller, onCheck }) {
-  if (!data.updates) return h(LoadingCard, { label: "Aggiornamenti", text: "Caricamento..." });
+  if (!data.updates) return h(LoadingCard, { label: tx("Updates"), text: tx("Loading...") });
   const { components, availableCount, busy } = describeUpdates(data.updates);
   return h(
     SystemCard,
     {
-      label: "Aggiornamenti",
-      sublabel: (availableCount ? availableCount + " disponibili" : "Tutto aggiornato") + (busy ? " • busy" : ""),
+      label: tx("Updates"),
+      sublabel: (availableCount ? tx("{count} available", { count: availableCount }) : tx("All up to date")) + (busy ? " • busy" : ""),
       actions: h(
         "div",
         { className: "sys-actions" },
-        h("button", { className: "oui-btn oui-btn--sm", onClick: onCheck }, "Controlla"),
-        availableCount > 0 && h("button", { className: "oui-btn oui-btn--sm oui-btn--primary", onClick: () => controller.askUpdateAll(fullUpdateTargets(data.updates)) }, "Aggiorna tutto"),
+        h("button", { className: "oui-btn oui-btn--sm", onClick: onCheck }, tx("Check")),
+        availableCount > 0 && h("button", { className: "oui-btn oui-btn--sm oui-btn--primary", onClick: () => controller.askUpdateAll(fullUpdateTargets(data.updates)) }, tx("Update all")),
       ),
     },
-    components.length ? h("div", { className: "oui-list" }, components.map((component) => h(UpdateRow, { key: component.key, component, onUpdate: controller.askUpdate, onRollback: controller.askRollback }))) : h("div", { className: "oui-caption" }, "Nessun componente"),
+    components.length ? h("div", { className: "oui-list" }, components.map((component) => h(UpdateRow, { key: component.key, component, onUpdate: controller.askUpdate, onRollback: controller.askRollback }))) : h("div", { className: "oui-caption" }, tx("No components")),
   );
 }
 
@@ -794,5 +794,5 @@ function SystemPage({ controller }) {
 
   return data
     ? h("div", { className: "sys-grid" }, h(HostCard, { data, onRefresh: reload }), h(McuCard, { data }), h(UpdatesCard, { data, controller, onCheck: checkForUpdates }))
-    : h(LoadingCard, { label: "Sistema", text: "Caricamento..." });
+    : h(LoadingCard, { label: tx("System"), text: tx("Loading...") });
 }

@@ -5,7 +5,7 @@ Android app for 3D printers running **Klipper + Moonraker** on a Raspberry Pi. T
 Raspberry: Moonraker's update manager installs and updates it from here.
 
 > Until release 1.0.x the project was called **VzBot**. Existing VzBot installs move to KlippEye with one button of the
-> dashboard (*Impostazioni → Aggiornamenti → Passa a KlippEye*, i.e. Settings → Updates; the dashboard is still in Italian);
+> dashboard (*Settings → Updates → Move to KlippEye*; *Impostazioni → Aggiornamenti → Passa a KlippEye* on a release before 1.4.0);
 > see part **P** of the guide.
 
 **Step-by-step guide (Italian for now, English coming): [docs/GUIDA.md](docs/GUIDA.md).**
@@ -19,6 +19,7 @@ Security: [SECURITY.md](SECURITY.md) · Contributing: [CONTRIBUTING.md](CONTRIBU
   the pictures that look suspicious. Alerts are kept with their images.
 * Push notifications to the Android app (Firebase Cloud Messaging), with optional automatic pause/cancel.
 * Self-repair after a power loss: damaged program files are restored from git at every start.
+* English and Italian dashboard (it follows the device's language; *Settings → Language* to choose).
 * Optional password, network checks (host name and origin of requests) and restricted permissions of the secrets.
 
 ## How updates work

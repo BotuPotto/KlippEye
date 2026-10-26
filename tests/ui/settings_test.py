@@ -57,10 +57,10 @@ def camera_routes(P):
     P.pg.route("**/webcam/**", lambda route: route.fulfill(status=200, body=PNG, content_type="image/png") if route.request.resource_type == "image" else route.fulfill(status=200, body="<html><body style='background:#123'>cam</body></html>", content_type="text/html"))
 
 
-def fresh(b, w=390, h=844, wait=1400, reset=True, init=None, **state):
+def fresh(b, w=390, h=844, wait=1400, reset=True, init=None, locale="it-IT", **state):
     if reset: mock.reset()
     if state: mock.set(**state)
-    P = Page(b, mock, w, h)
+    P = Page(b, mock, w, h, locale=locale)
     camera_routes(P)
     if init: P.ctx.add_init_script(init)
     CUR[0] = P
@@ -132,7 +132,7 @@ with sync_playwright() as p:
     ok("it slides in from the left, at most 420 px wide and never covering the whole page", box["x"] == 0 and box["width"] <= 420 and box["width"] <= 390 - 40, box)
     ok("it is a dialog with a name", pg.locator(".drawer").get_attribute("role") == "dialog" and pg.locator(".drawer").get_attribute("aria-label") == "Impostazioni")
     titles = pg.locator(".set-entry .oui-row__name").all_inner_texts()
-    ok("nine groups, the printer first, in this order", titles == ["Stampante", "Camera", "Indirizzi", "Z-offset", "Notifiche", "Monitor IA", "Soglie del monitor", "Accesso", "Aggiornamenti"], titles)
+    ok("ten groups, the printer first, in this order", titles == ["Stampante", "Camera", "Indirizzi", "Z-offset", "Notifiche", "Monitor IA", "Soglie del monitor", "Accesso", "Aggiornamenti", "Lingua"], titles)
     summaries = pg.locator(".set-entry__meta").all_inner_texts()
     ok("each group says what it is set to now", summaries[0] == "KlippEye" and summaries[1] == "WebRTC" and summaries[2] == "192.168.1.17 • 172.25.170.177" and summaries[3] == "0.01 · 0.025 · 0.05 · 0.1 mm" and summaries[4] == "7 su 7 attive" and "Pausa da sola: no" in summaries[5], summaries)
     ok("the page behind cannot scroll while it is open", pg.evaluate("() => document.body.style.overflow") == "hidden")
@@ -145,7 +145,7 @@ with sync_playwright() as p:
     open_menu(P); pg.keyboard.press("Escape"); pg.wait_for_selector(".drawer", state="detached")
     ok("Escape closes it", True)
     open_menu(P); go(P, "camera"); pg.keyboard.press("Escape"); P.settle(300)
-    ok("Escape inside a group goes back to the list first, then closes", pg.locator(".set-entry").count() == 9 and pg.locator(".drawer").count() == 1)
+    ok("Escape inside a group goes back to the list first, then closes", pg.locator(".set-entry").count() == 10 and pg.locator(".drawer").count() == 1)
     pg.keyboard.press("Escape"); pg.wait_for_selector(".drawer", state="detached")
     open_menu(P)
     TOUCH = """([sx, ex]) => { const el = document.querySelector('.drawer'); const mk = (type, x) => { const e = new Event(type, { bubbles: true, cancelable: true }); const t = [{ identifier: 1, clientX: x, clientY: 300, target: el }]; e.touches = type === 'touchend' ? [] : t; e.changedTouches = t; return e; }; el.dispatchEvent(mk('touchstart', sx)); el.dispatchEvent(mk('touchend', ex)); }"""
@@ -154,7 +154,7 @@ with sync_playwright() as p:
     pg.evaluate(TOUCH, [300, 120]); pg.wait_for_selector(".drawer", state="detached")
     ok("a swipe to the left closes it", True)
     open_menu(P); go(P, "camera"); close_menu(P); open_menu(P)
-    ok("it always opens on the list of groups", pg.locator(".set-entry").count() == 9)
+    ok("it always opens on the list of groups", pg.locator(".set-entry").count() == 10)
     close_menu(P)
     for tab in ("controllo", "files", "config", "sistema"):
         P.goto(tab, 700)
@@ -631,6 +631,40 @@ with sync_playwright() as p:
         ok("[%d] the top bar still fits with the new button" % w, hdr["right"] <= w and hdr["page"] <= 0 and hdr["menu"][0] >= 0, hdr)
         ok("[%d] no errors in the page" % w, not [e for e in P.errors if "pageerror" in e], P.errors[:3])
         P.close()
+
+    # ============================================================================================ language
+    P = fresh(b)
+    pg = P.pg
+    open_menu(P)
+    meta = lambda: pg.locator('.set-entry[data-page="language"] .set-entry__meta').inner_text()
+    ok("language: an Italian device gets the Italian page, and the list says it follows the device", pg.evaluate("() => document.documentElement.lang") == "it" and meta() == "Automatica (Italiano)", meta())
+    go(P, "language")
+    titles = pg.locator(".set-choice .set-switch__title").all_inner_texts()
+    ok("... three choices: automatic (selected), English, Italiano", titles == ["Automatico", "English", "Italiano"] and choice(pg, "Automatico").get_attribute("aria-checked") == "true", titles)
+    ok("... the automatic one names the device's language", "Italiano" in choice(pg, "Automatico").inner_text())
+    choice(pg, "English").click(); pg.wait_for_load_state("load"); P.settle(1500)
+    ok("choosing English reloads the page in English", pg.evaluate("() => document.documentElement.lang") == "en" and pg.locator('.app-header button[aria-label="Settings"]').count() == 1)
+    ok("... the choice stays on this device only", pg.evaluate("() => localStorage.getItem('ke_lang')") == "en" and "language" not in (settings_now(P) or {}), pg.evaluate("() => localStorage.getItem('ke_lang')"))
+    pg.click('button[aria-label="Settings"]'); pg.wait_for_selector(".drawer"); P.settle(450)
+    titles = pg.locator(".set-entry .oui-row__name").all_inner_texts()
+    ok("... the menu is in English", titles == ["Printer", "Camera", "Addresses", "Z-offset", "Notifications", "AI monitor", "Monitor thresholds", "Access", "Updates", "Language"] and meta() == "English", (titles, meta()))
+    go(P, "language"); choice(pg, "Automatic").click(); pg.wait_for_load_state("load"); P.settle(1500)
+    ok("back to automatic: Italian again, and nothing kept", pg.evaluate("() => document.documentElement.lang") == "it" and pg.evaluate("() => localStorage.getItem('ke_lang')") is None)
+    ok("no errors in the page", not P.errors, P.errors[:3])
+    P.close()
+
+    P = fresh(b, locale="en-US")
+    pg = P.pg
+    words = pg.evaluate("() => document.body.innerText")
+    italian = [w for w in (" della ", " degli ", "Stampante", "Ventol", "Temperatur", "Impostazioni", " non ", "Caricamento") if w in words]
+    ok("an English device gets the English page, with no Italian text on it", pg.evaluate("() => document.documentElement.lang") == "en" and not italian, italian)
+    for tab in ("controllo", "files", "config", "sistema"):
+        P.goto(tab, 900)
+        words = pg.evaluate("() => document.body.innerText")
+        italian = [w for w in (" della ", " degli ", "Stampante", "Ventol", "Temperatur", "Impostazioni", " non ", "Caricamento", " il ", " di ") if w in words]
+        ok("... the %s page too" % tab, not italian, (italian, [l for l in words.splitlines() if any(w.strip() in l for w in italian)][:6]))
+    ok("no errors in the page", not P.errors, P.errors[:3])
+    P.close()
 
     # ============================================================================================ nothing else is touched
     P = fresh(b)

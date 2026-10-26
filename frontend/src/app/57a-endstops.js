@@ -38,7 +38,7 @@ function useEndstops({ probe: hasProbe }) {
       const probe = hasProbe ? await endstopsApi.probe().catch(() => null) : null;
       setState({ endstops, probe, loading: false, error: null, updatedAt: localTimeString() });
     } catch (error) {
-      setState((previous) => ({ ...previous, loading: false, error: error.message || "Klipper non risponde" }));
+      setState((previous) => ({ ...previous, loading: false, error: error.message || tx("Klipper does not answer") }));
     }
   };
 
@@ -52,7 +52,7 @@ function EndstopRow({ icon, name, detail, triggered }) {
     { className: "oui-row" },
     h("span", { className: "oui-row__icon" }, icon),
     h("span", { className: "oui-row__text" }, h("span", { className: "oui-row__name" }, name), h("span", { className: "oui-row__meta" }, detail)),
-    h("span", { className: cx("oui-badge", triggered ? "oui-badge--danger" : "oui-badge--ok") }, h("span", { className: "oui-dot" }), triggered ? "Attivato" : "Aperto"),
+    h("span", { className: cx("oui-badge", triggered ? "oui-badge--danger" : "oui-badge--ok") }, h("span", { className: "oui-dot" }), triggered ? tx("Triggered") : tx("Open")),
   );
 }
 
@@ -72,9 +72,9 @@ function EndstopsSection({ capabilities, lockReason }) {
     else {
       const { endstops, probe, loading, error, updatedAt } = state;
       let content;
-      if (error && !endstops) content = h("div", { className: "oui-tile oui-tile--danger oui-notice" }, "Impossibile leggere gli endstop: " + error);
-      else if (!endstops) content = h("div", { className: "oui-notice" }, loading ? "Lettura in corso..." : "Premi Aggiorna per leggere lo stato di endstop e probe.");
-      else if (endstops.length === 0 && !probe) content = h("div", { className: "oui-notice" }, "Klipper non ha endstop registrati.");
+      if (error && !endstops) content = h("div", { className: "oui-tile oui-tile--danger oui-notice" }, tx("Cannot read the endstops: ") + error);
+      else if (!endstops) content = h("div", { className: "oui-notice" }, loading ? tx("Reading...") : tx("Press Refresh to read the endstops and the probe."));
+      else if (endstops.length === 0 && !probe) content = h("div", { className: "oui-notice" }, tx("Klipper has no endstops registered."));
       else
         content = h(
           "div",
@@ -83,7 +83,7 @@ function EndstopsSection({ capabilities, lockReason }) {
           probe && h(EndstopRow, { key: "probe", icon: h(Icons.Probe), name: "Probe", detail: probe.name, triggered: probe.triggered }),
         );
       // the caption says how old what is shown is (nothing is read on its own)
-      const caption = !endstops ? (error ? "Lettura non riuscita" : "Non ancora letti") : error ? "Ultimo aggiornamento non riuscito: " + error : "Aggiornato alle " + updatedAt;
+      const caption = !endstops ? (error ? tx("Reading failed") : tx("Not read yet")) : error ? tx("Last refresh failed: ") + error : tx("Updated at ") + updatedAt;
       body = h(
         React.Fragment,
         null,
@@ -92,7 +92,7 @@ function EndstopsSection({ capabilities, lockReason }) {
           "div",
           { className: "endstops-foot" },
           h("span", { className: "oui-caption" }, caption),
-          h("button", { className: "oui-btn oui-btn--sm", disabled: loading, onClick: state.refresh }, h(Icons.Refresh, { size: 16 }), "Aggiorna"),
+          h("button", { className: "oui-btn oui-btn--sm", disabled: loading, onClick: state.refresh }, h(Icons.Refresh, { size: 16 }), tx("Refresh")),
         ),
       );
     }
@@ -105,7 +105,7 @@ function EndstopsSection({ capabilities, lockReason }) {
       "button",
       { className: "endstops-head", "aria-expanded": open, onClick: toggle },
       h("span", { className: "endstops-head__icon" }, h(Icons.Endstop, { size: 20 })),
-      h("span", { className: "endstops-head__title" }, "Endstop e probe"),
+      h("span", { className: "endstops-head__title" }, tx("Endstops and probe")),
       h("span", { className: cx("menu-chevron", open && "is-open") }, h(Icons.Chevron, { size: 18 })),
     ),
     h(Collapse, { open }, body && h("div", { className: "endstops-body" }, body)),

@@ -107,7 +107,7 @@ function createLightEngine(publish) {
       real = state;
       if (wish === null) return emit();
       if (state === wish && !sending) return settle(); // Klipper has followed
-      if (!sending && confirmFrom && startedAt >= confirmFrom) giveUp("La luce non ha risposto"); // asked again after the grace time: still no
+      if (!sending && confirmFrom && startedAt >= confirmFrom) giveUp(tx("The light did not respond")); // asked again after the grace time: still no
     } catch (e) {
       /* cancelled or failed: the next one will do */
     } finally {
@@ -138,7 +138,7 @@ function createLightEngine(publish) {
         if ((commanded !== null ? commanded : real) === target) break;
         if (!(await sendLightCommand(target))) {
           sending = false;
-          return giveUp("Non riesco a comandare la luce");
+          return giveUp(tx("Cannot switch the light"));
         }
         commanded = target;
       }
@@ -149,7 +149,7 @@ function createLightEngine(publish) {
     if (real === wish) return settle(); // a reading had already seen it
     confirmFrom = Date.now() + LIGHT_CONFIRM_MS;
     clearTimeout(giveUpTimer);
-    giveUpTimer = setTimeout(() => giveUp("La luce non ha risposto"), LIGHT_GIVE_UP_MS);
+    giveUpTimer = setTimeout(() => giveUp(tx("The light did not respond")), LIGHT_GIVE_UP_MS);
   };
 
   return {
@@ -204,7 +204,7 @@ function LightButton({ on, waiting, failures, toggle }) {
       role: "switch",
       "aria-checked": on,
       "aria-busy": waiting,
-      "aria-label": "Luce",
+      "aria-label": tx("Light"),
       "data-fail": failures ? (failures % 2 ? "odd" : "even") : undefined, // flips on every failure, so the shake plays again
       className: cx("light-btn", on && "is-on", waiting && "is-waiting"),
       onClick: () => toggle(),
@@ -247,7 +247,7 @@ const withCacheBuster = (url) => url + (url.indexOf("?") >= 0 ? "&" : "?") + "_=
 const flipStyle = (camera) => (camera.flipH || camera.flipV ? { transform: ((camera.flipH ? "scaleX(-1) " : "") + (camera.flipV ? "scaleY(-1)" : "")).trim() } : undefined);
 
 /** Says that the picture is not coming; the camera is tried again by itself. */
-const CameraNote = () => h("div", { className: "camera-note", role: "status" }, "Camera non raggiungibile…");
+const CameraNote = () => h("div", { className: "camera-note", role: "status" }, tx("Camera not reachable…"));
 
 /** MJPEG: the browser keeps the stream open. A stream that breaks is asked for again after a moment. */
 function CameraStream({ className, url, style }) {

@@ -80,7 +80,7 @@ function appEventToProgress(event) {
     const total = Math.max(0, Number(event.totale) || 0);
     return { phase, total, done: Math.min(total, Math.max(0, Number(event.fatto) || 0)) };
   }
-  if (phase === "error") return { phase, message: String(event.messaggio || "errore sconosciuto").slice(0, 300) };
+  if (phase === "error") return { phase, message: String(event.messaggio || tx("unknown error")).slice(0, 300) };
   return { phase };
 }
 
@@ -100,7 +100,7 @@ function useAppUpdater() {
   }, []);
   useEffect(() => {
     if (progress.phase !== "starting") return undefined;
-    const timer = setTimeout(() => setProgress({ phase: "error", message: "l'app non ha risposto" }), APP_START_TIMEOUT_MS);
+    const timer = setTimeout(() => setProgress({ phase: "error", message: tx("the app did not answer") }), APP_START_TIMEOUT_MS);
     return () => clearTimeout(timer);
   }, [progress.phase]);
   const start = (offer) => {
@@ -109,7 +109,7 @@ function useAppUpdater() {
       // the app of VzBot 1.0.x only accepts the address it knew: the backend serves the same file there too
       nativeBridge().updateApp(isLegacyApp() ? APP_APK_URL_LEGACY : APP_APK_URL, offer.version, offer.sha256, String(offer.size));
     } catch (error) {
-      setProgress({ phase: "error", message: "l'app non ha accettato la richiesta" });
+      setProgress({ phase: "error", message: tx("the app did not accept the request") });
     }
   };
   return { progress, start };
@@ -123,16 +123,16 @@ const ApkDownloadButton = ({ info, label }) =>
 
 /** The running update: a bar while the app downloads, then what the person has to do in Android. */
 function AppUpdateProgress({ progress, offer, onRetry }) {
-  const retry = h("button", { type: "button", className: "oui-btn oui-btn--block", onClick: onRetry }, h(Icons.RotateCw, { size: 18 }), "Riprova");
+  const retry = h("button", { type: "button", className: "oui-btn oui-btn--block", onClick: onRetry }, h(Icons.RotateCw, { size: 18 }), tx("Retry"));
   switch (progress.phase) {
     case "starting":
-      return h(AppStatus, { tone: "update" }, "Avvio l'aggiornamento…");
+      return h(AppStatus, { tone: "update" }, tx("Starting the update…"));
     case "downloading": {
       const percent = progress.total ? Math.round((progress.done / progress.total) * 100) : 0;
       return h(
         React.Fragment,
         null,
-        h(AppStatus, { tone: "update" }, "Scarico l'app " + offer.version + "… " + percent + " %"),
+        h(AppStatus, { tone: "update" }, tx("Downloading the app {version}… {percent} %", { version: offer.version, percent })),
         h("div", { className: "oui-progress set-progress", role: "progressbar", "aria-valuemin": 0, "aria-valuemax": 100, "aria-valuenow": percent }, h("div", { className: "oui-progress__bar", style: { width: percent + "%" } })),
       );
     }
@@ -140,41 +140,41 @@ function AppUpdateProgress({ progress, offer, onRetry }) {
       return h(
         React.Fragment,
         null,
-        h(AppStatus, { tone: "warn" }, "Android deve prima permettere a KlippEye di installare app. Nella pagina che si è aperta attiva «Consenti da questa fonte», poi torna qui: l'aggiornamento riparte da solo."),
-        h("p", { className: "set-group__note" }, "Con l'Auto Blocker di Samsung attivo il permesso non si può dare: spegnilo da Impostazioni → Sicurezza e privacy → Auto Blocker, poi riprova."),
+        h(AppStatus, { tone: "warn" }, tx("Android must first allow KlippEye to install apps. In the page that opened turn on «Allow from this source», then come back here: the update starts again by itself.")),
+        h("p", { className: "set-group__note" }, tx("With Samsung's Auto Blocker on the permission cannot be given: turn it off in Settings → Security and privacy → Auto Blocker, then retry.")),
         retry,
       );
     case "installing":
       return h(
         React.Fragment,
         null,
-        h(AppStatus, { tone: "update" }, "Conferma l'installazione nella finestra di Android (tasto «Aggiorna»). Quando ha finito, riapri KlippEye dall'icona."),
+        h(AppStatus, { tone: "update" }, tx("Confirm the installation in Android's window («Update» button). When it has finished, open KlippEye again from its icon.")),
         retry,
       );
     default:
-      return h(React.Fragment, null, h(AppStatus, { tone: "warn" }, "Aggiornamento non riuscito: " + progress.message + "."), retry);
+      return h(React.Fragment, null, h(AppStatus, { tone: "warn" }, tx("Update failed: ") + progress.message + "."), retry);
   }
 }
 
 /** The block itself: what is installed, what the Raspberry has, and the way to get from one to the other. */
 function AppBlock({ app, installed }) {
   const updater = useAppUpdater();
-  if (app.state === "loading") return h(AppStatus, null, "Chiedo al backend se c'è un'app…");
-  if (app.state === "old") return h(AppStatus, { tone: "warn" }, "Il backend sul Raspberry non conosce ancora l'app: aggiorna KlippEye (qui sopra) e ricontrolla.");
-  if (app.state === "down") return h(AppStatus, { tone: "warn" }, "Il backend non risponde: non posso sapere se c'è un'app.");
+  if (app.state === "loading") return h(AppStatus, null, tx("Asking the backend whether there is an app…"));
+  if (app.state === "old") return h(AppStatus, { tone: "warn" }, tx("The backend on the Raspberry does not know the app yet: update KlippEye (above) and check again."));
+  if (app.state === "down") return h(AppStatus, { tone: "warn" }, tx("The backend does not answer: cannot know whether there is an app."));
   const info = app.info;
   if (!info.available) {
     const none = /nessuna app/i.test(String(info.reason));
     return h(
       React.Fragment,
       null,
-      installed && h("div", { className: "oui-list set-info-list" }, h(InfoLine, { label: "App installata", value: installed.version })),
+      installed && h("div", { className: "oui-list set-info-list" }, h(InfoLine, { label: tx("Installed app"), value: installed.version })),
       h(
         AppStatus,
         { tone: none ? undefined : "warn" },
         none
-          ? "Sul Raspberry non c'è ancora nessuna app. GitHub la costruisce quando carichi la cartella android/ (guida: docs/GUIDA.md, «L'app Android»); poi arriva qui con «Aggiorna KlippEye»."
-          : "L'app sul Raspberry non è completa (" + String(info.reason || "motivo sconosciuto") + "). Aggiorna KlippEye e ricontrolla.",
+          ? tx("There is no app on the Raspberry yet. GitHub builds it when you upload the android/ folder (guide: docs/GUIDA.md, «The Android app»); then it comes here with «Update KlippEye».")
+          : tx("The app on the Raspberry is not complete ({reason}). Update KlippEye and check again.", { reason: String(info.reason || tx("unknown reason")) }),
       ),
     );
   }
@@ -190,51 +190,51 @@ function AppBlock({ app, installed }) {
       body = h(
         React.Fragment,
         null,
-        h(AppStatus, { tone: "update" }, "È pronta la nuova app KlippEye " + info.version + " (questa è l'app VzBot " + installed.version + ")"),
-        h("button", { type: "button", className: "oui-btn oui-btn--primary oui-btn--block", onClick: () => updater.start(info) }, h(Icons.Download, { size: 18 }), "Installa la nuova app KlippEye"),
+        h(AppStatus, { tone: "update" }, tx("The new KlippEye app {version} is ready (this is the VzBot app {installed})", { version: info.version, installed: installed.version })),
+        h("button", { type: "button", className: "oui-btn oui-btn--primary oui-btn--block", onClick: () => updater.start(info) }, h(Icons.Download, { size: 18 }), tx("Install the new KlippEye app")),
         h(
           "p",
           { className: "set-group__note" },
-          "Non è un aggiornamento di questa app ma un'app nuova, con un'altra icona: Android la installa accanto a questa. Quando l'hai installata apri KlippEye dall'icona e controlla che si colleghi, poi disinstalla questa app VzBot (tieni premuta l'icona → Disinstalla). Impostazioni e notifiche stanno sul Raspberry e non si perdono. Finché hai tutte e due le app, le notifiche arrivano su entrambe.",
+          tx("This is not an update of this app but a new app, with another icon: Android installs it next to this one. Once installed, open KlippEye from its icon and check that it connects, then uninstall this VzBot app (hold its icon → Uninstall). Settings and notifications are on the Raspberry and are not lost. While you have both apps, notifications reach both."),
         ),
       );
     } else if (waiting) {
       body = h(
         React.Fragment,
         null,
-        h(AppStatus, { tone: "update" }, "Disponibile l'app " + info.version + " (hai la " + installed.version + ")"),
-        h("button", { type: "button", className: "oui-btn oui-btn--primary oui-btn--block", onClick: () => updater.start(info) }, h(Icons.Download, { size: 18 }), "Aggiorna l'app"),
-        h("p", { className: "set-group__note" }, "Android ti chiede conferma" + (installed.canInstall ? "" : " e, la prima volta, il permesso «Installa app sconosciute» per KlippEye") + ". Le impostazioni dell'app restano."),
+        h(AppStatus, { tone: "update" }, tx("App {version} available (you have {installed})", { version: info.version, installed: installed.version })),
+        h("button", { type: "button", className: "oui-btn oui-btn--primary oui-btn--block", onClick: () => updater.start(info) }, h(Icons.Download, { size: 18 }), tx("Update the app")),
+        h("p", { className: "set-group__note" }, (installed.canInstall ? tx("Android asks you to confirm. The app settings stay.") : tx("Android asks you to confirm and, the first time, the permission «Install unknown apps» for KlippEye. The app settings stay."))),
       );
     } else if (installed.code > Number(info.code)) {
-      body = h(AppStatus, { tone: "ok" }, "L'app installata (" + installed.version + ") è più nuova di quella sul Raspberry: aggiorna prima KlippEye, qui sopra.");
-    } else body = h(AppStatus, { tone: "ok" }, "L'app è aggiornata");
+      body = h(AppStatus, { tone: "ok" }, tx("The installed app ({installed}) is newer than the one on the Raspberry: update KlippEye first, above.", { installed: installed.version }));
+    } else body = h(AppStatus, { tone: "ok" }, tx("The app is up to date"));
   } else if (IN_APP_WEBVIEW) {
     body = h(
       React.Fragment,
       null,
-      h(AppStatus, { tone: "warn" }, "Questa è una versione precedente dell'app e non sa aggiornarsi da sola. Installa quella nuova una volta: da lì in poi si aggiorna da qui."),
-      h(ApkDownloadButton, { info, label: "Scarica l'app " + info.version }),
+      h(AppStatus, { tone: "warn" }, tx("This is an older version of the app and it cannot update itself. Install the new one once: from then on it updates from here.")),
+      h(ApkDownloadButton, { info, label: tx("Download the app {version}", { version: info.version }) }),
       h(
         "p",
         { className: "set-group__note" },
-        APP_CAN_SAVE_FILES ? "Il file va nella cartella Download: aprilo (dall'app File del telefono) per installarlo. " : "Questa app non sa scaricare: apri " + location.origin + APP_APK_URL + " nel browser del telefono. ",
-        "Se Android dice che l'app è in conflitto con quella già installata, disinstalla prima quella vecchia (le impostazioni stanno sul Raspberry).",
+        APP_CAN_SAVE_FILES ? tx("The file goes into the Download folder: open it (from the phone's Files app) to install it. ") : tx("This app cannot download: open {url} in the phone's browser. ", { url: location.origin + APP_APK_URL }),
+        tx("If Android says the app conflicts with the one already installed, uninstall the old one first (the settings are on the Raspberry)."),
       ),
     );
   } else {
     body = h(
       React.Fragment,
       null,
-      h(AppStatus, { tone: "update" }, "L'app Android " + info.version + " è pronta."),
-      h(ApkDownloadButton, { info, label: "Scarica l'app" }),
-      h("p", { className: "set-group__note" }, "Apri questa pagina dal telefono, scarica il file e aprilo per installarlo (Android può chiedere di consentire l'installazione da questa fonte)."),
+      h(AppStatus, { tone: "update" }, tx("The Android app {version} is ready.", { version: info.version })),
+      h(ApkDownloadButton, { info, label: tx("Download the app") }),
+      h("p", { className: "set-group__note" }, tx("Open this page from the phone, download the file and open it to install it (Android may ask to allow installing from this source).")),
     );
   }
   return h(
     React.Fragment,
     null,
-    h("div", { className: "oui-list set-info-list" }, installed && h(InfoLine, { label: "App installata", value: installed.version, warn: waiting }), h(InfoLine, { label: "Sul Raspberry", value: offerLine })),
+    h("div", { className: "oui-list set-info-list" }, installed && h(InfoLine, { label: tx("Installed app"), value: installed.version, warn: waiting }), h(InfoLine, { label: tx("On the Raspberry"), value: offerLine })),
     body,
   );
 }

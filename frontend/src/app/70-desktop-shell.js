@@ -41,20 +41,20 @@ function useIsDesktop() {
  * and what Controllo kept apart (calibrations, mesh) is Calibrazione.
  */
 const DESKTOP_TABS = [
-  { id: "home", label: "Dispositivo" },
-  { id: "controllo", label: "Calibrazione" },
-  { id: "files", label: "File" },
+  { id: "home", label: tx("Device") },
+  { id: "controllo", label: tx("Calibration") },
+  { id: "files", label: tx("Files") },
   { id: "config", label: "Config" },
-  { id: "sistema", label: "Sistema" },
+  { id: "sistema", label: tx("System") },
 ];
 
 /** The pill next to the save and emergency buttons: { text, tone } or null until Klipper has answered. */
 function printerStatePill(printStatus) {
   if (!printStatus.loaded) return null;
-  if (printStatus.state === "printing") return { text: "Stampa in corso", tone: "info" };
-  if (printStatus.state === "paused") return { text: "In pausa", tone: "warn" };
-  if (printStatus.state === "error") return { text: "Errore", tone: "danger" };
-  return { text: "Pronta", tone: "ok" };
+  if (printStatus.state === "printing") return { text: tx("Printing"), tone: "info" };
+  if (printStatus.state === "paused") return { text: tx("Paused"), tone: "warn" };
+  if (printStatus.state === "error") return { text: tx("Error"), tone: "danger" };
+  return { text: tx("Ready"), tone: "ok" };
 }
 
 /* ---------------------------------------------------------------------------
@@ -100,7 +100,7 @@ function ConsoleDock({ entries }) {
         h(
           "div",
           { className: "desk-drawer", role: "region", "aria-label": "Console" },
-          h("div", { className: "oui-card__head" }, h(SectionTitle, null, "Console"), h("span", { className: "oui-caption" }, "Tocca un comando per rimetterlo nel campo di invio")),
+          h("div", { className: "oui-card__head" }, h(SectionTitle, null, "Console"), h("span", { className: "oui-caption" }, tx("Tap a command to put it back in the input field"))),
           h(ConsoleLog, { entries, onPick: pick, className: "desk-drawer__log" }),
         ),
     ),
@@ -120,12 +120,12 @@ function ConsoleDock({ entries }) {
         value: command,
         onChange: (e) => setCommand(e.target.value),
         onKeyDown: (e) => e.key === "Enter" && send(),
-        placeholder: "Invia codice...",
-        "aria-label": "Invia codice",
+        placeholder: tx("Send code..."),
+        "aria-label": tx("Send code"),
         className: "oui-field oui-mono desk-dock__input",
       }),
-      h("button", { onClick: send, className: "oui-btn oui-btn--primary oui-btn--icon desk-dock__send", "aria-label": "Invia" }, h(Icons.Send)),
-      h("button", { onClick: () => setOpen(!open), className: cx("oui-btn oui-btn--icon desk-dock__expand", open && "is-open"), "aria-label": open ? "Chiudi la console" : "Apri tutta la console" }, h(Icons.Chevron)),
+      h("button", { onClick: send, className: "oui-btn oui-btn--primary oui-btn--icon desk-dock__send", "aria-label": tx("Send") }, h(Icons.Send)),
+      h("button", { onClick: () => setOpen(!open), className: cx("oui-btn oui-btn--icon desk-dock__expand", open && "is-open"), "aria-label": open ? tx("Close the console") : tx("Open the whole console") }, h(Icons.Chevron)),
     ),
   );
 }

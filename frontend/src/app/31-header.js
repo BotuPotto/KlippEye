@@ -21,7 +21,7 @@ function AppHeader({ onSettings, onPower, onSaveConfig, onEmergencyStop, saveBus
       h(
         "div",
         { className: "app-header__brand" },
-        h("button", { onClick: onSettings, className: "header-btn header-btn--menu", "aria-label": "Impostazioni", title: "Impostazioni della dashboard" }, h(Icons.Menu)),
+        h("button", { onClick: onSettings, className: "header-btn header-btn--menu", "aria-label": tx("Settings"), title: tx("Dashboard settings") }, h(Icons.Menu)),
         h(PrinterLogo, { id: printer.brand, className: "app-header__logo" }),
         isKlippEyeWordmark(printer)
           ? h("span", { className: "app-header__name" }, "Klipp", h("span", { className: "app-header__eye" }, "Eye"))
@@ -33,14 +33,14 @@ function AppHeader({ onSettings, onPower, onSaveConfig, onEmergencyStop, saveBus
         "div",
         { className: "app-header__actions" },
         wide && wide.state && h("span", { className: cx("oui-badge header-state", "oui-badge--" + wide.state.tone) }, h("span", { className: "oui-dot" }), wide.state.text),
-        h("button", { onClick: onPower, className: "header-btn", "aria-label": "Alimentazione e servizi", title: "Riavvia Klipper, servizi e Raspberry" }, h(Icons.Power)),
+        h("button", { onClick: onPower, className: "header-btn", "aria-label": tx("Power and services"), title: tx("Restart Klipper, services and Raspberry") }, h(Icons.Power)),
         h(
           "button",
           {
             onClick: onSaveConfig,
             className: cx("header-btn", saveBusy && "is-busy"),
             "aria-label": "Save config",
-            title: "SAVE_CONFIG - Salva configurazione e riavvia",
+            title: tx("SAVE_CONFIG - Save the configuration and restart"),
           },
           h(Icons.Save),
         ),
@@ -67,7 +67,7 @@ function HeaderTabs({ tabs, active, onSelect }) {
   }, []);
   return h(
     "nav",
-    { className: "header-tabs", "aria-label": "Pagine", ref: navRef },
+    { className: "header-tabs", "aria-label": tx("Pages"), ref: navRef },
     marker && h("span", { className: "header-tabs__pill", "aria-hidden": "true", style: { width: marker.w + "px", transform: "translateX(" + marker.x + "px)" } }),
     tabs.map((tab) => h("button", { key: tab.id, className: cx("header-tabs__tab", active === tab.id && "is-active"), "data-tab": tab.id, onClick: () => onSelect(tab.id) }, tab.label)),
   );

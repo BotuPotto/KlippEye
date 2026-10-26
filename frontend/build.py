@@ -10,6 +10,7 @@ Builds the dashboard: one self-contained HTML file, served as is by the Flask ba
     vendor/tailwind-*.css   compiled Tailwind, reduced by tools/tailwind_purge.py to the classes in use
     vendor/react-dom-*.js   React 18 + ReactDOM client, third-party code, kept unmodified
     src/app/*.js            the application, in file-name order (99-main.js starts it)
+    src/i18n/<lang>.json    translations of the English texts (English text -> translation), see app/02-i18n.js
 
 The result has no external files and no network dependency: the font is the device's own (One UI Sans on Samsung).
 """
@@ -74,6 +75,20 @@ def logos():
     return ", ".join(entries)
 
 
+def dictionaries():
+    """The files of src/i18n/ (<lang>.json: English text -> translation) as the body of I18N_DICTIONARIES (app/02-i18n.js)."""
+    import json
+    entries = []
+    for path in files("src/i18n/*.json"):
+        lang = os.path.splitext(os.path.basename(path))[0]
+        assert re.fullmatch(r"[a-z]{2}", lang), "dictionary names are two-letter language codes, not %r" % lang
+        with open(path, encoding="utf-8") as f:
+            table = json.load(f)
+        assert isinstance(table, dict) and all(isinstance(k, str) and isinstance(v, str) for k, v in table.items()), path
+        entries.append('"%s": %s' % (lang, json.dumps(table, ensure_ascii=False, sort_keys=True, separators=(",", ":"))))
+    return ", ".join(entries)
+
+
 def script():
     """Vendor React first (the app calls into it), then the application, 99-main.js last."""
     parts = [banner("VENDOR: React + ReactDOM client 18.3.1 (minified, unmodified). The application starts below.")]
@@ -83,7 +98,8 @@ def script():
     code = "\n".join(parts)
     assert code.count("__KLIPPEYE_RELEASE__") == 1, "the release placeholder must appear once (app/17-brain.js)"
     assert code.count("/*__EMBEDDED_LOGOS__*/") == 1, "the logos placeholder must appear once (app/01-assets.js)"
-    return code.replace("__KLIPPEYE_RELEASE__", release()).replace("/*__EMBEDDED_LOGOS__*/", logos())
+    assert code.count("/*__I18N__*/") == 1, "the dictionaries placeholder must appear once (app/02-i18n.js)"
+    return code.replace("__KLIPPEYE_RELEASE__", release()).replace("/*__EMBEDDED_LOGOS__*/", logos()).replace("/*__I18N__*/", dictionaries())
 
 
 def icons():

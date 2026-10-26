@@ -58,10 +58,10 @@ function headerBadgeFor(stats, action) {
 }
 
 const AI_BADGES = {
-  monitoring: { rgb: "61,220,138", hex: "#3ddc8a", glow: 0.35, title: "Monitoraggio OK" },
-  ok: { rgb: "61,220,138", hex: "#3ddc8a", glow: 0.35, title: "Stampa OK" },
-  critical: { rgb: "255,93,93", hex: "#ff5d5d", glow: 0.45, title: "Difetto critico - CANCELLA" },
-  pause: { rgb: "255,183,64", hex: "#ffb740", glow: 0.4, title: "Difetto - PAUSA consigliata" },
+  monitoring: { rgb: "61,220,138", hex: "#3ddc8a", glow: 0.35, title: tx("Monitoring OK") },
+  ok: { rgb: "61,220,138", hex: "#3ddc8a", glow: 0.35, title: tx("Print OK") },
+  critical: { rgb: "255,93,93", hex: "#ff5d5d", glow: 0.45, title: tx("Critical defect - CANCEL") },
+  pause: { rgb: "255,183,64", hex: "#ffb740", glow: 0.4, title: tx("Defect - PAUSE suggested") },
 };
 
 /** Card header pill + dot for the detector status. */
@@ -72,9 +72,9 @@ function describeDetector(json) {
   const idle = status.includes("idle") || status.includes("state=");
   const realStarted = json.real_print_started !== undefined ? json.real_print_started : stats.real_print_started;
 
-  let pill = { text: "In attesa stampa", tone: "waiting" };
-  if (realStarted === false && status.toLowerCase().includes("riscaldamento")) pill = { text: "Riscaldamento/mesh - attesa stampa reale", tone: "warming" };
-  else if (printing) pill = { text: "Monitoraggio attivo • stampa in corso", tone: "active" };
+  let pill = { text: tx("Waiting for a print"), tone: "waiting" };
+  if (realStarted === false && status.toLowerCase().includes("riscaldamento")) pill = { text: tx("Heating/mesh - waiting for the real print"), tone: "warming" };
+  else if (printing) pill = { text: tx("Monitoring on • printing"), tone: "active" };
 
   return {
     state: (status || "idle").slice(0, 30),
@@ -91,7 +91,7 @@ function describeDetector(json) {
 /* ---------------------------------------------------------------------------
    Polling
    ------------------------------------------------------------------------- */
-const IDLE_DETECTOR = { state: "idle", score: "0%", checks: 0, dot: "idle", pill: { text: "In attesa stampa", tone: "waiting" }, realStarted: undefined, realReason: "" };
+const IDLE_DETECTOR = { state: "idle", score: "0%", checks: 0, dot: "idle", pill: { text: tx("Waiting for a print"), tone: "waiting" }, realStarted: undefined, realReason: "" };
 
 function verdictOf(response) {
   return { verdict: response.analysis, model: response.model, progress: response.progress, timestamp: response.timestamp };
@@ -179,7 +179,7 @@ function VerdictAlert({ latest }) {
   return h(
     "div",
     { className: cx("ai-alert", action.includes("CANCELLA") ? "ai-alert--danger" : "ai-alert--warn") },
-    h("div", { className: "flex items-center justify-between gap-2" }, h("span", { className: "ai-alert__title" }, "Azione consigliata: " + action), h("span", { className: "oui-caption" }, latest.timestamp || "")),
+    h("div", { className: "flex items-center justify-between gap-2" }, h("span", { className: "ai-alert__title" }, tx("Suggested action: ") + action), h("span", { className: "oui-caption" }, latest.timestamp || "")),
     h("div", { className: "ai-alert__text" }, latest.verdict.summary || ""),
   );
 }
@@ -204,7 +204,7 @@ function AiMonitorCard({ monitor }) {
     h(
       "div",
       { className: "ai-card-head" },
-      h(SectionTitle, null, "AI monitoring automatico"),
+      h(SectionTitle, null, tx("Automatic AI monitoring")),
       h("div", { className: "oui-caption" }, "V17 1080x720"),
     ),
     h(
@@ -216,7 +216,7 @@ function AiMonitorCard({ monitor }) {
     h(
       "div",
       { className: "monitor-grid" },
-      h(MonitorTile, { label: "Stato" }, detector.state),
+      h(MonitorTile, { label: tx("Status") }, detector.state),
       h(MonitorTile, { label: "OpenCV score" }, detector.score),
       h(MonitorTile, { label: "Checks" }, detector.checks),
     ),

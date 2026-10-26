@@ -48,7 +48,7 @@ function formatUptime(seconds) {
 
 const formatCommitDate = (unix) => {
   const seconds = Number(unix);
-  return seconds > 0 ? new Date(seconds * 1000).toLocaleDateString("it-IT", { day: "2-digit", month: "short" }) : "";
+  return seconds > 0 ? new Date(seconds * 1000).toLocaleDateString(LOCALE, { day: "2-digit", month: "short" }) : "";
 };
 
 /** The address of the VERSION file of the repository Moonraker updates from, on raw.githubusercontent.com; "" when that is not GitHub. */
@@ -138,22 +138,22 @@ function CommitList({ commits }) {
   return h(
     "ul",
     { className: "set-commits" },
-    list.map((commit, index) => h("li", { key: commit.sha || index }, h("span", { className: "set-commits__subject" }, commit.subject || "(senza descrizione)"), h("span", { className: "set-commits__date" }, formatCommitDate(commit.date)))),
-    more > 0 && h("li", { className: "set-commits__more" }, "e altre " + more + " modifiche"),
+    list.map((commit, index) => h("li", { key: commit.sha || index }, h("span", { className: "set-commits__subject" }, commit.subject || tx("(no description)")), h("span", { className: "set-commits__date" }, formatCommitDate(commit.date)))),
+    more > 0 && h("li", { className: "set-commits__more" }, tx("and {count} more changes", { count: more })),
   );
 }
 
 /** The state of Moonraker's side: what it says about the repository, and the buttons that follow from it. */
 function UpdateBlock({ update, remoteRelease, brainRelease, printing, menu, updates }) {
   const { phase, raw } = update;
-  if (phase === "loading") return h("div", { className: "set-status" }, h("span", { className: "set-status__dot" }), "Chiedo a Moonraker se c'è qualcosa di nuovo…");
-  if (phase === "down") return h("div", { className: "set-status set-status--warn" }, h("span", { className: "set-status__dot" }), "Moonraker non risponde: non posso sapere se ci sono aggiornamenti.");
+  if (phase === "loading") return h("div", { className: "set-status" }, h("span", { className: "set-status__dot" }), tx("Asking Moonraker whether there is something new…"));
+  if (phase === "down") return h("div", { className: "set-status set-status--warn" }, h("span", { className: "set-status__dot" }), tx("Moonraker does not answer: cannot know whether there are updates."));
   if (phase === "missing") {
     return h(
       "div",
       { className: "set-status set-status--warn" },
       h("span", { className: "set-status__dot" }),
-      h("span", null, "Moonraker non conosce ancora KlippEye tra i programmi aggiornabili. Sul Raspberry lancia ", h("code", null, INSTALL_COMMAND), " (lo collega) e poi riavvia Moonraker dal menu Riavvia."),
+      h("span", null, tx("Moonraker does not know KlippEye among the programs it updates yet. On the Raspberry run "), h("code", null, INSTALL_COMMAND), tx(" (it links it) and then restart Moonraker from the Restart menu.")),
     );
   }
   const component = { ...describeComponent(PROGRAM_COMPONENT, raw), raw };
@@ -164,13 +164,13 @@ function UpdateBlock({ update, remoteRelease, brainRelease, printing, menu, upda
     action();
   };
   if (broken) {
-    const why = (Array.isArray(raw.warnings) && raw.warnings.length ? raw.warnings.join(" ") : "") || (raw.is_dirty ? "Qualche file del programma sul Raspberry è stato modificato a mano." : "Il repository del programma sul Raspberry non è in ordine.");
+    const why = (Array.isArray(raw.warnings) && raw.warnings.length ? raw.warnings.join(" ") : "") || (raw.is_dirty ? tx("Some program files on the Raspberry were changed by hand.") : tx("The program repository on the Raspberry is not in order."));
     return h(
       React.Fragment,
       null,
-      h("div", { className: "set-status set-status--warn", role: "alert" }, h("span", { className: "set-status__dot" }), h("span", null, why + " Finché è così Moonraker rifiuta di aggiornare.")),
-      h("button", { type: "button", className: "oui-btn oui-btn--block", onClick: () => open(() => updates.askRecover(component)) }, h(Icons.RotateCw, { size: 18 }), "Ripristina i file del programma"),
-      h("p", { className: "set-group__note" }, "Riporta i file alla versione ufficiale. Impostazioni, chiave dell'IA e notifiche stanno in un'altra cartella e non si toccano."),
+      h("div", { className: "set-status set-status--warn", role: "alert" }, h("span", { className: "set-status__dot" }), h("span", null, why + tx(" As long as it stays like this Moonraker refuses to update."))),
+      h("button", { type: "button", className: "oui-btn oui-btn--block", onClick: () => open(() => updates.askRecover(component)) }, h(Icons.RotateCw, { size: 18 }), tx("Restore the program files")),
+      h("p", { className: "set-group__note" }, tx("Brings the files back to the official release. Settings, AI key and notifications live in another folder and are not touched.")),
     );
   }
   if (behind > 0) {
@@ -181,20 +181,20 @@ function UpdateBlock({ update, remoteRelease, brainRelease, printing, menu, upda
         "div",
         { className: "set-status set-status--update" },
         h("span", { className: "set-status__dot" }),
-        h("span", null, remoteRelease ? "Disponibile la release " + remoteRelease + (brainRelease ? " (ora hai la " + brainRelease + ")" : "") : "Aggiornamento disponibile: " + behind + (behind === 1 ? " modifica" : " modifiche") + " in arrivo"),
+        h("span", null, remoteRelease ? (brainRelease ? tx("Release {release} is available (you have {current})", { release: remoteRelease, current: brainRelease }) : tx("Release {release} is available", { release: remoteRelease })) : behind === 1 ? tx("Update available: 1 change coming") : tx("Update available: {count} changes coming", { count: behind })),
       ),
       h(CommitList, { commits: raw.commits_behind }),
       h(
         "button",
         { type: "button", className: "oui-btn oui-btn--primary oui-btn--block", disabled: printing || update.busy, onClick: () => open(() => updates.askUpdate(component)) },
         h(Icons.Download, { size: 18 }),
-        "Aggiorna KlippEye",
+        tx("Update KlippEye"),
       ),
-      printing && h("p", { className: "set-group__note set-group__note--warn" }, "C'è una stampa in corso: aggiorna quando finisce (il backend si riavvia)."),
-      !printing && h("p", { className: "set-group__note" }, "Il backend si riavvia per qualche secondo e la pagina si ricarica da sola. Le tue impostazioni restano."),
+      printing && h("p", { className: "set-group__note set-group__note--warn" }, tx("A print is running: update when it finishes (the backend restarts).")),
+      !printing && h("p", { className: "set-group__note" }, tx("The backend restarts for a few seconds and the page reloads by itself. Your settings stay.")),
     );
   }
-  return h("div", { className: "set-status set-status--ok" }, h("span", { className: "set-status__dot" }), "KlippEye è aggiornato" + (update.checkedAt ? " • controllato alle " + new Date(update.checkedAt).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" }) : ""));
+  return h("div", { className: "set-status set-status--ok" }, h("span", { className: "set-status__dot" }), tx("KlippEye is up to date") + (update.checkedAt ? tx(" • checked at {time}", { time: new Date(update.checkedAt).toLocaleTimeString(LOCALE, { hour: "2-digit", minute: "2-digit" }) }) : ""));
 }
 
 function SoftwarePage({ active, menu, updates, printing, actions }) {
@@ -214,7 +214,7 @@ function SoftwarePage({ active, menu, updates, printing, actions }) {
     };
   }, [active]);
 
-  if (version.state === "loading") return h("div", { className: "set-status" }, h("span", { className: "set-status__dot" }), "Controllo il backend…");
+  if (version.state === "loading") return h("div", { className: "set-status" }, h("span", { className: "set-status__dot" }), tx("Checking the backend…"));
   if (version.state === "old" || version.state === "down") {
     return h(
       React.Fragment,
@@ -224,10 +224,10 @@ function SoftwarePage({ active, menu, updates, printing, actions }) {
         { className: "set-status set-status--warn" },
         h("span", { className: "set-status__dot" }),
         version.state === "old"
-          ? h("span", null, "Il backend sul Raspberry è una versione precedente alla 1.0: non sa aggiornarsi dalla dashboard. Installa KlippEye 1.0 una volta sola con ", h("code", null, INSTALL_COMMAND), " (guida: ", h("code", null, "docs/GUIDA.md"), ").")
-          : "Il backend non risponde: se la stampante funziona, riavvialo da Mainsail (Servizi → klippeye).",
+          ? h("span", null, tx("The backend on the Raspberry is older than 1.0: it cannot update itself from the dashboard. Install KlippEye 1.0 once with"), " ", h("code", null, INSTALL_COMMAND), " (", tx("guide:"), " ", h("code", null, "docs/GUIDA.md"), ").")
+          : tx("The backend does not answer: if the printer works, restart it from Mainsail (Services → klippeye)."),
       ),
-      h(InfoLine, { label: "Dashboard (questa pagina)", value: dashboardRelease() }),
+      h(InfoLine, { label: tx("Dashboard (this page)"), value: dashboardRelease() }),
     );
   }
 
@@ -241,35 +241,35 @@ function SoftwarePage({ active, menu, updates, printing, actions }) {
     null,
     h(
       SettingsGroup,
-      { title: "Installato" },
+      { title: txc("software", "Installed") },
       h(
         "div",
         { className: "oui-list set-info-list" },
         h(InfoLine, { label: "Release", value: info.release }),
-        h(InfoLine, { label: "Dashboard (questa pagina)", value: dashboardRelease(), warn: differs }),
-        git && h(InfoLine, { label: "Versione del codice", value: git.commit + (git.branch ? " • " + git.branch : "") }),
-        h(InfoLine, { label: "Backend acceso da", value: formatUptime(info.uptime) }),
-        Number(info.api) < BRAIN_API_LEVEL && h(InfoLine, { label: "Interfaccia del backend", value: info.api + " (serve la " + BRAIN_API_LEVEL + ")", warn: true }),
+        h(InfoLine, { label: tx("Dashboard (this page)"), value: dashboardRelease(), warn: differs }),
+        git && h(InfoLine, { label: tx("Code version"), value: git.commit + (git.branch ? " • " + git.branch : "") }),
+        h(InfoLine, { label: tx("Backend up for"), value: formatUptime(info.uptime) }),
+        Number(info.api) < BRAIN_API_LEVEL && h(InfoLine, { label: tx("Backend interface"), value: tx("{api} ({needed} needed)", { api: info.api, needed: BRAIN_API_LEVEL }), warn: true }),
       ),
       differs &&
         h(
           "div",
           { className: "set-status set-status--warn" },
           h("span", { className: "set-status__dot" }),
-          h("span", null, "Questa pagina è la ", h("b", null, dashboardRelease()), " ma il backend è la ", h("b", null, info.release), ": ricaricala per avere quella nuova. "),
-          h("button", { type: "button", className: "oui-btn oui-btn--sm", onClick: () => location.reload() }, "Ricarica"),
+          h("span", null, tx("This page is "), h("b", null, dashboardRelease()), tx(" but the backend is "), h("b", null, info.release), tx(": reload it to get the new one. ")),
+          h("button", { type: "button", className: "oui-btn oui-btn--sm", onClick: () => location.reload() }, tx("Reload")),
         ),
     ),
     legacy && h(MigrationBlock, { printing }),
     h(
       SettingsGroup,
-      { title: "Aggiornamento" },
+      { title: txc("noun", "Update") },
       h(UpdateBlock, { update, remoteRelease, brainRelease: info.release, printing, menu, updates }),
       h(
         "button",
         { type: "button", className: "oui-btn oui-btn--block", disabled: update.checking || update.phase === "down", onClick: update.check },
         h(Icons.Refresh, { size: 18 }),
-        update.checking ? "Controllo su GitHub…" : "Controlla se c'è una versione nuova",
+        update.checking ? tx("Checking on GitHub…") : tx("Check for a new release"),
       ),
       update.phase === "ok" &&
         update.raw.rollback_version &&
@@ -285,22 +285,22 @@ function SoftwarePage({ active, menu, updates, printing, actions }) {
             },
           },
           h(Icons.Undo, { size: 18 }),
-          "Torna alla versione precedente",
+          tx("Go back to the previous release"),
         ),
     ),
     h(
       SettingsGroup,
-      { title: "App Android", note: "GitHub costruisce l'app quando carichi la cartella android/; arriva sul Raspberry con «Aggiorna KlippEye» e da qui la installi sul telefono." },
+      { title: tx("Android app"), note: tx("GitHub builds the app when you upload the android/ folder; it reaches the Raspberry with «Update KlippEye» and from here you install it on the phone.") },
       h(AppBlock, { app, installed: readInstalledApp() }),
     ),
     h(
       SettingsGroup,
-      { title: "Riavvio", note: "Il riavvio del backend dura qualche secondo e la pagina si ricollega da sola. Una stampa in corso non si ferma (la guida Klipper, non il backend); il monitor IA e le notifiche si fermano solo per un momento." },
+      { title: txc("noun", "Restart"), note: tx("Restarting the backend takes a few seconds and the page reconnects by itself. A running print does not stop (Klipper drives it, not the backend); the AI monitor and the notifications stop only for a moment.") },
       h(
         "div",
         { className: "oui-list" },
-        h(FileActionRow, { icon: h(Icons.RotateCw), title: "Riavvia il backend", subtitle: "Dashboard, monitor IA e collegamento con Moonraker", onClick: () => actions.restartService(PROGRAM_COMPONENT) }),
-        notifier && h(FileActionRow, { icon: h(Icons.Bell), title: "Riavvia le notifiche", subtitle: "Il servizio che manda gli avvisi al telefono", onClick: () => actions.restartService(notifier) }),
+        h(FileActionRow, { icon: h(Icons.RotateCw), title: tx("Restart the backend"), subtitle: tx("Dashboard, AI monitor and link to Moonraker"), onClick: () => actions.restartService(PROGRAM_COMPONENT) }),
+        notifier && h(FileActionRow, { icon: h(Icons.Bell), title: tx("Restart the notifications"), subtitle: tx("The service that sends the alerts to the phone"), onClick: () => actions.restartService(notifier) }),
       ),
     ),
   );
@@ -342,7 +342,7 @@ function MigrationBlock({ printing }) {
       if (data.state === "running") {
         setStatus({ step: Number(data.step) || 0, steps: Number(data.steps) || 6, message: String(data.message || "") });
         setStage("running");
-      } else if (data.state === "error") setProblem({ message: "L'ultimo tentativo non è riuscito: " + String(data.message || ""), command: String(data.command || "") });
+      } else if (data.state === "error") setProblem({ message: tx("The last attempt failed: ") + String(data.message || ""), command: String(data.command || "") });
     });
     return () => {
       alive.current = false;
@@ -366,13 +366,13 @@ function MigrationBlock({ printing }) {
           return setStage("done");
         }
         if (data.state === "error") {
-          setProblem({ message: String(data.message || "errore sconosciuto"), command: String(data.command || "") });
+          setProblem({ message: String(data.message || tx("unknown error")), command: String(data.command || "") });
           setStage("error");
           return;
         }
       }
       if (Date.now() - began > MIGRATION_LIMIT_MS) {
-        setProblem({ message: "Il backend non risponde da dieci minuti. Controlla dal terminale con: klippeye status", command: "" });
+        setProblem({ message: tx("The backend has not answered for ten minutes. Check from the terminal with: klippeye status"), command: "" });
         setStage("error");
         return;
       }
@@ -387,7 +387,7 @@ function MigrationBlock({ printing }) {
     const reply = await brainPost("/api/migrate/start", {});
     if (!alive.current) return;
     if (reply.ok) {
-      setStatus({ step: 0, steps: 6, message: "Parto…" });
+      setStatus({ step: 0, steps: 6, message: tx("Starting…") });
       setProblem({ message: "", command: "" });
       return setStage("running");
     }
@@ -396,7 +396,7 @@ function MigrationBlock({ printing }) {
       setProblem({ message: "", command });
       return setStage("nosudo");
     }
-    setProblem({ message: reply.message || "il backend non risponde", command });
+    setProblem({ message: reply.message || tx("the backend does not answer"), command });
     setStage("error");
   };
 
@@ -408,47 +408,47 @@ function MigrationBlock({ printing }) {
     body = h(
       React.Fragment,
       null,
-      h("div", { className: "set-status set-status--update", role: "status" }, h("span", { className: "set-status__dot" }), h("span", null, stage === "done" ? status.message || "Fatto: ora sei su KlippEye." : "Passo " + Math.max(1, status.step) + " di " + status.steps + (status.message ? ": " + status.message : ""))),
+      h("div", { className: "set-status set-status--update", role: "status" }, h("span", { className: "set-status__dot" }), h("span", null, stage === "done" ? status.message || tx("Done: you are now on KlippEye.") : tx("Step {step} of {steps}", { step: Math.max(1, status.step), steps: status.steps }) + (status.message ? ": " + status.message : ""))),
       h("div", { className: "oui-progress set-progress", role: "progressbar", "aria-valuemin": 0, "aria-valuemax": 100, "aria-valuenow": percent }, h("div", { className: "oui-progress__bar", style: { width: percent + "%" } })),
-      note(stage === "done" ? "La pagina si ricarica da sola." : lost ? "Il backend si sta riavviando con il nuovo nome: la pagina si ricollega da sola. Non spegnere il Raspberry." : "Non chiudere il menu e non spegnere il Raspberry: ci vuole circa un minuto."),
+      note(stage === "done" ? tx("The page reloads by itself.") : lost ? tx("The backend is restarting with the new name: the page reconnects by itself. Do not turn off the Raspberry.") : tx("Do not close the menu and do not turn off the Raspberry: it takes about a minute.")),
     );
   } else if (stage === "nosudo") {
-    body = h(React.Fragment, null, h("div", { className: "set-status set-status--warn", role: "alert" }, h("span", { className: "set-status__dot" }), h("span", null, "Da qui non posso farlo da solo (serve la password di amministratore). Collegati al Raspberry (SSH) e lancia questo comando:")), command(problem.command || "bash ~/vzbot/scripts/passa-a-klippeye.sh"));
+    body = h(React.Fragment, null, h("div", { className: "set-status set-status--warn", role: "alert" }, h("span", { className: "set-status__dot" }), h("span", null, tx("It cannot be done from here (it needs the administrator password). Connect to the Raspberry (SSH) and run this command:"))), command(problem.command || "bash ~/vzbot/scripts/passa-a-klippeye.sh"));
   } else if (stage === "error") {
     body = h(
       React.Fragment,
       null,
-      h("div", { className: "set-status set-status--warn", role: "alert" }, h("span", { className: "set-status__dot" }), h("span", null, problem.message || "Il passaggio non è riuscito.")),
-      problem.command && note("Se non basta, da terminale:"),
+      h("div", { className: "set-status set-status--warn", role: "alert" }, h("span", { className: "set-status__dot" }), h("span", null, problem.message || tx("The move did not succeed."))),
+      problem.command && note(tx("If that is not enough, from the terminal:")),
       problem.command && command(problem.command),
-      h("button", { type: "button", className: "oui-btn oui-btn--block", onClick: () => setStage("idle") }, h(Icons.RotateCw, { size: 18 }), "Riprova"),
+      h("button", { type: "button", className: "oui-btn oui-btn--block", onClick: () => setStage("idle") }, h(Icons.RotateCw, { size: 18 }), tx("Retry")),
     );
   } else if (stage === "confirm") {
     body = h(
       React.Fragment,
       null,
-      note("Il programma si sposta da ~/vzbot a ~/klippeye e i servizi vzbot e vzbot-notifier diventano klippeye e klippeye-notifier. Impostazioni, chiave dell'IA e notifiche vengono copiate (gli originali restano dove sono). Il backend si riavvia per un momento; una stampa in corso non si ferma, ma è meglio farlo a stampante ferma."),
-      h("div", { className: "oui-btn-row" }, h("button", { type: "button", className: "oui-btn", onClick: () => setStage("idle") }, "Annulla"), h("button", { type: "button", className: "oui-btn oui-btn--primary", "data-migrate": "confirm", onClick: start }, "Passa a KlippEye")),
+      note(tx("The program moves from ~/vzbot to ~/klippeye and the services vzbot and vzbot-notifier become klippeye and klippeye-notifier. Settings, AI key and notifications are copied (the originals stay where they are). The backend restarts for a moment; a running print does not stop, but it is better to do it with the printer idle.")),
+      h("div", { className: "oui-btn-row" }, h("button", { type: "button", className: "oui-btn", onClick: () => setStage("idle") }, tx("Cancel")), h("button", { type: "button", className: "oui-btn oui-btn--primary", "data-migrate": "confirm", onClick: start }, tx("Move to KlippEye"))),
     );
   } else {
     body = h(
       React.Fragment,
       null,
       problem.message && h("div", { className: "set-status set-status--warn", role: "alert" }, h("span", { className: "set-status__dot" }), h("span", null, problem.message)),
-      h("div", { className: "set-status set-status--update" }, h("span", { className: "set-status__dot" }), h("span", null, "Questo Raspberry usa ancora i nomi di VzBot (cartella ~/vzbot, servizio vzbot).")),
-      h("button", { type: "button", className: "oui-btn oui-btn--primary oui-btn--block", "data-migrate": "start", disabled: printing || stage === "starting", onClick: () => setStage("confirm") }, h(Icons.Rocket, { size: 18 }), stage === "starting" ? "Parto…" : "Passa a KlippEye"),
-      printing ? h("p", { className: "set-group__note set-group__note--warn" }, "C'è una stampa in corso: fallo quando finisce.") : note("Un passaggio solo, circa un minuto. Dopo, gli aggiornamenti e i comandi usano i nuovi nomi (klippeye)."),
+      h("div", { className: "set-status set-status--update" }, h("span", { className: "set-status__dot" }), h("span", null, tx("This Raspberry still uses the VzBot names (folder ~/vzbot, service vzbot)."))),
+      h("button", { type: "button", className: "oui-btn oui-btn--primary oui-btn--block", "data-migrate": "start", disabled: printing || stage === "starting", onClick: () => setStage("confirm") }, h(Icons.Rocket, { size: 18 }), stage === "starting" ? tx("Starting…") : tx("Move to KlippEye")),
+      printing ? h("p", { className: "set-group__note set-group__note--warn" }, tx("A print is running: do it when it finishes.")) : note(tx("One step only, about a minute. After it, updates and commands use the new names (klippeye).")),
     );
   }
-  return h(SettingsGroup, { title: "Passa a KlippEye" }, body);
+  return h(SettingsGroup, { title: tx("Move to KlippEye") }, body);
 }
 
 /** One line for the menu list: the release, and a sign when a newer one is waiting (KlippEye first, else the Android app). */
 function softwareSummary(version, update, appWaiting) {
-  if (version.state === "old") return "Backend da aggiornare";
-  if (version.state === "down") return "Backend non raggiungibile";
-  if (version.state !== "ok") return "Release e aggiornamenti";
-  if (version.info.legacy === true) return "Passaggio a KlippEye disponibile";
+  if (version.state === "old") return tx("Backend to update");
+  if (version.state === "down") return tx("Backend not reachable");
+  if (version.state !== "ok") return tx("Release and updates");
+  if (version.info.legacy === true) return tx("Move to KlippEye available");
   const waiting = update.phase === "ok" && Number(update.raw.commits_behind_count) > 0;
-  return "Release " + version.info.release + (waiting ? " • aggiornamento disponibile" : appWaiting ? " • app da aggiornare" : "");
+  return "Release " + version.info.release + (waiting ? tx(" • update available") : appWaiting ? tx(" • app to update") : "");
 }

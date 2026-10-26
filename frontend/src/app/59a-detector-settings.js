@@ -9,12 +9,12 @@
 const NUMBER_TYPING_OK = /^[0-9]*[.,]?[0-9]*$/;
 const TEXT_SETTING_CHARS = /^[A-Za-z0-9._:/@+-]*$/;
 const AREA_FIELDS = [
-  { index: 0, label: "Da sinistra", hint: "0 = bordo sinistro" },
-  { index: 1, label: "Dall'alto", hint: "0 = bordo alto" },
-  { index: 2, label: "Larghezza", hint: "almeno 10" },
-  { index: 3, label: "Altezza", hint: "almeno 10" },
+  { index: 0, label: tx("From the left"), hint: tx("0 = left edge") },
+  { index: 1, label: tx("From the top"), hint: tx("0 = top edge") },
+  { index: 2, label: tx("Width"), hint: tx("at least 10") },
+  { index: 3, label: tx("Height"), hint: tx("at least 10") },
 ];
-const AREA_PROBLEM = "L'area deve stare dentro l'immagine ed essere larga e alta almeno il 10%.";
+const AREA_PROBLEM = tx("The area must be inside the picture and at least 10% wide and high.");
 const sameList = (a, b) => Array.isArray(a) && Array.isArray(b) && a.length === b.length && a.every((item, index) => item === b[index]);
 const formatNumber = (value) => String(value).replace(".", ",");
 
@@ -36,7 +36,7 @@ function DefaultNote({ text, onRestore }) {
     "div",
     { className: "set-num__foot" },
     h("span", null, text),
-    h("button", { type: "button", className: "oui-btn oui-btn--quiet oui-btn--sm", onClick: onRestore }, h(Icons.RotateCcw, { size: 14 }), "Ripristina"),
+    h("button", { type: "button", className: "oui-btn oui-btn--quiet oui-btn--sm", onClick: onRestore }, h(Icons.RotateCcw, { size: 14 }), tx("Restore")),
   );
 }
 
@@ -100,8 +100,8 @@ function NumberSetting({ spec, value, defaultValue, error, onChange }) {
       },
     }),
     h("div", { className: "set-num__bounds" }, h("span", null, withUnit(spec, spec.min)), h("span", null, withUnit(spec, spec.max))),
-    (invalid || error) && h("p", { className: "set-field__error", role: "alert" }, error || "Scrivi un numero da " + formatNumber(spec.min) + " a " + formatNumber(spec.max) + "."),
-    value !== defaultValue && h(DefaultNote, { text: "Di serie: " + withUnit(spec, defaultValue), onRestore: () => onChange(defaultValue) }),
+    (invalid || error) && h("p", { className: "set-field__error", role: "alert" }, error || tx("Write a number from {min} to {max}.", { min: formatNumber(spec.min), max: formatNumber(spec.max) })),
+    value !== defaultValue && h(DefaultNote, { text: tx("Default: ") + withUnit(spec, defaultValue), onRestore: () => onChange(defaultValue) }),
   );
 }
 
@@ -117,13 +117,13 @@ function TextValueSetting({ spec, value, defaultValue, error, onChange }) {
         const clean = text.trim();
         return TEXT_SETTING_CHARS.test(clean) && clean.length <= (spec.maxlen || 80) ? clean : null;
       },
-      error: "Solo lettere, numeri e . _ : / @ + - (niente spazi), al massimo " + (spec.maxlen || 80) + " caratteri.",
+      error: tx("Only letters, digits and . _ : / @ + - (no spaces), at most {max} characters.", { max: spec.maxlen || 80 }),
       hint: spec.help,
       placeholder: "predefinito",
       onCommit: onChange,
     }),
     error && h("p", { className: "set-field__error", role: "alert" }, error),
-    value !== defaultValue && h(DefaultNote, { text: "Di serie: " + (defaultValue || "quello predefinito del servizio"), onRestore: () => onChange(defaultValue) }),
+    value !== defaultValue && h(DefaultNote, { text: tx("Default: ") + (defaultValue || tx("the service's default")), onRestore: () => onChange(defaultValue) }),
   );
 }
 
@@ -138,17 +138,17 @@ function RoiPreview({ area, band }) {
     h(
       "div",
       { className: "set-roi__frame" },
-      !failed && h("img", { className: "set-roi__img", src: "/api/print/snapshot?t=" + stamp, alt: "Foto della camera", draggable: false, onError: () => setFailed(true), onLoad: () => setFailed(false) }),
-      failed && h("div", { className: "set-roi__empty" }, "Nessuna foto dalla camera (la camera è spenta o il backend non la raggiunge)"),
+      !failed && h("img", { className: "set-roi__img", src: "/api/print/snapshot?t=" + stamp, alt: tx("Camera picture"), draggable: false, onError: () => setFailed(true), onLoad: () => setFailed(false) }),
+      failed && h("div", { className: "set-roi__empty" }, tx("No picture from the camera (the camera is off or the backend cannot reach it)")),
       ok && h("div", { className: "set-roi__box", style: { left: area[0] + "%", top: area[1] + "%", width: area[2] + "%", height: area[3] + "%" } }, h("div", { className: "set-roi__inner", style: { top: band + "%", bottom: band + "%", left: band + "%", right: band + "%" } })),
     ),
     h(
       "div",
       { className: "set-roi__legend" },
       h("span", { className: "set-roi__swatch" }),
-      "Area controllata • il movimento conta solo nella fascia tra il bordo e la linea tratteggiata",
+      tx("Watched area • movement counts only in the band between the edge and the dashed line"),
     ),
-    h("button", { type: "button", className: "oui-btn oui-btn--sm set-inline-btn", onClick: () => (setFailed(false), setStamp(Date.now())) }, h(Icons.Refresh, { size: 16 }), "Aggiorna la foto"),
+    h("button", { type: "button", className: "oui-btn oui-btn--sm set-inline-btn", onClick: () => (setFailed(false), setStamp(Date.now())) }, h(Icons.Refresh, { size: 16 }), tx("Refresh the picture")),
   );
 }
 
@@ -172,7 +172,7 @@ function AreaSetting({ spec, value, defaultValue, error, band, onChange }) {
   return h(
     "div",
     { className: "oui-tile set-num" },
-    h("div", { className: "set-num__head" }, h("span", { className: "set-num__title" }, spec.label), h("span", { className: "set-num__unit" }, "% dell'immagine")),
+    h("div", { className: "set-num__head" }, h("span", { className: "set-num__title" }, spec.label), h("span", { className: "set-num__unit" }, tx("% of the picture"))),
     spec.help && h("p", { className: "set-num__help" }, spec.help),
     h(RoiPreview, { area: good ? numbers : value, band }),
     h(
@@ -200,7 +200,7 @@ function AreaSetting({ spec, value, defaultValue, error, band, onChange }) {
       ),
     ),
     (!good || error) && h("p", { className: "set-field__error", role: "alert" }, error || AREA_PROBLEM),
-    !sameList(value, defaultValue) && h(DefaultNote, { text: "Di serie: " + defaultValue.join(" · "), onRestore: () => onChange(defaultValue.slice()) }),
+    !sameList(value, defaultValue) && h(DefaultNote, { text: tx("Default: ") + defaultValue.join(" · "), onRestore: () => onChange(defaultValue.slice()) }),
   );
 }
 
@@ -220,23 +220,33 @@ function BrainSettingControl({ spec, config }) {
 
 /** Why the thresholds are not there, in words. */
 function BrainNotice({ phase }) {
-  if (phase === "loading") return h("div", { className: "set-status" }, h("span", { className: "set-status__dot" }), "Leggo le soglie dal backend…");
+  if (phase === "loading") return h("div", { className: "set-status" }, h("span", { className: "set-status__dot" }), tx("Reading the thresholds from the backend…"));
   if (phase === "old") {
     return h(
       "div",
       { className: "set-status set-status--warn" },
       h("span", { className: "set-status__dot" }),
-      h("span", null, "Il backend sul Raspberry è una versione precedente alla 1.0: non ha soglie da modificare. Installa KlippEye 1.0 (guida: ", h("code", null, "docs/GUIDA.md"), ") e le soglie compaiono qui."),
+      h("span", null, tx("The backend on the Raspberry is older than 1.0: it has no thresholds to change. Install KlippEye 1.0 (guide: "), h("code", null, "docs/GUIDA.md"), tx(") and the thresholds appear here.")),
     );
   }
-  return h("div", { className: "set-status set-status--warn" }, h("span", { className: "set-status__dot" }), "Il backend non risponde: le soglie non si possono leggere né cambiare adesso.");
+  return h("div", { className: "set-status set-status--warn" }, h("span", { className: "set-status__dot" }), tx("The backend does not answer: the thresholds cannot be read or changed now."));
 }
+
+/**
+ * The names and explanations of the thresholds come from the backend in English: shown in the page's language
+ * (frontend/tools/i18n.py check makes sure every one of them is in the dictionaries).
+ */
+const localizeBrainSchema = (data) => ({
+  ...data,
+  groups: data.groups.map((group) => ({ ...group, title: tx(group.title), note: group.note && tx(group.note) })),
+  spec: data.spec.map((spec) => ({ ...spec, label: tx(spec.label), help: spec.help && tx(spec.help) })),
+});
 
 function DetectorPage({ active }) {
   const config = useBrainConfig(active);
   const [askReset, setAskReset] = useState(false);
-  if (config.phase !== "ok" || !config.data) return h(BrainNotice, { phase: config.phase });
-  const { data } = config;
+  const data = useMemo(() => (config.data ? localizeBrainSchema(config.data) : null), [config.data]);
+  if (config.phase !== "ok" || !data) return h(BrainNotice, { phase: config.phase });
   const changed = data.spec.some((spec) => JSON.stringify(config.values[spec.key]) !== JSON.stringify(data.defaults ? data.defaults[spec.key] : spec.default));
   const watching = data.running && config.values.enabled !== false;
   return h(
@@ -246,11 +256,11 @@ function DetectorPage({ active }) {
       "div",
       { className: cx("set-status", watching ? "set-status--ok" : "set-status--warn") },
       h("span", { className: "set-status__dot" }),
-      watching ? "Il monitor è acceso: durante le stampe guarda la camera." : "Il monitor è spento: non guarda la camera e non chiama l'IA.",
+      watching ? tx("The monitor is on: it watches the camera during prints.") : tx("The monitor is off: it does not watch the camera and does not call the AI."),
     ),
-    data.has_cv2 === false && h("div", { className: "set-status set-status--warn" }, h("span", { className: "set-status__dot" }), h("span", null, "Sul Raspberry manca OpenCV: il monitor non può confrontare le foto. Installalo con ", h("code", null, "sudo apt install python3-opencv"), ".")),
+    data.has_cv2 === false && h("div", { className: "set-status set-status--warn" }, h("span", { className: "set-status__dot" }), h("span", null, tx("OpenCV is missing on the Raspberry: the monitor cannot compare the pictures. Install it with"), " ", h("code", null, "sudo apt install python3-opencv"), ".")),
     config.problem && h("div", { className: "set-status set-status--warn", role: "alert" }, h("span", { className: "set-status__dot" }), config.problem),
-    data.saved === false && !changed && h("p", { className: "set-group__note" }, "Sono i valori di sempre: finché non cambi qualcosa il backend non scrive nessun file."),
+    data.saved === false && !changed && h("p", { className: "set-group__note" }, tx("These are the default values: until you change something the backend writes no file.")),
     data.groups.map((group) => {
       const specs = data.spec.filter((spec) => spec.group === group.id);
       if (!specs.length) return null;
@@ -265,16 +275,16 @@ function DetectorPage({ active }) {
     }),
     h(
       SettingsGroup,
-      { note: "Le soglie restano sul Raspberry (non sul telefono) e valgono subito, anche durante una stampa; gli aggiornamenti di KlippEye non le toccano." },
+      { note: tx("The thresholds stay on the Raspberry (not on the phone) and apply at once, also during a print; KlippEye updates do not touch them.") },
       askReset
         ? h(
             "div",
-            { className: "set-confirm", role: "alertdialog", "aria-label": "Ripristinare le soglie?" },
-            h("span", null, "Tutte le soglie tornano ai valori di sempre. Confermi?"),
+            { className: "set-confirm", role: "alertdialog", "aria-label": tx("Restore the thresholds?") },
+            h("span", null, tx("All thresholds go back to the default values. Confirm?")),
             h(
               "div",
               { className: "set-confirm__buttons" },
-              h("button", { type: "button", className: "oui-btn", onClick: () => setAskReset(false) }, "No"),
+              h("button", { type: "button", className: "oui-btn", onClick: () => setAskReset(false) }, tx("No")),
               h(
                 "button",
                 {
@@ -285,18 +295,18 @@ function DetectorPage({ active }) {
                     config.reset();
                   },
                 },
-                "Sì, ripristina",
+                tx("Yes, restore"),
               ),
             ),
           )
-        : h("button", { type: "button", className: "oui-btn oui-btn--quiet oui-btn--block", disabled: !changed, onClick: () => setAskReset(true) }, h(Icons.RotateCcw, { size: 18 }), "Ripristina i valori di sempre"),
+        : h("button", { type: "button", className: "oui-btn oui-btn--quiet oui-btn--block", disabled: !changed, onClick: () => setAskReset(true) }, h(Icons.RotateCcw, { size: 18 }), tx("Restore the default values")),
     ),
   );
 }
 
 /** One line for the menu list: what the monitor is doing, from the backend (null while it is not known). */
 function detectorSummary(version) {
-  if (version.state === "old") return "Backend da aggiornare";
-  if (version.state === "down") return "Backend non raggiungibile";
-  return "Sensibilità, area controllata, pause";
+  if (version.state === "old") return tx("Backend to update");
+  if (version.state === "down") return tx("Backend not reachable");
+  return tx("Sensitivity, watched area, pauses");
 }

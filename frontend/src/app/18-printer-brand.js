@@ -12,10 +12,10 @@
    ========================================================================== */
 
 const PRINTER_BRANDS = [
-  { id: "klippeye", label: "KlippEye", detail: "Il logo del programma (predefinito)" },
-  { id: "vzbot", label: "VzBot", detail: "Logo e nome VzBot" },
-  { id: "voron", label: "Voron", detail: "Logo e nome Voron" },
-  { id: "ratrig", label: "RatRig", detail: "Logo e nome RatRig" },
+  { id: "klippeye", label: "KlippEye", detail: tx("The program's logo (default)") },
+  { id: "vzbot", label: "VzBot", detail: tx("{brand} logo and name", { brand: "VzBot" }) },
+  { id: "voron", label: "Voron", detail: tx("{brand} logo and name", { brand: "Voron" }) },
+  { id: "ratrig", label: "RatRig", detail: tx("{brand} logo and name", { brand: "RatRig" }) },
 ];
 const printerBrand = (id) => PRINTER_BRANDS.find((brand) => brand.id === id) || PRINTER_BRANDS[0];
 

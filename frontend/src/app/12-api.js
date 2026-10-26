@@ -80,7 +80,7 @@ async function sendLongGcode(script) {
     if (response.status === 502 && /time/i.test(message)) return { ok: true, finished: false };
     return { ok: false, message };
   } catch (error) {
-    return { ok: false, message: error.message || "stampante non raggiungibile" };
+    return { ok: false, message: error.message || tx("printer not reachable") };
   }
 }
 

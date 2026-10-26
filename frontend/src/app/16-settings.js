@@ -21,10 +21,10 @@ const SETTINGS_DB_TIMEOUT_MS = 8000;
 
 /** How the camera is shown (the "service" of Mainsail's webcam page). */
 const CAMERA_METHODS = [
-  { id: "webrtc", label: "WebRTC", detail: "Pagina WebRTC di camera-streamer: fluida e leggera", field: "Indirizzo della pagina WebRTC" },
-  { id: "mjpeg", label: "MJPEG", detail: "Flusso video continuo, va con quasi tutte le camere", field: "Indirizzo del flusso" },
-  { id: "adaptive", label: "MJPEG adaptive", detail: "Una foto dopo l'altra: per reti lente", field: "Indirizzo dello snapshot" },
-  { id: "iframe", label: "Pagina web", detail: "Qualsiasi pagina che mostri la camera", field: "Indirizzo della pagina" },
+  { id: "webrtc", label: "WebRTC", detail: tx("camera-streamer's WebRTC page: smooth and light"), field: tx("Address of the WebRTC page") },
+  { id: "mjpeg", label: "MJPEG", detail: tx("Continuous video stream, works with almost every camera"), field: tx("Address of the stream") },
+  { id: "adaptive", label: "MJPEG adaptive", detail: tx("One picture after the other: for slow networks"), field: tx("Address of the snapshot") },
+  { id: "iframe", label: tx("Web page"), detail: tx("Any page that shows the camera"), field: tx("Address of the page") },
 ];
 const CAMERA_METHOD_IDS = CAMERA_METHODS.map((method) => method.id);
 const CAMERA_ROUTES = ["auto", "local", "external"];
@@ -41,21 +41,21 @@ const Z_STEP_SLOTS = 4;
 
 /** The notifications of the Raspberry's notification service, in the order the menu lists them. */
 const NOTIFICATION_KINDS = [
-  { id: "error", title: "Stampante in errore", text: "Stampante in errore! Effettuare riavvio." },
-  { id: "complete", title: "Stampa completata", text: "Stampa completata!" },
-  { id: "cancelled", title: "Stampa interrotta", text: "Stampa interrotta!" },
-  { id: "paused", title: "Stampante in pausa", text: "Stampante in pausa!" },
-  { id: "runout", title: "Filamento esaurito", text: "Filamento esaurito, effettuare cambio bobina!" },
-  { id: "ai_pause", title: "IA: difetti rilevati", text: "Difetti di stampa rilevati, verificare e mettere in pausa la stampa!" },
-  { id: "ai_cancel", title: "IA: difetti gravi", text: "Difetti gravi di stampa rilevati, verificare e interrompere la stampa" },
+  { id: "error", title: tx("Printer error"), text: tx("Printer error! Restart it.") },
+  { id: "complete", title: tx("Print completed"), text: tx("Print completed!") },
+  { id: "cancelled", title: tx("Print cancelled"), text: tx("Print cancelled!") },
+  { id: "paused", title: tx("Printer paused"), text: tx("Printer paused!") },
+  { id: "runout", title: tx("Filament run out"), text: tx("Filament run out, change the spool!") },
+  { id: "ai_pause", title: tx("AI: defects found"), text: tx("Print defects found, check and pause the print!") },
+  { id: "ai_cancel", title: tx("AI: serious defects"), text: tx("Serious print defects found, check and cancel the print") },
 ];
 
 /** What the AI print monitor looks for (the keys of its verdict, see app/53-ai-views.js). */
 const AI_DEFECTS = [
-  { id: "spaghetti", title: "Spaghetti", detail: "Il filamento non aderisce e si ammassa" },
-  { id: "empty_bed", title: "Piatto vuoto", detail: "Il pezzo si è staccato o non c'è più" },
-  { id: "layer_shift", title: "Layer shift", detail: "Gli strati si spostano" },
-  { id: "warping", title: "Warping", detail: "Gli angoli si sollevano dal piatto" },
+  { id: "spaghetti", title: "Spaghetti", detail: tx("The filament does not stick and piles up") },
+  { id: "empty_bed", title: tx("Empty bed"), detail: tx("The part came off or is gone") },
+  { id: "layer_shift", title: "Layer shift", detail: tx("The layers shift") },
+  { id: "warping", title: "Warping", detail: tx("The corners lift from the bed") },
 ];
 const AI_CONFIRMATIONS = [1, 2, 3];
 const AI_CONFIDENCES = [0, 50, 70, 85];
@@ -251,7 +251,7 @@ function createSettingsStore() {
     sync = { state, detail };
     emit();
   };
-  const failure = (error) => (error && error.name === "AbortError" ? "il Raspberry non risponde" : "Raspberry non raggiungibile");
+  const failure = (error) => (error && error.name === "AbortError" ? tx("the Raspberry does not answer") : tx("Raspberry not reachable"));
 
   async function push() {
     if (saving) return;

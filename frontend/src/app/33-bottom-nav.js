@@ -37,16 +37,16 @@ const NAV_ICONS = {
 
 const NAV_TABS = [
   { id: "home", label: "Home" },
-  { id: "controllo", label: "Controllo" },
+  { id: "controllo", label: tx("Control") },
   { id: "files", label: "Files" },
   { id: "config", label: "Config" },
-  { id: "sistema", label: "Sistema" },
+  { id: "sistema", label: tx("System") },
 ];
 
 function BottomNav({ active, onSelect }) {
   return h(
     "nav",
-    { className: "bottom-nav", "aria-label": "Pagine", style: { "--tabs": NAV_TABS.length, "--at": Math.max(0, NAV_TABS.findIndex((tab) => tab.id === active)) } },
+    { className: "bottom-nav", "aria-label": tx("Pages"), style: { "--tabs": NAV_TABS.length, "--at": Math.max(0, NAV_TABS.findIndex((tab) => tab.id === active)) } },
     h("span", { className: "bottom-nav__pill", "aria-hidden": "true" }),
     NAV_TABS.map((tab) =>
       h(

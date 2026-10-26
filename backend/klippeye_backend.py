@@ -408,75 +408,76 @@ def access_logout_all():
 # === end ACCESS ========================================================================================================
 
 
-# Le soglie del monitor IA. Il backend e' l'unica fonte dei limiti: la dashboard disegna il menu da questo elenco
-# (etichette, unita', minimi e massimi), quindi una soglia nuova compare nel menu senza toccare la dashboard.
+# The thresholds of the AI monitor. The backend is the only source of the limits: the dashboard draws the menu from this
+# list (labels, units, minimums and maximums), so a new threshold appears in the menu without touching the dashboard.
+# Labels and help texts are in English; the dashboard shows them in its own language (frontend/src/i18n/*.json).
 CONFIG_GROUPS = [
     {"id": "monitor", "title": "Monitor", "note": ""},
-    {"id": "rilevamento", "title": "Rilevamento del movimento",
-     "note": "Ogni pochi secondi il backend confronta due foto della camera: se molti punti della fascia esterna dell'area controllata cambiano, e succede più volte, chiede all'IA di guardare la foto."},
-    {"id": "filtro", "title": "Falsi allarmi",
-     "note": "Il filtro confronta la foto di adesso con uno «sfondo» fatto da più foto degli ultimi minuti (la testina che passa non ne fa parte) e conta solo i cambiamenti che restano per più controlli di fila. Ignora anche i cambi di luce."},
-    {"id": "area", "title": "Area controllata", "note": "Il rettangolo dove il backend cerca il movimento sospetto. Di serie è il 60% centrale dell'immagine."},
-    {"id": "tempi", "title": "Pause e consumi", "note": "L'analisi dell'IA usa un servizio online: queste pause evitano di chiamarla troppo spesso."},
-    {"id": "avvio", "title": "Quando comincia a controllare",
-     "note": "Durante il riscaldamento, la mesh o il purge la stampa non è ancora iniziata: il monitor aspetta."},
-    {"id": "ia", "title": "Modello dell'IA", "note": ""},
+    {"id": "rilevamento", "title": "Motion detection",
+     "note": "Every few seconds the backend compares two camera pictures: if many points of the outer band of the watched area change, and it happens several times, it asks the AI to look at the picture."},
+    {"id": "filtro", "title": "False alarms",
+     "note": "The filter compares the current picture with a «background» made of several pictures of the last minutes (the passing toolhead is not part of it) and counts only the changes that stay for several checks in a row. It also ignores light changes."},
+    {"id": "area", "title": "Watched area", "note": "The rectangle where the backend looks for suspicious movement. By default it is the central 60% of the picture."},
+    {"id": "tempi", "title": "Pauses and usage", "note": "The AI analysis uses an online service: these pauses avoid calling it too often."},
+    {"id": "avvio", "title": "When it starts checking",
+     "note": "During heating, mesh or purge the real print has not started yet: the monitor waits."},
+    {"id": "ia", "title": "AI model", "note": ""},
 ]
 
 CONFIG_SPEC = [
-    {"key": "enabled", "type": "bool", "default": True, "group": "monitor", "label": "Monitor attivo",
-     "help": "Spento, il backend non guarda la camera e non chiama l'IA."},
+    {"key": "enabled", "type": "bool", "default": True, "group": "monitor", "label": "Monitor on",
+     "help": "When off, the backend does not watch the camera and does not call the AI."},
     {"key": "sensitivity", "type": "int", "default": 35, "min": 5, "max": 100, "step": 1, "unit": "", "group": "rilevamento",
-     "label": "Soglia di cambiamento",
-     "help": "Di quanto deve cambiare la luminosità di un punto tra due foto perché conti come movimento. Più ALTA = meno sensibile (meno falsi allarmi); più bassa = più sensibile."},
+     "label": "Change threshold",
+     "help": "How much the brightness of a point must change between two pictures to count as movement. HIGHER = less sensitive (fewer false alarms); lower = more sensitive."},
     {"key": "score_threshold", "type": "float", "default": 2.5, "min": 0.5, "max": 30, "step": 0.5, "decimals": 1, "unit": "%", "group": "rilevamento",
-     "label": "Movimento ai bordi",
-     "help": "Quanta parte della fascia esterna dell'area deve muoversi perché il controllo sia sospetto. Più bassa = più sensibile."},
+     "label": "Movement at the edges",
+     "help": "How much of the outer band of the area must move for the check to be suspicious. Lower = more sensitive."},
     {"key": "trigger_count", "type": "int", "default": 3, "min": 1, "max": 10, "step": 1, "unit": "", "group": "rilevamento",
-     "label": "Controlli sospetti prima dell'allarme",
-     "help": "Quanti controlli sospetti servono per chiedere l'analisi all'IA. Ogni controllo normale ne toglie uno."},
+     "label": "Suspicious checks before the alarm",
+     "help": "How many suspicious checks are needed to ask the AI for an analysis. Every normal check takes one away."},
     {"key": "check_interval", "type": "int", "default": 3, "min": 1, "max": 30, "step": 1, "unit": "s", "group": "rilevamento",
-     "label": "Ogni quanto guarda la camera",
-     "help": "Più lungo = meno lavoro per il Raspberry, ma un problema si nota più tardi."},
+     "label": "How often it looks at the camera",
+     "help": "Longer = less work for the Raspberry, but a problem is noticed later."},
     {"key": "border", "type": "int", "default": 25, "min": 10, "max": 45, "step": 1, "unit": "%", "group": "rilevamento",
-     "label": "Larghezza della fascia esterna",
-     "help": "Il movimento che conta è quello ai bordi dell'area controllata (spaghetti in aria), non quello al centro dove stampa. Misurata in % dell'area."},
-    {"key": "persistent_filter", "type": "bool", "default": True, "group": "filtro", "label": "Ignora i movimenti passeggeri (consigliato)",
-     "help": "Acceso: conta solo ciò che cambia e resta (spaghetti, pezzo staccato); la testina che passa, le ombre e i cambi di luce non fanno scattare l'allarme. Spento: il rilevamento di prima (basta un movimento ai bordi)."},
+     "label": "Width of the outer band",
+     "help": "The movement that counts is the one at the edges of the watched area (spaghetti in the air), not the one in the middle where it prints. Measured in % of the area."},
+    {"key": "persistent_filter", "type": "bool", "default": True, "group": "filtro", "label": "Ignore passing movements (recommended)",
+     "help": "On: only what changes and stays counts (spaghetti, part come off); the passing toolhead, shadows and light changes do not trigger the alarm. Off: the older detection (a movement at the edges is enough)."},
     {"key": "persist_checks", "type": "int", "default": 3, "min": 2, "max": 6, "step": 1, "unit": "", "group": "filtro",
-     "label": "Controlli di fila in cui il cambiamento deve restare",
-     "help": "Più alto = meno falsi allarmi ma un problema si nota qualche secondo più tardi (controlli × intervallo)."},
+     "label": "Checks in a row the change must stay for",
+     "help": "Higher = fewer false alarms but a problem is noticed a few seconds later (checks × interval)."},
     {"key": "reference_seconds", "type": "int", "default": 60, "min": 20, "max": 300, "step": 10, "unit": "s", "group": "filtro",
-     "label": "Tempo coperto dallo sfondo",
-     "help": "Lo sfondo si fa con le foto degli ultimi N secondi. Più lungo = la testina e i movimenti lenti pesano meno, ma un problema che dura da molto viene «assorbito» più tardi."},
+     "label": "Time covered by the background",
+     "help": "The background is made from the pictures of the last N seconds. Longer = the toolhead and slow movements weigh less, but a long-lasting problem is «absorbed» later."},
     {"key": "global_change", "type": "float", "default": 30, "min": 5, "max": 100, "step": 5, "decimals": 0, "unit": "%", "group": "filtro",
-     "label": "Cambio di luce: ignora se cambia più di",
-     "help": "Se più di questa parte dell'intera immagine cambia di colpo (luce accesa o spenta, camera mossa, testina enorme davanti all'obiettivo) il controllo viene ignorato. Se dura più di una trentina di secondi conta come cambiamento vero."},
+     "label": "Light change: ignore if more than this changes",
+     "help": "If more than this part of the whole picture changes at once (light on or off, camera moved, toolhead right in front of the lens) the check is ignored. If it lasts more than about thirty seconds it counts as a real change."},
     {"key": "ai_min_confidence", "type": "int", "default": 70, "min": 0, "max": 100, "step": 5, "unit": "%", "group": "ia",
-     "label": "Fiducia minima dell'IA per segnalare un problema",
-     "help": "Se l'IA consiglia PAUSA o CANCELLA ma nessun difetto ha almeno questa fiducia, il verdetto diventa CONTINUA (resta scritto nello storico). 0 = si fida sempre."},
-    {"key": "ai_send_reference", "type": "bool", "default": True, "group": "ia", "label": "Manda all'IA anche la foto di prima",
-     "help": "L'IA vede «prima» e «adesso» e giudica se è cambiato qualcosa di grave: sbaglia meno. Usa più dati per chiamata; se il servizio rifiuta due foto, ne manda una."},
-    {"key": "roi", "type": "area", "default": [20, 20, 60, 60], "group": "area", "label": "Area controllata",
-     "help": "Sinistra, alto, larghezza e altezza in % dell'immagine."},
+     "label": "Minimum AI confidence to report a problem",
+     "help": "If the AI suggests PAUSE or CANCEL but no defect has at least this confidence, the verdict becomes CONTINUE (it stays written in the history). 0 = always trust it."},
+    {"key": "ai_send_reference", "type": "bool", "default": True, "group": "ia", "label": "Also send the earlier picture to the AI",
+     "help": "The AI sees «before» and «now» and judges whether something serious changed: it makes fewer mistakes. It uses more data per call; if the service refuses two pictures, it sends one."},
+    {"key": "roi", "type": "area", "default": [20, 20, 60, 60], "group": "area", "label": "Watched area",
+     "help": "Left, top, width and height in % of the picture."},
     {"key": "cooldown", "type": "int", "default": 90, "min": 10, "max": 3600, "step": 10, "unit": "s", "group": "tempi",
-     "label": "Pausa dopo un allarme",
-     "help": "Dopo un allarme il monitor aspetta questo tempo prima di tornare a guardare."},
+     "label": "Pause after an alarm",
+     "help": "After an alarm the monitor waits this long before watching again."},
     {"key": "ai_cooldown", "type": "int", "default": 120, "min": 30, "max": 3600, "step": 10, "unit": "s", "group": "tempi",
-     "label": "Pausa tra due analisi dell'IA",
-     "help": "Tempo minimo tra due chiamate al servizio online. Più lungo = meno consumi e meno rischio di limiti."},
+     "label": "Pause between two AI analyses",
+     "help": "Minimum time between two calls to the online service. Longer = less usage and less risk of hitting limits."},
     {"key": "warmup_seconds", "type": "int", "default": 90, "min": 0, "max": 1800, "step": 10, "unit": "s", "group": "avvio",
-     "label": "Attesa dopo l'inizio della stampa",
-     "help": "Il controllo parte solo dopo questi secondi di stampa (riscaldamento, mesh e purge non contano)."},
+     "label": "Wait after the print starts",
+     "help": "Checking starts only after these seconds of printing (heating, mesh and purge do not count)."},
     {"key": "min_progress", "type": "float", "default": 2, "min": 0, "max": 20, "step": 0.5, "decimals": 1, "unit": "%", "group": "avvio",
-     "label": "Avanzamento minimo",
-     "help": "Il controllo parte solo quando la stampa è avanzata almeno di così."},
+     "label": "Minimum progress",
+     "help": "Checking starts only when the print has progressed at least this much."},
     {"key": "hotend_tolerance", "type": "int", "default": 8, "min": 2, "max": 50, "step": 1, "unit": "°C", "group": "avvio",
-     "label": "Scarto massimo dell'ugello",
-     "help": "Se l'ugello è più lontano di così dalla temperatura impostata, la stampa vera non è ancora iniziata."},
+     "label": "Maximum nozzle deviation",
+     "help": "If the nozzle is further than this from its target temperature, the real print has not started yet."},
     {"key": "ai_model", "type": "text", "default": "", "maxlen": 80, "pattern": r"[A-Za-z0-9._:/@+-]*", "group": "ia",
-     "label": "Modello dell'IA (facoltativo)",
-     "help": "Vuoto = quello predefinito del servizio scelto. Scrivilo solo se il servizio ritira il modello (errore 404 o 'model not found')."},
+     "label": "AI model (optional)",
+     "help": "Empty = the default of the chosen service. Write it only if the service retires the model (error 404 or 'model not found')."},
 ]
 SPEC_BY_KEY = {spec["key"]: spec for spec in CONFIG_SPEC}
 
@@ -486,50 +487,50 @@ def config_defaults():
 
 
 def coerce_config_value(spec, raw):
-    """Controlla un valore e lo porta alla forma giusta. Alza ValueError con il motivo (in italiano: lo legge l'utente)."""
+    """Checks a value and brings it to the right form. Raises ValueError with the reason (in English: the dashboard shows it)."""
     kind = spec["type"]
     if kind == "bool":
         if isinstance(raw, bool):
             return raw
-        raise ValueError("deve essere sì o no")
+        raise ValueError("must be yes or no")
     if kind in ("int", "float"):
         if isinstance(raw, bool) or not isinstance(raw, (int, float, str)):
-            raise ValueError("deve essere un numero")
+            raise ValueError("must be a number")
         try:
             number = float(raw.strip().replace(",", ".")) if isinstance(raw, str) else float(raw)
         except ValueError:
-            raise ValueError("deve essere un numero")
+            raise ValueError("must be a number")
         if not math.isfinite(number):
-            raise ValueError("deve essere un numero")
+            raise ValueError("must be a number")
         if kind == "int":
             if abs(number - round(number)) > 1e-9:
-                raise ValueError("deve essere un numero intero")
+                raise ValueError("must be a whole number")
             number = int(round(number))
         else:
             number = round(number, spec.get("decimals", 2))
         if number < spec["min"] or number > spec["max"]:
-            raise ValueError("deve stare tra %s e %s" % (spec["min"], spec["max"]))
+            raise ValueError("must be between %s and %s" % (spec["min"], spec["max"]))
         return number
     if kind == "text":
         if not isinstance(raw, str):
-            raise ValueError("deve essere un testo")
+            raise ValueError("must be a text")
         text = raw.strip()
         if len(text) > spec.get("maxlen", 80) or not re.fullmatch(spec.get("pattern", r"[^\x00-\x1f]*"), text):
-            raise ValueError("contiene caratteri non validi o è troppo lungo")
+            raise ValueError("has characters that are not allowed or is too long")
         return text
     if kind == "area":
         if not isinstance(raw, (list, tuple)) or len(raw) != 4:
-            raise ValueError("servono quattro numeri: sinistra, alto, larghezza, altezza")
+            raise ValueError("needs four numbers: left, top, width, height")
         parts = []
         for item in raw:
             if isinstance(item, bool) or not isinstance(item, (int, float)) or not math.isfinite(item):
-                raise ValueError("servono quattro numeri: sinistra, alto, larghezza, altezza")
+                raise ValueError("needs four numbers: left, top, width, height")
             parts.append(round(float(item), 1))
         x, y, w, h = parts
         if x < 0 or y < 0 or w < 10 or h < 10 or x + w > 100.05 or y + h > 100.05:
-            raise ValueError("l'area deve stare dentro l'immagine ed essere larga e alta almeno il 10%")
+            raise ValueError("the area must be inside the picture and at least 10% wide and high")
         return [x, y, w, h]
-    raise ValueError("tipo sconosciuto")
+    raise ValueError("unknown type")
 
 
 class backendConfig:
@@ -584,7 +585,7 @@ class backendConfig:
         for key, raw in changes.items():
             spec = SPEC_BY_KEY.get(key)
             if spec is None:
-                errors[key] = "impostazione sconosciuta"
+                errors[key] = "unknown setting"
                 continue
             try:
                 clean[key] = coerce_config_value(spec, raw)
