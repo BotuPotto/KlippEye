@@ -1,0 +1,15 @@
+/* ============================================================================
+   Bed & gantry tools: the buttons under the home row and the result sheet of
+   SCREWS_TILT_CALCULATE (markup: app/44a-bed-tools.js)
+   ========================================================================== */
+
+/* ---- the two buttons below the home row ---- */
+.movement-actions { display: flex; gap: 12px; margin-top: 12px; }
+.movement-actions > .oui-btn { flex: 1; min-width: 0; gap: 6px; padding-left: 10px; padding-right: 10px; white-space: nowrap; }
+
+/* ---- result sheet ---- */
+.sheet-overlay--screws { --sheet-width: 440px; --sheet-max-height: 88vh; }
+.screws-body { flex: 1; min-height: 0; padding: 0 22px 6px; overflow-y: auto; overscroll-behavior: contain; }
+.screws-alert { margin-bottom: 12px; font-size: 14px; line-height: 1.45; color: var(--oui-danger); }
+.screws-legend { margin-top: 12px; }
+.screw-row__name { text-transform: capitalize; }

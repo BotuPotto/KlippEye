@@ -1,0 +1,95 @@
+/* ============================================================================
+   Design tokens — One UI 9 (dark)
+   Everything visual in the dashboard is built from these values: surfaces are
+   translucent "glass" laid over a dark ambient backdrop, shapes are large and
+   rounded, the accent is the light violet of the KlippEye logo.
+   Reference points: One UI structure (pill buttons, thin outlines, blur + dim for layers, soft shadow for floating
+   bars); colours of the KlippEye logo: light violet #b79cff (accent) and the dark violet #7a5cff that fades to black
+   (backdrop, see 10-base.css). Filled controls carry dark text (--oui-on-accent), as in One UI's dark theme.
+   ========================================================================== */
+
+:root {
+  color-scheme: dark;
+
+  /* ---- backdrop ---- */
+  --oui-bg: #040507;
+  --oui-backdrop-rgb: 122, 92, 255;             /* the dark violet of the logo's tile: pools of it fade to the black above */
+
+  /* ---- glass surfaces (white at low alpha over the backdrop) ---- */
+  --oui-surface: rgba(255, 255, 255, 0.058);    /* cards */
+  --oui-surface-2: rgba(255, 255, 255, 0.082);  /* tiles, fields and rows inside a card */
+  --oui-surface-3: rgba(255, 255, 255, 0.125);  /* pressed / hovered / selected-neutral */
+  --oui-inset: rgba(0, 0, 0, 0.30);             /* wells: inputs, console, camera */
+  --oui-stroke: rgba(255, 255, 255, 0.095);     /* thin outline of every surface */
+  --oui-stroke-strong: rgba(255, 255, 255, 0.18);
+  --oui-glass: rgba(26, 28, 34, 0.68);          /* floating layers: bars, dialogs */
+  --oui-glass-solid: #1a1c22;                   /* fallback when blur is not available */
+
+  /* ---- text ---- */
+  --oui-text: #f3f4f6;
+  --oui-text-2: #aeb3be;
+  --oui-text-3: #7f8592;
+
+  /* ---- accent ---- */
+  --oui-accent: #b79cff;                        /* the light violet of the logo */
+  --oui-accent-strong: #b79cff;                 /* filled controls: primary button, home button, switch, ticked box */
+  --oui-accent-soft: rgba(183, 156, 255, 0.18);
+  --oui-accent-text: #cdbcff;                   /* accent-coloured text and the light end of bars */
+  --oui-on-accent: #1a1240;                     /* text and ticks on a filled accent control (the deep violet of the logo) */
+
+  /* ---- status ---- */
+  --oui-ok: #3ddc8a;
+  --oui-ok-soft: rgba(61, 220, 138, 0.16);
+  --oui-warn: #ffb740;
+  --oui-warn-soft: rgba(255, 183, 64, 0.16);
+  --oui-danger: #ff5d5d;
+  --oui-danger-strong: #e5383b;
+  --oui-danger-soft: rgba(255, 93, 93, 0.16);
+  --oui-heat: #ff7b4a;
+  --oui-cool: #5cc8ff;
+
+  /* ---- shapes ---- */
+  --oui-r-card: 28px;
+  --oui-r-tile: 22px;
+  --oui-r-field: 16px;
+  --oui-r-row: 8px;
+  --oui-r-pill: 999px;
+
+  /* ---- type ---- */
+  --oui-font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --oui-font-brand: "Outfit", var(--oui-font);   /* the KlippEye wordmark only (embedded subset, 02-wordmark-font.css) */
+  --oui-font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  /* ---- layers ---- */
+  --oui-shadow-float: 0 10px 32px rgba(0, 0, 0, 0.42);
+  --oui-blur: 24px;
+
+  /* ---- motion (Samsung One UI: one basic curve, nothing shorter than 100 ms or longer than 500 ms) ---- */
+  --oui-ease: cubic-bezier(0.22, 0.25, 0, 1); /* One UI basic motion: quick start, long soft landing */
+  --oui-ease-in: cubic-bezier(0.4, 0, 1, 1); /* things that leave: slow start, then away */
+  --oui-dur-press: 100ms; /* touch feedback: the shortest motion that is still seen */
+  --oui-dur-fast: 150ms; /* colour and background changes */
+  --oui-dur-base: 250ms; /* small movements: chevrons, switches, fades */
+  --oui-dur-slow: 350ms; /* layers and pages coming in, sections unfolding */
+  --oui-dur-exit: 150ms; /* layers going away: shorter than they came (keep LAYER_EXIT_MS, app/22-motion.js, equal) */
+  --oui-dur-bar: 450ms; /* progress bars */
+  --oui-stagger: 35ms; /* delay between the cards of a page as it comes in */
+
+  /* ---- layout ---- */
+  --oui-header-h: 64px;
+  --oui-nav-h: 68px;
+  --oui-gutter: 16px;
+}
+
+/* "Reduce motion" (system setting): everything still happens, just without the movement. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --oui-dur-press: 1ms;
+    --oui-dur-fast: 1ms;
+    --oui-dur-base: 1ms;
+    --oui-dur-slow: 1ms;
+    --oui-dur-exit: 1ms;
+    --oui-dur-bar: 1ms;
+    --oui-stagger: 0ms;
+  }
+}

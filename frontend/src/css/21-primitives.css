@@ -1,0 +1,13 @@
+/* ============================================================================
+   Shared primitives: spinner animation, busy state
+   ========================================================================= */
+
+/* ---- spinner ---- */
+@keyframes ke-spin { to { transform: rotate(360deg); } }
+.ke-spin { animation: ke-spin 0.8s linear infinite; }
+
+/* a control whose action is in flight */
+.is-busy { opacity: 0.5; }
+
+/* ---- notice: a quiet line of explanation where a list or panel has nothing to show ---- */
+.oui-notice { padding: 8px 4px; font-size: 14px; color: var(--oui-text-2); }

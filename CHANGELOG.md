@@ -1,4 +1,17 @@
-# Cosa cambia in ogni release
+# Changelog (Cosa cambia in ogni release)
+
+## Unreleased
+
+Repository only, nothing changes on the Raspberry:
+
+* **License: GNU GPL v3.0** (`LICENSE`), the same as Klipper, Moonraker, Mainsail and Fluidd; third-party components in `THIRD_PARTY_NOTICES.md`.
+* **Dashboard sources** are now in the repository (`frontend/src`, `frontend/build.py`): the published `frontend/klippeye_frontend.html`
+  is rebuilt from them and the tests check it is identical.
+* **Automatic tests** in `tests/` (backend, notifier, app build steps, dashboard in the browser) and a GitHub workflow that runs
+  them on every pull request (`.github/workflows/tests.yml`). Run them locally with `bash tests/run_all.sh`.
+* `SECURITY.md`, `CONTRIBUTING.md`, issue and pull-request templates; `README.md` in English.
+* From now on code, commands, file names, commit messages and documentation are written in English; the existing Italian
+  parts will be translated step by step (the dashboard will get English and Italian).
 
 ## 1.2.0
 

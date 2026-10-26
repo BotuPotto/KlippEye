@@ -1,0 +1,93 @@
+/* ============================================================================
+   Motion
+   The movement of the whole interface in one place, after Samsung's One UI
+   motion guidelines:
+     · one basic curve (--oui-ease): quick start, long soft landing, no bounce
+     · nothing shorter than 100 ms or longer than 500 ms
+     · a layer that opens dims and blurs what lies below; it leaves faster than
+       it came, on the "ease in" curve
+     · opacity changes are linear; positions and sizes use the basic curve
+     · the new layer starts to appear before the old one is fully gone
+   Times and curves are tokens (00-tokens.css), so "reduce motion" switches them all.
+   The helpers are in app/22-motion.js.
+   ========================================================================== */
+
+@keyframes oui-fade { from { opacity: 0; } }
+@keyframes oui-fade-out { to { opacity: 0; } }
+@keyframes oui-pop { from { transform: translateY(16px) scale(0.94); } }
+@keyframes oui-pop-out { to { transform: translateY(8px) scale(0.97); } }
+@keyframes oui-menu-in { from { transform: scale(0.86); } }
+@keyframes oui-layer-in { from { transform: translateY(32px); } }
+@keyframes oui-layer-out { to { transform: translateY(24px); } }
+@keyframes oui-rise { from { transform: translateY(14px); } }
+
+/* ---- layers coming in ---- */
+.modal,
+.confirm-overlay,
+.sheet-overlay { animation: oui-fade var(--oui-dur-base) linear; }
+.modal-card,
+.confirm-card,
+.sheet-card { animation: oui-pop var(--oui-dur-slow) var(--oui-ease); }
+.oui-menu { animation: oui-fade var(--oui-dur-fast) linear, oui-menu-in var(--oui-dur-base) var(--oui-ease); } /* grows out of its button (transform-origin is set in app/21-dropdown.js) */
+.screen:not(.screen--inline) { animation: oui-fade var(--oui-dur-base) linear, oui-layer-in var(--oui-dur-slow) var(--oui-ease); }
+.screen--inline { animation: oui-fade var(--oui-dur-fast) linear; }
+.desk-drawer { animation: oui-fade var(--oui-dur-fast) linear, oui-rise var(--oui-dur-base) var(--oui-ease); }
+
+/* ---- layers going away (app/22-motion.js keeps them for one exit; taps pass through meanwhile) ---- */
+.oui-presence { display: contents; }
+[data-presence="leaving"] { pointer-events: none; }
+[data-presence="leaving"] :is(.modal, .confirm-overlay, .sheet-overlay) { animation: oui-fade-out var(--oui-dur-exit) linear forwards; }
+[data-presence="leaving"] :is(.modal-card, .confirm-card, .sheet-card) { animation: oui-pop-out var(--oui-dur-exit) var(--oui-ease-in) forwards; }
+[data-presence="leaving"] .oui-menu { animation: oui-fade-out var(--oui-dur-exit) linear forwards; }
+[data-presence="leaving"] .screen:not(.screen--inline) { animation: oui-fade-out var(--oui-dur-exit) linear forwards, oui-layer-out var(--oui-dur-exit) var(--oui-ease-in) forwards; }
+[data-presence="leaving"] .desk-drawer { animation: oui-fade-out var(--oui-dur-exit) linear forwards; }
+
+/* ---- a page coming in: its cards rise one after the other (also a card that appears later, e.g. the print card) ---- */
+.app-main > .oui-page-title { animation: oui-fade var(--oui-dur-slow) linear backwards; }
+.app-main > .grid > *,
+.app-main > .sys-grid > *,
+.app-main > .oui-card,
+.desk-page :is(.desk-col, .desk-device__main, .desk-side__group) > * {
+  animation: oui-fade var(--oui-dur-slow) linear backwards, oui-rise var(--oui-dur-slow) var(--oui-ease) backwards;
+  animation-delay: calc(var(--oui-i, 0) * var(--oui-stagger));
+}
+:is(.app-main > .grid, .app-main > .sys-grid, .desk-col, .desk-device__main, .desk-side__group) > :nth-child(2) { --oui-i: 1; }
+:is(.app-main > .grid, .app-main > .sys-grid, .desk-col, .desk-device__main, .desk-side__group) > :nth-child(3) { --oui-i: 2; }
+:is(.app-main > .grid, .app-main > .sys-grid, .desk-col, .desk-device__main, .desk-side__group) > :nth-child(4) { --oui-i: 3; }
+:is(.app-main > .grid, .app-main > .sys-grid, .desk-col, .desk-device__main, .desk-side__group) > :nth-child(5) { --oui-i: 4; }
+:is(.app-main > .grid, .app-main > .sys-grid, .desk-col, .desk-device__main, .desk-side__group) > :nth-child(n + 6) { --oui-i: 5; }
+.desk-page .desk-col > .desk-detail { animation: oui-fade var(--oui-dur-fast) linear; } /* the detail panel is rebuilt for every file: a quick cross-fade only */
+
+/* ---- a section unfolding (app/22-motion.js, Collapse) ---- */
+.oui-collapse { display: grid; grid-template-rows: 0fr; transition: grid-template-rows var(--oui-dur-slow) var(--oui-ease); }
+.oui-collapse.is-open { grid-template-rows: 1fr; }
+.oui-collapse__inner { min-height: 0; overflow: hidden; }
+
+/* ---- the marker that slides from one tab to the next ---- */
+.bottom-nav__pill {
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  left: 6px;
+  width: calc((100% - 12px - 2px * (var(--tabs) - 1)) / var(--tabs));
+  box-sizing: border-box;
+  background: var(--oui-accent-soft);
+  border-radius: calc(var(--oui-nav-h) / 2 - 6px);
+  box-shadow: inset 0 0 0 1px rgba(183, 156, 255, 0.35);
+  transform: translateX(calc(var(--at) * (100% + 2px)));
+  transition: transform var(--oui-dur-slow) var(--oui-ease);
+  pointer-events: none;
+}
+.header-tabs { position: relative; }
+.header-tabs__pill {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  left: 0;
+  box-sizing: border-box;
+  background: var(--oui-accent-soft);
+  border: 1px solid rgba(183, 156, 255, 0.5);
+  border-radius: var(--oui-r-pill);
+  transition: transform var(--oui-dur-slow) var(--oui-ease), width var(--oui-dur-slow) var(--oui-ease);
+  pointer-events: none;
+}

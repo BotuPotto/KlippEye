@@ -1,0 +1,58 @@
+/* ============================================================================
+   Klipper state panel (app/30-klipper-state.js): Mainsail's "Klipper reports: ..." box in glass.
+   The colour follows the state: startup violet, shutdown orange, error red, disconnected / switched off grey.
+   ========================================================================== */
+
+.klipper-state { --ks-color: var(--oui-text-2); --ks-soft: var(--oui-surface-3); --ks-border: var(--oui-stroke-strong); display: block; box-sizing: border-box; width: 100%; margin: 0 0 16px; }
+.klipper-state[data-tone="info"] { --ks-color: var(--oui-accent); --ks-soft: var(--oui-accent-soft); --ks-border: rgba(183, 156, 255, 0.4); }
+.klipper-state[data-tone="warn"] { --ks-color: var(--oui-warn); --ks-soft: var(--oui-warn-soft); --ks-border: rgba(255, 183, 64, 0.42); }
+.klipper-state[data-tone="error"] { --ks-color: var(--oui-danger); --ks-soft: var(--oui-danger-soft); --ks-border: rgba(255, 93, 93, 0.42); }
+
+.klipper-state__card {
+  padding: 16px 18px 18px;
+  background: linear-gradient(var(--ks-soft), var(--ks-soft)), var(--oui-glass);
+  -webkit-backdrop-filter: blur(var(--oui-blur)) saturate(1.5);
+  backdrop-filter: blur(var(--oui-blur)) saturate(1.5);
+  border: 1px solid var(--ks-border);
+  border-radius: var(--oui-r-card);
+  animation: oui-fade var(--oui-dur-slow) linear, oui-rise var(--oui-dur-slow) var(--oui-ease);
+}
+.klipper-state__head { display: flex; align-items: center; gap: 14px; }
+.klipper-state__icon { display: flex; align-items: center; justify-content: center; flex-shrink: 0; width: 44px; height: 44px; border-radius: 50%; background: var(--ks-soft); color: var(--ks-color); }
+.klipper-state__title { min-width: 0; font-size: 17px; font-weight: 600; line-height: 1.3; color: var(--ks-color); overflow-wrap: anywhere; }
+
+.klipper-state__text { margin: 12px 0 0; font-size: 14px; line-height: 1.5; color: var(--oui-text-2); }
+/* Klipper's own words, with its line breaks (a config error can run to several lines) */
+.klipper-state__message {
+  margin: 12px 0 0;
+  padding: 12px 14px;
+  max-height: 40vh;
+  overflow: auto;
+  background: var(--oui-inset);
+  border-radius: var(--oui-r-field);
+  font-family: var(--oui-font-mono);
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--oui-text);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  -webkit-user-select: text;
+  user-select: text;
+}
+.klipper-state__actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; margin-top: 14px; }
+
+/* the loading ring: a dash that grows and shrinks while the whole ring turns */
+.klipper-state__ring { display: block; animation: oui-spin 1.6s linear infinite; }
+.klipper-state__ring circle {
+  fill: none;
+  stroke: var(--ks-color);
+  stroke-width: 3.4;
+  stroke-linecap: round;
+  stroke-dasharray: 1, 100;
+  animation: klipper-ring 1.4s ease-in-out infinite;
+}
+@keyframes klipper-ring {
+  0% { stroke-dasharray: 1, 100; stroke-dashoffset: 0; }
+  50% { stroke-dasharray: 55, 100; stroke-dashoffset: -22; }
+  100% { stroke-dasharray: 55, 100; stroke-dashoffset: -87; }
+}

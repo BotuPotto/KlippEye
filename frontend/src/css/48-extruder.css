@@ -1,0 +1,31 @@
+/* ============================================================================
+   Extruder card
+   ========================================================================= */
+
+/* ---- length and feedrate side by side ---- */
+.extruder-fields { grid-template-columns: 1fr 1fr; }
+.preset-field { min-width: 0; padding: 14px; overflow: hidden; }
+.preset-field__input { min-height: 44px; padding: 0 12px; font-size: 16px; }
+/* presets: as many equal columns as fit (3 on a phone), so the rows line up */
+.preset-chips { display: grid; grid-template-columns: repeat(auto-fill, minmax(34px, 1fr)); gap: 8px; margin-top: 12px; }
+.preset-chips .oui-chip { min-width: 0; padding: 0; }
+
+/* ---- one-tap macro tiles (also used by the calibration card) ---- */
+.macro-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  padding: 8px 6px;
+  border: 0;
+  border-radius: var(--oui-r-field);
+  background: var(--oui-surface-2);
+  color: var(--oui-text);
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1.2;
+  text-align: center;
+  transition: background var(--oui-dur-fast) var(--oui-ease), transform var(--oui-dur-press) var(--oui-ease);
+}
+.macro-btn:hover { background: var(--oui-surface-3); }
+.macro-btn:active { transform: scale(0.96); background: var(--oui-accent-soft); color: var(--oui-accent-text); }

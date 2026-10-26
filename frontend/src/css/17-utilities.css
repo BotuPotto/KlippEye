@@ -1,0 +1,10 @@
+/* ============================================================================
+   Layout utilities that the compiled Tailwind stylesheet does not carry.
+   Only classes used by src/app/*.js belong here (tools/check_classes.py lists
+   the ones that have no rule at all).
+   ========================================================================== */
+
+.mb-6 { margin-bottom: 24px; }
+.mt-5 { margin-top: 20px; }
+.my-3 { margin-top: 12px; margin-bottom: 12px; }
+.text-center { text-align: center; }

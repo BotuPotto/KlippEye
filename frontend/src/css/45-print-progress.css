@@ -1,0 +1,26 @@
+/* ============================================================================
+   Print progress card (Home, while a job runs)
+   ========================================================================== */
+
+.print-pct { font-size: 13px; min-width: 52px; justify-content: center; font-variant-numeric: tabular-nums; }
+.print-thumb {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 72px;
+  height: 72px;
+  overflow: hidden;
+  background: var(--oui-inset);
+  border-radius: var(--oui-r-field);
+}
+.print-file {
+  margin-bottom: 12px;
+  overflow: hidden;
+  font-size: 15px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.print-stat { padding: 0 4px; }
+.print-stat__value { margin-top: 2px; font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; }

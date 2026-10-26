@@ -1,0 +1,68 @@
+/* ============================================================================
+   System logs card: toolbar, file rows, analysis area
+   ========================================================================== */
+
+.logs-toolbar { display: flex; flex-wrap: wrap; gap: 8px; }
+.logs-toolbar__main { flex: 1 1 auto; }
+
+/* ---- file rows (a grouped list; actions wrap below the name on narrow screens) ---- */
+.log-list { margin-top: 14px; }
+.log-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 12px; padding: 12px 14px; }
+.log-row__main { display: flex; flex: 1 1 170px; align-items: center; gap: 12px; min-width: 0; }
+.log-row__info { display: flex; flex: 1; flex-direction: column; gap: 2px; min-width: 0; }
+.log-row__name { font-family: var(--oui-font-mono); font-size: 13px; font-weight: 500; overflow-wrap: anywhere; }
+.log-row__actions { display: flex; align-items: center; gap: 6px; }
+.log-row .oui-btn--sm { padding-left: 14px; padding-right: 14px; }
+.log-row .oui-btn--icon { width: 40px; min-height: 40px; padding: 0; }
+.log-row__ai { min-width: 48px; background: var(--oui-ok-soft); color: var(--oui-ok); }
+.log-row__ai:hover { background: rgba(61, 220, 138, 0.26); }
+.logs-notice { padding: 14px 4px 4px; font-size: 14px; color: var(--oui-text-2); overflow-wrap: anywhere; }
+
+/* ---- analysis area ---- */
+.logs-analysis { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--oui-stroke); }
+.logs-analysis__head { display: flex; align-items: center; justify-content: space-between; gap: 12px; cursor: pointer; -webkit-user-select: none; user-select: none; }
+.logs-analysis__toggle svg { transition: transform var(--oui-dur-base) var(--oui-ease); }
+.logs-analysis__toggle.is-collapsed svg { transform: rotate(-90deg); }
+
+.logs-hint { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 13px; color: var(--oui-text-2); }
+.logs-hint .oui-dot { width: 7px; height: 7px; color: var(--oui-accent); }
+.logs-hint--busy .oui-dot { animation: oui-pulse 1.4s ease-in-out infinite; }
+.logs-hint--busy { color: var(--oui-accent-text); }
+.logs-hint--done { color: var(--oui-ok); }
+.logs-hint--done .oui-dot { color: var(--oui-ok); }
+
+/* the result well; folded away when the card is collapsed */
+.logs-result {
+  margin-top: 12px;
+  padding: 14px;
+  background: var(--oui-inset);
+  border-radius: var(--oui-r-tile);
+  font-size: 14px;
+  color: var(--oui-text-2);
+  overflow-wrap: anywhere;
+  min-width: 0;
+  max-width: 100%;
+  transition: opacity var(--oui-dur-base) linear;
+}
+.logs-result--report { padding: 10px; } /* the report brings its own cards: give them the room */
+.log-result--collapsed { max-height: 0; margin-top: 0; padding-top: 0; padding-bottom: 0; overflow: hidden; opacity: 0; }
+
+.logs-done { margin-bottom: 12px; }
+.logs-done__dot { color: var(--oui-ok); }
+.logs-done__file { font-family: var(--oui-font-mono); max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.logs-done__source { max-width: 100%; overflow-wrap: anywhere; }
+
+/* busy state */
+.logs-busy { display: flex; align-items: center; gap: 14px; }
+.logs-busy__title { font-size: 14px; font-weight: 600; color: var(--oui-text); overflow-wrap: anywhere; }
+.logs-busy__spinner { flex-shrink: 0; width: 28px; height: 28px; box-sizing: border-box; border: 3px solid var(--oui-surface-3); border-top-color: var(--oui-accent); border-radius: 50%; animation: oui-spin 0.9s linear infinite; }
+@keyframes oui-spin { to { transform: rotate(360deg); } }
+
+/* API key form and messages */
+.logs-key__icon { display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 50%; background: var(--oui-warn-soft); color: var(--oui-warn); font-size: 14px; font-weight: 700; }
+.logs-key__title { font-size: 15px; font-weight: 600; color: var(--oui-text); }
+.logs-key__message { font-size: 14px; line-height: 1.5; color: var(--oui-text-2); overflow-wrap: anywhere; }
+.logs-key__form { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; }
+.logs-key__form .oui-btn-row { margin-top: 4px; }
+.logs-key__form .oui-btn--primary { flex: 1.7; }
+.logs-saved { display: flex; align-items: center; gap: 8px; color: var(--oui-ok); font-size: 14px; font-weight: 600; }

@@ -1,0 +1,41 @@
+/* ============================================================================
+   File icons: the tile that shows what a file or a folder is (markup and the
+   kinds: app/20a-file-icons.js). A soft tint of one colour with the icon in the
+   colour itself, a squircle where the action buttons are round, so that the
+   things you open and the things you press never look alike.
+   ========================================================================== */
+
+.fi {
+  --fi-bg: var(--oui-surface-3);
+  --fi-fg: var(--oui-text-2);
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 13px;
+  background: var(--fi-bg);
+  color: var(--fi-fg);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+.fi svg { width: 50%; height: 50%; }
+.fi--lg { width: 64px; height: 64px; border-radius: 21px; }
+
+/* ---- tones ---- */
+.fi--accent { --fi-bg: var(--oui-accent-soft); --fi-fg: var(--oui-accent-text); }
+.fi--cool { --fi-bg: rgba(92, 200, 255, 0.16); --fi-fg: var(--oui-cool); }
+.fi--ok { --fi-bg: var(--oui-ok-soft); --fi-fg: var(--oui-ok); }
+.fi--warn { --fi-bg: var(--oui-warn-soft); --fi-fg: var(--oui-warn); }
+.fi--heat { --fi-bg: rgba(255, 123, 74, 0.16); --fi-fg: var(--oui-heat); }
+.fi--neutral { --fi-bg: var(--oui-surface-3); --fi-fg: var(--oui-text-2); }
+
+/* ---- the placeholder of a print without preview: it sits in the middle of the frame the picture would fill ---- */
+.fi--placeholder {
+  width: 56%;
+  max-width: 84px;
+  height: auto;
+  aspect-ratio: 1;
+  border-radius: 28%;
+}
+.fi--placeholder svg { width: 54%; height: 54%; }

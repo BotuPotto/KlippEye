@@ -1,0 +1,71 @@
+/* ============================================================================
+   System page (host, MCU, updates) and the update dialog
+   The page lives inside <main>, like every other page.
+   ========================================================================== */
+
+.sys-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
+@media (min-width: 800px) {
+  .sys-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .sys-grid > :last-child { grid-column: 1 / -1; }
+}
+
+.sys-card-header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 12px; margin-bottom: 16px; }
+.sys-sublabel { margin-top: 2px; overflow-wrap: anywhere; }
+.sys-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* ---- CPU / memory tiles ---- */
+.stat-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+@media (max-width: 420px) {
+  .stat-grid { grid-template-columns: minmax(0, 1fr); }
+}
+.stat-box { min-width: 0; }
+.stat-box-value { margin-top: 6px; font-size: 28px; font-weight: 600; line-height: 1.1; letter-spacing: -0.015em; font-variant-numeric: tabular-nums; }
+.stat-bar { margin-top: 14px; }
+.stat-box-footnote { margin-top: 8px; font-variant-numeric: tabular-nums; }
+
+/* ---- MCU rows ---- */
+.mcu-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; }
+.mcu-row__version { margin-top: 2px; font-family: var(--oui-font-mono); font-size: 14px; font-weight: 500; overflow-wrap: anywhere; }
+
+/* ---- software components ---- */
+.update-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 12px; padding: 14px 16px; }
+.update-row.has-update { background: rgba(255, 183, 64, 0.11); }
+.update-row-main { flex: 1 1 200px; min-width: 0; }
+.update-row-title { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.update-row-name { font-size: 15px; font-weight: 600; overflow-wrap: anywhere; }
+.update-row-versions { margin-top: 4px; font-family: var(--oui-font-mono); font-size: 12px; color: var(--oui-text-3); overflow-wrap: anywhere; }
+.update-row-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* ============================================================================
+   Update dialog (confirm → progress → done): uses the .sheet-* frame
+   ========================================================================== */
+.dialog-progress { margin-top: 14px; }
+.dialog-progress .oui-progress__bar { transition: width var(--oui-dur-bar) var(--oui-ease); }
+.sheet-body { max-height: 56vh; padding: 0 22px 8px; overflow: auto; }
+.dialog-log-section { margin-top: 14px; }
+.dialog-log { max-height: 220px; padding: 12px; overflow: auto; font-family: var(--oui-font-mono); font-size: 12px; line-height: 1.5; color: var(--oui-text-2); }
+.dialog-log-line { padding: 2px 0; overflow-wrap: anywhere; }
+.dialog-spinner { flex-shrink: 0; width: 20px; height: 20px; box-sizing: border-box; border: 3px solid var(--oui-surface-3); border-top-color: var(--oui-accent); border-radius: 50%; animation: oui-spin 0.9s linear infinite; }
+
+/* what the dialog shows in its body */
+.update-info { padding: 14px 16px; }
+.update-info--versions { display: flex; justify-content: space-between; gap: 12px; }
+.update-info-right { text-align: right; }
+.update-info-label { font-size: 12px; color: var(--oui-text-3); }
+.update-info-value { font-size: 14px; }
+.update-info-value--wrap { margin-top: 4px; overflow-wrap: anywhere; }
+.update-info-count { margin-top: 8px; font-size: 12px; color: var(--oui-text-3); }
+.update-version { margin-top: 2px; font-family: var(--oui-font-mono); font-size: 15px; font-weight: 600; overflow-wrap: anywhere; }
+.update-version--new { color: var(--oui-ok); }
+
+.update-working { display: flex; align-items: center; gap: 12px; }
+.update-working-text { font-size: 14px; color: var(--oui-text-2); }
+.update-result-title { font-size: 15px; font-weight: 600; }
+.update-result--ok .update-result-title { color: var(--oui-ok); }
+.update-result--error .update-result-title { color: var(--oui-danger); }
+.update-result-text { margin-top: 4px; font-size: 13px; color: var(--oui-text-2); overflow-wrap: anywhere; }
+
+/* ---- the update of KlippEye itself: releases, commits coming, what will happen ---- */
+.update-info--program { display: flex; flex-direction: column; gap: 12px; }
+.update-note { margin: 0; color: var(--oui-text-2); font-size: 13px; line-height: 1.5; }
+.update-info--program .set-commits { background: var(--oui-surface); }

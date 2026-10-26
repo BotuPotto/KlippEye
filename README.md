@@ -1,79 +1,95 @@
 # KlippEye
 
-Dashboard, backend (il programma che la serve e controlla la stampa con la camera), notifiche e app Android per una stampante 3D con
-Klipper + Moonraker + Raspberry Pi. Questo repository è il **contenitore**: quello che c'è qui è quello che gira sul Raspberry.
+A dashboard, a backend (the program that serves it and watches the print through the camera), push notifications and an
+Android app for 3D printers running **Klipper + Moonraker** on a Raspberry Pi. This repository is what runs on the
+Raspberry: Moonraker's update manager installs and updates it from here.
 
-> Fino alla 1.0.x il progetto si chiamava **VzBot**. Chi ha già VzBot passa a KlippEye con un tasto della dashboard
-> (*Impostazioni → Aggiornamenti → Passa a KlippEye*): guida nella parte **P** di [docs/GUIDA.md](docs/GUIDA.md).
+> Until release 1.0.x the project was called **VzBot**. Existing VzBot installs move to KlippEye with one button of the
+> dashboard (*Impostazioni → Aggiornamenti → Passa a KlippEye*, i.e. Settings → Updates; the dashboard is still in Italian);
+> see part **P** of the guide.
 
-**Come si usa, passo per passo: [docs/GUIDA.md](docs/GUIDA.md).**
+**Step-by-step guide (Italian for now, English coming): [docs/GUIDA.md](docs/GUIDA.md).**
+Security: [SECURITY.md](SECURITY.md) · Contributing: [CONTRIBUTING.md](CONTRIBUTING.md) · Changes: [CHANGELOG.md](CHANGELOG.md)
 
-## Come funziona l'aggiornamento
+## Features
 
-```
-  tuo PC                      GitHub (questo repository)              Raspberry
-  ──────                      ──────────────────────────              ─────────
-  carichi i file nuovi  ───►  nuova release (VERSION 1.1.0)  ◄───┐
-                                                                 │ Moonraker (update manager) lo controlla
-  dashboard ► Impostazioni ► Aggiornamenti ► "Aggiorna KlippEye" ──┘  e scarica solo le differenze in ~/klippeye,
-                                                                    poi riavvia il servizio "klippeye".
-                                                                    La pagina si ricarica da sola.
-```
+* Full printer control from phone or desktop: temperatures, fans, motion, Z-offset, files, console and macros, config
+  editor, bed mesh, calibrations, endstops, service and host restarts, software updates.
+* AI print monitor: a local OpenCV filter on the Raspberry; an online AI (Groq or OpenAI, with your own key) only judges
+  the pictures that look suspicious. Alerts are kept with their images.
+* Push notifications to the Android app (Firebase Cloud Messaging), with optional automatic pause/cancel.
+* Self-repair after a power loss: damaged program files are restored from git at every start.
+* Optional password, network checks (host name and origin of requests) and restricted permissions of the secrets.
 
-* Il programma sta in **una cartella sola** (`~/klippeye`), le **tue cose** (soglie del monitor, chiave dell'IA, notifiche) in un'altra
-  (`~/printer_data/klippeye`): un aggiornamento tocca solo la prima.
-* Dopo un **blackout** i file rovinati si rimettono a posto da soli a ogni avvio ([guida, parte G](docs/GUIDA.md)).
-* Se qualcosa va storto: **"Torna alla versione precedente"** nella stessa pagina (o Rollback in Mainsail/Fluidd).
-* L'update manager è quello di Moonraker, quindi l'aggiornamento si vede e si lancia anche da Mainsail e Fluidd.
-
-## L'app Android
+## How updates work
 
 ```
-  tuo PC / GitHub                                   Raspberry                           Telefono
-  ───────────────                                   ─────────                           ────────
-  alzi il numero in android/VERSION
-  GitHub compila e firma l'APK (workflow)  ───►  "Aggiorna KlippEye" porta apk/ qui  ───►  dashboard dell'app ► Aggiornamenti
-  e lo salva in apk/ (+ versione.json)             il backend lo offre (/app/KlippEye.apk)    ► "Aggiorna l'app" ► conferma di Android
+  your PC                     GitHub (this repository)                Raspberry
+  ───────                     ────────────────────────                ─────────
+  push new files        ───►  new release (VERSION 1.2.0)     ◄───┐
+                                                                  │ Moonraker (update manager) checks it
+  dashboard ► Settings ► Updates ► "Update KlippEye" ─────────────┘  and fetches only the differences into ~/klippeye,
+                                                                     then restarts the "klippeye" service.
+                                                                     The page reloads by itself.
 ```
 
-L'app ha un numero suo (`android/VERSION`). Il backend offre l'APK solo se grandezza e impronta SHA-256 coincidono con `apk/versione.json`;
-l'app le ricontrolla dopo il download, e Android installa solo un APK con la stessa firma e solo dopo la conferma dell'utente.
-Preparazione (una volta) e passaggi: [docs/GUIDA.md](docs/GUIDA.md), parte C. Dettagli tecnici: [android/README.md](android/README.md).
+* The program lives in **one folder** (`~/klippeye`), **your data** (monitor thresholds, AI key, notifications, password)
+  in another (`~/printer_data/klippeye`): an update only touches the first one.
+* After a **power loss** damaged files are restored automatically at every start (guide, part G).
+* If something goes wrong: **"Go back to the previous version"** on the same page (or Rollback in Mainsail/Fluidd).
+* It is Moonraker's update manager, so updates are also visible and can be started from Mainsail and Fluidd.
 
-## Disposizione dei file
+## The Android app
 
-| Dove | Cosa | Chi lo cambia |
+```
+  your PC / GitHub                                  Raspberry                              Phone
+  ────────────────                                  ─────────                              ─────
+  raise the number in android/VERSION
+  GitHub builds and signs the APK (workflow)  ───►  "Update KlippEye" brings apk/ here ───►  app dashboard ► Updates
+  and saves it in apk/ (+ versione.json)            the backend offers it (/app/KlippEye.apk)  ► "Update the app" ► Android asks
+```
+
+The app has its own version (`android/VERSION`). The backend offers the APK only if its size and SHA-256 match
+`apk/versione.json`; the app checks them again after downloading, and Android installs only an APK signed with the same
+key, after the user confirms. Setup (once) and steps: guide, part C. Technical details: [android/README.md](android/README.md).
+
+## Repository layout
+
+| Where | What | Changed by |
 |---|---|---|
-| `~/klippeye/VERSION` | la release (un numero solo per tutto: `1.1.0`) | tu, a ogni release |
-| `~/klippeye/backend/klippeye_backend.py` | il backend: serve la dashboard, ponte verso Moonraker, monitor IA, soglie | l'aggiornamento |
-| `~/klippeye/frontend/klippeye_frontend.html` | la dashboard (un file solo) | l'aggiornamento |
-| `~/klippeye/logos/` | i loghi ufficiali di Voron, RatRig (e VzBot) per la scelta della stampante ([logos/README.md](logos/README.md)) | tu, una volta |
-| `~/klippeye/notifier/klippeye_notifier.py` | il servizio delle notifiche al telefono | l'aggiornamento |
-| `~/klippeye/scripts/` | `install.sh` (si lancia una volta), `passa-a-klippeye.sh` (il passaggio da VzBot), `ripara.sh` (la riparazione dopo un blackout, parte da sola), `klippeye` e `klippeye-notifiche` (comandi di soccorso) | l'aggiornamento |
-| `~/klippeye/systemd/` | i modelli dei servizi `klippeye` e `klippeye-notifier` | l'aggiornamento |
-| `~/klippeye/android/` | i sorgenti dell'app Android (`android/VERSION` = la versione dell'app) | tu, quando fai un'app nuova |
-| `~/klippeye/apk/` | `KlippEye.apk` e `versione.json`: l'ultima app costruita da GitHub | GitHub (workflow `.github/workflows/app.yml`) |
-| `~/klippeye/ci/app_ci.py` | i passi del workflow che costruisce l'app (provati a parte) | l'aggiornamento |
-| `~/klippeye/docs/`, `README.md`, `CHANGELOG.md` | questa documentazione | l'aggiornamento |
-| `~/printer_data/klippeye/brain.json` | le soglie del monitor IA (si cambiano dalla dashboard) | la dashboard |
-| `~/printer_data/klippeye/ai.json` | la chiave del servizio IA (visibile solo al tuo utente) | la dashboard |
-| `~/printer_data/klippeye/notifier.json`, `service-account.json` | impostazioni e chiave delle notifiche | tu, una volta |
-| `~/printer_data/klippeye/riparazioni.log`, `ripristino.json` | cosa ha rimesso a posto la riparazione automatica | `ripara.sh` |
-| `~/printer_data/klippeye/backup/` | copie di sicurezza fatte dall'installer | l'installer |
+| `VERSION` | the release (one number for backend, dashboard and notifier) | each release |
+| `backend/klippeye_backend.py`, `backend/access.py` | the backend: serves the dashboard, bridges Moonraker, AI monitor, password and network checks | updates |
+| `frontend/` | the dashboard: sources in `frontend/src`, built into `frontend/klippeye_frontend.html` ([frontend/README.md](frontend/README.md)) | updates |
+| `notifier/klippeye_notifier.py` | the push-notification service | updates |
+| `scripts/` | `install.sh` (run once), `ripara.sh` (self-repair, runs by itself), `passa-a-klippeye.sh` (move from VzBot), `klippeye` and `klippeye-notifiche` (rescue commands) | updates |
+| `systemd/` | templates of the `klippeye` and `klippeye-notifier` services | updates |
+| `android/` | the Android app sources (`android/VERSION` = app version) | new app releases |
+| `apk/` | `KlippEye.apk` and `versione.json`: the latest app built by GitHub | GitHub (`.github/workflows/app.yml`) |
+| `ci/app_ci.py` | the steps of the app build workflow | updates |
+| `tests/` | automatic tests ([tests/README.md](tests/README.md)), run on GitHub for every pull request | contributors |
+| `logos/` | official printer logos for the printer picker ([logos/README.md](logos/README.md)) | once |
+| `~/printer_data/klippeye/brain.json` | AI monitor thresholds (changed from the dashboard) | the dashboard |
+| `~/printer_data/klippeye/ai.json` | the AI service key (mode 600) | the dashboard |
+| `~/printer_data/klippeye/access.json`, `internal.token` | optional password (hash only) and token of the local services (mode 600) | the dashboard / `klippeye password` |
+| `~/printer_data/klippeye/notifier.json`, `service-account.json` | notification settings and key | you, once |
 
-I servizi si chiamano **`klippeye`** (backend + dashboard, porta 8085) e **`klippeye-notifier`** (notifiche). Il nome `klippeye` non va cambiato:
-è quello che Moonraker riavvia dopo un aggiornamento.
+The services are **`klippeye`** (backend + dashboard, port 8085) and **`klippeye-notifier`** (notifications). Do not rename
+`klippeye`: it is the service Moonraker restarts after an update.
 
-## Numerazione
+## Versions
 
-`MAGGIORE.MINORE.CORREZIONE`, una release sola per backend, dashboard e notifiche (`1.0.0`, `1.0.1`, `1.1.0`...).
-Cambia il file `VERSION` a ogni caricamento di file nuovi: è il numero che la dashboard mostra ("Disponibile la release 1.1.0").
-Le modifiche di ogni release sono elencate in [CHANGELOG.md](CHANGELOG.md).
+`MAJOR.MINOR.PATCH`, one release for backend, dashboard and notifier, in `VERSION`; the dashboard shows it ("Release 1.2.0
+available"). Every release is described in [CHANGELOG.md](CHANGELOG.md). The **Android app** has its own number in
+`android/VERSION`, raised only for a new app.
 
-L'**app Android** ha una numerazione sua, con lo stesso formato, nel file `android/VERSION`: si alza solo quando si fa un'app nuova.
+## Never commit secrets
 
-## Non metterci mai segreti
+This repository is public (Moonraker downloads it without a password). Keys, passwords and `service-account.json` live
+**only** in `~/printer_data/klippeye`, outside the repository. The only exceptions are the app signing key,
+`android/chiave/klippeye.p12`, stored here **encrypted** (its password is a GitHub secret), and the app's Firebase file,
+which is a GitHub secret.
 
-Il repository è pubblico (Moonraker lo scarica senza password). Chiavi, password e `service-account.json` stanno
-**solo** in `~/printer_data/klippeye`, fuori dal repository, e non vanno caricati qui. Fanno eccezione la chiave di firma dell'app,
-`android/chiave/klippeye.p12`, che sta qui **cifrata** (la password è un segreto di GitHub), e il file di Firebase per le notifiche dell'app, che sta nei segreti di GitHub.
+## License
+
+KlippEye is free software, released under the [GNU General Public License v3.0](LICENSE), like Klipper, Moonraker,
+Mainsail and Fluidd. Third-party components and their licenses: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
