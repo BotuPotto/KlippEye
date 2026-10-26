@@ -320,7 +320,7 @@ Per sapere cosa è successo: `klippeye ripara log` (SSH) oppure il file `~/print
 
 ## H. Monitor IA: come ridurre i falsi allarmi
 
-Il monitor guarda la camera ogni circa 3 secondi. Dalla 1.1.0 confronta ogni foto con uno **sfondo** (la mediana delle ultime foto) invece che con la foto precedente, ignora i cambi di luce e
+Il monitor guarda la camera ogni circa 3 secondi. Dalla 1.1.1 confronta ogni foto con uno **sfondo** (la mediana delle ultime foto) invece che con la foto precedente, ignora i cambi di luce e
 vuole che il cambiamento **resti** per alcuni controlli. Se qualcosa scatta, manda all'IA online la foto di adesso e quella di prima.
 
 Cosa regolare in *Impostazioni → Monitor IA* se hai ancora falsi allarmi:
