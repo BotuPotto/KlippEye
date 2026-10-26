@@ -29,7 +29,7 @@ cambia al passo successivo). La pagina si ricarica da sola. Nel menu **Aggiornam
 
 * Se la pagina scrive che serve la **password di amministratore**, il tasto non può partire da solo: apri SSH e incolla `bash ~/vzbot/scripts/passa-a-klippeye.sh` (fa le stesse cose).
 * Se un passo non riesce, lo script **rimette tutto com'era** (servizi, cartella, `moonraker.conf`) e la pagina lo dice: puoi riprovare o mandarmi il messaggio che vedi.
-* Controllo finale (facoltativo, da SSH): `klippeye stato` deve elencare `klippeye` e `klippeye-notifier` accesi.
+* Controllo finale (facoltativo, da SSH): `klippeye status` deve elencare `klippeye` e `klippeye-notifier` accesi.
 * I vecchi file (`~/printer_data/vzbot`, le copie dei vecchi servizi in `~/printer_data/klippeye/backup/passaggio-…`) restano: cancellali tu quando sei sicuro che vada tutto bene.
 
 **P5. L'app Android nuova.** L'app ha cambiato nome *interno* (`com.klippeye.app`, prima `com.vzbot.dashboard`): per Android è **un'altra app**, quindi la nuova si installa
@@ -107,7 +107,7 @@ Apri la dashboard (`http://192.168.1.17:8085`), tocca il menu **☰** → **Aggi
 
 Le notifiche usano `notifier.json` e `service-account.json` (la chiave di Firebase), che stanno in `~/printer_data/klippeye/`.
 Se le avevi già installate, `install.sh` le ha spostate da solo. Se no, il servizio `klippeye-notifier` resta spento: metti i due
-file in quella cartella e rilancia `bash ~/klippeye/scripts/install.sh`. Poi: `klippeye notifiche prova` manda una notifica di prova.
+file in quella cartella e rilancia `bash ~/klippeye/scripts/install.sh`. Poi: `klippeye notify test` manda una notifica di prova.
 
 ---
 
@@ -145,12 +145,12 @@ Si può fare lo stesso da **Mainsail/Fluidd** → *Machine* → *Update Manager*
 | La nuova release non funziona come speravi | Dashboard → Aggiornamenti → **Torna alla versione precedente** |
 | La pagina dice che i file sul Raspberry sono "modificati a mano" | Dashboard → Aggiornamenti → **Ripristina i file del programma** (impostazioni e chiavi non si toccano) |
 | La dashboard è **bianca** o non si apre dopo un blackout | Di solito **non devi fare niente**: i file rovinati si rimettono a posto da soli a ogni avvio (parte **G**). Se dopo un minuto non è cambiato nulla: Mainsail → *Update Manager* → **klippeye** → *Recover* |
-| La dashboard non si apre più | Mainsail → *Update Manager* → **klippeye** → *Rollback* (o *Recover*). Oppure SSH: `klippeye stato`, `klippeye log`, `klippeye aggiorna --forza` |
-| Il backend non risponde | SSH: `klippeye riavvia` (oppure Mainsail → *Machine* → servizio `klippeye` → Restart) |
+| La dashboard non si apre più | Mainsail → *Update Manager* → **klippeye** → *Rollback* (o *Recover*). Oppure SSH: `klippeye status`, `klippeye log`, `klippeye update --force` |
+| Il backend non risponde | SSH: `klippeye restart` (oppure Mainsail → *Machine* → servizio `klippeye` → Restart) |
 | Moonraker "non conosce ancora KlippEye" | SSH: `bash ~/klippeye/scripts/install.sh`, poi riavvia Moonraker dal menu Riavvia |
 
-Comandi di soccorso (SSH): `klippeye stato`, `klippeye versione`, `klippeye log`, `klippeye riavvia [backend|notifiche|tutto]`,
-`klippeye aggiorna [--forza]`, `klippeye notifiche prova`, `klippeye annulla`. `klippeye aiuto` li elenca.
+Comandi di soccorso (SSH): `klippeye status`, `klippeye version`, `klippeye log`, `klippeye restart [backend|notifier|all]`,
+`klippeye update [--force]`, `klippeye notify test`, `klippeye undo-install`. `klippeye help` li elenca. Dalla 1.3.0 i comandi sono in inglese; i nomi italiani di prima (`stato`, `riavvia`, `aggiorna`...) funzionano ancora.
 
 ---
 
@@ -197,7 +197,7 @@ Nel repository deve esserci il file `.github/workflows/app.yml`. Se non lo vedi 
 2. Aspetta. Il pallino giallo gira per 5-10 minuti (la prima volta anche di più), poi diventa **verde ✓**. Se diventa **rosso ✗** apri il passo con la X: il messaggio
    spiega cosa manca (vedi C8).
 3. Cosa ha fatto: ha creato la chiave `android/chiave/klippeye.p12` (cifrata con la tua password), ha compilato e firmato l'app e ha messo nel repository la cartella
-   **`apk/`** con `KlippEye.apk` e `versione.json`.
+   **`apk/`** con `KlippEye.apk` e `version.json`.
 
 ### C5. Porta l'app sul Raspberry
 
@@ -253,7 +253,7 @@ Dashboard → **☰** → **Aggiornamenti** → **Controlla se c'è una versione
 
 * `~/klippeye` è il **programma**: una copia del repository GitHub. **Non si modifica a mano** (Moonraker rifiuterebbe di aggiornare
   finché ci sono file cambiati: la dashboard allora offre "Ripristina i file del programma").
-* `~/printer_data/klippeye` sono **le tue cose**: soglie del monitor (`brain.json`, si cambiano dalla dashboard), chiave dell'IA
+* `~/printer_data/klippeye` sono **le tue cose**: soglie del monitor (`monitor.json`, si cambiano dalla dashboard), chiave dell'IA
   (`ai.json`), notifiche. Gli aggiornamenti non ci mettono mano. Per salvarle basta copiare quella cartella.
 * `~/klippeye/android` sono i sorgenti dell'app e `~/klippeye/apk` l'ultimo APK costruito da GitHub: il Raspberry li riceve con l'aggiornamento e li offre al telefono.
 * Il repository è **pubblico**: non caricarci mai chiavi o password. (L'unica chiave che c'è, `android/chiave/klippeye.p12`, è cifrata con la password che sta nei segreti di GitHub.)
@@ -279,8 +279,8 @@ Quando premi **Aggiorna**, Moonraker confronta `~/klippeye` con GitHub, scarica 
 Moonraker controlla GitHub da solo ogni tanto; il tasto *Controlla* lo fa subito.
 
 **L'app** segue la stessa strada con un passo in più: la modifica di `android/VERSION` fa partire il workflow `.github/workflows/app.yml`, che costruisce l'APK
-e lo salva in `apk/` (con un file `versione.json` che ne dice versione, grandezza e impronta). L'aggiornamento di Moonraker porta `apk/` sul Raspberry; il backend lo offre
-su `/app/KlippEye.apk` solo se grandezza e impronta del file coincidono con `versione.json`. La dashboard dentro l'app confronta la versione installata con quella offerta e,
+e lo salva in `apk/` (con un file `version.json` che ne dice versione, grandezza e impronta). L'aggiornamento di Moonraker porta `apk/` sul Raspberry; il backend lo offre
+su `/app/KlippEye.apk` solo se grandezza e impronta del file coincidono con `version.json`. La dashboard dentro l'app confronta la versione installata con quella offerta e,
 al tocco di **Aggiorna l'app**, chiede all'app di scaricare il file (controllando di nuovo l'impronta) e di aprire l'installazione di Android.
 
 ## F. Il nome e il logo della stampante
@@ -299,7 +299,7 @@ Si carica come ogni altro file (**Add file → Upload files**, vedi B1), poi dal
 Se la corrente salta mentre il Raspberry scrive sulla scheda, un file del programma può restare **vuoto o a metà**. Prima il risultato era la dashboard **bianca**
 (oppure il servizio che non partiva) finché non facevi *Recover* da Mainsail. Ora ci pensa KlippEye da solo, **senza internet e senza che tu faccia niente**:
 
-1. **Prima di ogni avvio del servizio** (quindi anche a ogni riaccensione del Raspberry) lo script `scripts/ripara.sh` confronta i file del programma
+1. **Prima di ogni avvio del servizio** (quindi anche a ogni riaccensione del Raspberry) lo script `scripts/repair.sh` confronta i file del programma
    (backend, dashboard, notifiche, comandi, servizi, app) con la copia «buona» che git tiene dentro `~/klippeye/.git`, sullo stesso Raspberry.
    Quelli vuoti, troncati, rovinati o spariti vengono rimessi a posto uno per uno; gli altri non si toccano. Se git è rimasto «bloccato» dal blackout, toglie il blocco.
 2. **All'avvio del backend** rifà lo stesso controllo (copre anche i Raspberry il cui servizio non ha ancora la riga di cui sopra: se il sistema lo permette senza password,
@@ -309,12 +309,12 @@ Se la corrente salta mentre il Raspberry scrive sulla scheda, un file del progra
 
 **Cosa non tocca mai:** le tue impostazioni, la chiave dell'IA, le notifiche, i `.cfg` di Klipper (stanno fuori dal programma) e i file *tuoi* che hai aggiunto dentro la cartella.
 **Cosa non può fare:** se è rovinata la memoria di git stessa (`~/klippeye/.git`) o la scheda SD è guasta, lo scrive nel registro e serve il solito *Recover* da Mainsail
-(o `klippeye aggiorna --forza` da SSH). Non sostituisce il buon senso: un gruppo di continuità (UPS) o lo spegnimento da Mainsail evitano il problema alla radice.
+(o `klippeye update --force` da SSH). Non sostituisce il buon senso: un gruppo di continuità (UPS) o lo spegnimento da Mainsail evitano il problema alla radice.
 
-Per sapere cosa è successo: `klippeye ripara log` (SSH) oppure il file `~/printer_data/klippeye/riparazioni.log`; `klippeye stato` mostra l'ultimo ripristino e
-`/api/version` il campo `repair`. Per controllare a mano: `klippeye ripara`.
+Per sapere cosa è successo: `klippeye repair log` (SSH) oppure il file `~/printer_data/klippeye/repair.log`; `klippeye status` mostra l'ultimo ripristino e
+`/api/version` il campo `repair`. Per controllare a mano: `klippeye repair`.
 **Se modifichi i file del programma a mano** (sconsigliato, ma succede) la riparazione li rimetterebbe com'erano: prima crea un file vuoto
-`~/printer_data/klippeye/non-riparare` (`touch ~/printer_data/klippeye/non-riparare`), e toglilo quando hai finito.
+`~/printer_data/klippeye/no-repair` (`touch ~/printer_data/klippeye/no-repair`), e toglilo quando hai finito.
 
 ---
 
@@ -332,7 +332,7 @@ Cosa regolare in *Impostazioni → Monitor IA* se hai ancora falsi allarmi:
 | L'IA segnala problemi dubbi | alzare «Fiducia minima dell'IA» (70 → 80); nel pannello Notifiche alzare anche la «confidenza minima» |
 | Non si accorge di un guasto vero | abbassare «Movimento ai bordi» o allargare «Area controllata» |
 
-Ogni allarme salva l'immagine in `~/printer_data/klippeye/allarmi/`: l'elenco è nel pannello del monitor e in `/api/print/alerts/history`. Guardarle aiuta a capire cosa ha fatto scattare il monitor.
+Ogni allarme salva l'immagine in `~/printer_data/klippeye/alerts/`: l'elenco è nel pannello del monitor e in `/api/print/alerts/history`. Guardarle aiuta a capire cosa ha fatto scattare il monitor.
 
 ---
 

@@ -23,3 +23,4 @@ android/app/google-services.json
 tests/**/rg_*/
 tests/**/*.log
 /tmp/
+*.damaged-*

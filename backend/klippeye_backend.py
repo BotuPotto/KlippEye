@@ -81,7 +81,24 @@ def _default_data_dir():
 
 
 DATA_DIR = _default_data_dir()
-BRAIN_CONFIG_PATH = os.path.join(DATA_DIR, "brain.json")
+
+
+def _migrate_data_names():
+    """Release 1.3.0 gives the files in the data folder English names: the old ones are renamed once (nothing is lost)."""
+    renames = [("brain.json", "monitor.json"), ("allarmi", "alerts"), (os.path.join("alerts", "storico.jsonl"), os.path.join("alerts", "history.jsonl"))]
+    for old, new in renames:
+        old_path, new_path = os.path.join(DATA_DIR, old), os.path.join(DATA_DIR, new)
+        try:
+            if os.path.exists(old_path) and not os.path.exists(new_path):
+                os.replace(old_path, new_path)
+                print("[DATA] renamed %s -> %s" % (old, new))
+        except OSError as error:
+            print("[DATA] cannot rename %s -> %s: %s" % (old, new, error))
+
+
+_migrate_data_names()
+MONITOR_CONFIG_PATH = os.path.join(DATA_DIR, "monitor.json")   # the AI monitor thresholds (brain.json before 1.3.0)
+BRAIN_CONFIG_PATH = MONITOR_CONFIG_PATH   # old name of the variable, kept for code that still uses it
 
 
 def write_json_atomic(path, data, private=False):
@@ -550,7 +567,7 @@ class backendConfig:
 
     def _set_aside(self, why):
         """Un file rovinato non deve fermare il backend: lo metto da parte (si può guardare) e riparto dai valori di sempre."""
-        target = "%s.rovinato-%d" % (self.path, int(time.time()))
+        target = "%s.damaged-%d" % (self.path, int(time.time()))
         try:
             os.replace(self.path, target)
         except OSError:
@@ -650,19 +667,20 @@ def find_frontend():
         pass
     return None
 
-# === AUTORIPARAZIONE: dopo un blackout un file del programma puo' restare vuoto o a meta' =========================
-# scripts/ripara.sh confronta i file con la copia "buona" che git ha sul Raspberry (niente internet) e rimette a posto solo quelli
-# rovinati. Parte: prima del backend (riga ExecStartPre del servizio), all'avvio del backend (qui sotto) e quando la pagina della
-# dashboard risulta vuota o troncata (index). Spenta se esiste il file <cartella dati>/non-riparare.
-REPAIR_SCRIPT = os.path.join(REPO_DIR, "scripts", "ripara.sh")
-REPAIR_MARK_PATH = os.path.join(DATA_DIR, "ripristino.json")
-REPAIR_MIN_GAP = 5  # secondi minimi fra due controlli lanciati da una pagina rovinata (la pagina d'emergenza si ricarica ogni 8)
+# === SELF-REPAIR: after a power loss a program file can be left empty or half written ============================
+# scripts/repair.sh compares the files with the "good" copy git keeps on the Raspberry (no internet) and restores only the damaged
+# ones. It runs before the backend (ExecStartPre line of the service), when the backend starts (below) and when the dashboard page
+# turns out empty or truncated (index). Off when the file <data dir>/no-repair exists.
+REPAIR_SCRIPT = os.path.join(REPO_DIR, "scripts", "repair.sh")
+REPAIR_MARK_PATH = os.path.join(DATA_DIR, "repair.json")
+REPAIR_MARK_LEGACY = os.path.join(DATA_DIR, "ripristino.json")   # name before 1.3.0 (repair.sh renames it)
+REPAIR_MIN_GAP = 5  # minimum seconds between two checks started by a damaged page (the emergency page reloads every 8)
 _repair_lock = threading.Lock()
 _repair_state = {"last": 0.0}
 
 
 def frontend_ok(path):
-    """La dashboard e' un file HTML unico: se e' piccolo o non finisce con </html> e' vuoto o troncato (spegnimento a meta' scrittura)."""
+    """The dashboard is one HTML file: if it is tiny or does not end with </html> it is empty or truncated (power lost while writing)."""
     try:
         size = os.path.getsize(path)
         if size < 64:
@@ -676,7 +694,7 @@ def frontend_ok(path):
 
 
 def run_repair(extra=(), force=False):
-    """Lancia scripts/ripara.sh. Ritorna True se l'ha eseguito (non se e' stato saltato per il limite di frequenza o l'assenza dello script)."""
+    """Runs scripts/repair.sh. True if it ran (not when skipped by the rate limit or because the script is missing)."""
     if not os.path.isfile(REPAIR_SCRIPT):
         return False
     with _repair_lock:
@@ -684,32 +702,36 @@ def run_repair(extra=(), force=False):
             return False
         _repair_state["last"] = time.time()
         try:
-            subprocess.run(["bash", REPAIR_SCRIPT, "--silenzioso", *extra], cwd=REPO_DIR, timeout=90,
+            subprocess.run(["bash", REPAIR_SCRIPT, "--quiet", *extra], cwd=REPO_DIR, timeout=90,
                            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                            env=dict(os.environ, KLIPPEYE_DATA=DATA_DIR))
             return True
         except Exception as e:
-            print(f"[RIPARA] controllo non riuscito: {e}")
+            print(f"[REPAIR] check failed: {e}")
             return False
 
 
 def read_repair_mark():
-    """L'ultimo ripristino fatto: {"time", "restored": [...], "failed": [...]} oppure None."""
-    try:
-        with open(REPAIR_MARK_PATH, encoding="utf-8") as fh:
-            d = json.load(fh)
-        return d if isinstance(d, dict) else None
-    except (OSError, ValueError):
-        return None
+    """The last restore: {"time", "restored": [...], "failed": [...]} or None."""
+    for path in (REPAIR_MARK_PATH, REPAIR_MARK_LEGACY):
+        try:
+            with open(path, encoding="utf-8") as fh:
+                d = json.load(fh)
+            return d if isinstance(d, dict) else None
+        except FileNotFoundError:
+            continue
+        except (OSError, ValueError):
+            return None
+    return None
 
 
 def _repair_at_startup():
-    time.sleep(2)  # prima il backend si mette in ascolto
+    time.sleep(2)  # first the backend starts listening
     if run_repair(force=True):
-        run_repair(("--attiva-avvio",), force=True)
+        run_repair(("--enable-at-start",), force=True)
         mark = read_repair_mark()
         if mark and time.time() - mark.get("time", 0) < 600:
-            print(f"[RIPARA] {time.strftime('%H:%M:%S')} ripristinati: {mark.get('restored')} - non riusciti: {mark.get('failed')}")
+            print(f"[REPAIR] {time.strftime('%H:%M:%S')} restored: {mark.get('restored')} - failed: {mark.get('failed')}")
 
 
 EMERGENCY_PAGE = """<!doctype html><html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -743,7 +765,7 @@ def index():
     if f and not frontend_ok(f):
         ran = run_repair()    # pagina vuota o troncata (blackout): la rimetto a posto adesso, prima di servirla
         f = find_frontend()
-        print(f"[RIPARA] {time.strftime('%H:%M:%S')} la pagina {os.path.basename(str(f))} e' rovinata: controllo {'eseguito' if ran else 'saltato (appena fatto un altro)'}")
+        print(f"[REPAIR] {time.strftime('%H:%M:%S')} the page {os.path.basename(str(f))} is damaged: check {'done' if ran else 'skipped (another one just ran)'}")
         if not f or not frontend_ok(f):
             return Response(EMERGENCY_PAGE, status=503, mimetype="text/html", headers={"Retry-After": "8", "Cache-Control": "no-store"})
     if f:
@@ -1647,7 +1669,7 @@ except ImportError as e:
     print(f"[OPENCV] cv2/numpy non installati, detector disabilitato: {e} - installa con: pip install opencv-python-headless numpy")
 
 # --- storico degli allarmi: cosa ha visto il monitor e cosa ha detto l'IA, con le foto (cosi' si capisce quanti erano veri) ---
-ALERT_HISTORY_DIR = os.path.join(DATA_DIR, "allarmi")
+ALERT_HISTORY_DIR = os.path.join(DATA_DIR, "alerts")
 ALERT_HISTORY_KEEP = 40  # eventi con foto
 REFERENCE_SAMPLES = 7  # foto dello sfondo (mediana)
 REFERENCE_MIN = 5  # sotto questo numero il confronto non e' pronto
@@ -1656,18 +1678,18 @@ _history_lock = threading.Lock()
 
 
 def record_alert(event, image_path=None, reference_path=None):
-    """Aggiunge un evento a <dati>/allarmi/storico.jsonl e copia le foto accanto. Non deve mai far fallire il monitor."""
+    """Adds an event to <data>/alerts/history.jsonl and copies the pictures next to it. Must never make the monitor fail."""
     try:
         with _history_lock:
             os.makedirs(ALERT_HISTORY_DIR, exist_ok=True)
             stamp = time.strftime("%Y%m%d-%H%M%S")
             event = dict(event, time=time.strftime("%Y-%m-%d %H:%M:%S"), id=stamp)
-            for key, path, suffix in (("image", image_path, "adesso"), ("reference", reference_path, "prima")):
+            for key, path, suffix in (("image", image_path, "now"), ("reference", reference_path, "before")):
                 if path and os.path.isfile(path):
                     name = "%s-%s.jpg" % (stamp, suffix)
                     shutil.copyfile(path, os.path.join(ALERT_HISTORY_DIR, name))
                     event[key] = name
-            log = os.path.join(ALERT_HISTORY_DIR, "storico.jsonl")
+            log = os.path.join(ALERT_HISTORY_DIR, "history.jsonl")
             lines = []
             try:
                 with open(log, encoding="utf-8") as fh:
@@ -1693,16 +1715,28 @@ def record_alert(event, image_path=None, reference_path=None):
                     except OSError:
                         pass
     except Exception as error:
-        print(f"[STORICO] non riesco a scrivere lo storico degli allarmi: {error}")
+        print(f"[ALERTS] cannot write the alert history: {error}")
+
+
+_ALERT_KEYS_1_1 = {"esito": "outcome", "osservazione": "observation", "con_foto_di_prima": "with_reference", "filtro": "filter",
+                   "action_originale": "original_action"}   # history written by 1.1.x
+
+
+def _english_alert(entry):
+    if isinstance(entry, dict):
+        for old, new in _ALERT_KEYS_1_1.items():
+            if old in entry and new not in entry:
+                entry[new] = entry.pop(old)
+    return entry
 
 
 def read_alert_history(limit=20):
     try:
-        with open(os.path.join(ALERT_HISTORY_DIR, "storico.jsonl"), encoding="utf-8") as fh:
+        with open(os.path.join(ALERT_HISTORY_DIR, "history.jsonl"), encoding="utf-8") as fh:
             rows = []
             for line in fh.read().splitlines():
                 try:
-                    rows.append(json.loads(line))
+                    rows.append(_english_alert(json.loads(line)))
                 except ValueError:
                     pass
         return rows[-limit:][::-1]
@@ -2188,7 +2222,7 @@ class LightDetector:
             now = time.time()
             if now - self.last_ai_call < self.ai_cooldown:
                 print(f"[OPENCV] AI cooldown attivo, salto (mancano {int(self.ai_cooldown - (now-self.last_ai_call))}s)")
-                record_alert({"esito": "saltata: pausa tra due analisi dell'IA", "score": score}, img_path, ref_path)
+                record_alert({"outcome": "skipped: AI cooldown not over", "score": score}, img_path, ref_path)
                 return
             self.last_ai_call = now
             print(f"[OPENCV] AUTO-CHIAMATA IA per {img_path}")
@@ -2223,7 +2257,7 @@ class LightDetector:
             cfg = load_ai_config()
             if not cfg.get("api_key"):
                 print("[OPENCV] No API key per AI auto-call")
-                record_alert({"esito": "saltata: manca la chiave dell'IA", "score": score}, img_path, ref_path)
+                record_alert({"outcome": "skipped: no AI key", "score": score}, img_path, ref_path)
                 return
 
             provider = cfg.get("provider","groq").lower()
@@ -2264,7 +2298,7 @@ class LightDetector:
                 r = ask(False)
             if not r.ok:
                 print(f"[OPENCV] IA error {r.status_code}: {r.text[:500]}")
-                record_alert({"esito": f"errore IA {r.status_code}", "score": score, "model": final_model}, img_path, ref_path)
+                record_alert({"outcome": f"AI error {r.status_code}", "score": score, "model": final_model}, img_path, ref_path)
                 return
             j = r.json()
             answer = j["choices"][0]["message"]["content"] if "choices" in j else str(j)
@@ -2303,12 +2337,12 @@ class LightDetector:
                 print(f"[OPENCV] AI analysis salvata: {parsed}")
                 confidences = [d.get("confidence") for k, d in parsed.items() if k in AI_DEFECT_KEYS and isinstance(d, dict) and d.get("detected") is True]
                 record_alert({
-                    "esito": "analizzato" + (" (declassato: fiducia sotto la soglia)" if downgraded else ""),
+                    "outcome": "analysed" + (" (downgraded: confidence below the minimum)" if downgraded else ""),
                     "score": score, "progress": round(progress, 1), "filename": filename, "model": final_model,
-                    "action": parsed.get("action"), "action_originale": parsed.get("action_originale"),
+                    "action": parsed.get("action"), "original_action": parsed.get("action_originale"),
                     "confidence": max([c for c in confidences if isinstance(c, (int, float))] or [0]),
-                    "summary": parsed.get("summary"), "osservazione": parsed.get("osservazione"),
-                    "con_foto_di_prima": used_reference, "filtro": self.persistent_filter,
+                    "summary": parsed.get("summary"), "observation": parsed.get("osservazione"),
+                    "with_reference": used_reference, "filter": self.persistent_filter,
                 }, img_path, ref_path if used_reference else None)
             else:
                 self.last_analysis = {
@@ -2318,7 +2352,7 @@ class LightDetector:
                     "analysis": {"action":"PAUSA","summary":answer[:200],"raw":True},
                     "raw": answer
                 }
-                record_alert({"esito": "risposta dell'IA non leggibile", "score": score, "model": final_model, "summary": answer[:200]}, img_path, ref_path)
+                record_alert({"outcome": "AI answer not readable", "score": score, "model": final_model, "summary": answer[:200]}, img_path, ref_path)
 
         except Exception as e:
             print(f"[OPENCV] AI call fail: {e}")
@@ -2357,7 +2391,7 @@ def api_version():
         "has_cv2": HAS_CV2,
         "data_dir": DATA_DIR,
         "frontend": find_frontend(),
-        "repair": read_repair_mark(),  # l'ultima autoriparazione dei file (dopo un blackout), se c'e' stata
+        "repair": read_repair_mark(),  # the last self-repair of the files (after a power loss), if any
         "legacy": LEGACY_INSTALL,  # True: sta ancora in ~/vzbot (servizio "vzbot"): la dashboard propone il passaggio a KlippEye
     })
 
@@ -2437,10 +2471,10 @@ def api_migrate_start():
 # === fine PASSAGGIO A KLIPPEYE ============================================================================
 
 
-# === APP ANDROID: l'APK che GitHub costruisce (apk/KlippEye.apk + apk/versione.json) ===============================
+# === APP ANDROID: l'APK che GitHub costruisce (apk/KlippEye.apk + apk/version.json) ===============================
 APK_DIR = os.path.join(REPO_DIR, "apk")
 APK_PATH = os.path.join(APK_DIR, "KlippEye.apk")
-APK_INFO_PATH = os.path.join(APK_DIR, "versione.json")
+APK_INFO_PATH = os.path.join(APK_DIR, "version.json")
 APK_MIMETYPE = "application/vnd.android.package-archive"
 _APK_VERSION_RE = re.compile(r"^(\d{1,2})\.(\d{1,2})\.(\d{1,2})$")
 _APK_SHA_RE = re.compile(r"^[0-9a-f]{64}$")
@@ -2465,7 +2499,7 @@ def _apk_sha256(path):
 def read_apk_info():
     """
     Cosa offre il backend al telefono: {"available": True, "version", "code", "size", "sha256", "built", "url"} oppure
-    {"available": False, "reason": ...}. Il file apk/versione.json e' scritto da GitHub insieme all'APK; qui si controlla che
+    {"available": False, "reason": ...}. Il file apk/version.json e' scritto da GitHub insieme all'APK; qui si controlla che
     i due vadano d'accordo (grandezza e impronta SHA-256 del file vero), cosi' un aggiornamento a meta' o un file rovinato
     non arriva mai al telefono. Il calcolo (qualche decimo di secondo sul Raspberry) si rifa' solo se i file cambiano.
     """
@@ -2487,20 +2521,20 @@ def _read_apk_info_uncached(apk_size):
         with open(APK_INFO_PATH, encoding="utf-8") as f:
             data = json.load(f)
     except (OSError, ValueError):
-        return {"available": False, "reason": "apk/versione.json non si legge"}
+        return {"available": False, "reason": "apk/version.json non si legge"}
     if not isinstance(data, dict):
-        return {"available": False, "reason": "apk/versione.json non e' valido"}
+        return {"available": False, "reason": "apk/version.json non e' valido"}
     version, sha = data.get("version"), str(data.get("sha256") or "").lower()
     if not isinstance(version, str) or _apk_code(version) is None or not _APK_SHA_RE.match(sha):
-        return {"available": False, "reason": "apk/versione.json non e' valido"}
+        return {"available": False, "reason": "apk/version.json non e' valido"}
     if data.get("size") != apk_size:
-        return {"available": False, "reason": "l'APK non corrisponde a versione.json (aggiornamento a meta'?)"}
+        return {"available": False, "reason": "l'APK non corrisponde a version.json (aggiornamento a meta'?)"}
     try:
         actual = _apk_sha256(APK_PATH)
     except OSError:
         return {"available": False, "reason": "l'APK non si legge"}
     if actual != sha:
-        return {"available": False, "reason": "l'APK non corrisponde a versione.json (impronta diversa)"}
+        return {"available": False, "reason": "l'APK non corrisponde a version.json (impronta diversa)"}
     built = data.get("built")
     return {
         "available": True,
@@ -2524,7 +2558,7 @@ def api_app_version():
 @app.route("/app/KlippEye.apk", methods=["GET"])
 @app.route("/app/VzBot.apk", methods=["GET"])  # lo stesso file: l'app con il vecchio nome (VzBot 1.0.x) cerca l'aggiornamento li'
 def app_apk():
-    """Il file dell'app. Si da' solo se e' coerente con versione.json (grandezza e impronta), altrimenti 404 con il motivo."""
+    """Il file dell'app. Si da' solo se e' coerente con version.json (grandezza e impronta), altrimenti 404 con il motivo."""
     info = read_apk_info()
     if not info["available"]:
         return jsonify({"ok": False, "error": info["reason"]}), 404
@@ -2730,11 +2764,11 @@ def api_alert_history():
 
 @app.route("/api/print/alerts/image/<name>", methods=["GET"])
 def api_alert_image(name):
-    if not re.fullmatch(r"\d{8}-\d{6}-(adesso|prima)\.jpg", name):
-        return jsonify({"ok": False, "error": "nome non valido"}), 404
+    if not re.fullmatch(r"\d{8}-\d{6}-(now|before|adesso|prima)\.jpg", name):   # adesso/prima: pictures saved by 1.1.x
+        return jsonify({"ok": False, "error": "invalid name"}), 404
     path = os.path.join(ALERT_HISTORY_DIR, name)
     if not os.path.isfile(path):
-        return jsonify({"ok": False, "error": "foto non trovata"}), 404
+        return jsonify({"ok": False, "error": "picture not found"}), 404
     return send_file(path, mimetype="image/jpeg", max_age=0)
 
 
@@ -3011,7 +3045,7 @@ except Exception as e:
     print(f"[OPENCV] Auto-start fail: {e}")
 
 if __name__ == "__main__":
-    threading.Thread(target=_repair_at_startup, name="ripara", daemon=True).start()
+    threading.Thread(target=_repair_at_startup, name="repair", daemon=True).start()
     print(f"KlippEye backend {RELEASE} (api {API_LEVEL}) - dati in {DATA_DIR} - impostazioni {'lette da ' + BRAIN_CONFIG_PATH if brain_config.saved else 'di serie (nessun file salvato)'}")
     print(f"KlippEye backend running on 0.0.0.0:{PORT}")
     app.run(host="0.0.0.0", port=PORT, debug=False)

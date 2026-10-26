@@ -3,10 +3,10 @@
 I passi "furbi" del workflow .github/workflows/app.yml, che costruisce l'APK dell'app Android sul computer di GitHub.
 Sono qui (e non scritti dentro il file del workflow) per poterli provare da soli (senza GitHub).
 
-    app_ci.py decidi      deve costruire un APK nuovo? (confronta android/VERSION con apk/versione.json)
+    app_ci.py decidi      deve costruire un APK nuovo? (confronta android/VERSION con apk/version.json)
     app_ci.py chiave      la chiave che firma l'APK: la crea la prima volta, poi controlla che la password sia quella giusta
     app_ci.py google      scrive app/google-services.json (le notifiche) dal segreto GOOGLE_SERVICES_JSON, se c'e'
-    app_ci.py pubblica    controlla l'APK costruito e lo mette in apk/ con apk/versione.json
+    app_ci.py pubblica    controlla l'APK costruito e lo mette in apk/ con apk/version.json
     app_ci.py salva       fa il commit di quello che e' cambiato e lo spedisce su GitHub
 
 Solo libreria standard di Python. Dentro GitHub gli errori diventano annotazioni rosse ("::error::") con il motivo scritto
@@ -42,7 +42,7 @@ def percorsi(radice):
         "chiave": os.path.join(radice, "android", "chiave", "klippeye.p12"),
         "google": os.path.join(radice, "android", "app", "google-services.json"),
         "apk": os.path.join(radice, "apk", "KlippEye.apk"),
-        "info": os.path.join(radice, "apk", "versione.json"),
+        "info": os.path.join(radice, "apk", "version.json"),
     }
 
 
@@ -68,7 +68,7 @@ def leggi_versione(p):
 
 
 def leggi_pubblicata(p):
-    """Il contenuto valido di apk/versione.json, oppure None (manca, e' rovinato o l'APK non c'e')."""
+    """Il contenuto valido di apk/version.json, oppure None (manca, e' rovinato o l'APK non c'e')."""
     try:
         with open(p["info"], encoding="utf-8") as f:
             dati = json.load(f)

@@ -1,6 +1,22 @@
 # Changelog (Cosa cambia in ogni release)
 
-## Unreleased
+## 1.3.0
+
+English names on the Raspberry (first step of the move to English; the dashboard text comes next):
+
+* **`klippeye` commands in English**: `status`, `version`, `log [notifier]`, `restart [backend|notifier|all]`, `repair [log]`,
+  `update [--force]`, `notify test|check`, `undo-install`, `help`. The Italian names (`stato`, `riavvia`, `aggiorna`, `ripara`,
+  `notifiche prova`, `annulla`...) still work. `klippeye-notifiche` accepts `test | check | status | log | restart | uninstall` too.
+* **Self-repair** is now `scripts/repair.sh` (`--quiet`, `--enable-at-start`); `scripts/ripara.sh` stays as a wrapper for the services
+  installed by older releases. Its files are `repair.log`, `repair.json` and the opt-out `no-repair`.
+* **Data folder, English names**: `monitor.json` (AI monitor thresholds, was `brain.json`), `alerts/history.jsonl` and pictures
+  `*-now.jpg` / `*-before.jpg` (was `allarmi/storico.jsonl`, `-adesso`, `-prima`), damaged copies `*.damaged-<time>`.
+  **Existing files are renamed automatically** at the first start, nothing is lost; old alert entries are read with the new keys
+  (`outcome`, `observation`, `with_reference`, `filter`, `original_action`).
+* `apk/versione.json` is now `apk/version.json`.
+* `install.sh` removes both the old (`ripara.conf`) and the new (`repair.conf`) self-repair drop-in when it rewrites the service.
+
+## Repository changes after 1.2.0
 
 Almost only the repository; on the Raspberry the only change is a minimum space between the printer name and the round
 buttons of the top bar (on 360-pixel phones they could touch).

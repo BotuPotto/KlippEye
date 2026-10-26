@@ -185,7 +185,7 @@ function ServiceLine({ status }) {
       "div",
       { className: "set-status set-status--warn" },
       h("span", { className: "set-status__dot" }),
-      h("span", null, "Il servizio delle notifiche non si è ancora fatto vivo. Se lo hai installato, controlla con ", h("code", null, "klippeye stato"), " e riavvialo da Impostazioni → Aggiornamenti; se non lo hai ancora configurato, segui la guida (", h("code", null, "docs/GUIDA.md"), "): senza, queste scelte non hanno effetto."),
+      h("span", null, "Il servizio delle notifiche non si è ancora fatto vivo. Se lo hai installato, controlla con ", h("code", null, "klippeye status"), " e riavvialo da Impostazioni → Aggiornamenti; se non lo hai ancora configurato, segui la guida (", h("code", null, "docs/GUIDA.md"), "): senza, queste scelte non hanno effetto."),
     );
   }
   const age = Math.max(0, now - (Number(status.seen) || 0));
@@ -195,7 +195,7 @@ function ServiceLine({ status }) {
     "div",
     { className: cx("set-status", alive ? "set-status--ok" : "set-status--warn") },
     h("span", { className: "set-status__dot" }),
-    alive ? "Servizio attivo • versione " + (status.version || "?") + " • visto " + when : "Il servizio non risponde da " + when + ": riavvialo da Impostazioni → Aggiornamenti, oppure controlla con  klippeye-notifiche stato",
+    alive ? "Servizio attivo • versione " + (status.version || "?") + " • visto " + when : "Il servizio non risponde da " + when + ": riavvialo da Impostazioni → Aggiornamenti, oppure controlla con  klippeye status",
   );
 }
 

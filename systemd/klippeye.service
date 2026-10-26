@@ -13,8 +13,8 @@ WorkingDirectory=@CODICE@
 Environment=PYTHONUNBUFFERED=1
 Environment=PYTHONDONTWRITEBYTECODE=1
 Environment=KLIPPEYE_DATA=@DATI@
-# Prima di ogni avvio controlla i file del programma e rimette a posto quelli rovinati da un blackout (il "-" = se fallisce, parte lo stesso).
-ExecStartPre=-/bin/bash @CODICE@/scripts/ripara.sh --silenzioso
+# Before every start: check the program files and restore those damaged by a power loss ("-" = start anyway if it fails).
+ExecStartPre=-/bin/bash @CODICE@/scripts/repair.sh --quiet
 ExecStart=@PYTHON@ @CODICE@/backend/klippeye_backend.py
 Restart=always
 RestartSec=5
