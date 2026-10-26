@@ -22,7 +22,7 @@ reali, camera, ZeroTier fix, FIX 404 Groq, FIX 413 TPM) con queste aggiunte dell
     (/api/migrate/..., scripts/passa-a-klippeye.sh), vedi la sezione PASSAGGIO A KLIPPEYE.
 """
 from flask import Flask, request, Response, jsonify, send_file
-try:  # facoltativo dalla 1.2.0: serve solo con KLIPPEYE_CORS (sviluppo)
+try:  # optional since 1.2.0: only needed with KLIPPEYE_CORS (development)
     from flask_cors import CORS
 except ImportError:
     CORS = None
@@ -41,7 +41,7 @@ import threading
 import subprocess
 
 app = Flask(__name__)
-# CORS: niente piu' "aperto a tutti" (1.2.0). La dashboard e l'app parlano con il backend dalla sua stessa origine; vedi ACCESSO.
+# CORS: no longer open to every site (1.2.0). The dashboard and the app talk to the backend from its own origin; see ACCESS.
 
 MOONRAKER_URL = "http://127.0.0.1:7125"
 CAMERA_NGINX_URL = "http://127.0.0.1/webcam"
@@ -105,30 +105,65 @@ def write_json_atomic(path, data, private=False):
         raise
 
 
-# === ACCESSO (1.2.0): password facoltativa, controlli di rete, permessi dei segreti ===================================
-# Il codice che non dipende da Flask sta in backend/accesso.py (usato anche dal comando `klippeye password`).
-# Sempre attivi (anche senza password), spegnibili con `klippeye accesso controlli-rete off`:
-#   * nome di rete: si risponde solo se il Raspberry e' chiamato con un indirizzo IP, un nome della rete di casa o un nome
-#     aggiunto a mano (un sito internet che "punta" al Raspberry non puo' comandarlo: difesa dal DNS rebinding);
-#   * origine: un comando (POST, PUT, DELETE) che arriva da una pagina di un altro sito viene rifiutato; idem le
-#     richieste di altri siti che non sono una normale apertura di pagina (Sec-Fetch-Site: cross-site).
-# Con la password attiva serve in piu' il gettone di accesso (cookie) oppure il gettone interno dei servizi del Raspberry.
+# === ACCESS (1.2.0): optional password, network checks, permissions of the secrets ===================================
+# The Flask-free part lives in backend/access.py (also used by `klippeye password` and `klippeye access`).
+# Always on (also without a password), can be turned off with `klippeye access network-checks off`:
+#   * host name: answer only when the Raspberry is called by an IP address, a home-network name or a name added by hand
+#     (an internet domain that "points" at the Raspberry cannot drive it: protection against DNS rebinding);
+#   * origin: a command (POST, PUT, DELETE) sent by a page of another site is refused; so are other-site requests that
+#     are not a plain page navigation (Sec-Fetch-Site: cross-site).
+# With the password on, a request also needs the session cookie or the internal token of the services on the Raspberry.
 sys.path.insert(0, BRAIN_DIR)
-import accesso  # noqa: E402
+import access  # noqa: E402
 import hmac as _hmac  # noqa: E402
 from flask import redirect as _redirect  # noqa: E402
 
-ACCESS = accesso.Store(DATA_DIR)
-ACCESS_THROTTLE = accesso.Throttle()
-ACCESS_PUBLIC = {"/accesso", "/api/auth/status", "/api/auth/login", "/api/app/version", "/app/KlippEye.apk", "/app/VzBot.apk"}
-ACCESS_CROSS_SITE_OK = ("/app/",)   # l'APK si puo' scaricare anche da un collegamento esterno
-_CORS_ORIGINS = [o.strip() for o in (os.environ.get("KLIPPEYE_CORS") or "").split(",") if o.strip()]  # solo per sviluppo
+ACCESS = access.Store(DATA_DIR)
+ACCESS_THROTTLE = access.Throttle()
+ACCESS_PUBLIC = {"/login", "/api/auth/status", "/api/auth/login", "/api/app/version", "/app/KlippEye.apk", "/app/VzBot.apk"}
+ACCESS_CROSS_SITE_OK = ("/app/",)   # the APK may be downloaded from an outside link
+_CORS_ORIGINS = [o.strip() for o in (os.environ.get("KLIPPEYE_CORS") or "").split(",") if o.strip()]  # development only
 if _CORS_ORIGINS and CORS is not None:
     CORS(app, resources={r"/*": {"origins": _CORS_ORIGINS}})
 
+# Messages of the refusals: English, with the Italian version for Italian browsers (the dashboard shows its own text by "error" code).
+ACCESS_TEXT = {
+    "en": {
+        "host": "KlippEye only answers when called by the Raspberry's IP address or a home-network name. To use the name '%(host)s', run on the Raspberry:  klippeye access host-add %(host)s",
+        "origin_cmd": "Command refused: it comes from a page that is not the KlippEye dashboard (%(origin)s).",
+        "origin_read": "Request refused: it comes from another site.",
+        "login": "Login required: open the dashboard and enter the password.",
+        "wait": "Too many wrong attempts: try again in %(seconds)d seconds.",
+        "password": "Wrong password.",
+        "title": "KlippEye · Login", "lead": "This printer is protected by a password.", "label": "Password", "button": "Log in",
+        "hint": "Forgot the password? On the Raspberry: <code>klippeye password remove</code>",
+    },
+    "it": {
+        "host": "KlippEye risponde solo se lo chiami con l'indirizzo IP del Raspberry o con un nome della rete di casa. Per usare il nome '%(host)s' scrivi sul Raspberry:  klippeye access host-add %(host)s",
+        "origin_cmd": "Comando rifiutato: arriva da una pagina che non e' la dashboard di KlippEye (%(origin)s).",
+        "origin_read": "Richiesta rifiutata: arriva da un altro sito.",
+        "login": "Serve l'accesso: apri la dashboard e inserisci la password.",
+        "wait": "Troppi tentativi sbagliati: riprova tra %(seconds)d secondi.",
+        "password": "Password sbagliata.",
+        "title": "KlippEye · Accesso", "lead": "Questa stampante è protetta da una password.", "label": "Password", "button": "Accedi",
+        "hint": "Password dimenticata? Sul Raspberry: <code>klippeye password remove</code>",
+    },
+}
+
+
+def _lang():
+    try:
+        return "it" if (request.accept_languages.best_match(["en", "it"]) or "en") == "it" else "en"
+    except Exception:
+        return "en"
+
+
+def _text(key, **values):
+    return ACCESS_TEXT[_lang()][key] % values if values else ACCESS_TEXT[_lang()][key]
+
 
 def _secure_data_files():
-    """Cartella dati 700 e segreti 600: se qualcuno li ha copiati a mano con permessi larghi, li rimette a posto."""
+    """Data folder 700 and secrets 600: files copied by hand with loose permissions are fixed (and logged)."""
     fixed = []
     try:
         if os.path.isdir(DATA_DIR) and os.stat(DATA_DIR).st_mode & 0o077:
@@ -136,7 +171,7 @@ def _secure_data_files():
             fixed.append(DATA_DIR)
     except OSError:
         pass
-    names = ["ai.json", "accesso.json", "interno.token", "notifier.json", "service-account.json"]
+    names = ["ai.json", "access.json", "internal.token", "notifier.json", "service-account.json"]
     try:
         with open(os.path.join(DATA_DIR, "notifier.json"), encoding="utf-8") as f:
             key = json.load(f).get("service_account_file")
@@ -153,7 +188,7 @@ def _secure_data_files():
         except OSError:
             pass
     if fixed:
-        print("[ACCESSO] permessi ristretti (solo l'utente del servizio): " + ", ".join(fixed))
+        print("[ACCESS] permissions restricted to the service user: " + ", ".join(fixed))
     return fixed
 
 
@@ -161,20 +196,20 @@ try:
     ACCESS.load()
     ACCESS.internal_token()
     _secure_data_files()
-except Exception as _e:  # la cartella dati non scrivibile non deve impedire alla dashboard di partire
-    print("[ACCESSO] impostazioni non disponibili: %s" % _e)
+except Exception as _e:  # a data folder that cannot be written must not stop the dashboard
+    print("[ACCESS] settings not available: %s" % _e)
 
 
 def _access_settings():
     try:
         return ACCESS.load()
     except Exception as e:
-        print("[ACCESSO] non riesco a leggere %s: %s" % (ACCESS.path, e))
-        return accesso.default_settings()
+        print("[ACCESS] cannot read %s: %s" % (ACCESS.path, e))
+        return access.default_settings()
 
 
 def _is_internal():
-    given = request.headers.get(accesso.HEADER_INTERNAL, "")
+    given = request.headers.get(access.HEADER_INTERNAL, "")
     if not given:
         return False
     try:
@@ -184,7 +219,7 @@ def _is_internal():
 
 
 def _logged_in(settings):
-    return (not settings.get("enabled")) or _is_internal() or accesso.token_valid(settings, request.cookies.get(accesso.COOKIE_NAME))
+    return (not settings.get("enabled")) or _is_internal() or access.token_valid(settings, request.cookies.get(access.COOKIE_NAME))
 
 
 def _refuse(status, code, message):
@@ -201,73 +236,76 @@ def _access_guard():
     settings = _access_settings()
     internal = _is_internal()
     if settings.get("network_checks", True) and not internal:
-        if not accesso.host_allowed(request.host, settings.get("allowed_hosts")):
-            return _refuse(403, "host", "KlippEye risponde solo se lo chiami con l'indirizzo del Raspberry o con un nome della rete di casa. "
-                                        "Per usare il nome '%s' scrivi sul Raspberry:  klippeye accesso host-aggiungi %s" % (accesso.split_host(request.host), accesso.split_host(request.host)))
+        if not access.host_allowed(request.host, settings.get("allowed_hosts")):
+            return _refuse(403, "host", _text("host", host=access.split_host(request.host)))
         origin = request.headers.get("Origin")
-        if request.method not in ("GET", "HEAD", "OPTIONS") and origin and origin not in _CORS_ORIGINS and not accesso.origin_matches(origin, request.host):
-            return _refuse(403, "origin", "Comando rifiutato: arriva da una pagina che non e' la dashboard di KlippEye (%s)." % origin[:80])
+        if request.method not in ("GET", "HEAD", "OPTIONS") and origin and origin not in _CORS_ORIGINS and not access.origin_matches(origin, request.host):
+            return _refuse(403, "origin", _text("origin_cmd", origin=origin[:80]))
         if request.headers.get("Sec-Fetch-Site") == "cross-site" and not request.path.startswith(ACCESS_CROSS_SITE_OK):
             navigation = request.method == "GET" and request.headers.get("Sec-Fetch-Mode") == "navigate"
             if not navigation:
-                return _refuse(403, "origin", "Richiesta rifiutata: arriva da un altro sito.")
+                return _refuse(403, "origin", _text("origin_read"))
     if not settings.get("enabled") or internal or request.path in ACCESS_PUBLIC:
         return None
-    if accesso.token_valid(settings, request.cookies.get(accesso.COOKIE_NAME)):
+    if access.token_valid(settings, request.cookies.get(access.COOKIE_NAME)):
         return None
     if request.method == "GET" and request.path == "/":
-        return _redirect("/accesso", code=303)
-    return _refuse(401, "login", "Serve l'accesso: apri la dashboard e inserisci la password.")
+        return _redirect("/login", code=303)
+    return _refuse(401, "login", _text("login"))
 
 
 def _set_access_cookie(response, settings):
-    response.set_cookie(accesso.COOKIE_NAME, accesso.make_token(settings), max_age=accesso.TOKEN_DAYS * 86400, httponly=True,
+    response.set_cookie(access.COOKIE_NAME, access.make_token(settings), max_age=access.TOKEN_DAYS * 86400, httponly=True,
                         samesite="Strict", secure=request.is_secure, path="/")
     return response
 
 
 def _check_password_or_wait(settings, password):
-    """(ok, risposta di errore o None). Rallenta chi prova password a raffica."""
+    """(ok, error response or None). Slows down whoever tries passwords in a row."""
     ip = request.remote_addr or "?"
     wait = ACCESS_THROTTLE.wait_seconds(ip)
     if wait > 0:
-        return False, _refuse(429, "wait", "Troppi tentativi sbagliati: riprova tra %d secondi." % wait)
-    if accesso.verify_password(settings, password):
+        return False, _refuse(429, "wait", _text("wait", seconds=wait))
+    if access.verify_password(settings, password):
         ACCESS_THROTTLE.ok(ip)
         return True, None
     ACCESS_THROTTLE.failed(ip)
-    return False, _refuse(401, "password", "Password sbagliata.")
+    return False, _refuse(401, "password", _text("password"))
 
 
-LOGIN_PAGE = """<!doctype html><html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="color-scheme" content="dark"><title>KlippEye · Accesso</title><style>
+LOGIN_PAGE = """<!doctype html><html lang="%(lang)s"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="dark"><title>%(title)s</title><style>
 :root{--bg:#120e1f;--card:#1d1730;--line:#33294f;--ink:#f1edff;--muted:#a99fcc;--acc:#b79cff;--bad:#ff8a80}
 *{box-sizing:border-box}body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--bg);color:var(--ink);
 font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding:16px}
-form{width:100%;max-width:360px;background:var(--card);border:1px solid var(--line);border-radius:24px;padding:28px 22px}
+form{width:100%%;max-width:360px;background:var(--card);border:1px solid var(--line);border-radius:24px;padding:28px 22px}
 h1{margin:0 0 4px;font-size:24px}h1 span{color:var(--acc)}p{margin:0 0 20px;color:var(--muted);font-size:14px;line-height:1.45}
 label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px}
-input{width:100%;font-size:17px;padding:13px 14px;border-radius:14px;border:1px solid var(--line);background:#0d0a17;color:var(--ink)}
+input{width:100%%;font-size:17px;padding:13px 14px;border-radius:14px;border:1px solid var(--line);background:#0d0a17;color:var(--ink)}
 input:focus{outline:2px solid var(--acc);outline-offset:1px}
-button{width:100%;margin-top:16px;font-size:16px;font-weight:600;padding:13px;border:0;border-radius:999px;background:var(--acc);color:#1a1033;cursor:pointer}
+button{width:100%%;margin-top:16px;font-size:16px;font-weight:600;padding:13px;border:0;border-radius:999px;background:var(--acc);color:#1a1033;cursor:pointer}
 .err{color:var(--bad);font-size:14px;margin:12px 0 0;min-height:1em}.hint{margin-top:18px;font-size:12px;color:var(--muted)}
 code{background:#0d0a17;padding:1px 5px;border-radius:6px}</style></head><body>
-<form method="post" action="/accesso" autocomplete="on"><h1>Klipp<span>Eye</span></h1><p>Questa stampante è protetta da una password.</p>
-<label for="pw">Password</label><input id="pw" name="password" type="password" autocomplete="current-password" autofocus required>
-<button type="submit">Accedi</button><div class="err" role="alert">%(error)s</div>
-<div class="hint">Password dimenticata? Sul Raspberry: <code>klippeye password togli</code></div></form></body></html>"""
+<form method="post" action="/login" autocomplete="on"><h1>Klipp<span>Eye</span></h1><p>%(lead)s</p>
+<label for="pw">%(label)s</label><input id="pw" name="password" type="password" autocomplete="current-password" autofocus required>
+<button type="submit">%(button)s</button><div class="err" role="alert">%(error)s</div>
+<div class="hint">%(hint)s</div></form></body></html>"""
 
 
 def _login_page(error="", status=200):
     from html import escape
-    response = Response(LOGIN_PAGE.replace("%(error)s", escape(error)), status=status, mimetype="text/html")
+    t = ACCESS_TEXT[_lang()]
+    page = LOGIN_PAGE % {"lang": _lang(), "title": t["title"], "lead": escape(t["lead"]), "label": t["label"], "button": t["button"],
+                         "hint": t["hint"], "error": escape(error)}
+    response = Response(page, status=status, mimetype="text/html")
     response.headers["Cache-Control"] = "no-store"
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Content-Security-Policy"] = "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'"
+    response.headers["Vary"] = "Accept-Language"
     return response
 
 
-@app.route("/accesso", methods=["GET", "POST"])
+@app.route("/login", methods=["GET", "POST"])
 def access_page():
     settings = _access_settings()
     if not settings.get("enabled"):
@@ -276,7 +314,7 @@ def access_page():
         return _redirect("/", code=303) if _logged_in(settings) else _login_page()
     ok, error = _check_password_or_wait(settings, request.form.get("password", ""))
     if not ok:
-        return _login_page(error.get_json().get("message", "Password sbagliata."), status=error.status_code)
+        return _login_page(error.get_json().get("message", _text("password")), status=error.status_code)
     return _set_access_cookie(_redirect("/", code=303), settings)
 
 
@@ -285,7 +323,7 @@ def access_status():
     settings = _access_settings()
     response = jsonify({"ok": True, "enabled": bool(settings.get("enabled")), "logged_in": _logged_in(settings),
                         "network_checks": bool(settings.get("network_checks", True)), "allowed_hosts": list(settings.get("allowed_hosts") or []),
-                        "min_length": accesso.MIN_PASSWORD})
+                        "min_length": access.MIN_PASSWORD})
     response.headers["Cache-Control"] = "no-store"
     return response
 
@@ -305,26 +343,26 @@ def access_login():
 @app.route("/api/auth/logout", methods=["POST"])
 def access_logout():
     response = jsonify({"ok": True})
-    response.delete_cookie(accesso.COOKIE_NAME, path="/")
+    response.delete_cookie(access.COOKIE_NAME, path="/")
     return response
 
 
 @app.route("/api/auth/password", methods=["POST"])
 def access_set_password():
-    """Attiva la password o la cambia (serve quella attuale). Il dispositivo che la cambia resta dentro, gli altri escono."""
+    """Turns the password on or changes it (the current one is needed). The device that changes it stays in, the others are logged out."""
     settings = _access_settings()
     body = request.get_json(silent=True) or {}
     new = body.get("new", "")
-    problem = accesso.check_new_password(new)
+    problem = access.check_new_password(new)
     if problem:
         return _refuse(400, "weak", problem)
     if settings.get("enabled"):
         ok, error = _check_password_or_wait(settings, body.get("current", ""))
         if not ok:
             return error
-    settings = accesso.set_password(settings, new)
+    settings = access.set_password(settings, new)
     ACCESS.save(settings)
-    print("[ACCESSO] password %s da %s" % ("cambiata" if body.get("current") else "attivata", request.remote_addr))
+    print("[ACCESS] password %s from %s" % ("changed" if body.get("current") else "set", request.remote_addr))
     return _set_access_cookie(jsonify({"ok": True, "enabled": True}), settings)
 
 
@@ -336,10 +374,10 @@ def access_disable():
     ok, error = _check_password_or_wait(settings, (request.get_json(silent=True) or {}).get("current", ""))
     if not ok:
         return error
-    ACCESS.save(accesso.clear_password(settings))
-    print("[ACCESSO] password tolta da %s" % request.remote_addr)
+    ACCESS.save(access.clear_password(settings))
+    print("[ACCESS] password removed from %s" % request.remote_addr)
     response = jsonify({"ok": True, "enabled": False})
-    response.delete_cookie(accesso.COOKIE_NAME, path="/")
+    response.delete_cookie(access.COOKIE_NAME, path="/")
     return response
 
 
@@ -350,7 +388,7 @@ def access_logout_all():
     ACCESS.save(settings)
     response = jsonify({"ok": True})
     return _set_access_cookie(response, settings) if settings.get("enabled") else response
-# === fine ACCESSO =====================================================================================================
+# === end ACCESS ========================================================================================================
 
 
 # Le soglie del monitor IA. Il backend e' l'unica fonte dei limiti: la dashboard disegna il menu da questo elenco

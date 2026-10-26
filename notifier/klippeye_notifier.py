@@ -137,12 +137,12 @@ def load_config(path: str) -> Dict[str, Any]:
     base = os.path.dirname(os.path.abspath(path))
     if not os.path.isabs(config["service_account_file"]):
         config["service_account_file"] = os.path.join(base, config["service_account_file"])
-    config["_token_file"] = os.path.join(base, "interno.token")  # creato dal backend (1.2.0): con la password attiva il backend lo chiede
+    config["_token_file"] = os.path.join(base, "internal.token")  # written by the backend (1.2.0): needed when the password is on
     return config
 
 
 def brain_headers(config: Dict[str, Any]) -> Dict[str, str]:
-    """Il gettone interno dei servizi del Raspberry, se c'e' (si rilegge ogni volta: il backend puo' crearlo dopo)."""
+    """The internal token of the services on the Raspberry, if there is one (read every time: the backend may create it later)."""
     path = config.get("_token_file")
     if not path:
         return {}

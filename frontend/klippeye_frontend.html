@@ -15667,7 +15667,7 @@ function AppBlock({ app, installed }) {
 
 /* ============================================================================
    59d · ACCESSO
-   The optional password of the dashboard (release 1.2.0). The backend keeps it (backend/accesso.py, never the password
+   The optional password of the dashboard (release 1.2.0). The backend keeps it (backend/access.py, never the password
    itself, only its PBKDF2 hash) and decides who is in with a cookie it signs:
      GET  /api/auth/status      { enabled, logged_in, network_checks, allowed_hosts, min_length }
      POST /api/auth/password    { current?, new }  turns it on or changes it; this device stays in, the others go out
@@ -15675,7 +15675,8 @@ function AppBlock({ app, installed }) {
      POST /api/auth/logout      this device goes out
      POST /api/auth/logout_all  every other device goes out
    Without the cookie the backend answers 401 with the header X-KlippEye-Login: 1; the watcher below then opens the
-   login page (/accesso, served by the backend itself). Forgotten password: on the Raspberry, `klippeye password togli`.
+   login page (/login, served by the backend itself). Forgotten password: on the Raspberry, `klippeye password remove`.
+   The backend words its refusals in the browser's language (English or Italian); "weak" is worded here.
    ========================================================================== */
 
 const ACCESS_STATUS_URL = "/api/auth/status";
@@ -15689,7 +15690,7 @@ const ACCESS_STATUS_URL = "/api/auth/status";
     original(...args).then((response) => {
       if (!leaving && response && response.status === 401 && response.headers && response.headers.get("X-KlippEye-Login") === "1") {
         leaving = true;
-        window.location.replace("/accesso");
+        window.location.replace("/login");
       }
       return response;
     });
@@ -15719,7 +15720,8 @@ async function accessPost(url, body) {
   try {
     const response = await fetch(url, { method: "POST", headers: JSON_HEADERS, body: JSON.stringify(body || {}) });
     const json = await response.json().catch(() => ({}));
-    return { ok: response.ok && json.ok !== false, message: (json && json.message) || (response.ok ? "" : "Errore " + response.status) };
+    const weak = json && json.error === "weak";
+    return { ok: response.ok && json.ok !== false, message: weak ? "La password deve avere da 6 a 256 caratteri" : (json && json.message) || (response.ok ? "" : "Errore " + response.status) };
   } catch (error) {
     return { ok: false, message: "Il backend non risponde" };
   }
@@ -15795,7 +15797,7 @@ function AccessPage({ active }) {
     );
   }
 
-  const hostsNote = (info.allowed_hosts || []).length ? "Nomi in più ammessi: " + info.allowed_hosts.join(", ") + "." : "Oltre agli indirizzi IP valgono solo i nomi della rete di casa (.local, .lan…). Per un nome tuo: klippeye accesso host-aggiungi NOME";
+  const hostsNote = (info.allowed_hosts || []).length ? "Nomi in più ammessi: " + info.allowed_hosts.join(", ") + "." : "Oltre agli indirizzi IP valgono solo i nomi della rete di casa (.local, .lan…). Per un nome tuo: klippeye access host-add NOME";
 
   return h(
     React.Fragment,
@@ -15805,7 +15807,7 @@ function AccessPage({ active }) {
       {
         title: "Password",
         note: info.enabled
-          ? "Password dimenticata? Sul Raspberry: klippeye password togli"
+          ? "Password dimenticata? Sul Raspberry: klippeye password remove"
           : "Facoltativa. Senza password chiunque raggiunga la dashboard dalla tua rete (o dalla VPN) può comandare la stampante. Con la password ogni dispositivo la chiede una volta, poi la ricorda per 6 mesi.",
       },
       h("div", { className: cx("set-status", info.enabled ? "set-status--ok" : "set-status--warn") }, h("span", { className: "set-status__dot" }), info.enabled ? "Password attiva" : "Password non attiva"),
@@ -15820,7 +15822,7 @@ function AccessPage({ active }) {
         SettingsGroup,
         { title: "Dispositivi" },
         h("button", { type: "button", className: "oui-btn oui-btn--accent-soft oui-btn--block", disabled: busy, onClick: () => run("/api/auth/logout_all", {}, "Fatto: gli altri dispositivi dovranno rifare l'accesso.") }, "Fai uscire tutti gli altri dispositivi"),
-        h("button", { type: "button", className: "oui-btn oui-btn--quiet oui-btn--block", disabled: busy, onClick: () => run("/api/auth/logout", {}, "Uscito.", () => window.location.replace("/accesso")) }, "Esci da questo dispositivo"),
+        h("button", { type: "button", className: "oui-btn oui-btn--quiet oui-btn--block", disabled: busy, onClick: () => run("/api/auth/logout", {}, "Uscito.", () => window.location.replace("/login")) }, "Esci da questo dispositivo"),
       ),
     info.enabled &&
       h(
@@ -15835,7 +15837,7 @@ function AccessPage({ active }) {
         "div",
         { className: cx("set-status", info.network_checks ? "set-status--ok" : "set-status--warn") },
         h("span", { className: "set-status__dot" }),
-        info.network_checks ? "Comandi accettati solo dalla dashboard e dall'app, non da altri siti" : "Controlli di rete spenti (klippeye accesso controlli-rete on per riaccenderli)",
+        info.network_checks ? "Comandi accettati solo dalla dashboard e dall'app, non da altri siti" : "Controlli di rete spenti (klippeye access network-checks on per riaccenderli)",
       ),
     ),
   );

@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
 """
-KlippEye - accesso: password facoltativa, gettoni di accesso, controlli di rete (indirizzo e origine delle richieste).
+KlippEye - access: optional password, access tokens, network checks (host name and origin of requests).
 
-Usato dal backend (import) e da terminale, per esempio dal comando `klippeye password`:
+Used by the backend (import) and from the terminal, for example through `klippeye password`:
 
-    python3 accesso.py stato                 dice se la password e' attiva e quali nomi di rete sono ammessi
-    python3 accesso.py imposta               chiede una password nuova (due volte) e la attiva
-    python3 accesso.py togli                 toglie la password (per chi l'ha dimenticata: serve l'accesso al Raspberry)
-    python3 accesso.py esci-tutti            chiude l'accesso su tutti i dispositivi (dovranno rifare l'accesso)
-    python3 accesso.py host-aggiungi NOME    ammette un nome di rete in piu' (es. stampante.casa.it)
-    python3 accesso.py host-togli NOME
-    python3 accesso.py controlli-rete on|off accende/spegne i controlli su nome e origine (spenti = come prima della 1.2.0)
+    python3 access.py status                    is the password on, which host names are allowed
+    python3 access.py set                       asks for a new password (twice) and turns it on
+    python3 access.py remove                    removes the password (forgotten password: needs access to the Raspberry)
+    python3 access.py logout-all                every device has to log in again
+    python3 access.py host-add NAME             allows one more host name (e.g. printer.example.com)
+    python3 access.py host-remove NAME
+    python3 access.py network-checks on|off     turns the host/origin checks on or off (off = behaviour before 1.2.0)
 
-I dati stanno in <cartella dati>/accesso.json (permessi 600): mai la password, solo il suo "hash" PBKDF2 con sale.
-Solo libreria standard: niente da installare.
+Data lives in <data dir>/access.json (mode 600): never the password, only its salted PBKDF2 hash.
+Standard library only: nothing to install.
 """
 import base64
 import hashlib
@@ -28,17 +28,17 @@ import threading
 import time
 
 FORMAT = 1
-ITERATIONS = 120000          # PBKDF2-SHA256: circa mezzo secondo su un Raspberry lento, impercettibile per chi accede una volta
-COOKIE_NAME = "klippeye_accesso"
-TOKEN_DAYS = 180             # dopo sei mesi si rifà l'accesso
-HEADER_INTERNAL = "X-KlippEye-Token"   # i servizi sul Raspberry (notifiche, comandi) si presentano con il gettone interno
+ITERATIONS = 120000          # PBKDF2-SHA256: about half a second on a slow Raspberry, unnoticeable for a one-off login
+COOKIE_NAME = "klippeye_session"
+TOKEN_DAYS = 180             # log in again after six months
+HEADER_INTERNAL = "X-KlippEye-Token"   # services on the Raspberry (notifier, CLI) present the internal token
 MIN_PASSWORD = 6
 MAX_PASSWORD = 256
 LOCAL_SUFFIXES = (".local", ".lan", ".home", ".internal", ".home.arpa", ".localdomain")
 
 
 # ---------------------------------------------------------------------------------------------------------------------
-# file
+# files
 # ---------------------------------------------------------------------------------------------------------------------
 
 def data_dir_default():
@@ -76,12 +76,12 @@ def default_settings():
 
 
 class Store:
-    """accesso.json, riletto quando cambia sul disco (il comando da terminale e il backend lo condividono)."""
+    """access.json, read again when it changes on disk (shared by the CLI and the backend)."""
 
     def __init__(self, data_dir):
         self.data_dir = data_dir
-        self.path = os.path.join(data_dir, "accesso.json")
-        self.internal_path = os.path.join(data_dir, "interno.token")
+        self.path = os.path.join(data_dir, "access.json")
+        self.internal_path = os.path.join(data_dir, "internal.token")
         self.lock = threading.RLock()
         self._cache = None
         self._stamp = None
@@ -108,7 +108,7 @@ class Store:
                     if isinstance(saved, dict):
                         data.update({k: v for k, v in saved.items() if k in data})
                 except (OSError, ValueError):
-                    fresh = True   # rovinato: si riparte senza password (meglio aperto come prima che chiuso fuori)
+                    fresh = True   # damaged (e.g. power loss): start again without a password rather than locking the owner out
             if not isinstance(data.get("allowed_hosts"), list):
                 data["allowed_hosts"] = []
             if not data.get("secret"):
@@ -129,7 +129,7 @@ class Store:
             self._cache, self._stamp = dict(data), self._signature()
 
     def internal_token(self):
-        """Il gettone per i servizi del Raspberry: creato una volta, file 600 leggibile solo dall'utente dei servizi."""
+        """The token of the services on the Raspberry: created once, mode 600, readable only by the service user."""
         with self.lock:
             if self._internal:
                 return self._internal
@@ -148,14 +148,14 @@ class Store:
 
 
 # ---------------------------------------------------------------------------------------------------------------------
-# password e gettoni
+# passwords and tokens
 # ---------------------------------------------------------------------------------------------------------------------
 
 def check_new_password(password):
     if not isinstance(password, str) or len(password) < MIN_PASSWORD:
-        return "La password deve avere almeno %d caratteri" % MIN_PASSWORD
+        return "The password must be at least %d characters long" % MIN_PASSWORD
     if len(password) > MAX_PASSWORD:
-        return "Password troppo lunga"
+        return "Password too long"
     return ""
 
 
@@ -178,7 +178,7 @@ def verify_password(settings, password):
 def set_password(settings, password):
     salt, digest = hash_password(password)
     settings.update({"enabled": True, "salt": salt, "hash": digest, "iterations": ITERATIONS})
-    settings["generation"] = int(settings.get("generation") or 1) + 1   # i gettoni di prima non valgono piu'
+    settings["generation"] = int(settings.get("generation") or 1) + 1   # tokens issued before stop working
     return settings
 
 
@@ -218,11 +218,11 @@ def token_valid(settings, token, now=None):
 
 
 class Throttle:
-    """Dopo 5 password sbagliate dallo stesso indirizzo, attesa che raddoppia (2, 4, 8... fino a 5 minuti)."""
+    """After 5 wrong passwords from the same address, a wait that doubles each time (2, 4, 8... up to 5 minutes)."""
 
     def __init__(self):
         self.lock = threading.Lock()
-        self.failures = {}   # ip -> (quante, fino a quando aspettare)
+        self.failures = {}   # ip -> (count, wait until)
 
     def wait_seconds(self, ip, now=None):
         now = now or time.time()
@@ -237,7 +237,7 @@ class Throttle:
             count += 1
             wait = 0 if count < 5 else min(300, 2 ** (count - 4))
             self.failures[ip] = (count, now + wait)
-            if len(self.failures) > 1000:   # memoria limitata
+            if len(self.failures) > 1000:   # bounded memory
                 self.failures.pop(next(iter(self.failures)))
 
     def ok(self, ip):
@@ -246,7 +246,7 @@ class Throttle:
 
 
 # ---------------------------------------------------------------------------------------------------------------------
-# controlli di rete: nome con cui si chiama il Raspberry (contro il "DNS rebinding") e origine delle richieste
+# network checks: the host name the Raspberry is called with (against DNS rebinding) and the origin of requests
 # ---------------------------------------------------------------------------------------------------------------------
 
 def split_host(host_header):
@@ -260,8 +260,8 @@ def split_host(host_header):
 
 
 def host_allowed(host_header, allowed_hosts=()):
-    """Un indirizzo IP, 'localhost', un nome senza punti (il nome del Raspberry) o della rete di casa (.local, .lan...),
-    oppure un nome aggiunto con `klippeye accesso host-aggiungi`. Un sito internet qualunque che punta al Raspberry no."""
+    """An IP address, 'localhost', a dotless name (the Raspberry's own name), a home-network name (.local, .lan...), or a
+    name added with `klippeye access host-add`. Not an arbitrary internet domain that happens to point at the Raspberry."""
     host = split_host(host_header)
     if not host:
         return False
@@ -276,73 +276,73 @@ def host_allowed(host_header, allowed_hosts=()):
 
 
 def origin_matches(origin, host_header):
-    """L'origine dichiarata dal browser e' il Raspberry stesso: stesso nome e porta (lo schema http/https non conta,
-    cosi' funziona anche dietro un proxy che aggiunge l'https)."""
+    """The origin declared by the browser is the Raspberry itself: same host and port (the http/https scheme is ignored,
+    so it also works behind a proxy that adds https)."""
     if not origin or origin == "null" or "://" not in origin:
         return False
     return origin.split("://", 1)[1].lower().rstrip("/") == (host_header or "").strip().lower()
 
 
 # ---------------------------------------------------------------------------------------------------------------------
-# comando da terminale
+# command line
 # ---------------------------------------------------------------------------------------------------------------------
 
 def _ask_password():
     import getpass
     while True:
-        first = getpass.getpass("Password nuova (almeno %d caratteri): " % MIN_PASSWORD)
+        first = getpass.getpass("New password (at least %d characters): " % MIN_PASSWORD)
         problem = check_new_password(first)
         if problem:
             print(problem)
             continue
-        if getpass.getpass("Ripetila: ") != first:
-            print("Le due password non coincidono, riprova.")
+        if getpass.getpass("Repeat it: ") != first:
+            print("The two passwords do not match, try again.")
             continue
         return first
 
 
 def main(argv):
     store = Store(data_dir_default())
-    cmd = argv[1] if len(argv) > 1 else "stato"
+    cmd = argv[1] if len(argv) > 1 else "status"
     settings = store.load()
-    if cmd == "stato":
-        print("Password: %s" % ("ATTIVA" if settings["enabled"] else "non attiva (chiunque raggiunga la dashboard la usa)"))
-        print("Controlli di rete (nome e origine delle richieste): %s" % ("accesi" if settings.get("network_checks", True) else "SPENTI"))
+    if cmd == "status":
+        print("Password: %s" % ("ON" if settings["enabled"] else "off (anyone who can reach the dashboard can use it)"))
+        print("Network checks (host name and origin of requests): %s" % ("on" if settings.get("network_checks", True) else "OFF"))
         extra = settings.get("allowed_hosts") or []
-        print("Nomi di rete aggiunti: %s" % (", ".join(extra) if extra else "nessuno (valgono indirizzi IP, nomi .local/.lan e il nome del Raspberry)"))
+        print("Extra host names: %s" % (", ".join(extra) if extra else "none (IP addresses, .local/.lan names and the Raspberry's own name are always allowed)"))
         print("File: %s" % store.path)
         return 0
-    if cmd == "imposta":
+    if cmd == "set":
         password = argv[2] if len(argv) > 2 and argv[2] != "-" else _ask_password()
         problem = check_new_password(password)
         if problem:
             print(problem)
             return 1
         store.save(set_password(settings, password))
-        print("Password attivata. Tutti i dispositivi dovranno fare l'accesso.")
+        print("Password set. Every device will have to log in.")
         return 0
-    if cmd == "togli":
+    if cmd == "remove":
         store.save(clear_password(settings))
-        print("Password tolta: la dashboard si apre di nuovo senza accesso.")
+        print("Password removed: the dashboard opens without logging in again.")
         return 0
-    if cmd == "esci-tutti":
+    if cmd == "logout-all":
         settings["generation"] = int(settings.get("generation") or 1) + 1
         store.save(settings)
-        print("Fatto: ogni dispositivo dovrà rifare l'accesso.")
+        print("Done: every device will have to log in again.")
         return 0
-    if cmd in ("host-aggiungi", "host-togli") and len(argv) > 2:
+    if cmd in ("host-add", "host-remove") and len(argv) > 2:
         name = split_host(argv[2])
         hosts = [h for h in settings.get("allowed_hosts") or [] if h != name]
-        if cmd == "host-aggiungi":
+        if cmd == "host-add":
             hosts.append(name)
         settings["allowed_hosts"] = hosts
         store.save(settings)
-        print("Nomi di rete aggiunti: %s" % (", ".join(hosts) or "nessuno"))
+        print("Extra host names: %s" % (", ".join(hosts) or "none"))
         return 0
-    if cmd == "controlli-rete" and len(argv) > 2 and argv[2] in ("on", "off"):
+    if cmd == "network-checks" and len(argv) > 2 and argv[2] in ("on", "off"):
         settings["network_checks"] = argv[2] == "on"
         store.save(settings)
-        print("Controlli di rete %s." % ("accesi" if settings["network_checks"] else "spenti"))
+        print("Network checks %s." % ("on" if settings["network_checks"] else "off"))
         return 0
     print(__doc__)
     return 2
