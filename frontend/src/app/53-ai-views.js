@@ -8,7 +8,7 @@
 
 /** The AI's answer about the system logs, as a report (see 53-ai-markdown.js). */
 function LogAnalysis({ text }) {
-  if (!text) return h("div", { className: "oui-caption" }, "Nessun contenuto");
+  if (!text) return h("div", { className: "oui-caption" }, tx("No content"));
   return h(AiReport, { key: text, text });
 }
 
@@ -42,7 +42,7 @@ function CheckTile({ title, detected, label, badge, note }) {
     "div",
     { className: cx("check-tile", detected && "check-tile--alert") },
     h("div", { className: "check-tile__title" }, title),
-    h("div", { className: "check-tile__status" }, h(StatusDot, { alert: detected }), h("span", null, label || (detected ? "Rilevato" : "OK")), badge),
+    h("div", { className: "check-tile__status" }, h(StatusDot, { alert: detected }), h("span", null, label || (detected ? tx("Detected") : "OK")), badge),
     note && h("div", { className: "oui-caption mt-2" }, note),
   );
 }
@@ -58,7 +58,7 @@ function PrintAnalysis({ text, progress, detector }) {
   let realReason = detector.realReason || "";
   if (progress !== undefined && progress !== null && parseFloat(progress) < WARMUP_PROGRESS_PERCENT) {
     realStarted = false;
-    realReason = "progress " + parseFloat(progress) + "% <2% - riscaldamento/mesh";
+    realReason = "progress " + parseFloat(progress) + tx("% <2% - heating/mesh");
   }
 
   const verdict = parsePrintVerdict(text);
@@ -76,20 +76,20 @@ function PrintAnalysis({ text, progress, detector }) {
     h(
       "div",
       { className: "flex items-center justify-between gap-2" },
-      h("div", { className: "flex items-center gap-2" }, h(StatusDot, { alert: spaghetti.detected || emptyBed.detected || layerShift.detected }), h("span", { className: "oui-label" }, "Analisi AI completata")),
+      h("div", { className: "flex items-center gap-2" }, h(StatusDot, { alert: spaghetti.detected || emptyBed.detected || layerShift.detected }), h("span", { className: "oui-label" }, tx("AI analysis completed"))),
       h("span", { className: "oui-badge oui-badge--" + actionTone(action) }, action),
     ),
-    h("div", { className: "ai-summary" }, h("div", { className: "oui-caption mb-1" }, "Riepilogo"), h("div", { className: "ai-summary__text" }, verdict.summary || "Nessun riassunto")),
+    h("div", { className: "ai-summary" }, h("div", { className: "oui-caption mb-1" }, tx("Summary")), h("div", { className: "ai-summary__text" }, verdict.summary || tx("No summary"))),
     h(
       "div",
       { className: "check-grid" },
       h(CheckTile, { title: "Spaghetti", detected: spaghetti.detected, badge: h(ConfidenceBadge, { value: spaghetti.confidence }), note: spaghetti.note }),
       h(CheckTile, {
-        title: "Piatto vuoto",
+        title: tx("Empty bed"),
         detected: realStarted ? emptyBed.detected : false,
-        label: realStarted ? undefined : "OK (riscaldamento)",
-        badge: realStarted ? h(ConfidenceBadge, { value: emptyBed.confidence }) : h("span", { className: "oui-badge" }, "Ignorato"),
-        note: !realStarted && "Riscaldamento/mesh in corso (" + realReason + "), piatto vuoto normale - monitoraggio piatto vuoto sospeso",
+        label: realStarted ? undefined : tx("OK (heating)"),
+        badge: realStarted ? h(ConfidenceBadge, { value: emptyBed.confidence }) : h("span", { className: "oui-badge" }, tx("Ignored")),
+        note: !realStarted && tx("Heating/mesh in progress (") + realReason + tx("), an empty bed is normal - empty-bed check paused"),
       }),
       h(CheckTile, { title: "Layer shift", detected: layerShift.detected, badge: h(ConfidenceBadge, { value: layerShift.confidence }) }),
       h(CheckTile, { title: "Warping", detected: warping.detected, badge: warping.confidence ? h(ConfidenceBadge, { value: warping.confidence }) : null }),

@@ -263,11 +263,11 @@ function commentLines(text, start, end, mode, mark) {
    Saving
    ------------------------------------------------------------------------- */
 const SAVE_STATUS = {
-  saving: "Salvataggio...",
-  saved: "Salvato ✓",
-  sendingSaveConfig: "Invio SAVE_CONFIG...",
-  saveConfigSent: "SAVE_CONFIG inviato ✓",
-  manualSaveConfig: "Salvato, invia manualmente SAVE_CONFIG",
+  saving: tx("Saving..."),
+  saved: tx("Saved ✓"),
+  sendingSaveConfig: tx("Sending SAVE_CONFIG..."),
+  saveConfigSent: tx("SAVE_CONFIG sent ✓"),
+  manualSaveConfig: tx("Saved, send SAVE_CONFIG by hand"),
 };
 
 const SAVED_STATUSES = [SAVE_STATUS.saved, SAVE_STATUS.saveConfigSent, SAVE_STATUS.manualSaveConfig];
@@ -443,11 +443,11 @@ function EditorScreen({ session, onClose, inline, onDirtyChange }) {
     const textarea = textareaRef.current;
     if (readOnly || !textarea) return;
     const result = commentLines(textarea.value, textarea.selectionStart, textarea.selectionEnd, mode, commentMark);
-    if (!result) return flashStatus(mode === "comment" ? "Nessuna riga da commentare" : "Nessuna riga con " + commentMark + " davanti");
+    if (!result) return flashStatus(mode === "comment" ? tx("No line to comment") : tx("No line starts with {mark}", { mark: commentMark }));
     const { from, to, replacement, count } = result;
     textarea.focus({ preventScroll: true });
     history.replace(from, to, replacement, [from, to], [from, from + replacement.length]);
-    flashStatus(count + (count === 1 ? " riga " : " righe ") + (result.mode === "comment" ? "commentat" : "decommentat") + (count === 1 ? "a" : "e"));
+    flashStatus(result.mode === "comment" ? (count === 1 ? tx("1 line commented") : tx("{count} lines commented", { count })) : count === 1 ? tx("1 line uncommented") : tx("{count} lines uncommented", { count }));
   };
   /** A button of the tools bar must not take the focus (or the selection) away from the text. */
   const keepFocus = (event) => event.preventDefault();
@@ -456,7 +456,7 @@ function EditorScreen({ session, onClose, inline, onDirtyChange }) {
   const requestClose = () => (dirty ? setConfirmingDiscard(true) : onClose());
 
   /**
-   * Uploads the file; "Salva e riavvia" also sends SAVE_CONFIG to Klipper.
+   * Uploads the file; "Save and restart" also sends SAVE_CONFIG to Klipper.
    * Over the whole screen (phone) the editor closes when done, after a moment to read the status; inline (wide
    * screen) the file stays open for the next change and the status stays on view.
    */
@@ -467,7 +467,7 @@ function EditorScreen({ session, onClose, inline, onDirtyChange }) {
     try {
       await configFilesApi.save(path, text, root);
     } catch (error) {
-      setStatus("Errore: " + (error.message || error));
+      setStatus(tx("Error: ") + (error.message || error));
       setBusy(false);
       return;
     }
@@ -525,19 +525,19 @@ function EditorScreen({ session, onClose, inline, onDirtyChange }) {
     h(
       "div",
       { className: "screen-bar editor-bar" },
-      h("button", { className: "oui-btn oui-btn--icon editor-close", title: "Chiudi", "aria-label": "Chiudi", onClick: requestClose }, "✕"),
+      h("button", { className: "oui-btn oui-btn--icon editor-close", title: tx("Close"), "aria-label": tx("Close"), onClick: requestClose }, "✕"),
       h(
         "div",
         { className: "editor-heading" },
-        h("div", { className: "editor-title-row" }, h("span", { className: "editor-title" }, isGcode ? root + "/" + path : path), readOnly && h("span", { className: "oui-badge" }, "Solo lettura"), dirty && h("span", { className: "oui-badge oui-badge--warn" }, "Modificato")),
-        h("span", { className: "editor-status" }, dirty && SAVED_STATUSES.includes(status) ? "" : status), // typing again after a save: "Salvato ✓" no longer applies
+        h("div", { className: "editor-title-row" }, h("span", { className: "editor-title" }, isGcode ? root + "/" + path : path), readOnly && h("span", { className: "oui-badge" }, tx("Read-only")), dirty && h("span", { className: "oui-badge oui-badge--warn" }, tx("Changed"))),
+        h("span", { className: "editor-status" }, dirty && SAVED_STATUSES.includes(status) ? "" : status), // typing again after a save: "Saved ✓" no longer applies
       ),
       h(
         "div",
         { className: "editor-actions" },
-        h("button", { className: cx("oui-btn oui-btn--icon", searchOpen && "oui-btn--accent-soft"), title: "Cerca", "aria-label": "Cerca", onClick: () => (searchOpen ? setSearchOpen(false) : openSearch()) }, h(Icons.Search, { size: 20 })),
-        !readOnly && h("button", { className: "oui-btn oui-btn--primary editor-save", disabled: saveDisabled, onClick: () => save(false) }, "Salva"),
-        !readOnly && !isGcode && h("button", { className: "oui-btn editor-save", disabled: saveDisabled, onClick: () => save(true) }, "Salva e riavvia"),
+        h("button", { className: cx("oui-btn oui-btn--icon", searchOpen && "oui-btn--accent-soft"), title: tx("Search"), "aria-label": tx("Search"), onClick: () => (searchOpen ? setSearchOpen(false) : openSearch()) }, h(Icons.Search, { size: 20 })),
+        !readOnly && h("button", { className: "oui-btn oui-btn--primary editor-save", disabled: saveDisabled, onClick: () => save(false) }, tx("Save")),
+        !readOnly && !isGcode && h("button", { className: "oui-btn editor-save", disabled: saveDisabled, onClick: () => save(true) }, tx("Save and restart")),
       ),
     ),
     searchOpen &&
@@ -548,7 +548,7 @@ function EditorScreen({ session, onClose, inline, onDirtyChange }) {
           ref: searchInputRef,
           type: "text",
           value: searchTerm,
-          placeholder: "Cerca nel file...",
+          placeholder: tx("Search in the file..."),
           onChange: (e) => runSearch(e.target.value),
           onKeyDown: (e) => {
             if (e.key === "Enter") {
@@ -558,18 +558,18 @@ function EditorScreen({ session, onClose, inline, onDirtyChange }) {
           },
         }),
         h("span", { className: "editor-search-count" }, searchCount),
-        h("button", { className: "editor-icon-btn", title: "Precedente", onClick: previousMatch }, "▲"),
-        h("button", { className: "editor-icon-btn", title: "Successivo", onClick: nextMatch }, "▼"),
-        h("button", { className: "editor-icon-btn", title: "Chiudi ricerca", onClick: clearSearch }, "✕"),
+        h("button", { className: "editor-icon-btn", title: tx("Previous"), onClick: previousMatch }, "▲"),
+        h("button", { className: "editor-icon-btn", title: tx("Next"), onClick: nextMatch }, "▼"),
+        h("button", { className: "editor-icon-btn", title: tx("Close search"), onClick: clearSearch }, "✕"),
       ),
     !readOnly &&
       h(
         "div",
         { className: "editor-tools" },
-        h("button", { type: "button", className: "oui-btn oui-btn--sm editor-history", title: "Annulla (Ctrl+Z)", "aria-label": "Annulla", disabled: !history.canUndo, onMouseDown: keepFocus, onClick: history.undo }, h(Icons.Undo, { size: 20 })),
-        h("button", { type: "button", className: "oui-btn oui-btn--sm editor-history", title: "Ripristina (Ctrl+Y)", "aria-label": "Ripristina", disabled: !history.canRedo, onMouseDown: keepFocus, onClick: history.redo }, h(Icons.Redo, { size: 20 })),
-        h("button", { type: "button", className: "oui-btn oui-btn--sm", title: "Aggiunge " + commentMark + " davanti alle righe selezionate (Ctrl+/)", onMouseDown: keepFocus, onClick: () => markComments("comment") }, h(Icons.Hash, { size: 18 }), "Commenta"),
-        h("button", { type: "button", className: "oui-btn oui-btn--sm", title: "Toglie un " + commentMark + " dalle righe selezionate che ce l'hanno (Ctrl+/)", onMouseDown: keepFocus, onClick: () => markComments("uncomment") }, h(Icons.HashOff, { size: 18 }), "Decommenta"),
+        h("button", { type: "button", className: "oui-btn oui-btn--sm editor-history", title: tx("Undo (Ctrl+Z)"), "aria-label": txc("edit", "Undo"), disabled: !history.canUndo, onMouseDown: keepFocus, onClick: history.undo }, h(Icons.Undo, { size: 20 })),
+        h("button", { type: "button", className: "oui-btn oui-btn--sm editor-history", title: tx("Redo (Ctrl+Y)"), "aria-label": txc("edit", "Redo"), disabled: !history.canRedo, onMouseDown: keepFocus, onClick: history.redo }, h(Icons.Redo, { size: 20 })),
+        h("button", { type: "button", className: "oui-btn oui-btn--sm", title: tx("Puts {mark} in front of the selected lines (Ctrl+/)", { mark: commentMark }), onMouseDown: keepFocus, onClick: () => markComments("comment") }, h(Icons.Hash, { size: 18 }), tx("Comment")),
+        h("button", { type: "button", className: "oui-btn oui-btn--sm", title: tx("Removes one {mark} from the selected lines that have it (Ctrl+/)", { mark: commentMark }), onMouseDown: keepFocus, onClick: () => markComments("uncomment") }, h(Icons.HashOff, { size: 18 }), tx("Uncomment")),
       ),
     h(
       "div",
@@ -602,10 +602,10 @@ function EditorScreen({ session, onClose, inline, onDirtyChange }) {
       open: confirmingDiscard,
       zIndex: 10002,
       icon: h(Icons.CancelCircle),
-      title: "Modifiche non salvate",
+      title: tx("Unsaved changes"),
       subtitle: path,
-      message: "Hai modifiche non salvate. Chiudere senza salvare?",
-      confirmLabel: "Chiudi",
+      message: tx("You have unsaved changes. Close without saving?"),
+      confirmLabel: tx("Close"),
       onConfirm: onClose,
       onCancel: () => setConfirmingDiscard(false),
     }),

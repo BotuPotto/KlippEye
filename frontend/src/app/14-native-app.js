@@ -36,7 +36,7 @@ function downloadFile(url, name) {
     return;
   }
   if (!APP_CAN_SAVE_FILES) {
-    toast.action("Il download non funziona in questa versione dell'app: aggiornala o apri la dashboard dal browser");
+    toast.action(tx("Downloads do not work in this version of the app: update it or open the dashboard in the browser"));
     return;
   }
   const link = document.createElement("a");

@@ -19,7 +19,7 @@ const SWIPE_CLOSE_PX = 70; // a swipe to the left at least this long closes the 
 /** The notification service writes its sign of life this often; one not seen for longer than this is not running. */
 const NOTIFIER_ALIVE_S = 360;
 
-const ON_OFF = (value) => (value ? "sì" : "no");
+const ON_OFF = (value) => (value ? tx("yes") : tx("no"));
 
 /* ---------------------------------------------------------------------------
    State of the menu
@@ -179,33 +179,33 @@ const SettingsGroup = ({ title, children, note }) => h("section", { className: "
 /** What the service on the Raspberry says about itself, as one line. */
 function ServiceLine({ status }) {
   const now = Date.now() / 1000;
-  if (status === undefined) return h("div", { className: "set-status" }, h("span", { className: "set-status__dot" }), "Controllo il servizio sul Raspberry…");
+  if (status === undefined) return h("div", { className: "set-status" }, h("span", { className: "set-status__dot" }), tx("Checking the service on the Raspberry…"));
   if (status === null) {
     return h(
       "div",
       { className: "set-status set-status--warn" },
       h("span", { className: "set-status__dot" }),
-      h("span", null, "Il servizio delle notifiche non si è ancora fatto vivo. Se lo hai installato, controlla con ", h("code", null, "klippeye status"), " e riavvialo da Impostazioni → Aggiornamenti; se non lo hai ancora configurato, segui la guida (", h("code", null, "docs/GUIDA.md"), "): senza, queste scelte non hanno effetto."),
+      h("span", null, tx("The notification service has not shown up yet. If you installed it, check with"), " ", h("code", null, "klippeye status"), " ", tx("and restart it from Settings → Updates; if you have not set it up yet, follow the guide"), " (", h("code", null, "docs/GUIDA.md"), "). ", tx("Without it these choices have no effect.")),
     );
   }
   const age = Math.max(0, now - (Number(status.seen) || 0));
   const alive = age < NOTIFIER_ALIVE_S;
-  const when = age < 90 ? "poco fa" : age < 5400 ? Math.round(age / 60) + " min fa" : Math.round(age / 3600) + " ore fa";
+  const when = age < 90 ? tx("just now") : age < 5400 ? tx("{count} min ago", { count: Math.round(age / 60) }) : tx("{count} h ago", { count: Math.round(age / 3600) });
   return h(
     "div",
     { className: cx("set-status", alive ? "set-status--ok" : "set-status--warn") },
     h("span", { className: "set-status__dot" }),
-    alive ? "Servizio attivo • versione " + (status.version || "?") + " • visto " + when : "Il servizio non risponde da " + when + ": riavvialo da Impostazioni → Aggiornamenti, oppure controlla con  klippeye status",
+    alive ? tx("Service running • version {version} • seen {when}", { version: status.version || "?", when }) : tx("The service does not answer (last seen {when}): restart it from Settings → Updates, or check with  klippeye status", { when }),
   );
 }
 
-const ACTION_TEXT = { pause: "messa in pausa", cancel: "interrotta" };
+const ACTION_TEXT = { pause: tx("Last automatic action: print paused"), cancel: tx("Last automatic action: print cancelled") };
 /** "Ultima azione automatica: stampa messa in pausa (14:03)" from the service's report, or "". */
 function lastActionText(status) {
   const last = status && status.lastAction;
   if (!isPlainObject(last) || !ACTION_TEXT[last.kind]) return "";
-  const when = last.at ? new Date(Number(last.at) * 1000).toLocaleString("it-IT", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "";
-  return "Ultima azione automatica: stampa " + ACTION_TEXT[last.kind] + (last.ok === false ? " (non riuscita)" : "") + (when ? " • " + when : "");
+  const when = last.at ? new Date(Number(last.at) * 1000).toLocaleString(LOCALE, { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "";
+  return ACTION_TEXT[last.kind] + (last.ok === false ? tx(" (failed)") : "") + (when ? " • " + when : "");
 }
 
 /* ---- Printer ---- */
@@ -213,7 +213,7 @@ function lastActionText(status) {
 function PrinterPreview({ printer }) {
   return h(
     "div",
-    { className: "set-brand-preview", "aria-label": "Anteprima della barra in alto" },
+    { className: "set-brand-preview", "aria-label": tx("Preview of the top bar") },
     h(PrinterLogo, { id: printer.brand, className: "app-header__logo" }),
     isKlippEyeWordmark(printer) ? h("span", { className: "app-header__name" }, "Klipp", h("span", { className: "app-header__eye" }, "Eye")) : h("span", { className: "app-header__name" }, printerName(printer)),
   );
@@ -230,7 +230,7 @@ function PrinterPage() {
   return h(
     React.Fragment,
     null,
-    h(SettingsGroup, { title: "Anteprima", note: "Così appaiono la barra in alto e la scheda del browser (titolo: " + printerName(printer) + ")." }, h(PrinterPreview, { printer })),
+    h(SettingsGroup, { title: tx("Preview"), note: tx("This is how the top bar and the browser tab look (title: {title}).", { title: printerName(printer) }) }, h(PrinterPreview, { printer })),
     h(
       SettingsGroup,
       { title: "Logo" },
@@ -242,7 +242,7 @@ function PrinterPage() {
             "button",
             { key: item.id, type: "button", role: "radio", "data-brand": item.id, "aria-checked": item.id === printer.brand, className: cx("set-choice", item.id === printer.brand && "is-selected"), onClick: () => update((draft) => (draft.printer.brand = item.id)) },
             h("span", { className: "set-brand__logo" }, logos[item.id] ? h("img", { src: logos[item.id], alt: "" }) : h("span", { className: "set-brand__none", "aria-hidden": "true" }, "—")),
-            h("span", { className: "set-switch__text" }, h("span", { className: "set-switch__title" }, item.label), h("span", { className: "set-switch__detail" }, logos[item.id] ? item.detail : "Logo non ancora caricato: si mostra solo il nome (vedi logos/README.md)")),
+            h("span", { className: "set-switch__text" }, h("span", { className: "set-switch__title" }, item.label), h("span", { className: "set-switch__detail" }, logos[item.id] ? item.detail : tx("Logo not uploaded yet: only the name is shown (see logos/README.md)"))),
             h("span", { className: "set-choice__tick", "aria-hidden": "true" }, item.id === printer.brand && h(Icons.Check, { size: 18 })),
           ),
         ),
@@ -250,15 +250,15 @@ function PrinterPage() {
     ),
     h(
       SettingsGroup,
-      { title: "Nome" },
+      { title: tx("Name") },
       h(TextSetting, {
         key: printer.brand,
-        label: "Nome della stampante",
+        label: tx("Printer name"),
         value: printer.name,
         validate: cleanPrinterName,
         placeholder: brand.label,
-        error: "Al massimo " + PRINTER_NAME_MAX + " caratteri: lettere, numeri, spazio e . _ - '",
-        hint: "Compare nella barra in alto e nella scheda del browser. Lascialo vuoto per usare «" + brand.label + "» (esempio: " + brand.label + ".287).",
+        error: tx("At most {max} characters: letters, digits, space and . _ - '", { max: PRINTER_NAME_MAX }),
+        hint: tx("Shown in the top bar and in the browser tab. Leave it empty to use «{brand}» (example: {brand}.287).", { brand: brand.label }),
         onCommit: (value) => update((draft) => (draft.printer.name = value)),
       }),
     ),
@@ -287,14 +287,14 @@ function MainsailImport({ onPick }) {
     setState({ phase: "loading", cams: [], message: "" });
     try {
       const cams = await loadMainsailWebcams();
-      setState(cams.length ? { phase: "list", cams, message: "" } : { phase: "none", cams: [], message: "Mainsail non ha camere configurate." });
+      setState(cams.length ? { phase: "list", cams, message: "" } : { phase: "none", cams: [], message: tx("Mainsail has no cameras set up.") });
     } catch (error) {
-      setState({ phase: "none", cams: [], message: "Non riesco a leggere le camere di Mainsail." });
+      setState({ phase: "none", cams: [], message: tx("Cannot read Mainsail's cameras.") });
     }
   };
   return h(
     SettingsGroup,
-    { title: "Da Mainsail", note: "Prende metodo e indirizzo dalle camere già impostate nella pagina Webcam di Mainsail." },
+    { title: tx("From Mainsail"), note: tx("Takes method and address from the cameras already set up in Mainsail's Webcam page.") },
     state.phase === "list"
       ? h(
           "div",
@@ -303,11 +303,11 @@ function MainsailImport({ onPick }) {
             h(
               "button",
               { key: index, type: "button", className: "set-choice", disabled: !cam.method, onClick: () => onPick(cam) },
-              h("span", { className: "set-switch__text" }, h("span", { className: "set-switch__title" }, cam.name), h("span", { className: "set-switch__detail" }, cam.method ? cam.service + " • " + cam.address : cam.service + " • non supportato qui")),
+              h("span", { className: "set-switch__text" }, h("span", { className: "set-switch__title" }, cam.name), h("span", { className: "set-switch__detail" }, cam.method ? cam.service + " • " + cam.address : cam.service + tx(" • not supported here"))),
             ),
           ),
         )
-      : h("button", { type: "button", className: "oui-btn oui-btn--block", disabled: state.phase === "loading", onClick: load }, h(Icons.Download, { size: 18 }), state.phase === "loading" ? "Leggo…" : "Importa da Mainsail"),
+      : h("button", { type: "button", className: "oui-btn oui-btn--block", disabled: state.phase === "loading", onClick: load }, h(Icons.Download, { size: 18 }), state.phase === "loading" ? tx("Reading…") : tx("Import from Mainsail")),
     state.message && h("p", { className: "set-group__note set-group__note--warn", role: "status" }, state.message),
   );
 }
@@ -329,60 +329,60 @@ function CameraPage() {
   return h(
     React.Fragment,
     null,
-    h(SettingsGroup, { title: "Metodo" }, h(ChoiceRows, { label: "Metodo", options: CAMERA_METHODS, value: camera.method, onChange: (id) => update((draft) => (draft.camera.method = id)) })),
+    h(SettingsGroup, { title: tx("Method") }, h(ChoiceRows, { label: tx("Method"), options: CAMERA_METHODS, value: camera.method, onChange: (id) => update((draft) => (draft.camera.method = id)) })),
     h(
       SettingsGroup,
-      { title: "Indirizzo" },
+      { title: tx("Address") },
       h(TextSetting, {
         key: camera.method,
         label: method.field,
         value: address,
         validate: cleanCameraAddress,
-        error: "Scrivi un percorso che inizia con / (come /webcam/webrtc) o un indirizzo completo http://…",
-        hint: "Un percorso sulla stampante (/webcam/…) o un indirizzo completo http://…",
+        error: tx("Write a path that starts with / (like /webcam/webrtc) or a full address http://…"),
+        hint: tx("A path on the printer (/webcam/…) or a full address http://…"),
         inputMode: "url",
         onCommit: (value) => update((draft) => (draft.camera.urls[camera.method] = value)),
       }),
-      !isDefault && h("button", { type: "button", className: "oui-btn oui-btn--quiet oui-btn--sm set-inline-btn", onClick: () => update((draft) => (draft.camera.urls[camera.method] = SETTINGS_DEFAULTS.camera.urls[camera.method])) }, h(Icons.RotateCcw, { size: 16 }), "Ripristina l'indirizzo predefinito"),
+      !isDefault && h("button", { type: "button", className: "oui-btn oui-btn--quiet oui-btn--sm set-inline-btn", onClick: () => update((draft) => (draft.camera.urls[camera.method] = SETTINGS_DEFAULTS.camera.urls[camera.method])) }, h(Icons.RotateCcw, { size: 16 }), tx("Restore the default address")),
     ),
     camera.method === "adaptive" &&
       h(
         SettingsGroup,
-        { title: "Foto al secondo", note: "Più foto al secondo = più fluido, ma più traffico. Con una rete lenta 2–5 bastano." },
+        { title: tx("Frames per second"), note: tx("More frames per second = smoother, but more traffic. On a slow network 2–5 are enough.") },
         h(
           "div",
           { className: "set-stepper" },
-          h("button", { type: "button", className: "oui-btn", "aria-label": "Meno foto", disabled: camera.fps <= CAMERA_FPS_MIN, onClick: () => update((draft) => (draft.camera.fps -= 1)) }, "−"),
+          h("button", { type: "button", className: "oui-btn", "aria-label": tx("Fewer frames"), disabled: camera.fps <= CAMERA_FPS_MIN, onClick: () => update((draft) => (draft.camera.fps -= 1)) }, "−"),
           h("div", { className: "set-stepper__value" }, camera.fps, h("span", null, " foto/s")),
-          h("button", { type: "button", className: "oui-btn", "aria-label": "Più foto", disabled: camera.fps >= CAMERA_FPS_MAX, onClick: () => update((draft) => (draft.camera.fps += 1)) }, "+"),
+          h("button", { type: "button", className: "oui-btn", "aria-label": tx("More frames"), disabled: camera.fps >= CAMERA_FPS_MAX, onClick: () => update((draft) => (draft.camera.fps += 1)) }, "+"),
         ),
       ),
     h(
       SettingsGroup,
-      { title: "Immagine" },
+      { title: tx("Image") },
       h(
         "div",
         { className: "oui-list" },
-        h(SwitchRow, { title: "Specchia (orizzontale)", detail: "Destra e sinistra scambiate", checked: camera.flipH, onChange: (value) => update((draft) => (draft.camera.flipH = value)) }),
-        h(SwitchRow, { title: "Capovolgi (verticale)", detail: "Sopra e sotto scambiati", checked: camera.flipV, onChange: (value) => update((draft) => (draft.camera.flipV = value)) }),
+        h(SwitchRow, { title: tx("Mirror (horizontal)"), detail: tx("Left and right swapped"), checked: camera.flipH, onChange: (value) => update((draft) => (draft.camera.flipH = value)) }),
+        h(SwitchRow, { title: tx("Flip (vertical)"), detail: tx("Top and bottom swapped"), checked: camera.flipV, onChange: (value) => update((draft) => (draft.camera.flipV = value)) }),
       ),
     ),
     h(MainsailImport, { onPick: pick }),
     h(
       SettingsGroup,
       null,
-      h("button", { type: "button", className: "oui-btn oui-btn--block", onClick: requestCameraReload }, h(Icons.Refresh, { size: 18 }), "Ricarica la camera"),
+      h("button", { type: "button", className: "oui-btn oui-btn--block", onClick: requestCameraReload }, h(Icons.Refresh, { size: 18 }), tx("Reload the camera")),
     ),
   );
 }
 
 /* ---- Addresses ---- */
 const APP_ADDRESSES_NOTES = {
-  browser: "L'app Android (versione mk218 o più nuova) si collega a questi stessi indirizzi: ogni modifica vale dal suo prossimo avvio.",
-  old: "Questa versione dell'app ha gli indirizzi scritti dentro: con la mk218 (o più nuova) li prende da qui.",
-  refused: "L'app non ha accettato questi indirizzi: servono indirizzi di una rete privata (192.168.x.x, 10.x.x.x, 172.16-31.x.x, ZeroTier). Si userà l'ultima coppia accettata.",
-  ok: "L'app Android userà questi indirizzi al prossimo avvio.",
-  waiting: "L'app Android usa gli indirizzi che il Raspberry ha salvato: li riceve appena sono noti.",
+  browser: tx("The Android app (version mk218 or newer) connects to these same addresses: every change applies from its next start."),
+  old: tx("This version of the app has the addresses built in: from mk218 (or newer) it takes them from here."),
+  refused: tx("The app did not accept these addresses: they must be private network addresses (192.168.x.x, 10.x.x.x, 172.16-31.x.x, ZeroTier). The last accepted pair will be used."),
+  ok: tx("The Android app will use these addresses at its next start."),
+  waiting: tx("The Android app uses the addresses saved on the Raspberry: it gets them as soon as they are known."),
 };
 
 /** What the Android app does with the addresses above (app/16-settings.js tells it about them). */
@@ -397,37 +397,37 @@ function NetworkPage() {
   const { localIp, externalIp, route } = settings.network;
   const using = pickCameraHost(settings);
   const routes = [
-    { id: "auto", label: "Automatico", detail: "Quello della rete da cui hai aperto la dashboard" },
-    { id: "local", label: "Sempre locale", detail: localIp },
-    { id: "external", label: "Sempre esterno", detail: externalIp },
+    { id: "auto", label: tx("Automatic"), detail: tx("The one of the network you opened the dashboard from") },
+    { id: "local", label: tx("Always local"), detail: localIp },
+    { id: "external", label: tx("Always external"), detail: externalIp },
   ];
   return h(
     React.Fragment,
     null,
     h(
       SettingsGroup,
-      { title: "Indirizzi del Raspberry", note: "Solo l'indirizzo, senza http:// e senza porta (a meno che la camera non stia su una porta diversa dalla 80)." },
+      { title: tx("Addresses of the Raspberry"), note: tx("Only the address, without http:// and without port (unless the camera is on a port other than 80).") },
       h(TextSetting, {
-        label: "IP locale (rete di casa)",
+        label: tx("Local IP (home network)"),
         value: localIp,
         validate: cleanHost,
-        error: "Non è un indirizzo valido (esempio: 192.168.1.17)",
+        error: tx("Not a valid address (example: 192.168.1.17)"),
         placeholder: SETTINGS_DEFAULTS.network.localIp,
         inputMode: "decimal",
         onCommit: (value) => update((draft) => (draft.network.localIp = value)),
       }),
       h(TextSetting, {
-        label: "IP esterno (ZeroTier, VPN)",
+        label: tx("External IP (ZeroTier, VPN)"),
         value: externalIp,
         validate: cleanHost,
-        error: "Non è un indirizzo valido (esempio: 172.25.170.177)",
+        error: tx("Not a valid address (example: 172.25.170.177)"),
         placeholder: SETTINGS_DEFAULTS.network.externalIp,
         inputMode: "decimal",
         onCommit: (value) => update((draft) => (draft.network.externalIp = value)),
       }),
     ),
-    h(SettingsGroup, { title: "Per la camera usa" }, h(ChoiceRows, { label: "Indirizzo della camera", options: routes, value: route, onChange: (id) => update((draft) => (draft.network.route = id)) })),
-    h("div", { className: "set-status set-status--ok" }, h("span", { className: "set-status__dot" }), "Ora la camera usa l'indirizzo " + (using.side === "local" ? "locale " : "esterno ") + using.host),
+    h(SettingsGroup, { title: tx("For the camera use") }, h(ChoiceRows, { label: tx("Camera address"), options: routes, value: route, onChange: (id) => update((draft) => (draft.network.route = id)) })),
+    h("div", { className: "set-status set-status--ok" }, h("span", { className: "set-status__dot" }), (using.side === "local" ? tx("The camera now uses the local address {host}", { host: using.host }) : tx("The camera now uses the external address {host}", { host: using.host }))),
     h(AppAddressesNote, { state: appAddressesState(settings) }),
   );
 }
@@ -444,7 +444,7 @@ function ZOffsetPage() {
   const pad = (list) => Array.from({ length: Z_STEP_SLOTS }, (unused, index) => (index < list.length ? String(list[index]) : ""));
   const [slots, setSlots] = useState(() => pad(steps));
   const parsed = slots.filter((text) => text.trim() !== "").map(parseStepText);
-  const problem = parsed.length === 0 ? "Scrivi almeno un valore." : parsed.includes(null) ? "Ogni valore va da 0,001 a 1 mm." : new Set(parsed).size !== parsed.length ? "Due valori sono uguali." : "";
+  const problem = parsed.length === 0 ? tx("Write at least one value.") : parsed.includes(null) ? tx("Every value goes from 0.001 to 1 mm.") : new Set(parsed).size !== parsed.length ? tx("Two values are the same.") : "";
   const timer = useRef(0);
 
   // another device changed the steps: take them (our own change, sorted, must not shuffle the fields while typing)
@@ -469,7 +469,7 @@ function ZOffsetPage() {
     null,
     h(
       SettingsGroup,
-      { title: "Passi della card Z-offset", note: "Di quanti millimetri si muove l'ugello a ogni tocco di Alza / Abbassa. Lascia vuoto un campo per averne meno di quattro." },
+      { title: tx("Steps of the Z-offset card"), note: tx("How many millimetres the nozzle moves at each tap of Raise / Lower. Leave a field empty to have fewer than four.") },
       h(
         "div",
         { className: "set-grid" },
@@ -477,7 +477,7 @@ function ZOffsetPage() {
           h(
             "label",
             { key: index, className: "set-field" },
-            h("span", { className: "set-field__label" }, "Passo " + (index + 1)),
+            h("span", { className: "set-field__label" }, tx("Step ") + (index + 1)),
             h("input", {
               className: cx("oui-field", "oui-field--num", "set-field__input", text.trim() !== "" && parseStepText(text) === null && "is-invalid"),
               value: text,
@@ -503,11 +503,30 @@ function ZOffsetPage() {
     ),
     h(
       SettingsGroup,
-      { title: "Così appaiono nella card" },
+      { title: tx("How they look in the card") },
       h("div", { className: "set-preview" }, steps.map((value) => h("span", { key: value, className: "oui-chip" }, value))),
-      !isDefault && h("button", { type: "button", className: "oui-btn oui-btn--quiet oui-btn--sm set-inline-btn", onClick: () => update((draft) => (draft.zOffset.steps = SETTINGS_DEFAULTS.zOffset.steps.slice())) }, h(Icons.RotateCcw, { size: 16 }), "Ripristina 0,01 · 0,025 · 0,05 · 0,1"),
+      !isDefault && h("button", { type: "button", className: "oui-btn oui-btn--quiet oui-btn--sm set-inline-btn", onClick: () => update((draft) => (draft.zOffset.steps = SETTINGS_DEFAULTS.zOffset.steps.slice())) }, h(Icons.RotateCcw, { size: 16 }), tx("Restore 0.01 · 0.025 · 0.05 · 0.1")),
     ),
   );
+}
+
+/* ---- Language ---- */
+/** Kept on this device only (each person may want their own); choosing reloads the page in that language. */
+function LanguagePage() {
+  const choice = savedLanguageChoice();
+  const deviceName = I18N_LANGUAGES.find((language) => language.code === deviceLanguage()).name;
+  const options = [{ id: "auto", label: tx("Automatic"), detail: tx("The language of this device: {language}", { language: deviceName }) }].concat(I18N_LANGUAGES.map((language) => ({ id: language.code, label: language.name })));
+  return h(
+    SettingsGroup,
+    { title: tx("Language"), note: tx("Only on this device. The page reloads in the chosen language.") },
+    h(ChoiceRows, { label: tx("Language"), options, value: choice, onChange: (id) => id !== choice && setLanguageChoice(id) }),
+  );
+}
+
+/** "Italiano", or "Automatic (English)". */
+function languageSummary() {
+  const current = I18N_LANGUAGES.find((language) => language.code === LANG).name;
+  return savedLanguageChoice() === "auto" ? tx("Automatic ({language})", { language: current }) : current;
 }
 
 /* ---- Notifications ---- */
@@ -520,7 +539,7 @@ function NotificationsPage({ active }) {
     h(ServiceLine, { status }),
     h(
       SettingsGroup,
-      { title: "Quali notifiche ricevere", note: "Valgono per tutti i telefoni con l'app. Il testo è quello della notifica." },
+      { title: tx("Which notifications to receive"), note: tx("They apply to every phone with the app. The text is the one of the notification.") },
       h(
         "div",
         { className: "oui-list" },
@@ -533,8 +552,8 @@ function NotificationsPage({ active }) {
 }
 
 /* ---- AI monitor ---- */
-const CONFIRMATION_OPTIONS = AI_CONFIRMATIONS.map((value) => ({ id: value, label: value === 1 ? "1 controllo" : value + " di fila" }));
-const CONFIDENCE_OPTIONS = AI_CONFIDENCES.map((value) => ({ id: value, label: value === 0 ? "Qualsiasi" : value + "%" }));
+const CONFIRMATION_OPTIONS = AI_CONFIRMATIONS.map((value) => ({ id: value, label: value === 1 ? tx("1 check") : tx("{count} in a row", { count: value }) }));
+const CONFIDENCE_OPTIONS = AI_CONFIDENCES.map((value) => ({ id: value, label: value === 0 ? tx("Any") : value + "%" }));
 
 function AiPage({ active, menu }) {
   const { settings, update } = useSettings();
@@ -547,28 +566,28 @@ function AiPage({ active, menu }) {
     h(ServiceLine, { status }),
     h(
       SettingsGroup,
-      { title: "Azioni automatiche", note: "Le esegue il Raspberry da solo, anche a telefono spento. L'IA può sbagliare: la cancellazione non si può annullare." },
+      { title: tx("Automatic actions"), note: tx("The Raspberry does them by itself, also with the phone off. The AI can be wrong: a cancel cannot be undone.") },
       h(
         "div",
         { className: "oui-list" },
-        h(SwitchRow, { title: "Metti in pausa da solo", detail: "Quando l'IA consiglia PAUSA (o CANCELLA, se la cancellazione automatica è spenta)", checked: ai.autoPause, onChange: (value) => update((draft) => (draft.ai.autoPause = value)) }),
-        h(SwitchRow, { title: "Cancella da solo", detail: "Quando l'IA consiglia CANCELLA. La stampa interrotta non si recupera", danger: true, checked: ai.autoCancel, onChange: (value) => (value ? menu.ask("autoCancel") : update((draft) => (draft.ai.autoCancel = false))) }),
+        h(SwitchRow, { title: tx("Pause by itself"), detail: tx("When the AI suggests PAUSE (or CANCEL, if automatic cancel is off)"), checked: ai.autoPause, onChange: (value) => update((draft) => (draft.ai.autoPause = value)) }),
+        h(SwitchRow, { title: tx("Cancel by itself"), detail: tx("When the AI suggests CANCEL. A cancelled print cannot be recovered"), danger: true, checked: ai.autoCancel, onChange: (value) => (value ? menu.ask("autoCancel") : update((draft) => (draft.ai.autoCancel = false))) }),
       ),
       last && h("p", { className: "set-group__note" }, last),
     ),
     h(
       SettingsGroup,
-      { title: "Controlli di fila", note: "Quante analisi consecutive devono segnalare un problema prima di avvisarti o agire. Più alto = meno falsi allarmi, ma più lento." },
-      h(ChipChoice, { label: "Controlli di fila", options: CONFIRMATION_OPTIONS, value: ai.confirmations, onChange: (id) => update((draft) => (draft.ai.confirmations = id)) }),
+      { title: tx("Checks in a row"), note: tx("How many analyses in a row must report a problem before you are told or something is done. Higher = fewer false alarms, but slower.") },
+      h(ChipChoice, { label: tx("Checks in a row"), options: CONFIRMATION_OPTIONS, value: ai.confirmations, onChange: (id) => update((draft) => (draft.ai.confirmations = id)) }),
     ),
     h(
       SettingsGroup,
-      { title: "Sicurezza minima dell'IA", note: "Un difetto con una percentuale più bassa di questa viene ignorato." },
-      h(ChipChoice, { label: "Sicurezza minima", options: CONFIDENCE_OPTIONS, value: ai.minConfidence, onChange: (id) => update((draft) => (draft.ai.minConfidence = id)) }),
+      { title: tx("Minimum AI confidence"), note: tx("A defect with a lower percentage than this is ignored.") },
+      h(ChipChoice, { label: tx("Minimum confidence"), options: CONFIDENCE_OPTIONS, value: ai.minConfidence, onChange: (id) => update((draft) => (draft.ai.minConfidence = id)) }),
     ),
     h(
       SettingsGroup,
-      { title: "Sensibilità della camera", note: "Quanto movimento ai bordi fa chiamare l'IA, l'area controllata, le pause: le soglie sono nel backend e si cambiano da qui." },
+      { title: tx("Camera sensitivity"), note: tx("How much movement at the edges calls the AI, the watched area, the pauses: the thresholds are in the backend and are changed here.") },
       h(
         "div",
         { className: "oui-list" },
@@ -576,14 +595,14 @@ function AiPage({ active, menu }) {
           "button",
           { type: "button", className: "set-entry", "data-page": "detector", onClick: () => menu.goTo("detector") },
           h("span", { className: "oui-row__icon oui-row__icon--accent" }, h(Icons.Sliders)),
-          h("span", { className: "oui-row__text" }, h("span", { className: "oui-row__name" }, "Soglie del monitor"), h("span", { className: "oui-row__meta set-entry__meta" }, "Soglia di cambiamento, area, pause, modello")),
+          h("span", { className: "oui-row__text" }, h("span", { className: "oui-row__name" }, tx("Monitor thresholds")), h("span", { className: "oui-row__meta set-entry__meta" }, tx("Change threshold, area, pauses, model"))),
           h("span", { className: "set-entry__go", "aria-hidden": "true" }, h(Icons.Forward)),
         ),
       ),
     ),
     h(
       SettingsGroup,
-      { title: "Difetti da considerare", note: "Quelli spenti non fanno scattare né avvisi né azioni. Il backend decide da solo quando analizzare: qui si sceglie solo cosa farne." },
+      { title: tx("Defects to consider"), note: tx("The ones turned off trigger neither alerts nor actions. The backend decides by itself when to analyse: here you only choose what to do with the result.") },
       h(
         "div",
         { className: "oui-list" },
@@ -597,10 +616,10 @@ function AiPage({ active, menu }) {
    The menu
    ------------------------------------------------------------------------- */
 const SYNC_TEXT = {
-  loading: "Controllo il Raspberry…",
-  saving: "Salvataggio sul Raspberry…",
-  shared: "Salvate sul Raspberry: valgono su tutti i dispositivi",
-  local: "Solo su questo dispositivo",
+  loading: tx("Checking the Raspberry…"),
+  saving: tx("Saving on the Raspberry…"),
+  shared: tx("Saved on the Raspberry: they apply to every device"),
+  local: tx("Only on this device"),
 };
 
 function SyncLine({ sync }) {
@@ -608,7 +627,7 @@ function SyncLine({ sync }) {
     "div",
     { className: cx("set-status", sync.state === "shared" && "set-status--ok", sync.state === "local" && "set-status--warn") },
     h("span", { className: "set-status__dot" }),
-    h("span", null, SYNC_TEXT[sync.state], sync.state === "local" && h("span", { className: "set-status__detail" }, " Il Raspberry non ha accettato il salvataggio" + (sync.detail ? " (" + sync.detail + ")" : "") + ": le impostazioni restano in questo browser e le notifiche automatiche non le vedono.")),
+    h("span", null, SYNC_TEXT[sync.state], sync.state === "local" && h("span", { className: "set-status__detail" }, " " + tx("The Raspberry did not accept the save") + (sync.detail ? " (" + sync.detail + ")" : "") + tx(": the settings stay in this browser and the automatic notifications do not see them."))),
   );
 }
 
@@ -624,28 +643,31 @@ function settingsSummary(page, settings, brain) {
     case "printer":
       return printerBrand(settings.printer.brand).label + (settings.printer.name ? " • " + settings.printer.name : "");
     case "camera":
-      return CAMERA_METHODS.find((method) => method.id === camera.method).label + (camera.flipH || camera.flipV ? " • capovolta" : "");
+      return CAMERA_METHODS.find((method) => method.id === camera.method).label + (camera.flipH || camera.flipV ? tx(" • flipped") : "");
     case "network":
       return network.localIp + " • " + network.externalIp;
     case "zoffset":
       return zOffset.steps.join(" · ") + " mm";
+    case "language":
+      return languageSummary();
     case "notifications":
-      return NOTIFICATION_KINDS.filter((kind) => notifications[kind.id]).length + " su " + NOTIFICATION_KINDS.length + " attive";
+      return tx("{count} of {total} on", { count: NOTIFICATION_KINDS.filter((kind) => notifications[kind.id]).length, total: NOTIFICATION_KINDS.length });
     default:
-      return "Pausa da sola: " + ON_OFF(ai.autoPause) + " • Cancella da sola: " + ON_OFF(ai.autoCancel);
+      return tx("Auto pause: {pause} • Auto cancel: {cancel}", { pause: ON_OFF(ai.autoPause), cancel: ON_OFF(ai.autoCancel) });
   }
 }
 
 const SETTINGS_ENTRIES = [
-  { id: "printer", title: "Stampante", icon: Icons.Cube },
+  { id: "printer", title: tx("Printer"), icon: Icons.Cube },
   { id: "camera", title: "Camera", icon: Icons.Camera },
-  { id: "network", title: "Indirizzi", icon: Icons.Network },
+  { id: "network", title: tx("Addresses"), icon: Icons.Network },
   { id: "zoffset", title: "Z-offset", icon: Icons.Layers },
-  { id: "notifications", title: "Notifiche", icon: Icons.Bell },
-  { id: "ai", title: "Monitor IA", icon: Icons.Sparkle },
-  { id: "detector", title: "Soglie del monitor", icon: Icons.Sliders },
-  { id: "access", title: "Accesso", icon: Icons.Lock },
-  { id: "software", title: "Aggiornamenti", icon: Icons.Download },
+  { id: "notifications", title: tx("Notifications"), icon: Icons.Bell },
+  { id: "ai", title: tx("AI monitor"), icon: Icons.Sparkle },
+  { id: "detector", title: tx("Monitor thresholds"), icon: Icons.Sliders },
+  { id: "access", title: tx("Access"), icon: Icons.Lock },
+  { id: "software", title: tx("Updates"), icon: Icons.Download },
+  { id: "language", title: tx("Language"), icon: Icons.Language },
 ];
 const PAGE_TITLES = Object.fromEntries(SETTINGS_ENTRIES.map((entry) => [entry.id, entry.title]));
 
@@ -664,13 +686,13 @@ function SettingsHome({ menu }) {
           { key: entry.id, type: "button", className: "set-entry", "data-page": entry.id, onClick: () => menu.goTo(entry.id) },
           h("span", { className: "oui-row__icon oui-row__icon--accent" }, h(entry.icon)),
           h("span", { className: "oui-row__text" }, h("span", { className: "oui-row__name" }, entry.title), h("span", { className: "oui-row__meta set-entry__meta" }, settingsSummary(entry.id, settings, brain))),
-          entry.id === "software" && ((brain.version.state === "ok" && brain.version.info.legacy === true) || (brain.update.phase === "ok" && Number(brain.update.raw.commits_behind_count) > 0) || appUpdateWaiting(brain.app, readInstalledApp())) && h("span", { className: "set-entry__badge" }, "Nuovo"),
+          entry.id === "software" && ((brain.version.state === "ok" && brain.version.info.legacy === true) || (brain.update.phase === "ok" && Number(brain.update.raw.commits_behind_count) > 0) || appUpdateWaiting(brain.app, readInstalledApp())) && h("span", { className: "set-entry__badge" }, tx("New")),
           h("span", { className: "set-entry__go", "aria-hidden": "true" }, h(Icons.Forward)),
         ),
       ),
     ),
     h(SyncLine, { sync }),
-    h("button", { type: "button", className: "oui-btn oui-btn--quiet oui-btn--block set-reset", onClick: () => menu.ask("reset") }, h(Icons.RotateCcw, { size: 18 }), "Ripristina i valori iniziali"),
+    h("button", { type: "button", className: "oui-btn oui-btn--quiet oui-btn--block set-reset", onClick: () => menu.ask("reset") }, h(Icons.RotateCcw, { size: 18 }), tx("Restore the initial values")),
   );
 }
 
@@ -700,6 +722,7 @@ function SettingsDrawer({ menu, updates, printing, actions }) {
   else if (page === "ai") body = h(AiPage, { active: true, menu });
   else if (page === "detector") body = h(DetectorPage, { active: true });
   else if (page === "access") body = h(AccessPage, { active: true });
+  else if (page === "language") body = h(LanguagePage);
   else if (page === "software") body = h(SoftwarePage, { active: true, menu, updates, printing, actions });
   else body = h(SettingsHome, { menu });
   return h(
@@ -707,15 +730,15 @@ function SettingsDrawer({ menu, updates, printing, actions }) {
     { className: "drawer-overlay", onClick: (event) => event.target === event.currentTarget && menu.close() },
     h(
       "aside",
-      { className: "drawer", role: "dialog", "aria-modal": "true", "aria-label": "Impostazioni", onTouchStart, onTouchEnd },
+      { className: "drawer", role: "dialog", "aria-modal": "true", "aria-label": tx("Settings"), onTouchStart, onTouchEnd },
       h(
         "div",
         { className: "drawer__head" },
         page
-          ? h("button", { type: "button", className: "header-btn drawer__btn", "aria-label": "Indietro", onClick: menu.back }, h(Icons.Back))
+          ? h("button", { type: "button", className: "header-btn drawer__btn", "aria-label": tx("Back"), onClick: menu.back }, h(Icons.Back))
           : h(PrinterLogo, { id: settings.printer.brand, className: "drawer__logo" }),
-        h("div", { className: "drawer__title" }, page ? PAGE_TITLES[page] : "Impostazioni"),
-        h("button", { type: "button", className: "header-btn drawer__btn", "aria-label": "Chiudi", onClick: menu.close }, h(Icons.Close)),
+        h("div", { className: "drawer__title" }, page ? PAGE_TITLES[page] : tx("Settings")),
+        h("button", { type: "button", className: "header-btn drawer__btn", "aria-label": tx("Close"), onClick: menu.close }, h(Icons.Close)),
       ),
       h("div", { className: "drawer__body", key: page || "home" }, body),
     ),
@@ -733,10 +756,10 @@ function SettingsMenuLayer({ menu, updates, printing, actions }) {
       open: menu.question === "reset",
       tone: "danger",
       icon: h(Icons.RotateCcw),
-      title: "Ripristinare le impostazioni?",
-      subtitle: "Camera, indirizzi, passi Z-offset, notifiche, monitor IA",
-      message: "Tutte le impostazioni tornano ai valori iniziali, su tutti i dispositivi. Confermi?",
-      confirmLabel: "Ripristina",
+      title: tx("Restore the settings?"),
+      subtitle: tx("Camera, addresses, Z-offset steps, notifications, AI monitor"),
+      message: tx("All settings go back to the initial values, on every device. Confirm?"),
+      confirmLabel: tx("Restore"),
       onConfirm: () => {
         menu.ask(null);
         reset();
@@ -747,10 +770,10 @@ function SettingsMenuLayer({ menu, updates, printing, actions }) {
       open: menu.question === "autoCancel",
       tone: "danger",
       icon: h(Icons.Warning),
-      title: "Cancellare le stampe da solo?",
-      subtitle: "Azione automatica del monitor IA",
-      message: "Se l'IA consiglia CANCELLA, il Raspberry interrompe la stampa subito. L'IA può sbagliare e una stampa cancellata non si recupera. Attivarlo?",
-      confirmLabel: "Attiva",
+      title: tx("Cancel prints by itself?"),
+      subtitle: tx("Automatic action of the AI monitor"),
+      message: tx("If the AI suggests CANCEL, the Raspberry stops the print right away. The AI can be wrong and a cancelled print cannot be recovered. Turn it on?"),
+      confirmLabel: tx("Turn on"),
       onConfirm: () => {
         menu.ask(null);
         update((draft) => (draft.ai.autoCancel = true));

@@ -54,9 +54,9 @@ async function accessPost(url, body) {
     const response = await fetch(url, { method: "POST", headers: JSON_HEADERS, body: JSON.stringify(body || {}) });
     const json = await response.json().catch(() => ({}));
     const weak = json && json.error === "weak";
-    return { ok: response.ok && json.ok !== false, message: weak ? "La password deve avere da 6 a 256 caratteri" : (json && json.message) || (response.ok ? "" : "Errore " + response.status) };
+    return { ok: response.ok && json.ok !== false, message: weak ? tx("The password must have 6 to 256 characters") : (json && json.message) || (response.ok ? "" : tx("Error {status}", { status: response.status })) };
   } catch (error) {
-    return { ok: false, message: "Il backend non risponde" };
+    return { ok: false, message: tx("The backend does not answer") };
   }
 }
 
@@ -86,8 +86,8 @@ function AccessMessage({ result }) {
 
 /** Two fields (new + repeat) checked here before the backend sees them. */
 function newPasswordProblem(first, second, min) {
-  if (first.length < min) return "La password deve avere almeno " + min + " caratteri";
-  if (first !== second) return "Le due password non coincidono";
+  if (first.length < min) return tx("The password must have at least {min} characters", { min });
+  if (first !== second) return tx("The two passwords do not match");
   return "";
 }
 
@@ -118,19 +118,19 @@ function AccessPage({ active }) {
   const setPassword = () => {
     const problem = newPasswordProblem(first, second, min);
     if (problem) return setResult({ ok: false, message: problem });
-    run("/api/auth/password", info.enabled ? { current, new: first } : { new: first }, info.enabled ? "Password cambiata. Gli altri dispositivi dovranno rifare l'accesso." : "Password attivata. Questo dispositivo resta dentro; gli altri dovranno fare l'accesso.");
+    run("/api/auth/password", info.enabled ? { current, new: first } : { new: first }, info.enabled ? tx("Password changed. The other devices will have to log in again.") : tx("Password turned on. This device stays logged in; the others will have to log in."));
   };
 
-  if (status.phase === "loading") return h("div", { className: "set-status" }, h("span", { className: "set-status__dot" }), "Leggo le impostazioni di accesso…");
+  if (status.phase === "loading") return h("div", { className: "set-status" }, h("span", { className: "set-status__dot" }), tx("Reading the access settings…"));
   if (status.phase !== "ok") {
     return h(
       SettingsGroup,
       { title: "Password" },
-      h("div", { className: "set-status set-status--warn" }, h("span", { className: "set-status__dot" }), status.phase === "old" ? "Il backend installato non ha ancora la password: aggiorna KlippEye (release 1.2.0 o successiva)." : "Il backend non risponde: riprova tra poco."),
+      h("div", { className: "set-status set-status--warn" }, h("span", { className: "set-status__dot" }), status.phase === "old" ? tx("The installed backend has no password yet: update KlippEye (release 1.2.0 or later).") : tx("The backend does not answer: try again shortly.")),
     );
   }
 
-  const hostsNote = (info.allowed_hosts || []).length ? "Nomi in più ammessi: " + info.allowed_hosts.join(", ") + "." : "Oltre agli indirizzi IP valgono solo i nomi della rete di casa (.local, .lan…). Per un nome tuo: klippeye access host-add NOME";
+  const hostsNote = (info.allowed_hosts || []).length ? tx("Extra names allowed: ") + info.allowed_hosts.join(", ") + "." : tx("Besides IP addresses only home network names work (.local, .lan…). For a name of your own: klippeye access host-add NAME");
 
   return h(
     React.Fragment,
@@ -140,41 +140,41 @@ function AccessPage({ active }) {
       {
         title: "Password",
         note: info.enabled
-          ? "Password dimenticata? Sul Raspberry: klippeye password remove"
-          : "Facoltativa. Senza password chiunque raggiunga la dashboard dalla tua rete (o dalla VPN) può comandare la stampante. Con la password ogni dispositivo la chiede una volta, poi la ricorda per 6 mesi.",
+          ? tx("Forgot the password? On the Raspberry: klippeye password remove")
+          : tx("Optional. Without a password anyone who reaches the dashboard from your network (or the VPN) can control the printer. With a password every device asks for it once, then remembers it for 6 months."),
       },
-      h("div", { className: cx("set-status", info.enabled ? "set-status--ok" : "set-status--warn") }, h("span", { className: "set-status__dot" }), info.enabled ? "Password attiva" : "Password non attiva"),
-      info.enabled && h(PasswordField, { label: "Password attuale", value: current, onChange: setCurrent, autoComplete: "current-password", id: "access-current" }),
-      h(PasswordField, { label: info.enabled ? "Nuova password" : "Password (almeno " + min + " caratteri)", value: first, onChange: setFirst, autoComplete: "new-password", id: "access-new" }),
-      h(PasswordField, { label: "Ripeti la password", value: second, onChange: setSecond, autoComplete: "new-password", id: "access-repeat" }),
-      h("button", { type: "button", className: "oui-btn oui-btn--primary oui-btn--block", disabled: busy || !first, onClick: setPassword }, info.enabled ? "Cambia la password" : "Attiva la password"),
+      h("div", { className: cx("set-status", info.enabled ? "set-status--ok" : "set-status--warn") }, h("span", { className: "set-status__dot" }), info.enabled ? tx("Password on") : tx("Password off")),
+      info.enabled && h(PasswordField, { label: tx("Current password"), value: current, onChange: setCurrent, autoComplete: "current-password", id: "access-current" }),
+      h(PasswordField, { label: info.enabled ? tx("New password") : tx("Password (at least {min} characters)", { min }), value: first, onChange: setFirst, autoComplete: "new-password", id: "access-new" }),
+      h(PasswordField, { label: tx("Repeat the password"), value: second, onChange: setSecond, autoComplete: "new-password", id: "access-repeat" }),
+      h("button", { type: "button", className: "oui-btn oui-btn--primary oui-btn--block", disabled: busy || !first, onClick: setPassword }, info.enabled ? tx("Change the password") : tx("Turn on the password")),
       h(AccessMessage, { result }),
     ),
     info.enabled &&
       h(
         SettingsGroup,
-        { title: "Dispositivi" },
-        h("button", { type: "button", className: "oui-btn oui-btn--accent-soft oui-btn--block", disabled: busy, onClick: () => run("/api/auth/logout_all", {}, "Fatto: gli altri dispositivi dovranno rifare l'accesso.") }, "Fai uscire tutti gli altri dispositivi"),
-        h("button", { type: "button", className: "oui-btn oui-btn--quiet oui-btn--block", disabled: busy, onClick: () => run("/api/auth/logout", {}, "Uscito.", () => window.location.replace("/login")) }, "Esci da questo dispositivo"),
+        { title: tx("Devices") },
+        h("button", { type: "button", className: "oui-btn oui-btn--accent-soft oui-btn--block", disabled: busy, onClick: () => run("/api/auth/logout_all", {}, tx("Done: the other devices will have to log in again.")) }, tx("Log out all the other devices")),
+        h("button", { type: "button", className: "oui-btn oui-btn--quiet oui-btn--block", disabled: busy, onClick: () => run("/api/auth/logout", {}, tx("Logged out."), () => window.location.replace("/login")) }, tx("Log out of this device")),
       ),
     info.enabled &&
       h(
         SettingsGroup,
-        { title: "Togli la password", note: "Serve la password attuale (campo in alto). La dashboard tornerà ad aprirsi senza accesso." },
-        h("button", { type: "button", className: "oui-btn oui-btn--danger-soft oui-btn--block", disabled: busy || !current, onClick: () => run("/api/auth/disable", { current }, "Password tolta.") }, "Togli la password"),
+        { title: tx("Remove the password"), note: tx("It needs the current password (field at the top). The dashboard will open again without logging in.") },
+        h("button", { type: "button", className: "oui-btn oui-btn--danger-soft oui-btn--block", disabled: busy || !current, onClick: () => run("/api/auth/disable", { current }, tx("Password removed.")) }, tx("Remove the password")),
       ),
     h(
       SettingsGroup,
-      { title: "Rete", note: hostsNote },
+      { title: tx("Network"), note: hostsNote },
       h(
         "div",
         { className: cx("set-status", info.network_checks ? "set-status--ok" : "set-status--warn") },
         h("span", { className: "set-status__dot" }),
-        info.network_checks ? "Comandi accettati solo dalla dashboard e dall'app, non da altri siti" : "Controlli di rete spenti (klippeye access network-checks on per riaccenderli)",
+        info.network_checks ? tx("Commands accepted only from the dashboard and the app, not from other sites") : tx("Network checks off (klippeye access network-checks on to turn them on again)"),
       ),
     ),
   );
 }
 
 /** One line for the settings list. */
-const accessSummary = (status) => (status.phase !== "ok" ? "Password facoltativa" : status.info.enabled ? "Password attiva" : "Password non attiva");
+const accessSummary = (status) => (status.phase !== "ok" ? tx("Optional password") : status.info.enabled ? tx("Password on") : tx("Password off"));

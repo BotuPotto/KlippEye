@@ -37,7 +37,7 @@ function ConfigPage({ aiMonitor, onEditFile, onViewImage }) {
   return h("div", { className: "grid grid-cols-1" }, h(ConfigFilesCard, { onEditFile, onViewImage }), h(AiMonitorCard, { monitor: aiMonitor }), h(LogsCard, { onEditFile }));
 }
 
-const TAB_TITLES = { home: "Home", controllo: "Controllo", files: "Files", config: "Config", sistema: "Sistema" };
+const TAB_TITLES = { home: "Home", controllo: tx("Control"), files: "Files", config: "Config", sistema: tx("System") };
 
 function App() {
   const [tab, setTab] = useState(() => {
@@ -172,10 +172,10 @@ function App() {
         open: Boolean(discardPrompt),
         tone: "danger",
         icon: h(Icons.CancelCircle),
-        title: "Modifiche non salvate",
+        title: tx("Unsaved changes"),
         subtitle: editorSession ? editorSession.path : "",
-        message: "Hai modifiche non salvate in questo file. Continuare senza salvare?",
-        confirmLabel: "Continua",
+        message: tx("This file has unsaved changes. Continue without saving?"),
+        confirmLabel: tx("Continue"),
         onConfirm: () => {
           const { proceed } = discardPrompt;
           setDiscardPrompt(null);

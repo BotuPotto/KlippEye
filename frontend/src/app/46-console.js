@@ -173,7 +173,7 @@ function ConsoleLine({ entry, onPick }) {
   if (entry.isCommand) {
     return h(
       "div",
-      { className: "log-line log-line--pick", title: "Clicca per copiare nel campo invio", onClick: () => onPick(entry.msg) },
+      { className: "log-line log-line--pick", title: tx("Click to copy into the input field"), onClick: () => onPick(entry.msg) },
       h("span", { className: "log-time" }, entry.t),
       h("span", { className: cx(entry.color, "log-msg") }, entry.msg),
     );
@@ -240,10 +240,10 @@ function ConsoleCard({ entries }) {
         onChange: (e) => setCommand(e.target.value),
         onKeyDown: (e) => e.key === "Enter" && send(),
         onFocus: (e) => scrollIntoViewSoon(e.target, CONSOLE_INPUT_SCROLL_DELAY_MS),
-        placeholder: "Invia codice...",
+        placeholder: tx("Send code..."),
         className: "oui-field oui-mono console-input",
       }),
-      h("button", { onClick: send, className: "oui-btn oui-btn--primary oui-btn--icon console-send", "aria-label": "Invia" }, h(Icons.Send)),
+      h("button", { onClick: send, className: "oui-btn oui-btn--primary oui-btn--icon console-send", "aria-label": tx("Send") }, h(Icons.Send)),
     ),
   );
 }

@@ -38,8 +38,8 @@ function AiStrip({ monitor, onOpen }) {
   const advice = action && action !== "CONTINUA" ? action : "";
   return h(
     "button",
-    { className: "desk-ai", onClick: onOpen, title: "Apri i dettagli del monitoraggio AI" },
-    h("span", { className: "desk-ai__title" }, "Monitoraggio AI"),
+    { className: "desk-ai", onClick: onOpen, title: tx("Open the AI monitoring details") },
+    h("span", { className: "desk-ai__title" }, tx("AI monitoring")),
     h(
       "span",
       { className: cx(DETECTOR_PILLS[detector.pill.tone], "desk-ai__pill") },
@@ -47,8 +47,8 @@ function AiStrip({ monitor, onOpen }) {
       detector.pill.text,
     ),
     h("span", { className: "desk-ai__spacer" }),
-    advice && h("span", { className: cx("oui-badge", advice.includes("CANCELLA") ? "oui-badge--danger" : "oui-badge--warn") }, "Azione consigliata: " + advice),
-    h(AiChip, { label: "Stato", value: detector.state }),
+    advice && h("span", { className: cx("oui-badge", advice.includes("CANCELLA") ? "oui-badge--danger" : "oui-badge--warn") }, tx("Suggested action: ") + advice),
+    h(AiChip, { label: tx("Status"), value: detector.state }),
     h(AiChip, { label: "OpenCV", value: detector.score, minor: true }),
     h(AiChip, { label: "Checks", value: detector.checks, minor: true }),
   );
@@ -85,21 +85,21 @@ function DesktopPrintCard({ status, controls }) {
       h(
         "div",
         { className: "desk-print__stats" },
-        h(PrintStat, { label: "Tempo", value: status.time }),
-        h(PrintStat, { label: "Rimanente", value: status.remaining }),
+        h(PrintStat, { label: tx("Time"), value: status.time }),
+        h(PrintStat, { label: tx("Remaining"), value: status.remaining }),
         h(PrintStat, { label: "Layer", value: status.layer }),
       ),
       h(
         "div",
         { className: "oui-btn-row" },
-        h("button", { onClick: controls.togglePause, className: "oui-btn" }, status.state === "paused" ? "Riprendi" : "Pausa"),
-        h("button", { onClick: controls.askCancel, className: "oui-btn oui-btn--danger-soft" }, "Cancella stampa"),
+        h("button", { onClick: controls.togglePause, className: "oui-btn" }, status.state === "paused" ? tx("Resume") : tx("Pause")),
+        h("button", { onClick: controls.askCancel, className: "oui-btn oui-btn--danger-soft" }, tx("Cancel print")),
       ),
     ),
   );
 }
 
-const LAST_PRINT_OUTCOME = { complete: "completata", cancelled: "annullata", error: "interrotta da un errore" };
+const LAST_PRINT_OUTCOME = { complete: tx("completed"), cancelled: tx("cancelled"), error: tx("stopped by an error") };
 
 /** Shown when nothing prints: the last job Klipper remembers, and the way to the file list. */
 function IdlePrintCard({ status, onOpenFiles }) {
@@ -112,17 +112,17 @@ function IdlePrintCard({ status, onOpenFiles }) {
     h(
       "div",
       { className: "desk-print__body desk-print__body--idle" },
-      h("div", { className: "oui-label" }, "Nessuna stampa in corso"),
+      h("div", { className: "oui-label" }, tx("Nothing printing")),
       last
         ? h(
             React.Fragment,
             null,
-            h("div", { className: "print-file desk-print__file" }, "Ultima stampa: " + status.filename),
-            h("div", { className: "oui-caption" }, "Stampa " + outcome + " · durata " + status.time),
+            h("div", { className: "print-file desk-print__file" }, tx("Last print: ") + status.filename),
+            h("div", { className: "oui-caption" }, tx("Print ") + outcome + tx(" · duration ") + status.time),
           )
-        : h("div", { className: "oui-caption" }, "Scegli un file dall'elenco per farla partire"),
+        : h("div", { className: "oui-caption" }, tx("Choose a file from the list to start it")),
     ),
-    h("button", { onClick: onOpenFiles, className: "oui-btn oui-btn--primary desk-print__cta" }, h(Icons.Folder, { size: 18 }), "Scegli un file da stampare"),
+    h("button", { onClick: onOpenFiles, className: "oui-btn oui-btn--primary desk-print__cta" }, h(Icons.Folder, { size: 18 }), tx("Choose a file to print")),
   );
 }
 
@@ -131,7 +131,7 @@ function DesktopHeatersCard({ hotend, bed, onEditTemperature }) {
   return h(
     Card,
     null,
-    h(CardHeader, { title: "Riscaldatori" }),
+    h(CardHeader, { title: tx("Heaters") }),
     h(
       "div",
       { className: "grid grid-cols-2 heater-tiles heater-tiles--last" },
@@ -142,7 +142,7 @@ function DesktopHeatersCard({ hotend, bed, onEditTemperature }) {
 }
 
 function DesktopFansCard() {
-  return h(Card, null, h(CardHeader, { title: "Ventole" }), h(FanList));
+  return h(Card, null, h(CardHeader, { title: tx("Fans") }), h(FanList));
 }
 
 /**
@@ -236,18 +236,18 @@ function FileDetail({ file, list, fileActions, onPrint }) {
     h(
       "div",
       { className: "desk-detail__facts" },
-      h(FileFact, { label: "Tempo stimato", value: formatEstimatedTime(meta.estimated_time || 0) }),
-      h(FileFact, { label: "Filamento", value: formatFilamentWeight(meta) }),
-      h(FileFact, { label: "Dimensione", value: formatBytes(file.size) || "--" }),
-      h(FileFact, { label: "Modificato", value: formatFileDate(file.modified) || "--" }),
+      h(FileFact, { label: tx("Estimated time"), value: formatEstimatedTime(meta.estimated_time || 0) }),
+      h(FileFact, { label: tx("Filament"), value: formatFilamentWeight(meta) }),
+      h(FileFact, { label: tx("Size"), value: formatBytes(file.size) || "--" }),
+      h(FileFact, { label: tx("Modified"), value: formatFileDate(file.modified) || "--" }),
     ),
-    h("button", { className: "oui-btn oui-btn--primary oui-btn--block desk-detail__print", onClick: () => onPrint({ path: file.path, fileName, thumbnail }) }, h(Icons.Play, { size: 18 }), "Avvia stampa"),
+    h("button", { className: "oui-btn oui-btn--primary oui-btn--block desk-detail__print", onClick: () => onPrint({ path: file.path, fileName, thumbnail }) }, h(Icons.Play, { size: 18 }), tx("Start print")),
     h(
       "div",
       { className: "desk-detail__actions" },
-      h("button", { className: "oui-btn oui-btn--sm", title: "Salva una copia sul dispositivo", onClick: () => downloadFile("/server/files/" + GCODES_ROOT + "/" + encodeRemotePath(file.path), fileName) }, h(Icons.Download, { size: 16 }), "Scarica"),
+      h("button", { className: "oui-btn oui-btn--sm", title: tx("Save a copy on this device"), onClick: () => downloadFile("/server/files/" + GCODES_ROOT + "/" + encodeRemotePath(file.path), fileName) }, h(Icons.Download, { size: 16 }), tx("Download")),
       h("button", { className: "oui-btn oui-btn--sm", onClick: () => fileActions.openItemInEditor(item) }, h(Icons.Code, { size: 16 }), "Editor"),
-      h("button", { className: "oui-btn oui-btn--sm oui-btn--danger-soft", onClick: () => fileActions.askDeleteItem(item) }, h(Icons.Trash, { size: 16 }), "Elimina"),
+      h("button", { className: "oui-btn oui-btn--sm oui-btn--danger-soft", onClick: () => fileActions.askDeleteItem(item) }, h(Icons.Trash, { size: 16 }), tx("Delete")),
     ),
   );
 }
@@ -283,8 +283,8 @@ function DesktopConfigPage({ onEditFile, onViewImage, editor, editing }) {
             "div",
             { className: "desk-empty" },
             h(Icons.Code, { size: 30 }),
-            h("div", { className: "oui-label" }, "Scegli un file di configurazione"),
-            h("div", { className: "oui-caption" }, "Si apre qui, pronto da modificare. Le immagini si aprono a tutto schermo."),
+            h("div", { className: "oui-label" }, tx("Choose a configuration file")),
+            h("div", { className: "oui-caption" }, tx("It opens here, ready to edit. Pictures open full screen.")),
           ),
     ),
   );
@@ -309,7 +309,7 @@ function DesktopSystemPage({ controller, aiMonitor, onEditFile }) {
             h(McuCard, { data }),
             h(UpdatesCard, { data, controller, onCheck: checkForUpdates }),
           )
-        : h(LoadingCard, { label: "Sistema", text: "Caricamento..." }),
+        : h(LoadingCard, { label: tx("System"), text: tx("Loading...") }),
     ),
     h("div", { className: "desk-col" }, h(LogsCard, { onEditFile })),
     h("div", { className: "desk-col" }, h(AiMonitorCard, { monitor: aiMonitor })),

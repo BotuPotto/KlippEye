@@ -55,7 +55,7 @@ def wait(pg, fn, timeout=6.0):
 
 with sync_playwright() as p:
     browser = p.chromium.launch()
-    A = browser.new_context(viewport={"width": 390, "height": 844}).new_page()
+    A = browser.new_context(viewport={"width": 390, "height": 844}, locale="it-IT").new_page()
     errors = []
     A.on("pageerror", lambda e: errors.append(str(e)))
     A.goto(BASE + "/"); A.wait_for_selector('.app-header button[aria-label="Impostazioni"]', timeout=15000); A.wait_for_timeout(800)
@@ -81,7 +81,7 @@ with sync_playwright() as p:
     A.reload(); A.wait_for_timeout(1500)
     ok("questo dispositivo resta dentro anche ricaricando", A.url.endswith("/") and A.locator(".app-header").count() == 1, A.url)
 
-    B = browser.new_context(viewport={"width": 390, "height": 844}).new_page()
+    B = browser.new_context(viewport={"width": 390, "height": 844}, locale="it-IT").new_page()
     B.goto(BASE + "/")
     ok("un altro dispositivo finisce sulla pagina di accesso", B.url.endswith("/login") and B.locator("input[name=password]").count() == 1, B.url)
     B.screenshot(path=os.path.join(out, "login.png"))
@@ -112,7 +112,7 @@ with sync_playwright() as p:
     A.fill("#access-current", "segreta123")
     A.click("button:has-text('Togli la password')")
     ok("tolta: 'Password non attiva'", wait(A, lambda: "Password tolta" in A.locator(".drawer").inner_text()), A.locator(".drawer").inner_text()[:300])
-    C = browser.new_context().new_page(); C.goto(BASE + "/")
+    C = browser.new_context(locale="it-IT").new_page(); C.goto(BASE + "/")
     ok("... e un dispositivo nuovo entra senza accesso", C.url.endswith("/"), C.url)
     ok("nessun errore JavaScript", not errors, errors[:3])
     browser.close()

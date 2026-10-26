@@ -65,10 +65,10 @@ function scrollPageToTop() {
 }
 
 /** Clock time as shown in the console, e.g. "10:53:21". */
-const localTimeString = () => new Date().toLocaleTimeString("it-IT");
+const localTimeString = () => new Date().toLocaleTimeString(LOCALE);
 
 /** Formats a Unix timestamp (seconds) as HH:MM:SS for the console. */
-const consoleTimeFormatter = new Intl.DateTimeFormat("it-IT", { hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit" });
+const consoleTimeFormatter = new Intl.DateTimeFormat(LOCALE, { hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit" });
 function formatUnixTime(unixSeconds) {
   try {
     return consoleTimeFormatter.format(new Date((unixSeconds || 0) * 1000));

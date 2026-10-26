@@ -1,5 +1,21 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.4.0
+
+**The dashboard speaks English and Italian.**
+
+* Every text of the dashboard is now written in English and translated: Italian is the first translation
+  (`frontend/src/i18n/it.json`). The page follows the language of the device (an Italian phone gets Italian, any other
+  language gets English) and **Settings → Language** lets you choose on each device (*Automatic*, *English*, *Italiano*).
+  The choice stays on that device only; changing it reloads the page.
+* Dates, times and numbers follow the chosen language too.
+* The names and explanations of the AI monitor thresholds come from the backend in English and are shown in the page's
+  language; the backend's error messages for the thresholds are in English.
+* For translators: texts are marked with `tx("English text")` in `frontend/src/app`; `python3 frontend/tools/i18n.py check`
+  (also run by the tests) fails when a text has no translation. A new language is one more `src/i18n/<code>.json` file
+  plus one line in `I18N_LANGUAGES` (`src/app/02-i18n.js`).
+* Still in Italian, to be translated next: the push notifications, the AI analysis texts and the messages of the move from VzBot.
+
 ## 1.3.0
 
 English names on the Raspberry (first step of the move to English; the dashboard text comes next):

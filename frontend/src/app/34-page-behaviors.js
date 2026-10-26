@@ -21,7 +21,7 @@ const PULL = {
   RELOAD_DELAY_MS: 320,
 };
 
-const PULL_HINT = "Trascina giù per aggiornare";
+const PULL_HINT = tx("Pull down to refresh");
 
 /** Scrollable ancestors of `target`, plus the document and the window. */
 function scrollableAncestors(target) {
@@ -64,7 +64,7 @@ function PullToRefresh() {
       bar.style.transform = `translateY(${pull - PULL.BAR_HEIGHT}px)`;
       const ready = pull >= PULL.THRESHOLD;
       bar.classList.toggle("is-ready", ready);
-      text.textContent = ready ? "Rilascia per aggiornare" : PULL_HINT;
+      text.textContent = ready ? tx("Release to refresh") : PULL_HINT;
     };
 
     const onTouchStart = (e) => {
@@ -110,7 +110,7 @@ function PullToRefresh() {
       if (lastPull >= PULL.THRESHOLD) {
         bar.style.transform = "translateY(0)";
         bar.classList.add("is-ready");
-        text.textContent = "Aggiorno...";
+        text.textContent = tx("Refreshing...");
         setTimeout(() => window.location.reload(), PULL.RELOAD_DELAY_MS);
       } else {
         bar.style.transform = "translateY(-100%)";

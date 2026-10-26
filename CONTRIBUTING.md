@@ -23,8 +23,9 @@ Thank you for helping! KlippEye is a dashboard, a notifier and an Android app fo
 
 ## Conventions
 
-* English for code, comments, file names, commands, logs, commit messages and documentation. The dashboard text is being
-  moved to translation files (English and Italian first); some older parts are still in Italian.
+* English for code, comments, file names, commands, logs, commit messages and documentation. Dashboard text is written in
+  English inside `tx()` and translated in `frontend/src/i18n/` (see [frontend/README.md](frontend/README.md#translations));
+  some older parts (notifications, AI texts, guide) are still in Italian.
 * Versions: `MAJOR.MINOR.PATCH` in `VERSION` (backend, dashboard, notifier) and `android/VERSION` (the app). A change to `android/`
   with a higher `android/VERSION` makes GitHub build and publish the APK.
 * Never commit secrets: no API keys, no `google-services.json`, no Firebase service-account keys, no keystore passwords.

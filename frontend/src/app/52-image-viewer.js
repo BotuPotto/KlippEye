@@ -10,7 +10,7 @@ function ImageViewer({ path, onClose }) {
   useBodyScrollLock(!!path);
 
   useEffect(() => {
-    setInfo(path ? path + " • caricamento..." : null);
+    setInfo(path ? path + tx(" • loading...") : null);
   }, [path]);
 
   useEffect(() => {
@@ -30,7 +30,7 @@ function ImageViewer({ path, onClose }) {
     h(
       "div",
       { className: "screen-bar viewer-bar" },
-      h("button", { className: "oui-btn oui-btn--icon", title: "Chiudi", "aria-label": "Chiudi", onClick: onClose }, "✕"),
+      h("button", { className: "oui-btn oui-btn--icon", title: tx("Close"), "aria-label": tx("Close"), onClick: onClose }, "✕"),
       h("span", { className: "viewer-title" }, baseName(path) || path),
     ),
     h(
@@ -40,14 +40,14 @@ function ImageViewer({ path, onClose }) {
         src: url,
         alt: "preview",
         onLoad: (e) => setInfo(path + " • " + e.currentTarget.naturalWidth + "x" + e.currentTarget.naturalHeight),
-        onError: () => setInfo(path + " • errore caricamento"),
+        onError: () => setInfo(path + tx(" • loading error")),
       }),
     ),
     h(
       "div",
       { className: "screen-bar viewer-footer" },
       h("div", { className: "viewer-info" }, info),
-      h("div", { className: "oui-btn-row viewer-actions" }, h("button", { className: "oui-btn oui-btn--sm", onClick: download }, "Scarica"), h("button", { className: "oui-btn oui-btn--sm oui-btn--primary", onClick: () => window.open(url, "_blank") }, "Apri in nuova scheda")),
+      h("div", { className: "oui-btn-row viewer-actions" }, h("button", { className: "oui-btn oui-btn--sm", onClick: download }, tx("Download")), h("button", { className: "oui-btn oui-btn--sm oui-btn--primary", onClick: () => window.open(url, "_blank") }, tx("Open in a new tab"))),
     ),
   );
 }

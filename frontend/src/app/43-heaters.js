@@ -26,7 +26,7 @@ function HeaterTile({ kind, heater, onEdit, className }) {
       h("span", { className: "oui-value" }, heater.cur.toFixed(1), "°"),
       h("span", { className: "heater-tile__target" }, "/ ", heater.target, "°"),
     ),
-    h("div", { className: "oui-caption" }, "Tocca per modificare"),
+    h("div", { className: "oui-caption" }, tx("Tap to change")),
   );
 }
 
@@ -34,7 +34,7 @@ function HeatersFansCard({ hotend, bed, onEditTemperature }) {
   return h(
     Card,
     null,
-    h(CardHeader, { title: "Riscaldatori e ventole" }),
+    h(CardHeader, { title: tx("Heaters and fans") }),
     h(
       "div",
       { className: "grid grid-cols-2 heater-tiles" },
@@ -85,12 +85,12 @@ function TemperatureDialog({ dialog, onChange, onClose, onConfirm }) {
         "div",
         { className: "flex items-center justify-between mb-5" },
         h("span", { className: "dialog-title" }, spec.label),
-        h("button", { className: "dialog-close", onClick: onClose, "aria-label": "Chiudi" }, "✕"),
+        h("button", { className: "dialog-close", onClick: onClose, "aria-label": tx("Close") }, "✕"),
       ),
       h(
         "div",
         { className: "mb-6" },
-        h("label", { className: "oui-label mb-2 block" }, "Temperatura " + spec.label.toLowerCase()),
+        h("label", { className: "oui-label mb-2 block" }, tx("Temperature ") + spec.label.toLowerCase()),
         h(
           "div",
           { className: "flex items-center gap-3" },
@@ -111,8 +111,8 @@ function TemperatureDialog({ dialog, onChange, onClose, onConfirm }) {
       h(
         "div",
         { className: "oui-btn-row" },
-        h("button", { className: "oui-btn", onClick: onClose }, "Annulla"),
-        h("button", { className: "oui-btn oui-btn--primary", onClick: onConfirm }, "Imposta"),
+        h("button", { className: "oui-btn", onClick: onClose }, tx("Cancel")),
+        h("button", { className: "oui-btn oui-btn--primary", onClick: onConfirm }, tx("Set")),
       ),
     ),
   );

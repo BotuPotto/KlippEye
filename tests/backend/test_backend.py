@@ -114,7 +114,7 @@ r = client.post("/api/backend/config", json={"values": {"sensitivity": 500, "coo
 j = r.get_json()
 check("POST non valido: 400 con un errore per chiave", r.status_code == 400 and not j["ok"] and set(j["errors"]) == {"sensitivity", "cooldown", "pippo"}, j)
 check("... non cambia niente (nemmeno i valori buoni)", b.detector.sensitivity == 50 and j["values"]["sensitivity"] == 50)
-check("... e il messaggio e' in italiano", "deve stare tra" in j["errors"]["sensitivity"] and "sconosciuta" in j["errors"]["pippo"], j["errors"])
+check("... e il messaggio dice il motivo (in inglese)", "must be between" in j["errors"]["sensitivity"] and "unknown" in j["errors"]["pippo"], j["errors"])
 
 for bad, label in (({"sensitivity": True}, "bool al posto di un numero"), ({"sensitivity": 3.5}, "decimale in un intero"), ({"sensitivity": "abc"}, "testo"),
                    ({"sensitivity": None}, "null"), ({"enabled": 1}, "1 al posto di sì/no"), ({"enabled": "true"}, "'true' al posto di sì/no"),

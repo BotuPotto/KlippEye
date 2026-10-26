@@ -35,14 +35,14 @@ const HOST_OFF_LIMIT_MS = 90000;
 
 /** The restarts this dashboard can start. `limit`: how long to wait for the machine to answer again before giving up. */
 const RESTART_KINDS = {
-  klipper: { label: "Riavvio di Klipper", limit: 90000, grace: KLIPPER_RESTART_GRACE_MS, reload: true },
-  firmware: { label: "Riavvio del firmware", limit: 90000, grace: KLIPPER_RESTART_GRACE_MS, reload: true },
-  service: { label: "Riavvio del servizio Klipper", limit: 90000, grace: KLIPPER_RESTART_GRACE_MS, reload: true },
-  moonraker: { label: "Riavvio di Moonraker", limit: 120000, grace: KLIPPER_RESTART_GRACE_MS, reload: true },
+  klipper: { label: tx("Restarting Klipper"), limit: 90000, grace: KLIPPER_RESTART_GRACE_MS, reload: true },
+  firmware: { label: tx("Restarting the firmware"), limit: 90000, grace: KLIPPER_RESTART_GRACE_MS, reload: true },
+  service: { label: tx("Restarting the Klipper service"), limit: 90000, grace: KLIPPER_RESTART_GRACE_MS, reload: true },
+  moonraker: { label: tx("Restarting Moonraker"), limit: 120000, grace: KLIPPER_RESTART_GRACE_MS, reload: true },
   // the program that serves this page: it is back when it answers again, whatever Klipper is doing (it may be off: "disconnected")
-  brain: { label: "Riavvio del backend", limit: 120000, grace: KLIPPER_RESTART_GRACE_MS, reload: true, anyAnswer: true },
-  host: { label: "Riavvio del Raspberry", limit: 360000, grace: KLIPPER_RESTART_GRACE_MS, reload: true },
-  save: { label: "Salvataggio e riavvio di Klipper", limit: 90000, grace: 4000, reload: false }, // SAVE_CONFIG may have nothing to save: then nothing restarts
+  brain: { label: tx("Restarting the backend"), limit: 120000, grace: KLIPPER_RESTART_GRACE_MS, reload: true, anyAnswer: true },
+  host: { label: tx("Restarting the Raspberry"), limit: 360000, grace: KLIPPER_RESTART_GRACE_MS, reload: true },
+  save: { label: tx("Saving and restarting Klipper"), limit: 90000, grace: 4000, reload: false }, // SAVE_CONFIG may have nothing to save: then nothing restarts
 };
 /** Services whose restart takes Klipper (or the whole of Moonraker) away for a while, by name. */
 const SERVICE_RESTART_KIND = { klipper: "service", moonraker: "moonraker", klippeye: "brain", vzbot: "brain" };
@@ -88,7 +88,7 @@ async function requestKlipperRestart(firmware) {
     const response = await sendGcode(firmware ? "FIRMWARE_RESTART" : "RESTART");
     return response.ok ? null : await errorMessageOf(response);
   } catch (error) {
-    return error.message || "stampante non raggiungibile";
+    return error.message || tx("printer not reachable");
   }
 }
 
@@ -141,7 +141,7 @@ function createKlipperWatch(publish) {
     restart = null;
     if ((phase === "ready" || (done.anyAnswer && phase === "disconnected")) && done.sawDown) {
       if (done.reload) {
-        finishing = "Klipper è di nuovo pronto: aggiorno la pagina";
+        finishing = tx("Klipper is ready again: reloading the page");
         setTimeout(() => location.reload(), KLIPPER_RELOAD_DELAY_MS);
       } else announceReady();
     }
@@ -220,12 +220,12 @@ function createKlipperWatch(publish) {
     begin(kind);
     try {
       const outcome = await request();
-      if (typeof outcome === "string") return abandon("Riavvio non riuscito: " + outcome);
+      if (typeof outcome === "string") return abandon(tx("Restart failed: ") + outcome);
       // Moonraker restarting itself (or the machine) often cuts the answer off: a 5xx or no answer is expected then, a refusal (4xx) is not
       const refused = outcome && outcome.ok === false && (!expectsCutConnection || outcome.status < 500);
-      if (refused) return abandon("Riavvio non riuscito: " + (await errorMessageOf(outcome)));
+      if (refused) return abandon(tx("Restart failed: ") + (await errorMessageOf(outcome)));
     } catch (error) {
-      if (!expectsCutConnection) return abandon("Riavvio non riuscito: " + (error.message || "nessuna risposta"));
+      if (!expectsCutConnection) return abandon(tx("Restart failed: ") + (error.message || tx("no answer")));
     }
     return undefined;
   };
@@ -257,13 +257,13 @@ function createKlipperWatch(publish) {
       try {
         const response = await send();
         if (!response.ok) {
-          toast.action("Non riuscito: " + (await errorMessageOf(response)));
+          toast.action(tx("Failed: ") + (await errorMessageOf(response)));
           return false;
         }
         if (service === "klipper") kick(0); // stopped: the panel says so soon
         return true;
       } catch (error) {
-        toast.action("Non riuscito: " + (error.message || "nessuna risposta"));
+        toast.action(tx("Failed: ") + (error.message || tx("no answer")));
         return false;
       }
     },
@@ -273,7 +273,7 @@ function createKlipperWatch(publish) {
     async shutdownHost() {
       try {
         const response = await moonraker.shutdownHost();
-        if (!response.ok && response.status < 500) return toast.action("Spegnimento non riuscito: " + (await errorMessageOf(response)));
+        if (!response.ok && response.status < 500) return toast.action(tx("Shutdown failed: ") + (await errorMessageOf(response)));
       } catch (error) {
         // the connection may drop as the machine goes down
       }
@@ -348,12 +348,12 @@ function LoadingRing({ size = 30 }) {
 
 /** What the ring panel says under its title, by what was last seen of the machine. */
 const RESTART_DETAIL = {
-  startup: "Klipper si sta avviando...",
-  disconnected: "Klipper si sta ricollegando a Moonraker...",
-  unreachable: "Attendo che il Raspberry torni a rispondere...",
+  startup: tx("Klipper is starting..."),
+  disconnected: tx("Klipper is reconnecting to Moonraker..."),
+  unreachable: tx("Waiting for the Raspberry to answer again..."),
 };
-const RESTART_DETAIL_DEFAULT = "Attendo la risposta di Klipper...";
-const DISCONNECTED_HELP = "Moonraker non riesce a connettersi a Klipper! Controlla che il servizio Klipper sia attivo e che klippy_uds_address sia configurato correttamente in moonraker.conf.";
+const RESTART_DETAIL_DEFAULT = tx("Waiting for Klipper to answer...");
+const DISCONNECTED_HELP = tx("Moonraker cannot connect to Klipper! Check that the Klipper service is running and that klippy_uds_address is set correctly in moonraker.conf.");
 
 /** `state` is what useKlipperState returns. Look and layout: css/35-klipper-state.css. */
 function KlipperStateBanner({ state }) {
@@ -368,8 +368,8 @@ function KlipperStateBanner({ state }) {
   let actions = null;
 
   if (view.hostOff) {
-    title = "Il Raspberry si sta spegnendo";
-    body = h("div", { className: "klipper-state__text" }, "Quando è spento la dashboard non risponde più. Per riaccenderlo togli e ridai l'alimentazione.");
+    title = tx("The Raspberry is shutting down");
+    body = h("div", { className: "klipper-state__text" }, tx("Once it is off the dashboard stops answering. To turn it on again, unplug and plug the power back in."));
   } else if (view.restart) {
     tone = "info";
     loading = true;
@@ -380,10 +380,10 @@ function KlipperStateBanner({ state }) {
     tone = style.tone;
     icon = style.icon();
     const disconnected = view.phase === "disconnected";
-    title = (disconnected ? "Moonraker" : "Klipper") + " segnala: " + view.phase.toUpperCase();
+    title = (disconnected ? "Moonraker" : "Klipper") + tx(" reports: ") + view.phase.toUpperCase();
     // Mainsail: the ring stands in for a message that has not arrived yet
     loading = view.waiting || view.phase === "startup" || (!disconnected && view.message === null);
-    if (view.waiting) body = h("div", { className: "klipper-state__text" }, "Klipper si sta riavviando o ricollegando a Moonraker...");
+    if (view.waiting) body = h("div", { className: "klipper-state__text" }, tx("Klipper is restarting or reconnecting to Moonraker..."));
     else if (disconnected) body = h("div", { className: "klipper-state__text" }, DISCONNECTED_HELP);
     else if (view.message !== null) body = h("pre", { className: "klipper-state__message" }, view.message);
 
@@ -393,9 +393,9 @@ function KlipperStateBanner({ state }) {
         { className: "klipper-state__actions" },
         !disconnected && h("button", { className: "oui-btn oui-btn--primary oui-btn--sm", onClick: () => state.restartKlipper(true) }, h(Icons.RotateCw, { size: 16 }), "Firmware restart"),
         !disconnected && h("button", { className: "oui-btn oui-btn--sm", onClick: () => state.restartKlipper(false) }, h(Icons.RotateCw, { size: 16 }), "Klipper restart"),
-        disconnected && h("button", { className: "oui-btn oui-btn--primary oui-btn--sm", onClick: () => state.serviceAction("restart", "klipper") }, h(Icons.RotateCw, { size: 16 }), "Riavvia il servizio Klipper"),
-        !disconnected && h("button", { className: "oui-btn oui-btn--sm", onClick: () => logsApi.download("klippy.log") }, h(Icons.Download, { size: 16 }), "Log Klipper"),
-        h("button", { className: "oui-btn oui-btn--sm", onClick: () => logsApi.download("moonraker.log") }, h(Icons.Download, { size: 16 }), "Log Moonraker"),
+        disconnected && h("button", { className: "oui-btn oui-btn--primary oui-btn--sm", onClick: () => state.serviceAction("restart", "klipper") }, h(Icons.RotateCw, { size: 16 }), tx("Restart the Klipper service")),
+        !disconnected && h("button", { className: "oui-btn oui-btn--sm", onClick: () => logsApi.download("klippy.log") }, h(Icons.Download, { size: 16 }), tx("Klipper log")),
+        h("button", { className: "oui-btn oui-btn--sm", onClick: () => logsApi.download("moonraker.log") }, h(Icons.Download, { size: 16 }), tx("Moonraker log")),
       );
     }
   }

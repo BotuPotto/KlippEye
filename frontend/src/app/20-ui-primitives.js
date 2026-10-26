@@ -209,6 +209,7 @@ const Icons = {
   Camera: ({ size = 20 }) => h(Svg, { size, strokeWidth: "1.9" }, h("path", { d: "M3 8.5a2 2 0 0 1 2-2h2.2l1.4-2h6.8l1.4 2H19a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8.5z" }), h("circle", { cx: "12", cy: "12.5", r: "3.6" })),
   Network: ({ size = 20 }) => h(Svg, { size, strokeWidth: "1.9" }, h("circle", { cx: "12", cy: "12", r: "9" }), h("path", { d: "M3 12h18" }), h("path", { d: "M12 3c2.6 2.6 3.9 5.6 3.9 9s-1.3 6.4-3.9 9c-2.6-2.6-3.9-5.6-3.9-9S9.4 5.6 12 3z" })),
   Bell: ({ size = 20 }) => h(Svg, { size, strokeWidth: "1.9" }, h("path", { d: "M6 16.5V11a6 6 0 0 1 12 0v5.5l1.6 2H4.4L6 16.5z" }), h("path", { d: "M10 21a2.2 2.2 0 0 0 4 0" })),
+  Language: ({ size = 20 }) => h(Svg, { size, strokeWidth: "1.9" }, h("path", { d: "M3.5 5.5h10M8.5 3.5v2M6 5.5c.7 3.2 2.8 5.8 6 7.3M11 5.5c-.8 3.5-3.2 6.4-7 8" }), h("path", { d: "M13 20.5l4-9 4 9M14.4 17.5h5.2" })),
   Lock: ({ size = 20 }) => h(Svg, { size, strokeWidth: "1.9" }, h("rect", { x: "5", y: "10.5", width: "14", height: "10", rx: "2.2" }), h("path", { d: "M8.5 10.5V7.5a3.5 3.5 0 0 1 7 0v3" }), h("path", { d: "M12 14.5v2.5" })),
   Sparkle: ({ size = 20 }) => h(Svg, { size, strokeWidth: "1.9" }, h("path", { d: "M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3z" }), h("path", { d: "M19 16.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7.7-1.8z" })),
   Info: ({ size = 20 }) => h(Svg, { size, strokeWidth: "1.9" }, h("circle", { cx: "12", cy: "12", r: "9" }), h("path", { d: "M12 11v5" }), h("circle", { cx: "12", cy: "7.8", r: "0.6", fill: "currentColor" })),
@@ -302,7 +303,7 @@ function useBodyScrollLock(active) {
  * Yes/no confirmation card used by SAVE_CONFIG and CANCEL PRINT.
  * `tone` picks the colour set: "neutral" (blue confirm) or "danger" (red confirm).
  */
-function ConfirmDialog({ open, tone = "neutral", icon, title, subtitle, message, confirmLabel, cancelLabel = "Annulla", onConfirm, onCancel, zIndex }) {
+function ConfirmDialog({ open, tone = "neutral", icon, title, subtitle, message, confirmLabel, cancelLabel = tx("Cancel"), onConfirm, onCancel, zIndex }) {
   useBodyScrollLock(open);
   return h(
     Presence,

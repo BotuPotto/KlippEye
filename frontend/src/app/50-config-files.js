@@ -34,7 +34,7 @@ function formatBytes(bytes) {
 function formatFileDate(unixSeconds) {
   if (!unixSeconds) return "";
   try {
-    return new Date(unixSeconds * 1000).toLocaleString("it-IT", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+    return new Date(unixSeconds * 1000).toLocaleString(LOCALE, { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
   } catch (e) {
     return "";
   }
@@ -82,7 +82,7 @@ const configFilesApi = {
     const encoded = encodeURIComponent(path);
     let response = await fetchFresh("/server/files/content?root=" + CONFIG_ROOT + "&path=" + encoded);
     if (!response.ok) response = await fetchFresh("/server/files/" + CONFIG_ROOT + "/" + encoded);
-    if (!response.ok) throw new Error("Impossibile caricare " + path);
+    if (!response.ok) throw new Error(tx("Cannot load ") + path);
     const content = extractFileContent(await response.text());
     configFileCache.set(path, content);
     return content;
@@ -186,7 +186,7 @@ function useConfigFolder() {
       directoryCache.set(folder, entries);
       if (request === latestRequest.current) setState({ entries, loading: false, error: null });
     } catch (error) {
-      if (request === latestRequest.current) setState((previous) => ({ ...previous, loading: false, error: error.message || "Errore caricamento config" }));
+      if (request === latestRequest.current) setState((previous) => ({ ...previous, loading: false, error: error.message || tx("Error loading the configuration") }));
     }
   };
   useEffect(() => {

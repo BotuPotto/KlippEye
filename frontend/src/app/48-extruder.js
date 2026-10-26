@@ -45,13 +45,13 @@ function ExtruderCard({ hotend, onGcode, onEditTemperature }) {
   /** direction: 1 = extrude, -1 = retract */
   const moveFilament = (direction) => {
     onGcode(`G91\nG1 E${direction * lengthMm} F${speedMmS * 60}\nG90`);
-    toast.action(direction === 1 ? `Estrudi ${lengthMm}mm @ ${speedMmS}mm/s` : `Retrazione ${lengthMm}mm`);
+    toast.action(direction === 1 ? tx("Extrude {length}mm @ {speed}mm/s", { length: lengthMm, speed: speedMmS }) : tx("Retract {length}mm", { length: lengthMm }));
   };
 
   return h(
     Card,
     null,
-    h(CardHeader, { title: "Estrusore" }),
+    h(CardHeader, { title: tx("Extruder") }),
     h(
       "div",
       { className: "grid grid-cols-2 mb-4 w-full" },
@@ -78,8 +78,8 @@ function ExtruderCard({ hotend, onGcode, onEditTemperature }) {
     h(
       "div",
       { className: "extruder-fields grid w-full max-w-full" },
-      h(PresetField, { title: "Lunghezza filamento", unit: "mm", value: lengthMm, onChange: setLengthMm, presets: EXTRUDE_LENGTH_PRESETS_MM }),
-      h(PresetField, { title: "Feedrate estrusione", unit: "mm/s", value: speedMmS, onChange: setSpeedMmS, presets: EXTRUDE_SPEED_PRESETS_MM_S }),
+      h(PresetField, { title: tx("Filament length"), unit: "mm", value: lengthMm, onChange: setLengthMm, presets: EXTRUDE_LENGTH_PRESETS_MM }),
+      h(PresetField, { title: tx("Extrusion feedrate"), unit: "mm/s", value: speedMmS, onChange: setSpeedMmS, presets: EXTRUDE_SPEED_PRESETS_MM_S }),
     ),
     h(
       "div",

@@ -53,7 +53,7 @@ function useZOffset({ status, capabilities, onSaveConfig }) {
     if (Math.abs(total) < Z_EPSILON) return;
     setSending((value) => roundMm(value + total));
     const sent = await sendLongGcode("SET_GCODE_OFFSET Z_ADJUST=" + signed(total) + moveNow);
-    if (!sent.ok) toast.action("Z-offset non cambiato: " + sent.message);
+    if (!sent.ok) toast.action(tx("Z-offset not changed: ") + sent.message);
     await status.refresh();
     setSending((value) => roundMm(value - total));
   };
@@ -76,15 +76,15 @@ function useZOffset({ status, capabilities, onSaveConfig }) {
     pendingRef.current = 0;
     setPending(0);
     const sent = await sendLongGcode("SET_GCODE_OFFSET Z=0" + moveNow);
-    if (!sent.ok) toast.action("Z-offset non azzerato: " + sent.message);
-    else toast.action("Z-offset azzerato");
+    if (!sent.ok) toast.action(tx("Z-offset not reset: ") + sent.message);
+    else toast.action(tx("Z-offset reset"));
     status.refresh();
   };
 
   const apply = async () => {
     setConfirming(null);
     const sent = await sendLongGcode(capabilities.zOffsetApply);
-    if (!sent.ok) return toast.action("Z-offset non applicato: " + sent.message);
+    if (!sent.ok) return toast.action(tx("Z-offset not applied: ") + sent.message);
     onSaveConfig(); // SAVE_CONFIG: writes printer.cfg and restarts Klipper
   };
 
@@ -116,38 +116,38 @@ function ZOffsetCard({ zOffset: controller, printing }) {
   return h(
     Card,
     null,
-    h(CardHeader, { title: "Z-offset" }, h("span", { className: cx("oui-badge", printing ? "oui-badge--info" : "oui-badge--warn") }, printing ? "Live" : "A fine stampa")),
+    h(CardHeader, { title: "Z-offset" }, h("span", { className: cx("oui-badge", printing ? "oui-badge--info" : "oui-badge--warn") }, printing ? "Live" : tx("At the end of the print"))),
     h(
       "div",
       { className: "zoffset-readout" },
       h("div", { className: cx("zoffset-readout__value", hasOffset && "is-set") }, formatZOffset(live), h("span", { className: "zoffset-readout__unit" }, "mm")),
-      h("div", { className: "oui-caption" }, hasOffset ? (closer ? "Ugello più vicino al piano" : "Ugello più lontano dal piano") : "Nessuna correzione attiva"),
+      h("div", { className: "oui-caption" }, hasOffset ? (closer ? tx("Nozzle closer to the bed") : tx("Nozzle farther from the bed")) : tx("No correction active")),
     ),
     h(
       "div",
-      { className: "zoffset-steps", role: "group", "aria-label": "Passo" },
+      { className: "zoffset-steps", role: "group", "aria-label": tx("Step") },
       steps.map((value) => h("button", { key: value, className: cx("oui-chip", value === step && "is-selected"), onClick: () => controller.chooseStep(value) }, value)),
     ),
     h(
       "div",
       { className: "zoffset-adjust" },
-      h("button", { className: "oui-btn zoffset-adjust__btn", onClick: () => controller.adjust(-1) }, h(Icons.ArrowDown), h("span", null, "Abbassa"), h("span", { className: "zoffset-adjust__step" }, "−" + step)),
-      h("button", { className: "oui-btn zoffset-adjust__btn", onClick: () => controller.adjust(1) }, h(Icons.ArrowUp), h("span", null, "Alza"), h("span", { className: "zoffset-adjust__step" }, "+" + step)),
+      h("button", { className: "oui-btn zoffset-adjust__btn", onClick: () => controller.adjust(-1) }, h(Icons.ArrowDown), h("span", null, tx("Lower")), h("span", { className: "zoffset-adjust__step" }, "−" + step)),
+      h("button", { className: "oui-btn zoffset-adjust__btn", onClick: () => controller.adjust(1) }, h(Icons.ArrowUp), h("span", null, tx("Raise")), h("span", { className: "zoffset-adjust__step" }, "+" + step)),
     ),
     h(
       "div",
       { className: "oui-btn-row zoffset-actions" },
-      h("button", { className: "oui-btn", disabled: !hasOffset, onClick: () => controller.ask("reset") }, "Azzera"),
-      applyCommand && h("button", { className: "oui-btn oui-btn--primary", disabled: printing || !hasOffset, onClick: () => controller.ask("apply") }, h(Icons.Save, { size: 18 }), "Salva offset"),
+      h("button", { className: "oui-btn", disabled: !hasOffset, onClick: () => controller.ask("reset") }, tx("Reset")),
+      applyCommand && h("button", { className: "oui-btn oui-btn--primary", disabled: printing || !hasOffset, onClick: () => controller.ask("apply") }, h(Icons.Save, { size: 18 }), tx("Save offset")),
     ),
     h(
       "div",
       { className: "oui-caption zoffset-hint" },
       !applyCommand
-        ? "Klipper non offre un comando per salvare l'offset (Z_OFFSET_APPLY_*): resta attivo fino al riavvio."
+        ? tx("Klipper offers no command to save the offset (Z_OFFSET_APPLY_*): it stays active until the next restart.")
         : printing
-          ? "Si salva a fine stampa: SAVE_CONFIG riavvia Klipper."
-          : "Applica scrive l'offset in printer.cfg e riavvia Klipper.",
+          ? tx("It is saved at the end of the print: SAVE_CONFIG restarts Klipper.")
+          : tx("Apply writes the offset to printer.cfg and restarts Klipper."),
     ),
   );
 }
@@ -162,10 +162,10 @@ function ZOffsetDialogs({ controller }) {
       open: confirming === "reset",
       tone: "neutral",
       icon: h(Icons.RotateCcw),
-      title: "Azzerare lo Z-offset?",
+      title: tx("Reset the Z-offset?"),
       subtitle: formatZOffset(live) + " mm",
-      message: ["L'ugello torna all'altezza senza correzione (", h("code", { key: "cmd" }, "SET_GCODE_OFFSET Z=0"), "), anche durante la stampa. Confermi?"],
-      confirmLabel: "Azzera",
+      message: [tx("The nozzle goes back to the height without correction ("), h("code", { key: "cmd" }, "SET_GCODE_OFFSET Z=0"), tx("), also during a print. Confirm?")],
+      confirmLabel: tx("Reset"),
       onConfirm: controller.reset,
       onCancel: controller.cancel,
     }),
@@ -173,16 +173,16 @@ function ZOffsetDialogs({ controller }) {
       open: confirming === "apply",
       tone: "neutral",
       icon: h(Icons.Save),
-      title: "Applicare lo Z-offset?",
+      title: tx("Apply the Z-offset?"),
       subtitle: formatZOffset(live) + " mm",
       message: [
-        "L'offset verrà scritto in printer.cfg con ",
+        tx("The offset will be written to printer.cfg with "),
         h("code", { key: "apply" }, applyCommand || ""),
-        " e Klipper si riavvierà (",
+        tx(" and Klipper will restart ("),
         h("code", { key: "save" }, "SAVE_CONFIG"),
-        "). Confermi?",
+        tx("). Confirm?"),
       ],
-      confirmLabel: "Applica e salva",
+      confirmLabel: tx("Apply and save"),
       onConfirm: controller.apply,
       onCancel: controller.cancel,
     }),

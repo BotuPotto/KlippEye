@@ -85,14 +85,14 @@ function useFileActions(list, openEditor) {
     const size = file.size || 0;
     const tooLong = size > GCODE_EDIT_MAX_BYTES;
     setTarget(null);
-    toast.notice("Apro " + fileName + "...", 1500);
+    toast.notice(tx("Opening ") + fileName + "...", 1500);
     try {
       const { text, truncated } = await gcodeFilesApi.read(file.path, tooLong ? GCODE_PREVIEW_BYTES : 0);
       const readOnly = tooLong || truncated;
-      const note = readOnly ? "Sola lettura • prime " + text.split("\n").length.toLocaleString("it-IT") + " righe di un file da " + (formatBytes(size) || "?") : "";
+      const note = readOnly ? tx("Read-only • first ") + text.split("\n").length.toLocaleString(LOCALE) + tx(" lines of a file of ") + (formatBytes(size) || "?") : "";
       openEditor(file.path, text, { root: GCODES_ROOT, readOnly, note });
     } catch (error) {
-      toast.action("Errore apertura " + fileName + ": " + (error.message || ""));
+      toast.action(tx("Error opening ") + fileName + ": " + (error.message || ""));
     }
   };
 
@@ -113,10 +113,10 @@ function useFileActions(list, openEditor) {
     try {
       await gcodeFilesApi.remove(file.path);
       list.forget(file.path);
-      toast.notice("Eliminato: " + fileName);
+      toast.notice(tx("Deleted: ") + fileName);
     } catch (error) {
-      const message = error.message || "errore";
-      toast.action("Eliminazione non riuscita: " + (/print|load|busy|in use/i.test(message) ? "il file è in uso, ferma prima la stampa" : message));
+      const message = error.message || tx("error");
+      toast.action(tx("Delete failed: ") + (/print|load|busy|in use/i.test(message) ? tx("the file is in use, stop the print first") : message));
     }
     deleting.current = false;
     setPendingDelete(null);
@@ -170,10 +170,10 @@ function FileActionSheet({ item, controller }) {
       h(
         "div",
         { className: "oui-list file-sheet__actions" },
-        h(FileActionRow, { icon: h(Icons.Code), title: "Apri nell'editor", subtitle: tooLong ? "File grande: solo lettura, prime righe" : "Leggi e modifica il gcode", onClick: controller.openInEditor }),
-        h(FileActionRow, { icon: h(Icons.Trash), title: "Elimina dal Raspberry", subtitle: "Cancella il file per sempre", danger: true, onClick: controller.askDelete }),
+        h(FileActionRow, { icon: h(Icons.Code), title: tx("Open in the editor"), subtitle: tooLong ? tx("Large file: read-only, first lines") : tx("Read and edit the G-code"), onClick: controller.openInEditor }),
+        h(FileActionRow, { icon: h(Icons.Trash), title: tx("Delete from the Raspberry"), subtitle: tx("Deletes the file for good"), danger: true, onClick: controller.askDelete }),
       ),
-      h("div", { className: "sheet-footer" }, h("button", { className: "oui-btn", onClick: controller.closeMenu }, "Annulla")),
+      h("div", { className: "sheet-footer" }, h("button", { className: "oui-btn", onClick: controller.closeMenu }, tx("Cancel"))),
     ),
   );
 }
@@ -189,10 +189,10 @@ function FileActionDialogs({ controller }) {
       open: Boolean(pendingDelete),
       tone: "danger",
       icon: h(Icons.Trash),
-      title: "Eliminare il file?",
+      title: tx("Delete the file?"),
       subtitle: pendingDelete ? pendingDelete.fileName : "",
-      message: "Il file verrà cancellato per sempre dal Raspberry. L'operazione non si può annullare.",
-      confirmLabel: "Elimina",
+      message: tx("The file will be deleted from the Raspberry for good. This cannot be undone."),
+      confirmLabel: tx("Delete"),
       onConfirm: controller.confirmDelete,
       onCancel: controller.cancelDelete,
     }),

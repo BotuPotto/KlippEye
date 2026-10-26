@@ -193,7 +193,7 @@ function MacroButton({ macro, onRun, onEditParams }) {
     "div",
     { className: "macro-split" },
     h("button", { className: "macro-split-run", onClick: () => onRun(macro.name) }, label),
-    h("button", { className: "macro-split-gear", onClick: () => onEditParams(macro), "aria-label": "Parametri" }, h(Icons.Gear, { size: 18 })),
+    h("button", { className: "macro-split-gear", onClick: () => onEditParams(macro), "aria-label": tx("Parameters") }, h(Icons.Gear, { size: 18 })),
   );
 }
 
@@ -235,12 +235,12 @@ function ParamDialog({ macro, onRun, onClose }) {
         "div",
         { className: "sheet-header sheet-header--bar" },
         h("div", null, h("div", { className: "dialog-title" }, macro.name), macro.description && h("div", { className: "dialog-sub" }, macro.description)),
-        h("button", { className: "dialog-close", onClick: onClose, "aria-label": "Chiudi" }, "✕"),
+        h("button", { className: "dialog-close", onClick: onClose, "aria-label": tx("Close") }, "✕"),
       ),
       h(
         "div",
         { className: "params-body" },
-        h("div", { className: "oui-label mb-3" }, "Parametri"),
+        h("div", { className: "oui-label mb-3" }, tx("Parameters")),
         params.map((param, index) =>
           h(
             "div",
@@ -260,8 +260,8 @@ function ParamDialog({ macro, onRun, onClose }) {
       h(
         "div",
         { className: "sheet-footer" },
-        h(FitButton, { className: "oui-btn", onClick: onClose, text: "Annulla" }),
-        h(FitButton, { className: "oui-btn oui-btn--primary params-run", onClick: run, text: "Esegui " + macroLabel(macro.name) }),
+        h(FitButton, { className: "oui-btn", onClick: onClose, text: tx("Cancel") }),
+        h(FitButton, { className: "oui-btn oui-btn--primary params-run", onClick: run, text: tx("Run ") + macroLabel(macro.name) }),
       ),
     ),
   );
@@ -306,12 +306,12 @@ function MacroPicker({ state, onClose }) {
   useBodyScrollLock(true);
   const needle = query.toLowerCase();
   const visible = macros.filter((macro) => pickerSearchText(macro).includes(needle));
-  const found = "Trovate " + macros.length;
+  const found = tx("Found ") + macros.length;
   const stats = loading
-    ? "Caricamento macro (Metodo V30 - TUTTE le macro)..."
+    ? tx("Loading macros (all of them)...")
     : lastChange === "cleared"
-      ? "Selezionate 0"
-      : (lastChange === "toggled" ? found : found + " macro") + " - Selezionate " + selected.length;
+      ? tx("Selected 0")
+      : (lastChange === "toggled" ? found : found + " macro") + tx(" - Selected ") + selected.length;
   const toggleMacro = (name) => {
     setLastChange("toggled");
     toggle(name);
@@ -326,15 +326,15 @@ function MacroPicker({ state, onClose }) {
     h(
       "div",
       { className: "sheet-card sheet-card--column" },
-      h("div", { className: "sheet-header sheet-header--bar" }, h("div", { className: "dialog-title" }, "Seleziona macro"), h("button", { className: "dialog-close", onClick: onClose, "aria-label": "Chiudi" }, "✕")),
+      h("div", { className: "sheet-header sheet-header--bar" }, h("div", { className: "dialog-title" }, tx("Choose macros")), h("button", { className: "dialog-close", onClick: onClose, "aria-label": tx("Close") }, "✕")),
       h(
         "div",
         { className: "picker-search" },
-        h("input", { className: "oui-field", value: query, placeholder: "Cerca macro...", onChange: (e) => setQuery(e.target.value) }),
+        h("input", { className: "oui-field", value: query, placeholder: tx("Search macros..."), onChange: (e) => setQuery(e.target.value) }),
         h("div", { className: "picker-stats" }, stats),
       ),
       h("div", { className: "picker-list oui-list" }, visible.map((macro) => h(MacroPickerRow, { key: macro.name, macro, checked: selected.includes(macro.name), onToggle: () => toggleMacro(macro.name) }))),
-      h("div", { className: "sheet-footer sheet-footer--split" }, h("button", { className: "oui-btn", onClick: clearAll }, "Deseleziona tutto"), h("button", { className: "oui-btn oui-btn--primary", onClick: onClose }, "Fatto")),
+      h("div", { className: "sheet-footer sheet-footer--split" }, h("button", { className: "oui-btn", onClick: clearAll }, tx("Deselect all")), h("button", { className: "oui-btn oui-btn--primary", onClick: onClose }, tx("Done"))),
     ),
   );
 }
@@ -362,14 +362,14 @@ function CalibrationCard({ onGcode, capabilities, lockReason }) {
     null,
     h(
       CardHeader,
-      { title: "Calibrazioni" },
-      h("button", { className: "icon-btn", title: "Gestisci macro - cache fino ad apertura modal", "aria-label": "Gestisci macro", onClick: openPicker }, h(Icons.Gear, { size: 20 })),
+      { title: tx("Calibrations") },
+      h("button", { className: "icon-btn", title: tx("Manage macros (the list is read when this opens)"), "aria-label": tx("Manage macros"), onClick: openPicker }, h(Icons.Gear, { size: 20 })),
     ),
     h(
       "div",
       { className: "macro-grid" },
       state.selected.length === 0
-        ? h("span", { className: "macro-empty" }, "Nessuna macro - tocca l'ingranaggio per sceglierne")
+        ? h("span", { className: "macro-empty" }, tx("No macros - tap the gear to choose some"))
         : state.selected.map((name) => {
             const macro = state.macros.find((item) => item.name === name) || { name, params: [], has_params: false, description: "" };
             return h(MacroButton, { key: name, macro, onRun: run, onEditParams: setEditing });

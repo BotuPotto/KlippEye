@@ -12,7 +12,7 @@ const KEY_MIN_LENGTH = 10;
 const KEY_SAVED_ANALYSIS_DELAY_MS = 600;
 
 const AI_PROVIDERS = [
-  { id: "groq", label: "Groq (gratis, consigliato) - gsk_..." },
+  { id: "groq", label: tx("Groq (free, recommended) - gsk_...") },
   { id: "openai", label: "OpenAI - sk-..." },
   { id: "meta", label: "Meta Llama - LLM-..." },
   { id: "openrouter", label: "OpenRouter - sk-or-..." },
@@ -35,7 +35,7 @@ const logsApi = {
     const response = await fetchFresh("/api/logs/list");
     if (!response.ok) throw new Error("HTTP " + response.status + " " + (await response.text()).slice(0, 300));
     const json = await response.json();
-    if (!json.files) throw new Error(json.error || "nessun file");
+    if (!json.files) throw new Error(json.error || tx("no files"));
     return json;
   },
   async content(name) {
@@ -57,13 +57,13 @@ const logsApi = {
 /* ---------------------------------------------------------------------------
    State: file list + AI result panel
    ------------------------------------------------------------------------- */
-const READY_HINT = "Pronto • Tocca AI per un singolo file o Analizza automaticamente per tutti";
+const READY_HINT = tx("Ready • Tap AI for one file or Analyse automatically for all of them");
 
 function useLogs() {
   const [list, setList] = useState({ status: "loading", files: [], dir: LOGS_DIR_HINT, error: "" });
   const [result, setResult] = useState({ kind: "idle" });
   const [hint, setHint] = useState(null); // { text, tone: "ready" | "busy" | "done" }
-  const [badge, setBadge] = useState(null); // "Completata" once an all-logs analysis finished
+  const [badge, setBadge] = useState(null); // "Completed" once an all-logs analysis finished
   const [collapsed, setCollapsed] = useState(false);
 
   const refresh = async () => {
@@ -84,7 +84,7 @@ function useLogs() {
     const scope = name ? "single" : "all";
     setCollapsed(false);
     setResult({ kind: "busy", scope, name, fileCount: list.files.length });
-    setHint({ tone: "busy", text: name ? "Analisi singola: " + name + "..." : "Analisi in corso su tutti i log..." });
+    setHint({ tone: "busy", text: name ? tx("Single analysis: ") + name + "..." : tx("Analysing all the logs...") });
     setBadge(null);
     try {
       const { ok, status, json } = await logsApi.analyze(name);
@@ -94,11 +94,11 @@ function useLogs() {
       }
       setResult({ kind: "done", scope, name, json });
       if (name) {
-        setHint({ tone: "done", text: "Singola completata: " + name });
+        setHint({ tone: "done", text: tx("Single analysis done: ") + name });
       } else {
         const used = (json.used_files || []).length;
-        setHint({ tone: "done", text: "Analisi completata • " + used + " file" });
-        setBadge("Completata");
+        setHint({ tone: "done", text: tx("Analysis completed • ") + used + tx(" files") });
+        setBadge(tx("Completed"));
       }
     } catch (error) {
       if (looksLikeAuthFailure(error.message)) setResult({ kind: "key", message: error.message });
@@ -134,13 +134,13 @@ function ApiKeyForm({ message, onSaved, onCleared }) {
   // shows none of them: alert() does nothing and confirm() answers "no").
   const save = async () => {
     const trimmed = key.trim();
-    if (trimmed.length < KEY_MIN_LENGTH) return window.alert("Key troppo corta");
+    if (trimmed.length < KEY_MIN_LENGTH) return window.alert(tx("Key too short"));
     const json = await logsApi.saveKey(trimmed, providerForKey(trimmed, provider));
     if (json.ok) onSaved();
-    else window.alert("Errore: " + (json.error || "unknown"));
+    else window.alert(tx("Error: ") + (json.error || "unknown"));
   };
   const clear = async () => {
-    if (!window.confirm("Cancellare key?")) return;
+    if (!window.confirm(tx("Delete the key?"))) return;
     await logsApi.saveKey("", "openai");
     onCleared();
   };
@@ -148,7 +148,7 @@ function ApiKeyForm({ message, onSaved, onCleared }) {
   return h(
     "div",
     { className: "oui-tile logs-key" },
-    h("div", { className: "flex items-center gap-2 mb-2" }, h("span", { className: "logs-key__icon" }, "!"), h("span", { className: "logs-key__title" }, "API key mancante o errata")),
+    h("div", { className: "flex items-center gap-2 mb-2" }, h("span", { className: "logs-key__icon" }, "!"), h("span", { className: "logs-key__title" }, tx("API key missing or wrong"))),
     h("div", { className: "logs-key__message" }, message),
     h(
       "div",
@@ -158,8 +158,8 @@ function ApiKeyForm({ message, onSaved, onCleared }) {
         { value: provider, onChange: (e) => setProvider(e.target.value), className: "oui-field" },
         AI_PROVIDERS.map((option) => h("option", { key: option.id, value: option.id }, option.label)),
       ),
-      h("input", { value: key, onChange: (e) => setKey(e.target.value), placeholder: "Incolla qui la key...", className: "oui-field oui-mono" }),
-      h("div", { className: "oui-btn-row" }, h("button", { onClick: save, className: "oui-btn oui-btn--primary" }, "Salva e analizza"), h("button", { onClick: clear, className: "oui-btn" }, "Cancella")),
+      h("input", { value: key, onChange: (e) => setKey(e.target.value), placeholder: tx("Paste the key here..."), className: "oui-field oui-mono" }),
+      h("div", { className: "oui-btn-row" }, h("button", { onClick: save, className: "oui-btn oui-btn--primary" }, tx("Save and analyse")), h("button", { onClick: clear, className: "oui-btn" }, txc("key", "Delete"))),
     ),
   );
 }
@@ -182,7 +182,7 @@ function AnalysisError({ message, title, onRetry, onChangeKey }) {
     { className: "oui-tile oui-tile--danger" },
     h("div", { className: "logs-key__title mb-1" }, title),
     h("div", { className: "logs-key__message" }, message),
-    h("div", { className: "oui-btn-row mt-3" }, h("button", { onClick: onRetry, className: "oui-btn oui-btn--sm" }, "Riprova"), h("button", { onClick: onChangeKey, className: "oui-btn oui-btn--sm" }, "Cambia key")),
+    h("div", { className: "oui-btn-row mt-3" }, h("button", { onClick: onRetry, className: "oui-btn oui-btn--sm" }, tx("Retry")), h("button", { onClick: onChangeKey, className: "oui-btn oui-btn--sm" }, tx("Change key"))),
   );
 }
 
@@ -195,7 +195,7 @@ function AnalysisDone({ scope, name, json }) {
       "div",
       { className: "flex items-center gap-2 flex-wrap logs-done" },
       scope === "single" && h("span", { className: "oui-dot logs-done__dot" }),
-      scope === "single" && h("span", { className: "oui-label" }, "Analisi singola"),
+      scope === "single" && h("span", { className: "oui-label" }, tx("Single analysis")),
       scope === "single" && h("span", { className: "oui-badge logs-done__file" }, name),
       source && h("span", { className: "oui-badge logs-done__source" }, source),
     ),
@@ -208,13 +208,13 @@ function AnalysisResult({ logs, onKeySaved, onKeyCleared }) {
   switch (result.kind) {
     case "busy":
       return result.scope === "single"
-        ? h(Spinner, { title: "Analizzo: " + result.name, detail: "singolo file • ~8 sec" })
-        : h(Spinner, { title: "Analizzo tutti i log con AI", detail: "klippy • moonraker • crowsnest • mainsail • " + result.fileCount + " file • ~15 sec" });
+        ? h(Spinner, { title: tx("Analysing: ") + result.name, detail: tx("one file • ~8 s") })
+        : h(Spinner, { title: tx("Analysing all the logs with AI"), detail: "klippy • moonraker • crowsnest • mainsail • " + result.fileCount + tx(" files • ~15 s") });
     case "done":
       return h(AnalysisDone, { scope: result.scope, name: result.name, json: result.json });
     case "error":
       return h(AnalysisError, {
-        title: result.scope === "single" ? "Errore analisi " + result.name : "Errore analisi",
+        title: result.scope === "single" ? tx("Analysis error ") + result.name : tx("Analysis error"),
         message: result.message,
         onRetry: () => logs.analyze(result.name),
         onChangeKey: () => logs.askForKey(),
@@ -222,11 +222,11 @@ function AnalysisResult({ logs, onKeySaved, onKeyCleared }) {
     case "key":
       return h(ApiKeyForm, { message: result.message, onSaved: onKeySaved, onCleared: onKeyCleared });
     case "keySaved":
-      return h("div", { className: "oui-tile oui-tile--ok logs-saved" }, h("span", null, "✓"), " Key salvata! Avvio analisi...");
+      return h("div", { className: "oui-tile oui-tile--ok logs-saved" }, h("span", null, "✓"), tx(" Key saved! Starting the analysis..."));
     case "keyCleared":
-      return h("div", { className: "logs-key__message" }, "Key cancellata. Da SSH: ", h("code", { className: "ai-code" }, "rm /home/pi/klippeye_ai_config.json"));
+      return h("div", { className: "logs-key__message" }, tx("Key deleted. Over SSH: "), h("code", { className: "ai-code" }, "rm /home/pi/klippeye_ai_config.json"));
     default:
-      return h("div", { className: "oui-caption" }, "Nessuna analisi ancora. Tocca Analizza automaticamente per un'analisi diretta con AI.");
+      return h("div", { className: "oui-caption" }, tx("No analysis yet. Tap Analyse automatically for a direct AI analysis."));
   }
 }
 
@@ -246,8 +246,8 @@ function LogRow({ file, onAnalyze, onOpen }) {
     h(
       "div",
       { className: "log-row__actions" },
-      h("button", { title: "Analizza solo questo", onClick: () => onAnalyze(file.name), className: "oui-btn oui-btn--sm log-row__ai" }, "AI"),
-      h("button", { onClick: () => onOpen(file.name), className: "oui-btn oui-btn--sm" }, "Apri"),
+      h("button", { title: tx("Analyse only this one"), onClick: () => onAnalyze(file.name), className: "oui-btn oui-btn--sm log-row__ai" }, "AI"),
+      h("button", { onClick: () => onOpen(file.name), className: "oui-btn oui-btn--sm" }, txc("verb", "Open")),
       h("button", { title: "Download", "aria-label": "Download", onClick: () => logsApi.download(file.name), className: "oui-btn oui-btn--sm oui-btn--icon" }, h(Icons.Download, { size: 18 })),
     ),
   );
@@ -255,16 +255,16 @@ function LogRow({ file, onAnalyze, onOpen }) {
 
 /** What to show instead of the rows (loading / error / no logs), or null when there are rows. */
 function logsListNotice(list) {
-  if (list.status === "loading") return h("div", { className: "logs-notice" }, "Carico log da " + LOGS_DIR_HINT + "...");
+  if (list.status === "loading") return h("div", { className: "logs-notice" }, tx("Loading logs from ") + LOGS_DIR_HINT + "...");
   if (list.status === "error")
     return h(
       "div",
       { className: "oui-tile oui-tile--danger" },
-      h("div", { className: "logs-key__title" }, "Errore caricamento log"),
+      h("div", { className: "logs-key__title" }, tx("Error loading the logs")),
       h("div", { className: "logs-key__message mt-1" }, list.error),
-      h("div", { className: "oui-caption mt-2" }, "Verifica backend V7: /api/logs/list"),
+      h("div", { className: "oui-caption mt-2" }, tx("Check the backend: /api/logs/list")),
     );
-  if (list.status === "empty") return h("div", { className: "logs-notice" }, "Nessun .log in " + list.dir);
+  if (list.status === "empty") return h("div", { className: "logs-notice" }, tx("No .log in ") + list.dir);
   return null;
 }
 
@@ -283,7 +283,7 @@ function LogsCard({ onEditFile }) {
     try {
       onEditFile(name, await logsApi.content(name));
     } catch (error) {
-      window.alert("Errore apertura: " + error.message);
+      window.alert(tx("Error opening: ") + error.message);
     }
   };
   const keySaved = () => {
@@ -296,13 +296,13 @@ function LogsCard({ onEditFile }) {
   return h(
     Card,
     null,
-    h(CardHeader, { title: "Log di sistema" }),
+    h(CardHeader, { title: tx("System logs") }),
     h(
       "div",
       { className: "logs-toolbar" },
-      h("button", { onClick: logs.refresh, className: "oui-btn oui-btn--sm" }, h(Icons.Refresh, { size: 16 }), "Aggiorna"),
-      h("button", { onClick: () => logs.analyze(), className: "oui-btn oui-btn--sm oui-btn--primary logs-toolbar__main" }, "Analizza automaticamente"),
-      h("button", { onClick: () => logs.askForKey("Cambia API Key esistente:"), title: "API key", "aria-label": "API key", className: "oui-btn oui-btn--sm oui-btn--icon" }, h(Icons.Gear, { size: 18 })),
+      h("button", { onClick: logs.refresh, className: "oui-btn oui-btn--sm" }, h(Icons.Refresh, { size: 16 }), tx("Refresh")),
+      h("button", { onClick: () => logs.analyze(), className: "oui-btn oui-btn--sm oui-btn--primary logs-toolbar__main" }, tx("Analyse automatically")),
+      h("button", { onClick: () => logs.askForKey(tx("Change the existing API key:")), title: "API key", "aria-label": "API key", className: "oui-btn oui-btn--sm oui-btn--icon" }, h(Icons.Gear, { size: 18 })),
     ),
     listNotice ? h("div", { className: "mt-3" }, listNotice) : h("div", { className: "oui-list log-list" }, list.files.map((file) => h(LogRow, { key: file.name, file, onAnalyze: logs.analyze, onOpen: openLog }))),
     h(
@@ -314,8 +314,8 @@ function LogsCard({ onEditFile }) {
         h(
           "div",
           { className: "flex items-center gap-3 flex-wrap min-w-0" },
-          h(SectionTitle, null, "Analisi errori e suggerimenti"),
-          h("span", { className: cx("oui-badge oui-badge--ok", !badge && "hidden") }, badge || "Riassunto"),
+          h(SectionTitle, null, tx("Error analysis and suggestions")),
+          h("span", { className: cx("oui-badge oui-badge--ok", !badge && "hidden") }, badge || tx("Overview")),
         ),
         h("span", { className: cx("oui-btn oui-btn--sm oui-btn--icon logs-analysis__toggle", collapsed && "is-collapsed"), "aria-hidden": "true" }, h(Icons.Chevron, { size: 18 })),
       ),

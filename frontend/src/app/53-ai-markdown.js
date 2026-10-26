@@ -5,7 +5,7 @@
      · a summary (how many errors / warnings, which files, the conclusion),
      · one collapsible card per section,
      · tables turned into one card per row (nothing scrolls sideways),
-     · code blocks with a "Copia" button.
+     · code blocks with a "Copy" button.
    Everything is built as React elements: the AI's text is never inserted as HTML.
    ========================================================================== */
 
@@ -252,14 +252,14 @@ async function copyText(text) {
 const COPIED_LABEL_MS = 1600;
 async function copyWithToast(text) {
   const copied = await copyText(text);
-  toast.notice(copied ? "Copiato" : "Copia non riuscita");
+  toast.notice(copied ? tx("Copied") : tx("Copy failed"));
   return copied;
 }
 
 /* ---------------------------------------------------------------------------
    Showing the blocks
    ------------------------------------------------------------------------- */
-const CODE_LANGUAGE_LABELS = { bash: "Terminale", sh: "Terminale", shell: "Terminale", zsh: "Terminale", gcode: "Console Klipper", klipper: "Console Klipper", ini: "Configurazione", cfg: "Configurazione", conf: "Configurazione", yaml: "Configurazione", json: "JSON", python: "Python" };
+const CODE_LANGUAGE_LABELS = { bash: tx("Terminal"), sh: tx("Terminal"), shell: tx("Terminal"), zsh: tx("Terminal"), gcode: tx("Klipper console"), klipper: tx("Klipper console"), ini: tx("Configuration"), cfg: tx("Configuration"), conf: tx("Configuration"), yaml: tx("Configuration"), json: "JSON", python: "Python" };
 
 function CodeBlock({ code, lang }) {
   const [copied, setCopied] = useState(false);
@@ -272,7 +272,7 @@ function CodeBlock({ code, lang }) {
   return h(
     "div",
     { className: "ai-codeblock" },
-    h("div", { className: "ai-codeblock__bar" }, h("span", { className: "ai-codeblock__lang" }, CODE_LANGUAGE_LABELS[lang] || lang || "Codice"), h("button", { className: "ai-codeblock__copy", onClick: copy }, copied ? "Copiato ✓" : "Copia")),
+    h("div", { className: "ai-codeblock__bar" }, h("span", { className: "ai-codeblock__lang" }, CODE_LANGUAGE_LABELS[lang] || lang || tx("Code")), h("button", { className: "ai-codeblock__copy", onClick: copy }, copied ? tx("Copied ✓") : tx("Copy"))),
     h("pre", { className: "ai-codeblock__code" }, code),
   );
 }
@@ -440,7 +440,7 @@ const plural = (count, one, many) => count + " " + (count === 1 ? one : many);
 function ReportSummary({ report }) {
   const { stats, conclusion } = report;
   const chips = [
-    stats.danger > 0 && h("span", { key: "d", className: "oui-badge oui-badge--danger" }, h("span", { className: "oui-dot" }), plural(stats.danger, "errore", "errori")),
+    stats.danger > 0 && h("span", { key: "d", className: "oui-badge oui-badge--danger" }, h("span", { className: "oui-dot" }), plural(stats.danger, tx("error"), tx("errors"))),
     stats.warn > 0 && h("span", { key: "w", className: "oui-badge oui-badge--warn" }, h("span", { className: "oui-dot" }), plural(stats.warn, "avviso", "avvisi")),
     stats.info > 0 && h("span", { key: "i", className: "oui-badge oui-badge--info" }, h("span", { className: "oui-dot" }), plural(stats.info, "nota", "note")),
   ].filter(Boolean);
@@ -448,10 +448,10 @@ function ReportSummary({ report }) {
   return h(
     "div",
     { className: "ai-sum" },
-    h("div", { className: "ai-sum__title" }, "Riepilogo"),
+    h("div", { className: "ai-sum__title" }, tx("Summary")),
     chips.length > 0 && h("div", { className: "ai-sum__stats" }, chips),
     conclusion.length > 0 && h("div", { className: "ai-sum__text" }, conclusion.map(renderBlock)),
-    stats.files.length > 0 && h("div", { className: "ai-sum__files" }, h("span", { className: "ai-sum__caption" }, "File coinvolti"), stats.files.slice(0, 8).map((file) => h("span", { key: file, className: "ai-chip-file" }, file))),
+    stats.files.length > 0 && h("div", { className: "ai-sum__files" }, h("span", { className: "ai-sum__caption" }, tx("Files involved")), stats.files.slice(0, 8).map((file) => h("span", { key: file, className: "ai-chip-file" }, file))),
   );
 }
 
@@ -502,9 +502,9 @@ function AiReport({ text }) {
     h(
       "div",
       { className: "ai-report__tools" },
-      foldable && !showRaw && h("button", { className: "oui-btn oui-btn--sm oui-btn--quiet", onClick: toggleAll }, folded ? "Espandi tutto" : "Comprimi tutto"),
-      h("button", { className: "oui-btn oui-btn--sm oui-btn--quiet", onClick: () => setShowRaw(!showRaw) }, showRaw ? "Vista ordinata" : "Testo originale"),
-      h("button", { className: "oui-btn oui-btn--sm oui-btn--quiet", onClick: () => copyWithToast(text) }, "Copia tutto"),
+      foldable && !showRaw && h("button", { className: "oui-btn oui-btn--sm oui-btn--quiet", onClick: toggleAll }, folded ? tx("Expand all") : tx("Collapse all")),
+      h("button", { className: "oui-btn oui-btn--sm oui-btn--quiet", onClick: () => setShowRaw(!showRaw) }, showRaw ? tx("Tidy view") : tx("Original text")),
+      h("button", { className: "oui-btn oui-btn--sm oui-btn--quiet", onClick: () => copyWithToast(text) }, tx("Copy all")),
     ),
   );
 }

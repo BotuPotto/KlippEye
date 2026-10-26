@@ -234,14 +234,14 @@ function useFanLock() {
     clearTimeout(timer.current);
     if (locked) {
       setLocked(false);
-      toast.notice("Ventole sbloccate per 10s");
+      toast.notice(tx("Fans unlocked for 10 s"));
       timer.current = setTimeout(() => {
         setLocked(true);
-        toast.notice("Ventole bloccate - anti-tocco");
+        toast.notice(tx("Fans locked - touch guard"));
       }, FAN_UNLOCK_MS);
     } else {
       setLocked(true);
-      toast.notice("Ventole bloccate");
+      toast.notice(tx("Fans locked"));
     }
   };
   return { locked, toggle };
@@ -313,8 +313,8 @@ function FanControl({ fan, locked, onSet, onInteract }) {
       h(
         "div",
         { className: "flex items-center gap-2" },
-        h("button", { className: FAN_BUTTON_CLASS, onClick: () => nudge(-1), "aria-label": "Meno" }, "−"),
-        h("button", { className: FAN_BUTTON_CLASS, onClick: () => nudge(1), "aria-label": "Più" }, "+"),
+        h("button", { className: FAN_BUTTON_CLASS, onClick: () => nudge(-1), "aria-label": tx("Less") }, "−"),
+        h("button", { className: FAN_BUTTON_CLASS, onClick: () => nudge(1), "aria-label": tx("More") }, "+"),
       ),
     ),
     h(
@@ -390,7 +390,7 @@ function FanLockBar({ locked, onToggle }) {
       className: cx("fan-lock", !locked && "is-unlocked"),
       role: "switch",
       "aria-checked": !locked,
-      title: locked ? "Tocca per sbloccare ventole" : "Tocca per bloccare - auto tra 10s",
+      title: locked ? tx("Tap to unlock the fans") : tx("Tap to lock - automatic in 10 s"),
       onClick: onToggle,
     },
     h(
@@ -401,8 +401,8 @@ function FanLockBar({ locked, onToggle }) {
     h(
       "span",
       { className: "fan-lock__text" },
-      h("span", { className: "fan-lock__label" }, locked ? "Ventole bloccate" : "Ventole sbloccate"),
-      h("span", { className: "fan-lock__hint" }, locked ? "Tocca per sbloccare" : "Modifica abilitata"),
+      h("span", { className: "fan-lock__label" }, locked ? tx("Fans locked") : tx("Fans unlocked")),
+      h("span", { className: "fan-lock__hint" }, locked ? tx("Tap to unlock") : tx("Editing enabled")),
     ),
     h("span", { className: "oui-switch" }, h("span", { className: "oui-switch__knob" })),
   );
@@ -431,6 +431,6 @@ function FanList() {
               : h(FanReadout, { key: fan.name, fan }),
           ),
         )
-      : h("div", { className: "oui-caption py-4" }, "Nessuna ventola rilevata - in attesa dati Klipper..."),
+      : h("div", { className: "oui-caption py-4" }, tx("No fan found - waiting for Klipper data...")),
   );
 }

@@ -56,7 +56,7 @@ function useMotion(echo) {
     fireGcode("PARK");
   };
   const motorsOff = () => {
-    toast.action("M84 - Motori disabilitati");
+    toast.action(tx("M84 - Motors disabled"));
     echo([{ msg: "M84 - Motors off", color: GREEN }]);
     fireGcode("M84");
   };
@@ -285,13 +285,13 @@ function PositionReadout({ position, homedAxes, onPickAxis }) {
       AXES.map((axis) =>
         h(
           "button",
-          { key: axis, onClick: () => onPickAxis(axis), className: cx("axis-tile", axisState(axis)), title: "Tocca per muovere " + axis },
+          { key: axis, onClick: () => onPickAxis(axis), className: cx("axis-tile", axisState(axis)), title: tx("Tap to move ") + axis },
           h("span", { id: `pos${axis}Label`, className: "axis-tile__name" }, axis + ":"),
           h("span", { className: "axis-tile__value" }, position && !isHomed(axis) ? "-" : value(axis).toFixed(1)),
         ),
       ),
     ),
-    h("div", { className: "oui-caption text-center mt-2" }, "Tocca X/Y/Z per muovere a posizione"),
+    h("div", { className: "oui-caption text-center mt-2" }, tx("Tap X/Y/Z to move to a position")),
   );
 }
 
@@ -307,7 +307,7 @@ function MovementActions({ motion, bedTools, lockReason }) {
   return h(
     "div",
     { className: "movement-actions" },
-    h("button", { className: "oui-btn", disabled: Boolean(lockReason), title: lockReason || "Disabilita i motori (M84)", onClick: motion.motorsOff }, h(Icons.Power), "Motori off"),
+    h("button", { className: "oui-btn", disabled: Boolean(lockReason), title: lockReason || tx("Disable the motors (M84)"), onClick: motion.motorsOff }, h(Icons.Power), tx("Motors off")),
     bedTools.tools.length > 0 && h(BedToolsMenuButton, { bedTools }),
   );
 }
@@ -316,7 +316,7 @@ function MovementCard({ position, homedAxes, motion, bedTools, lockReason }) {
   return h(
     Card,
     null,
-    h(CardHeader, { title: "Movimento" }),
+    h(CardHeader, { title: tx("Motion") }),
     h(PositionReadout, { position, homedAxes, onPickAxis: motion.openPositionDialog }),
     h(
       "div",
@@ -353,7 +353,7 @@ function PositionDialog({ dialog, onChange, onClose, onConfirm }) {
     h(
       "div",
       { className: "modal-card", onClick: (e) => e.stopPropagation() },
-      h("div", { className: "dialog-title mb-4" }, "Imposta ", dialog.axis, " - Vai a posizione"),
+      h("div", { className: "dialog-title mb-4" }, tx("Set "), dialog.axis, tx(" - Go to position")),
       h("input", {
         ref: inputRef,
         autoFocus: true,
@@ -365,12 +365,12 @@ function PositionDialog({ dialog, onChange, onClose, onConfirm }) {
         onKeyDown: (e) => e.key === "Enter" && onConfirm(),
         className: "oui-field oui-field--num modal-input",
       }),
-      h("div", { className: "oui-caption mt-2" }, "Inserisci posizione assoluta in mm"),
+      h("div", { className: "oui-caption mt-2" }, tx("Enter an absolute position in mm")),
       h(
         "div",
         { className: "oui-btn-row mt-5" },
-        h("button", { onClick: onClose, className: "oui-btn" }, "Annulla"),
-        h("button", { onClick: onConfirm, className: "oui-btn oui-btn--primary" }, "Vai"),
+        h("button", { onClick: onClose, className: "oui-btn" }, tx("Cancel")),
+        h("button", { onClick: onConfirm, className: "oui-btn oui-btn--primary" }, tx("Go")),
       ),
     ),
   );
