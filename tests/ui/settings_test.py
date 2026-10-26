@@ -461,6 +461,12 @@ with sync_playwright() as p:
     switch(P, "Stampante in pausa").click(); switch(P, "IA: difetti gravi").click(); P.settle(300)
     ok("a switch moves at once", not checked(P, "Stampante in pausa") and not checked(P, "IA: difetti gravi") and checked(P, "Stampa completata"))
     ok("... and the Raspberry gets it", wait_until(lambda: stored()["notifications"]["paused"] is False and stored()["notifications"]["ai_cancel"] is False and stored()["notifications"]["complete"] is True), stored()["notifications"])
+    ok("language of the notifications: the Raspberry gets the page's one at once (Italian here)", wait_until(lambda: stored().get("language") == "it"), stored().get("language"))
+    chips = pg.locator('.set-chips[aria-label="Lingua delle notifiche"] .oui-chip')
+    ok("... the choice shows it: English, Italiano (selected)", chips.all_inner_texts() == ["English", "Italiano"] and chips.nth(1).get_attribute("aria-pressed") == "true", chips.all_inner_texts())
+    chips.nth(0).click(); P.settle(300)
+    ok("English for the notifications: the Raspberry gets it, the texts in the list follow, the page stays Italian", wait_until(lambda: stored().get("language") == "en") and rows.nth(1).locator(".set-switch__detail").inner_text() == "Print completed!" and rows.nth(1).locator(".set-switch__title").inner_text() == "Stampa completata", stored().get("language"))
+    chips.nth(1).click(); wait_until(lambda: stored().get("language") == "it")
     back(P)
     ok("the list says how many are on", pg.locator('.set-entry[data-page="notifications"] .set-entry__meta').inner_text() == "5 su 7 attive")
     close_menu(P)
@@ -631,6 +637,13 @@ with sync_playwright() as p:
         ok("[%d] the top bar still fits with the new button" % w, hdr["right"] <= w and hdr["page"] <= 0 and hdr["menu"][0] >= 0, hdr)
         ok("[%d] no errors in the page" % w, not [e for e in P.errors if "pageerror" in e], P.errors[:3])
         P.close()
+
+    # ============================================================================================ language of the notifications, settings from an older release
+    old = {"camera": {"method": "mjpeg"}, "notifications": {"complete": False}, "_t": NOW_MS() - 60000}
+    P = fresh(b, locale="en-US")
+    db_write("settings", old); P.goto("home", 1400)
+    ok("settings saved by a release before 1.5.0 (no language): the first page that reads them adds its own, keeping the rest", wait_until(lambda: stored().get("language") == "en" and stored()["notifications"]["complete"] is False and stored()["camera"]["method"] == "mjpeg"), stored())
+    P.close()
 
     # ============================================================================================ language
     P = fresh(b)

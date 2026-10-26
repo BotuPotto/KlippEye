@@ -39,15 +39,18 @@ const Z_STEP_MIN = 0.001;
 const Z_STEP_MAX = 1;
 const Z_STEP_SLOTS = 4;
 
-/** The notifications of the Raspberry's notification service, in the order the menu lists them. */
+/** The notifications of the Raspberry's notification service, in the order the menu lists them (`text`: in English, as notifier/ sends it; shown in the language chosen for the notifications). */
+const NOTIFICATION_LANGUAGE_IDS = I18N_LANGUAGES.map((language) => language.code);
+/** True when a settings document from the Raspberry has no language for the notifications yet (written by a release before 1.5.0). */
+const lacksNotificationLanguage = (raw) => !(isPlainObject(raw) && NOTIFICATION_LANGUAGE_IDS.includes(raw.language));
 const NOTIFICATION_KINDS = [
-  { id: "error", title: tx("Printer error"), text: tx("Printer error! Restart it.") },
-  { id: "complete", title: tx("Print completed"), text: tx("Print completed!") },
-  { id: "cancelled", title: tx("Print cancelled"), text: tx("Print cancelled!") },
-  { id: "paused", title: tx("Printer paused"), text: tx("Printer paused!") },
-  { id: "runout", title: tx("Filament run out"), text: tx("Filament run out, change the spool!") },
-  { id: "ai_pause", title: tx("AI: defects found"), text: tx("Print defects found, check and pause the print!") },
-  { id: "ai_cancel", title: tx("AI: serious defects"), text: tx("Serious print defects found, check and cancel the print") },
+  { id: "error", title: tx("Printer error"), text: txn("Printer error! Restart it.") },
+  { id: "complete", title: tx("Print completed"), text: txn("Print completed!") },
+  { id: "cancelled", title: tx("Print cancelled"), text: txn("Print cancelled!") },
+  { id: "paused", title: tx("Printer paused"), text: txn("Printer paused!") },
+  { id: "runout", title: tx("Filament run out"), text: txn("Filament run out, change the spool!") },
+  { id: "ai_pause", title: tx("AI: defects found"), text: txn("Print defects found, check and pause the print!") },
+  { id: "ai_cancel", title: tx("AI: serious defects"), text: txn("Serious print defects found, check and cancel the print") },
 ];
 
 /** What the AI print monitor looks for (the keys of its verdict, see app/53-ai-views.js). */
@@ -162,6 +165,8 @@ function sanitizeSettings(raw) {
     zOffset: { steps: cleanZSteps(zOffset.steps) },
     printer: { brand: pickOne(printer.brand, PRINTER_BRAND_IDS, d.printer.brand), name: cleanPrinterName(printer.name) || "" },
     notifications: Object.fromEntries(NOTIFICATION_KINDS.map((kind) => [kind.id, asBool(notifications[kind.id], true)])),
+    // the language the Raspberry writes in (push notifications, read by notifier/): when none was chosen yet, the one of this page
+    language: pickOne(given.language, NOTIFICATION_LANGUAGE_IDS, LANG),
     ai: {
       autoPause: asBool(ai.autoPause, d.ai.autoPause),
       autoCancel: asBool(ai.autoCancel, d.ai.autoCancel),
@@ -310,6 +315,16 @@ function createSettingsStore() {
       }
       const remote = sanitizeSettings(answer.value);
       known = true;
+      if (lacksNotificationLanguage(answer.value)) {
+        // the notification service has no language yet: it gets this page's one (sanitizeSettings put it in), once
+        current = remote;
+        stamp = nextStamp(remoteStamp);
+        dirty = true;
+        remember();
+        announce();
+        emit();
+        return push();
+      }
       if (JSON.stringify(remote) !== JSON.stringify(current) || remoteStamp !== stamp || dirty) {
         current = remote;
         stamp = remoteStamp;

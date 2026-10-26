@@ -34,7 +34,7 @@ import atexit; atexit.register(mock.stop)
 TMP = tempfile.mkdtemp(prefix="vzn-")
 KEYFILE = os.path.join(TMP, "service-account.json")
 json.dump({"type": "service_account", "project_id": "vzbot-test", "private_key_id": "abc", "private_key": PEM, "client_email": "firebase-adminsdk@vzbot-test.iam.gserviceaccount.com", "token_uri": "http://127.0.0.1:%d/token" % GPORT}, open(KEYFILE, "w"))
-CONFIG = {"moonraker_url": mock.base, "brain_url": mock.base, "service_account_file": KEYFILE, "topic": "vzbot-test-topic",
+CONFIG = {"language": "it", "moonraker_url": mock.base, "brain_url": mock.base, "service_account_file": KEYFILE, "topic": "vzbot-test-topic",
           "poll_seconds": 0.15, "ai_poll_seconds": 0.2, "pause_grace_seconds": 0.8, "retry_seconds": 0.3, "settings_poll_seconds": 0.3, "heartbeat_seconds": 1.0,
           "fcm_url": "http://127.0.0.1:%d/v1/projects/{project}/messages:send" % GPORT,
           "cooldown_seconds": {"error": 2, "runout": 2, "ai_pause": 1, "ai_cancel": 1, "paused": 0.2, "cancelled": 0.2, "complete": 0.2}}
@@ -139,23 +139,23 @@ def capture(fn, *a):
     return code, buf.getvalue()
 google.reset(); mock.reset()
 code, text = capture(vn.command_check, vn.load_config(CFG_PATH))
-ok("--check: everything OK -> exit 0, every line OK", code == 0 and text.count("OK") >= 5 and "ERRORE" not in text and "Tutto a posto" in text, text)
+ok("--check: everything OK -> exit 0, every line OK", code == 0 and text.count("OK") >= 5 and "ERROR" not in text and "All good" in text, text)
 bad = dict(CONFIG, moonraker_url="http://127.0.0.1:9", service_account_file=os.path.join(TMP, "missing.json"), topic="")
 badpath = os.path.join(TMP, "bad.json"); json.dump(bad, open(badpath, "w"))
 code, text = capture(vn.command_check, vn.load_config(badpath))
-ok("--check: wrong Moonraker address, missing key, no topic -> exit 1, each problem said in plain words", code == 1 and text.count("ERRORE") == 3 and "Moonraker non raggiungibile" in text and "Chiave Firebase non utilizzabile" in text and "manca il \"topic\"" in text, text)
+ok("--check: wrong Moonraker address, missing key, no topic -> exit 1, each problem said in plain words", code == 1 and text.count("ERROR") == 3 and "Moonraker not reachable" in text and "Firebase key not usable" in text and "has no \"topic\"" in text, text)
 google.token_error = True
 code, text = capture(vn.command_check, vn.load_config(CFG_PATH))
-ok("--check: Google refuses the key -> exit 1 with the reason", code == 1 and "Accesso a Google non riuscito" in text and "Invalid JWT Signature" in text, text)
+ok("--check: Google refuses the key -> exit 1 with the reason", code == 1 and "Google sign-in failed" in text and "Invalid JWT Signature" in text, text)
 google.token_error = False
 brainless = dict(CONFIG, brain_url="http://127.0.0.1:9"); p2 = os.path.join(TMP, "nobrain.json"); json.dump(brainless, open(p2, "w"))
 code, text = capture(vn.command_check, vn.load_config(p2))
-ok("--check: Brain unreachable is only a warning (exit 0)", code == 0 and "AVVISO" in text and "backend non raggiungibile" in text, text)
+ok("--check: Brain unreachable is only a warning (exit 0)", code == 0 and "WARNING" in text and "backend not reachable" in text, text)
 code, text = capture(vn.command_test, vn.load_config(CFG_PATH))
 ok("--test: sends the test push", code == 0 and google.kinds() == ["test"] and google.bodies() == ["Notifica di prova: tutto funziona!"] and google.messages[0]["payload"]["message"]["android"]["notification"]["channel_id"] == "stampa", (text, google.kinds()))
 google.fail = [400]
 code, text = capture(vn.command_test, vn.load_config(CFG_PATH))
-ok("--test: when Google refuses, it says so and exits 1", code == 1 and "NON inviata" in text and "400" in text, text)
+ok("--test: when Google refuses, it says so and exits 1", code == 1 and "NOT sent" in text and "400" in text, text)
 
 
 # ================================================================================================ version 1.1: the dashboard's settings, end to end
@@ -168,7 +168,7 @@ def db_read(key):
 def print_actions():
     return json.loads(urllib.request.urlopen(mock.base + "/__mock/print_actions").read())
 def settings_doc(**kw):
-    d = {"notifications": kw.get("notifications", {}), "ai": {k: v for k, v in kw.items() if k in ("autoPause", "autoCancel", "confirmations", "minConfidence", "defects")}, "_t": int(time.time() * 1000)}
+    d = {"notifications": kw.get("notifications", {}), **({"language": kw["language"]} if "language" in kw else {}), "ai": {k: v for k, v in kw.items() if k in ("autoPause", "autoCancel", "confirmations", "minConfidence", "defects")}, "_t": int(time.time() * 1000)}
     return d
 
 google.reset(); mock.reset()
@@ -187,6 +187,10 @@ ok("1.1: ... and the service reports which settings it applied (their stamp)", d
 db_write("settings", settings_doc(notifications={"complete": True})); quiet(0.8)
 mset(print_state="printing"); quiet(0.5); mset(print_state="complete")
 ok("1.1: switched on again -> the push goes out", wait_for(lambda: google.kinds() == ["complete"]), google.kinds())
+mset(print_state="standby"); quiet(0.4)
+db_write("settings", settings_doc(notifications={"complete": True}, language="en")); quiet(0.8)
+mset(print_state="printing"); quiet(0.5); mset(print_state="complete")
+ok("1.5: English chosen in the dashboard -> the push is in English (over notifier.json's Italian)", wait_for(lambda: google.kinds() == ["complete", "complete"]) and google.bodies()[-1] == "Print completed!", google.bodies())
 mset(print_state="standby"); quiet(0.4)
 
 # automatic pause
@@ -230,10 +234,10 @@ ok("1.1: the service stops cleanly", not runner2.is_alive())
 # --check with settings in the database
 google.reset(); mock.reset(); db_write("settings", settings_doc(notifications={"paused": False, "runout": False}, autoPause=True))
 code, text = capture(vn.command_check, vn.load_config(CFG_PATH))
-ok("--check: says what the dashboard's settings are", code == 0 and "Impostazioni della dashboard lette" in text and "paused, runout" in text and "pausa automatica: sì" in text and "cancellazione automatica: no" in text, text)
+ok("--check: says what the dashboard's settings are", code == 0 and "Dashboard settings read" in text and "paused, runout" in text and "automatic pause: yes" in text and "automatic cancel: no" in text, text)
 mset(db_mode="refuse"); mock.set(db_mode="no_route")
 code, text = capture(vn.command_check, vn.load_config(CFG_PATH))
-ok("--check: a database that is not reachable is a warning, not an error", code == 0 and ("ancora non salvate" in text or "AVVISO" in text), text)
+ok("--check: a database that is not reachable is a warning, not an error", code == 0 and ("not saved from the menu yet" in text or "WARNING" in text), text)
 mset(db_mode="ok")
 
 # ================================================================================================ the command line, as the service runs it
@@ -244,14 +248,14 @@ ok("command line: the service process sends the push", wait_for(lambda: google.k
 proc.send_signal(signal.SIGTERM)
 try: out, _ = proc.communicate(timeout=8)
 except subprocess.TimeoutExpired: proc.kill(); out, _ = proc.communicate()
-ok("command line: SIGTERM stops it (exit code 0) and the log is in plain Italian", proc.returncode == 0 and "avviato" in out and "Inviata: Stampa completata!" in out, (proc.returncode, out[-400:]))
+ok("command line: SIGTERM stops it (exit code 0) and the log is in plain English", proc.returncode == 0 and "started" in out and "Sent: Stampa completata!" in out, (proc.returncode, out[-400:]))
 google.reset(); mock.reset()
 proc = subprocess.Popen([sys.executable, os.path.join(HERE, "..", "..", "notifier", "klippeye_notifier.py"), "--config", CFG_PATH, "--dry-run"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
 time.sleep(1.5); mset(print_state="printing"); time.sleep(0.6); mset(print_state="complete"); time.sleep(1.5)
 proc.send_signal(signal.SIGTERM); out, _ = proc.communicate(timeout=8)
-ok("command line --dry-run: prints the notice and sends nothing", "(prova, non inviata) Stampa completata!" in out and google.kinds() == [] and google.token_requests == 0, (out[-300:], google.kinds()))
+ok("command line --dry-run: prints the notice and sends nothing", "(dry run, not sent) Stampa completata!" in out and google.kinds() == [] and google.token_requests == 0, (out[-300:], google.kinds()))
 nocfg = subprocess.run([sys.executable, os.path.join(HERE, "..", "..", "notifier", "klippeye_notifier.py"), "--config", os.path.join(TMP, "nope.json")], capture_output=True, text=True)
-ok("command line: missing config file -> clear message, exit 2", nocfg.returncode == 2 and "Non riesco a leggere" in nocfg.stdout, nocfg.stdout)
+ok("command line: missing config file -> clear message, exit 2", nocfg.returncode == 2 and "Cannot read" in nocfg.stdout, nocfg.stdout)
 
 print("\nFAILED: %d %s" % (len(FAILS), FAILS) if FAILS else "\nALL PASS")
 os._exit(1 if FAILS else 0)

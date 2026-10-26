@@ -711,7 +711,7 @@ check("la cartella apk/ del repository e' accanto a backend/ (come scrive il wor
       and load_brain(NEW_BRAIN, tmp(), brain_json={"values": {"enabled": False}}).APK_PATH == os.path.join(os.path.dirname(os.path.dirname(NEW_BRAIN)), "apk", "KlippEye.apk"))
 r = cl.get("/api/app/version")
 j = r.get_json()
-check("senza apk/: 200, available=false e il motivo", r.status_code == 200 and j["ok"] and j["available"] is False and "nessuna app" in j["reason"], j)
+check("senza apk/: 200, available=false e il motivo", r.status_code == 200 and j["ok"] and j["available"] is False and "no app" in j["reason"], j)
 check("... e il file non si scarica (404 con il motivo)", cl.get("/app/KlippEye.apk").status_code == 404 and cl.get("/app/KlippEye.apk").get_json()["ok"] is False)
 
 apk = bytes((i * 7 + 3) % 251 for i in range(300000))
@@ -745,7 +745,7 @@ check("l'impronta non si ricalcola a ogni richiesta (file invariati)", calls == 
 apk2 = apk[:-1] + b"X"
 open(ba.APK_PATH, "wb").write(apk2)
 j = cl.get("/api/app/version").get_json()
-check("APK cambiato ma version.json no: non si offre (impronta diversa)", j["available"] is False and "impronta" in j["reason"] and len(calls) == 1, (j, calls))
+check("APK cambiato ma version.json no: non si offre (impronta diversa)", j["available"] is False and "fingerprint" in j["reason"] and len(calls) == 1, (j, calls))
 check("... e il file non si scarica", cl.get("/app/KlippEye.apk").status_code == 404)
 info.update(sha256=hashlib.sha256(apk2).hexdigest(), version="1.0.1", code=10001)
 json.dump(info, open(ba.APK_INFO_PATH, "w"))
@@ -759,7 +759,7 @@ def offre():
 
 open(ba.APK_PATH, "wb").write(apk2[:1000])
 j = offre()
-check("APK piu' corto di quanto dice version.json (git a meta'): non si offre", j["available"] is False and "corrisponde" in j["reason"], j)
+check("APK piu' corto di quanto dice version.json (git a meta'): non si offre", j["available"] is False and "does not match" in j["reason"], j)
 open(ba.APK_PATH, "wb").write(apk2)
 check("... a lavoro finito torna disponibile da solo", offre()["available"] is True)
 for contenuto, nome in ((b"{rotto", "JSON rotto"), (b"[1,2]", "non e' un oggetto"), (b'{"version":"boh","sha256":"%s","size":%d}' % (info["sha256"].encode(), len(apk2)), "versione non valida"),

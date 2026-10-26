@@ -80,6 +80,17 @@ function tx(text, values) {
   return i18nFill(translated, values);
 }
 
+/** An English text to be translated later, in a language chosen then (see txIn): marks it for tools/i18n.py check. */
+function txn(text) {
+  return text;
+}
+
+/** The translation of an English text in a given language (not necessarily the page's): the notifications' own language. */
+function txIn(language, text) {
+  const dictionary = I18N_DICTIONARIES[language];
+  return dictionary && Object.prototype.hasOwnProperty.call(dictionary, text) ? dictionary[text] : text;
+}
+
 /** Like tx(), for an English text that needs a different translation in a given context (key "context|text"). */
 function txc(context, text, values) {
   const dictionary = I18N_DICTIONARIES[LANG];

@@ -23,7 +23,7 @@ IT = os.path.join(ROOT, "src", "i18n", "it.json")
 BACKEND = os.path.join(os.path.dirname(ROOT), "backend", "klippeye_backend.py")
 
 LITERAL = re.compile(r'"((?:[^"\\\n]|\\.)*)"()')   # the sources use double quotes for text (Prettier)
-CALL = re.compile(r'\btx\(\s*"((?:[^"\\\n]|\\.)*)"|\btxc\(\s*"((?:[^"\\\n]|\\.)*)"\s*,\s*"((?:[^"\\\n]|\\.)*)"')
+CALL = re.compile(r'\btx[n]?\(\s*"((?:[^"\\\n]|\\.)*)"|\btxc\(\s*"((?:[^"\\\n]|\\.)*)"\s*,\s*"((?:[^"\\\n]|\\.)*)"')
 ITALIAN = re.compile(r"[àèéìòùÀÈÌÒÙ]|\b(il|lo|la|gli|le|di|da|del|della|delle|dei|per|con|non|che|una|uno|sono|questo|questa|alla|al|nel|nella|dal|dalla|più|stampa|stampante|"
                      r"attiva|attivo|salva|annulla|chiudi|apri|riavvia|aggiorna|impostazioni|file|cartella|errore|spegni|accendi|tutto|nessun|nessuno|ancora|"
                      r"scegli|scrivi|tocca|premi|leggo|riprova|pronto|riavvio|velocità|ventola|ventole|temperatura|piatto|ugello|asse|assi|camera|monitor|"
@@ -85,7 +85,7 @@ def extract(path):
     seen = {}
     for m in LITERAL.finditer(src):
         before = src[max(0, m.start() - 3):m.start()]
-        if re.search(r"\btx\($|txc\($", before):
+        if re.search(r"\btxn?\($|txc\($", before):
             continue
         text = unescape(m.group(1) if m.group(1) is not None else m.group(2))
         if visible(text):
@@ -128,13 +128,15 @@ def apply(path, mapping_path):
 
 
 def backend_texts():
-    """The texts the backend sends for the dashboard to show (names and explanations of the monitor thresholds)."""
+    """The texts the backend sends for the dashboard to show: names and explanations of the monitor thresholds, and ui("...")."""
     try:
         src = open(BACKEND, encoding="utf-8").read()
     except OSError:
         return []
     start, end = src.find("CONFIG_GROUPS = ["), src.find("SPEC_BY_KEY")
-    return [unescape(m.group(2)) for m in re.finditer(r'"(title|note|label|help)":\s*"((?:[^"\\]|\\.)*)"', src[start:end]) if m.group(2)]
+    texts = [unescape(m.group(2)) for m in re.finditer(r'"(title|note|label|help)":\s*"((?:[^"\\]|\\.)*)"', src[start:end]) if m.group(2)]
+    texts += [unescape(m.group(1)) for m in re.finditer(r'\bui\(\s*"((?:[^"\\]|\\.)*)"\s*\)', src)]  # other texts the dashboard shows: ui("...")
+    return texts
 
 
 def check():
@@ -153,7 +155,7 @@ def check():
                 missing.append((os.path.basename(path), key))
         for m in LITERAL.finditer(src):
             before = src[max(0, m.start() - 3):m.start()]
-            if re.search(r"\btx\($|txc\($|, $", before) and re.search(r"\btxc?\(", src[max(0, m.start() - 40):m.start()]):
+            if re.search(r"\btxn?\($|txc\($|, $", before) and re.search(r"\btx[cn]?\(", src[max(0, m.start() - 40):m.start()]):
                 continue
             text = unescape(m.group(1) if m.group(1) is not None else m.group(2))
             if visible(text) and text not in used:

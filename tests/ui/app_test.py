@@ -125,7 +125,7 @@ with sync_playwright() as p:
     # ====================================================================================== nothing offered
     for label, kwargs, expect in (
         ("nothing published yet", dict(app=None), "non c'è ancora nessuna app"),
-        ("the backend says the file is not whole", dict(app={"available": False, "reason": "l'APK non corrisponde a versione.json (impronta diversa)"}), "non è completa (l'APK non corrisponde a versione.json (impronta diversa))"),
+        ("the backend says the file is not whole", dict(app={"available": False, "reason": "the APK does not match version.json (different fingerprint)"}), "non è completa (l'APK non corrisponde a version.json (impronta diversa))"),
         ("a backend that does not know apps (404)", dict(app_apk_status=404), "non conosce ancora l'app"),
         ("the backend fails (500)", dict(app_apk_status=500), "non risponde"),
         ("the backend answers nonsense", dict(app={"available": True, "version": "x"}), "non conosce ancora l'app"),

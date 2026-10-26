@@ -760,7 +760,7 @@ def api_app_version():
         return Response("<!doctype html><title>404 Not Found</title>", status=404, mimetype="text/html")
     if S["app_apk_status"] != 200:
         return jsonify(error="mock failure"), S["app_apk_status"]
-    offer = S["app_apk"] or {"available": False, "reason": "nessuna app pubblicata"}
+    offer = S["app_apk"] or {"available": False, "reason": "no app published"}
     return jsonify(dict(offer, ok=True))
 
 MIGRATE_STEPS = ["Controllo che si possa fare", "Copio le tue impostazioni", "Fermo VzBot e sposto il programma", "Installo i servizi KlippEye", "Tolgo i vecchi servizi e comandi", "Controllo che KlippEye risponda"]

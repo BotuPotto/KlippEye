@@ -539,12 +539,22 @@ function NotificationsPage({ active }) {
     h(ServiceLine, { status }),
     h(
       SettingsGroup,
+      { title: tx("Language of the notifications"), note: tx("The same for every phone with the app.") },
+      h(ChipChoice, {
+        label: tx("Language of the notifications"),
+        options: I18N_LANGUAGES.map((language) => ({ id: language.code, label: language.name })),
+        value: settings.language,
+        onChange: (id) => update((draft) => (draft.language = id)),
+      }),
+    ),
+    h(
+      SettingsGroup,
       { title: tx("Which notifications to receive"), note: tx("They apply to every phone with the app. The text is the one of the notification.") },
       h(
         "div",
         { className: "oui-list" },
         NOTIFICATION_KINDS.map((kind) =>
-          h(SwitchRow, { key: kind.id, title: kind.title, detail: kind.text, checked: settings.notifications[kind.id], onChange: (value) => update((draft) => (draft.notifications[kind.id] = value)) }),
+          h(SwitchRow, { key: kind.id, title: kind.title, detail: txIn(settings.language, kind.text), checked: settings.notifications[kind.id], onChange: (value) => update((draft) => (draft.notifications[kind.id] = value)) }),
         ),
       ),
     ),

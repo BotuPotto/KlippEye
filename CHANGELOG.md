@@ -1,5 +1,17 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.5.0
+
+**Push notifications in English or Italian.**
+
+* New in *Settings → Notifications*: **Language of the notifications** (English, Italiano), the same for every phone.
+  When nothing was chosen yet, the first dashboard that opens after the update gives the Raspberry its own language, so an
+  Italian installation keeps Italian notifications.
+* The notification service (`klippeye-notifier`, version 1.3) sends its texts in that language; `"language"` in
+  `notifier.json` is used when the dashboard has not chosen one, and texts written in `"messages"` still win. Its log and its
+  `--check` / `--test` output are in English.
+* The reasons why the backend cannot offer the Android app are sent in English and shown in the dashboard's language.
+
 ## 1.4.0
 
 **The dashboard speaks English and Italian.**

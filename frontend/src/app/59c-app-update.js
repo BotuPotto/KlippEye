@@ -174,7 +174,7 @@ function AppBlock({ app, installed }) {
         { tone: none ? undefined : "warn" },
         none
           ? tx("There is no app on the Raspberry yet. GitHub builds it when you upload the android/ folder (guide: docs/GUIDA.md, «The Android app»); then it comes here with «Update KlippEye».")
-          : tx("The app on the Raspberry is not complete ({reason}). Update KlippEye and check again.", { reason: String(info.reason || tx("unknown reason")) }),
+          : tx("The app on the Raspberry is not complete ({reason}). Update KlippEye and check again.", { reason: info.reason ? tx(String(info.reason)) : tx("unknown reason") }),
       ),
     );
   }

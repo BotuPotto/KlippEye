@@ -2472,6 +2472,11 @@ def api_migrate_start():
 # === fine PASSAGGIO A KLIPPEYE ============================================================================
 
 
+def ui(text):
+    """A text the dashboard shows as it is: written in English, translated by the dashboard (frontend/tools/i18n.py check lists them)."""
+    return text
+
+
 # === APP ANDROID: l'APK che GitHub costruisce (apk/KlippEye.apk + apk/version.json) ===============================
 APK_DIR = os.path.join(REPO_DIR, "apk")
 APK_PATH = os.path.join(APK_DIR, "KlippEye.apk")
@@ -2507,7 +2512,7 @@ def read_apk_info():
     try:
         info_stat, apk_stat = os.stat(APK_INFO_PATH), os.stat(APK_PATH)
     except OSError:
-        return {"available": False, "reason": "nessuna app pubblicata"}
+        return {"available": False, "reason": ui("no app published")}
     key = (info_stat.st_mtime_ns, info_stat.st_size, apk_stat.st_mtime_ns, apk_stat.st_size)
     with _apk_lock:
         if _apk_cache["key"] == key:
@@ -2522,20 +2527,20 @@ def _read_apk_info_uncached(apk_size):
         with open(APK_INFO_PATH, encoding="utf-8") as f:
             data = json.load(f)
     except (OSError, ValueError):
-        return {"available": False, "reason": "apk/version.json non si legge"}
+        return {"available": False, "reason": ui("apk/version.json cannot be read")}
     if not isinstance(data, dict):
-        return {"available": False, "reason": "apk/version.json non e' valido"}
+        return {"available": False, "reason": ui("apk/version.json is not valid")}
     version, sha = data.get("version"), str(data.get("sha256") or "").lower()
     if not isinstance(version, str) or _apk_code(version) is None or not _APK_SHA_RE.match(sha):
-        return {"available": False, "reason": "apk/version.json non e' valido"}
+        return {"available": False, "reason": ui("apk/version.json is not valid")}
     if data.get("size") != apk_size:
-        return {"available": False, "reason": "l'APK non corrisponde a version.json (aggiornamento a meta'?)"}
+        return {"available": False, "reason": ui("the APK does not match version.json (half-finished update?)")}
     try:
         actual = _apk_sha256(APK_PATH)
     except OSError:
-        return {"available": False, "reason": "l'APK non si legge"}
+        return {"available": False, "reason": ui("the APK cannot be read")}
     if actual != sha:
-        return {"available": False, "reason": "l'APK non corrisponde a version.json (impronta diversa)"}
+        return {"available": False, "reason": ui("the APK does not match version.json (different fingerprint)")}
     built = data.get("built")
     return {
         "available": True,
