@@ -46,11 +46,11 @@ Security: [SECURITY.md](SECURITY.md) · Contributing: [CONTRIBUTING.md](CONTRIBU
   ────────────────                                  ─────────                              ─────
   raise the number in android/VERSION
   GitHub builds and signs the APK (workflow)  ───►  "Update KlippEye" brings apk/ here ───►  app dashboard ► Updates
-  and saves it in apk/ (+ versione.json)            the backend offers it (/app/KlippEye.apk)  ► "Update the app" ► Android asks
+  and saves it in apk/ (+ version.json)            the backend offers it (/app/KlippEye.apk)  ► "Update the app" ► Android asks
 ```
 
 The app has its own version (`android/VERSION`). The backend offers the APK only if its size and SHA-256 match
-`apk/versione.json`; the app checks them again after downloading, and Android installs only an APK signed with the same
+`apk/version.json`; the app checks them again after downloading, and Android installs only an APK signed with the same
 key, after the user confirms. Setup (once) and steps: guide, part C. Technical details: [android/README.md](android/README.md).
 
 ## Repository layout
@@ -61,14 +61,14 @@ key, after the user confirms. Setup (once) and steps: guide, part C. Technical d
 | `backend/klippeye_backend.py`, `backend/access.py` | the backend: serves the dashboard, bridges Moonraker, AI monitor, password and network checks | updates |
 | `frontend/` | the dashboard: sources in `frontend/src`, built into `frontend/klippeye_frontend.html` ([frontend/README.md](frontend/README.md)) | updates |
 | `notifier/klippeye_notifier.py` | the push-notification service | updates |
-| `scripts/` | `install.sh` (run once), `ripara.sh` (self-repair, runs by itself), `passa-a-klippeye.sh` (move from VzBot), `klippeye` and `klippeye-notifiche` (rescue commands) | updates |
+| `scripts/` | `install.sh` (run once), `repair.sh` (self-repair, runs by itself), `passa-a-klippeye.sh` (move from VzBot), `klippeye` and `klippeye-notifiche` (rescue commands) | updates |
 | `systemd/` | templates of the `klippeye` and `klippeye-notifier` services | updates |
 | `android/` | the Android app sources (`android/VERSION` = app version) | new app releases |
-| `apk/` | `KlippEye.apk` and `versione.json`: the latest app built by GitHub | GitHub (`.github/workflows/app.yml`) |
+| `apk/` | `KlippEye.apk` and `version.json`: the latest app built by GitHub | GitHub (`.github/workflows/app.yml`) |
 | `ci/app_ci.py` | the steps of the app build workflow | updates |
 | `tests/` | automatic tests ([tests/README.md](tests/README.md)), run on GitHub for every pull request | contributors |
 | `logos/` | official printer logos for the printer picker ([logos/README.md](logos/README.md)) | once |
-| `~/printer_data/klippeye/brain.json` | AI monitor thresholds (changed from the dashboard) | the dashboard |
+| `~/printer_data/klippeye/monitor.json` | AI monitor thresholds (changed from the dashboard) | the dashboard |
 | `~/printer_data/klippeye/ai.json` | the AI service key (mode 600) | the dashboard |
 | `~/printer_data/klippeye/access.json`, `internal.token` | optional password (hash only) and token of the local services (mode 600) | the dashboard / `klippeye password` |
 | `~/printer_data/klippeye/notifier.json`, `service-account.json` | notification settings and key | you, once |

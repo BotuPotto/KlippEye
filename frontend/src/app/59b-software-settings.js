@@ -372,7 +372,7 @@ function MigrationBlock({ printing }) {
         }
       }
       if (Date.now() - began > MIGRATION_LIMIT_MS) {
-        setProblem({ message: "Il backend non risponde da dieci minuti. Controlla dal terminale con: klippeye stato", command: "" });
+        setProblem({ message: "Il backend non risponde da dieci minuti. Controlla dal terminale con: klippeye status", command: "" });
         setStage("error");
         return;
       }

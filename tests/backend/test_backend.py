@@ -106,8 +106,8 @@ r = client.post("/api/backend/config", json={"values": {"sensitivity": 50, "trig
 j = r.get_json()
 check("POST valido: 200, ok, changed", r.status_code == 200 and j["ok"] and sorted(j["changed"]) == ["sensitivity", "trigger_count"], j)
 check("... mette in uso le soglie nel rilevatore", b.detector.sensitivity == 50 and b.detector.trigger_threshold == 5)
-saved = json.load(open(os.path.join(d, "brain.json")))
-check("... e le salva in brain.json", saved["values"]["sensitivity"] == 50 and saved["values"]["trigger_count"] == 5 and saved["formato"] == 1, saved)
+saved = json.load(open(os.path.join(d, "monitor.json")))
+check("... e le salva in monitor.json (brain.json prima della 1.3.0, rinominato da solo)", saved["values"]["sensitivity"] == 50 and saved["values"]["trigger_count"] == 5 and saved["formato"] == 1, saved)
 check("... senza lasciare file temporanei", [f for f in os.listdir(d) if f.startswith(".tmp")] == [], os.listdir(d))
 
 r = client.post("/api/backend/config", json={"values": {"sensitivity": 500, "cooldown": 5, "pippo": 1}})
@@ -165,7 +165,7 @@ open(os.path.join(d3, "brain.json"), "w").write("{ questo non e' json")
 os.environ["KLIPPEYE_DATA"] = d3
 b4 = load_brain(NEW_BRAIN, d3)
 check("file rovinato: il Brain parte lo stesso con i valori di sempre", b4.brain_config.snapshot() == b4.config_defaults())
-check("... e il file rovinato viene messo da parte, non perso", any(f.startswith("brain.json.rovinato-") for f in os.listdir(d3)), os.listdir(d3))
+check("... e il file rovinato viene messo da parte, non perso", any(f.startswith("monitor.json.damaged-") for f in os.listdir(d3)), os.listdir(d3))
 b4.detector.stop()
 d4 = tmp()
 open(os.path.join(d4, "brain.json"), "w").write("[1,2,3]")
@@ -247,6 +247,19 @@ b8b = load_brain(os.path.join(vroot, "backend", "klippeye_backend.py"), rk, brai
 check("... e con un ripristino registrato lo riporta", b8b.app.test_client().get("/api/version").get_json()["repair"] == {"time": 1, "restored": ["a"], "failed": []})
 open(os.path.join(rk, "ripristino.json"), "w").write("{rovinato")
 check("... un ripristino.json rovinato non rompe /api/version", b8b.app.test_client().get("/api/version").get_json()["repair"] is None)
+rk2 = tmp(); os.makedirs(rk2, exist_ok=True)
+json.dump({"time": 2, "restored": ["b"], "failed": []}, open(os.path.join(rk2, "repair.json"), "w"))
+b8c = load_brain(NEW_BRAIN, rk2, brain_json={"values": {"enabled": False}})
+check("1.3.0: l'ultimo ripristino si legge da repair.json", b8c.app.test_client().get("/api/version").get_json()["repair"] == {"time": 2, "restored": ["b"], "failed": []})
+mg = tmp(); os.makedirs(os.path.join(mg, "allarmi"), exist_ok=True)
+open(os.path.join(mg, "allarmi", "storico.jsonl"), "w").write(json.dumps({"id": "20260101-000000", "esito": "analizzato", "con_foto_di_prima": True, "osservazione": "x", "image": "20260101-000000-adesso.jpg"}) + "\n")
+open(os.path.join(mg, "allarmi", "20260101-000000-adesso.jpg"), "wb").write(b"\xff\xd8\xff\xd9")
+bmg = load_brain(NEW_BRAIN, mg, brain_json={"values": {"enabled": False, "sensitivity": 44}})
+check("1.3.0: brain.json diventa monitor.json (stesse soglie)", os.path.isfile(os.path.join(mg, "monitor.json")) and not os.path.exists(os.path.join(mg, "brain.json")) and bmg.brain_config.snapshot()["sensitivity"] == 44, os.listdir(mg))
+check("... allarmi/ diventa alerts/ e storico.jsonl history.jsonl", os.path.isfile(os.path.join(mg, "alerts", "history.jsonl")) and not os.path.exists(os.path.join(mg, "allarmi")), os.listdir(mg))
+h_old = bmg.read_alert_history()
+check("... gli eventi vecchi si leggono con le chiavi inglesi", h_old and h_old[0]["outcome"] == "analizzato" and h_old[0]["with_reference"] is True and h_old[0]["observation"] == "x" and "esito" not in h_old[0], h_old)
+check("... e le loro foto si scaricano ancora", bmg.app.test_client().get("/api/print/alerts/image/20260101-000000-adesso.jpg").status_code == 200)
 
 # chiave dell'IA: nuovo posto con permessi 600, vecchio posto ancora letto
 dk = tmp()
@@ -630,7 +643,7 @@ check("... difetto con fiducia 40% sotto la soglia 70%: PAUSA diventa CONTINUA e
 check("... e /api/print/last_analysis lo mostra cosi' (e dice 'forse un problema' nel riassunto)", "forse un problema" in b_ai.app.test_client().get("/api/print/last_analysis").get_json()["analysis"]["summary"])
 hist = b_ai.read_alert_history()
 check("storico: un evento con esito 'declassato', verdetto, osservazione e le due foto copiate",
-      len(hist) == 1 and "declassato" in hist[0]["esito"] and hist[0]["action"] == "CONTINUA" and hist[0]["action_originale"] == "PAUSA" and hist[0]["osservazione"] == "la testina"
+      len(hist) == 1 and "downgraded" in hist[0]["outcome"] and hist[0]["action"] == "CONTINUA" and hist[0]["original_action"] == "PAUSA" and hist[0]["observation"] == "la testina"
       and os.path.isfile(os.path.join(b_ai.ALERT_HISTORY_DIR, hist[0]["image"])) and os.path.isfile(os.path.join(b_ai.ALERT_HISTORY_DIR, hist[0]["reference"])), hist)
 cl_ai = b_ai.app.test_client()
 j = cl_ai.get("/api/print/alerts/history").get_json()
@@ -638,7 +651,7 @@ check("/api/print/alerts/history elenca gli allarmi (piu' recente per primo)", j
 r = cl_ai.get("/api/print/alerts/image/" + hist[0]["image"])
 check("/api/print/alerts/image/<nome> manda la foto (jpeg)", r.status_code == 200 and r.mimetype == "image/jpeg" and r.data[:2] == b"\xff\xd8")
 r.close()
-check("... e rifiuta nomi strani (niente percorsi): 404", all(cl_ai.get("/api/print/alerts/image/" + n).status_code == 404 for n in ("..%2F..%2Fai.json", "ai.json", "20260101-000000-adesso.png", "x-adesso.jpg")))
+check("... e rifiuta nomi strani (niente percorsi): 404", all(cl_ai.get("/api/print/alerts/image/" + n).status_code == 404 for n in ("..%2F..%2Fai.json", "ai.json", "20260101-000000-now.png", "x-now.jpg")))
 
 b_ai, cur, prev = fresh_ai(ai_reply(defect_confidence=85))
 b_ai.detector.call_ai_analysis(cur, prev, 60)
@@ -656,24 +669,24 @@ b_ai, cur, prev = fresh_ai(ai_reply(defect_confidence=85, fail_two=True))
 del seen_calls[:]
 b_ai.detector.call_ai_analysis(cur, prev, 60)
 check("il servizio rifiuta due foto (400): riprova da solo con una e l'analisi arriva comunque", seen_calls == [2, 1] and b_ai.detector.last_analysis["analysis"]["action"] == "PAUSA" and b_ai.detector.last_analysis["with_reference"] is False, (seen_calls, b_ai.detector.last_analysis))
-check("... e lo storico lo segna ('senza foto di prima', senza copiare quella)", b_ai.read_alert_history()[0]["con_foto_di_prima"] is False and "reference" not in b_ai.read_alert_history()[0])
+check("... e lo storico lo segna ('senza foto di prima', senza copiare quella)", b_ai.read_alert_history()[0]["with_reference"] is False and "reference" not in b_ai.read_alert_history()[0])
 
 b_ai, cur, prev = fresh_ai(ai_reply())
 b_ai.detector.last_ai_call = time.time()
 b_ai.detector.call_ai_analysis(cur, prev, 60)
-check("pausa tra due analisi non finita: salta ma lo scrive nello storico", "saltata" in b_ai.read_alert_history()[0]["esito"])
+check("pausa tra due analisi non finita: salta ma lo scrive nello storico", "skipped" in b_ai.read_alert_history()[0]["outcome"])
 
 b_ai, cur, prev = fresh_ai(ai_reply())
 for i in range(45):
-    b_ai.record_alert({"esito": "prova %d" % i}, cur, prev)
+    b_ai.record_alert({"outcome": "test %d" % i}, cur, prev)
     time.sleep(0.002) if i % 7 == 0 else None
-lines = open(os.path.join(b_ai.ALERT_HISTORY_DIR, "storico.jsonl")).read().splitlines()
+lines = open(os.path.join(b_ai.ALERT_HISTORY_DIR, "history.jsonl")).read().splitlines()
 jpgs = [n for n in os.listdir(b_ai.ALERT_HISTORY_DIR) if n.endswith(".jpg")]
 check("lo storico tiene gli ultimi 40 eventi e cancella le foto degli altri", len(lines) == 40 and len(jpgs) <= 80, (len(lines), len(jpgs)))
 bad_dir = tmp()
 b_ai.ALERT_HISTORY_DIR = os.path.join(bad_dir, "file")
 open(b_ai.ALERT_HISTORY_DIR, "w").write("x")
-b_ai.record_alert({"esito": "x"}, cur, prev)
+b_ai.record_alert({"outcome": "x"}, cur, prev)
 check("cartella dello storico non scrivibile: nessuna eccezione (il monitor non si ferma)", True)
 
 check("impostazioni nuove: valori di serie (filtro acceso, 3 controlli, 60 s, 30%, fiducia 70%, foto di prima accesa)",
@@ -693,7 +706,7 @@ da = tmp()
 ba = load_brain(NEW_BRAIN, da, brain_json={"values": {"enabled": False}})
 cl = ba.app.test_client()
 apkdir = os.path.join(tmp(), "apk")
-ba.APK_DIR, ba.APK_PATH, ba.APK_INFO_PATH = apkdir, os.path.join(apkdir, "KlippEye.apk"), os.path.join(apkdir, "versione.json")
+ba.APK_DIR, ba.APK_PATH, ba.APK_INFO_PATH = apkdir, os.path.join(apkdir, "KlippEye.apk"), os.path.join(apkdir, "version.json")
 check("la cartella apk/ del repository e' accanto a backend/ (come scrive il workflow)", os.path.basename(NEW_BRAIN) == "klippeye_backend.py"
       and load_brain(NEW_BRAIN, tmp(), brain_json={"values": {"enabled": False}}).APK_PATH == os.path.join(os.path.dirname(os.path.dirname(NEW_BRAIN)), "apk", "KlippEye.apk"))
 r = cl.get("/api/app/version")
@@ -732,12 +745,12 @@ check("l'impronta non si ricalcola a ogni richiesta (file invariati)", calls == 
 apk2 = apk[:-1] + b"X"
 open(ba.APK_PATH, "wb").write(apk2)
 j = cl.get("/api/app/version").get_json()
-check("APK cambiato ma versione.json no: non si offre (impronta diversa)", j["available"] is False and "impronta" in j["reason"] and len(calls) == 1, (j, calls))
+check("APK cambiato ma version.json no: non si offre (impronta diversa)", j["available"] is False and "impronta" in j["reason"] and len(calls) == 1, (j, calls))
 check("... e il file non si scarica", cl.get("/app/KlippEye.apk").status_code == 404)
 info.update(sha256=hashlib.sha256(apk2).hexdigest(), version="1.0.1", code=10001)
 json.dump(info, open(ba.APK_INFO_PATH, "w"))
 j = cl.get("/api/app/version").get_json()
-check("versione.json aggiornato insieme all'APK: si offre la nuova", j["available"] is True and j["version"] == "1.0.1" and j["code"] == 10001 and cl.get("/app/KlippEye.apk").data == apk2)
+check("version.json aggiornato insieme all'APK: si offre la nuova", j["available"] is True and j["version"] == "1.0.1" and j["code"] == 10001 and cl.get("/app/KlippEye.apk").data == apk2)
 ba._apk_sha256 = real_sha
 
 # file rovinati / aggiornamento a meta'
@@ -746,7 +759,7 @@ def offre():
 
 open(ba.APK_PATH, "wb").write(apk2[:1000])
 j = offre()
-check("APK piu' corto di quanto dice versione.json (git a meta'): non si offre", j["available"] is False and "corrisponde" in j["reason"], j)
+check("APK piu' corto di quanto dice version.json (git a meta'): non si offre", j["available"] is False and "corrisponde" in j["reason"], j)
 open(ba.APK_PATH, "wb").write(apk2)
 check("... a lavoro finito torna disponibile da solo", offre()["available"] is True)
 for contenuto, nome in ((b"{rotto", "JSON rotto"), (b"[1,2]", "non e' un oggetto"), (b'{"version":"boh","sha256":"%s","size":%d}' % (info["sha256"].encode(), len(apk2)), "versione non valida"),
@@ -754,12 +767,12 @@ for contenuto, nome in ((b"{rotto", "JSON rotto"), (b"[1,2]", "non e' un oggetto
                         (b'{"version":"1.0.100","sha256":"%s","size":%d}' % (info["sha256"].encode(), len(apk2)), "versione fuori dai limiti")):
     open(ba.APK_INFO_PATH, "wb").write(contenuto)
     j = offre()
-    check("versione.json " + nome + ": non si offre, nessun errore 500", j["available"] is False and j["ok"] is True and cl.get("/app/KlippEye.apk").status_code == 404, j)
+    check("version.json " + nome + ": non si offre, nessun errore 500", j["available"] is False and j["ok"] is True and cl.get("/app/KlippEye.apk").status_code == 404, j)
 info["sha256"] = info["sha256"].upper()
 json.dump(info, open(ba.APK_INFO_PATH, "w"))
 check("l'impronta scritta in maiuscolo si riconosce lo stesso (e si restituisce minuscola)", offre()["available"] is True and offre()["sha256"] == info["sha256"].lower())
 os.remove(ba.APK_INFO_PATH)
-check("manca versione.json: non si offre", offre()["available"] is False)
+check("manca version.json: non si offre", offre()["available"] is False)
 json.dump(info, open(ba.APK_INFO_PATH, "w"))
 os.remove(ba.APK_PATH)
 check("manca l'APK: non si offre", offre()["available"] is False)

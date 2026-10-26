@@ -457,7 +457,7 @@ with sync_playwright() as p:
         "Stampante in errore! Effettuare riavvio.", "Stampa completata!", "Stampa interrotta!", "Stampante in pausa!", "Filamento esaurito, effettuare cambio bobina!",
         "Difetti di stampa rilevati, verificare e mettere in pausa la stampa!", "Difetti gravi di stampa rilevati, verificare e interrompere la stampa"], [r.locator(".set-switch__detail").inner_text() for r in rows.all()])
     ok("all on at first", all(r.get_attribute("aria-checked") == "true" for r in rows.all()))
-    ok("no sign of the service yet: the line says so and what to do", "non si è ancora fatto vivo" in pg.locator(".set-status").first.inner_text() and "klippeye stato" in pg.locator(".set-status").first.inner_text(), pg.locator(".set-status").first.inner_text())
+    ok("no sign of the service yet: the line says so and what to do", "non si è ancora fatto vivo" in pg.locator(".set-status").first.inner_text() and "klippeye status" in pg.locator(".set-status").first.inner_text(), pg.locator(".set-status").first.inner_text())
     switch(P, "Stampante in pausa").click(); switch(P, "IA: difetti gravi").click(); P.settle(300)
     ok("a switch moves at once", not checked(P, "Stampante in pausa") and not checked(P, "IA: difetti gravi") and checked(P, "Stampa completata"))
     ok("... and the Raspberry gets it", wait_until(lambda: stored()["notifications"]["paused"] is False and stored()["notifications"]["ai_cancel"] is False and stored()["notifications"]["complete"] is True), stored()["notifications"])
@@ -471,7 +471,7 @@ with sync_playwright() as p:
     close_menu(P)
     db_write("notifier", {"version": "1.1", "seen": int(time.time()) - 1500})
     open_menu(P); go(P, "notifications")
-    ok("not seen for 25 minutes: 'non risponde da 25 min fa' in amber, with the command that checks", wait_until(lambda: "non risponde" in pg.locator(".set-status").first.inner_text()) and "25 min" in pg.locator(".set-status").first.inner_text() and "klippeye-notifiche stato" in pg.locator(".set-status").first.inner_text() and "set-status--warn" in pg.locator(".set-status").first.get_attribute("class"), pg.locator(".set-status").first.inner_text())
+    ok("not seen for 25 minutes: 'non risponde da 25 min fa' in amber, with the command that checks", wait_until(lambda: "non risponde" in pg.locator(".set-status").first.inner_text()) and "25 min" in pg.locator(".set-status").first.inner_text() and "klippeye status" in pg.locator(".set-status").first.inner_text() and "set-status--warn" in pg.locator(".set-status").first.get_attribute("class"), pg.locator(".set-status").first.inner_text())
     P.close()
 
     # ============================================================================================ AI monitor

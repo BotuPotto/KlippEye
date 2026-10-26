@@ -41,7 +41,7 @@ def repo(versione="1.0.0", pubblicata=None):
     if pubblicata:
         os.makedirs(radice + "/apk")
         open(radice + "/apk/KlippEye.apk", "wb").write(b"x" * 10)
-        json.dump(pubblicata, open(radice + "/apk/versione.json", "w"))
+        json.dump(pubblicata, open(radice + "/apk/version.json", "w"))
     return radice, ci.percorsi(radice)
 
 
@@ -64,12 +64,12 @@ prova("decidi: versione piu' bassa -> errore chiaro", lancia_errore(lambda: ci.d
 prova("decidi: versione piu' bassa anche se forzato -> errore", lancia_errore(lambda: ci.decidi(p, forza=True), "più vecchia"))
 radice, p = repo("1.0.0", {"version": "1.0.0"})
 os.remove(radice + "/apk/KlippEye.apk")
-prova("decidi: versione.json c'e' ma l'APK no -> costruisce", ci.decidi(p)["build"] == "true")
+prova("decidi: version.json c'e' ma l'APK no -> costruisce", ci.decidi(p)["build"] == "true")
 radice, p = repo("1.0.0")
 os.makedirs(radice + "/apk")
-open(radice + "/apk/versione.json", "w").write("{rotto")
+open(radice + "/apk/version.json", "w").write("{rotto")
 open(radice + "/apk/KlippEye.apk", "wb").write(b"x")
-prova("decidi: versione.json rovinato -> costruisce", ci.decidi(p)["build"] == "true")
+prova("decidi: version.json rovinato -> costruisce", ci.decidi(p)["build"] == "true")
 radice, p = repo("1.0.0")
 r = ci.decidi(p, evento="push", password="")
 prova("decidi: primo caricamento (push) senza password -> non costruisce e dice di creare il segreto", r["build"] == "false" and "KLIPPEYE_CHIAVE_PASSWORD" in r["motivo"] and "C1" in r["motivo"], r)
@@ -163,9 +163,9 @@ info = ci.pubblica(p, apk, aapt2(), apksigner(), sorgente="0123456789abcdef0123"
 prova("pubblica: apk/KlippEye.apk identico", open(p["apk"], "rb").read() == open(apk, "rb").read())
 dati = json.load(open(p["info"]))
 import hashlib
-prova("pubblica: versione.json corretto",
+prova("pubblica: version.json corretto",
       dati == {"version": "1.0.0", "code": 10000, "size": os.path.getsize(apk), "sha256": hashlib.sha256(open(apk, "rb").read()).hexdigest(), "firma": "ab" * 32, "built": "2026-10-22T21:15:07Z", "source": "0123456789ab"}, dati)
-prova("pubblica: nessun file a meta' rimasto", sorted(os.listdir(radice + "/apk")) == ["KlippEye.apk", "versione.json"], os.listdir(radice + "/apk"))
+prova("pubblica: nessun file a meta' rimasto", sorted(os.listdir(radice + "/apk")) == ["KlippEye.apk", "version.json"], os.listdir(radice + "/apk"))
 prova("pubblica: dopo, decidi dice 'gia' pubblicata'", ci.decidi(p)["build"] == "false")
 
 # stessa versione ricostruita con la stessa firma: ok; con firma diversa: errore (a meno che non lo si voglia)
@@ -217,7 +217,7 @@ corta = base + "/corta"
 git("clone", "-q", "--depth", "1", "-b", "main", url, corta)  # come fa actions/checkout
 os.makedirs(corta + "/apk")
 open(corta + "/apk/KlippEye.apk", "wb").write(b"A" * 1000)
-open(corta + "/apk/versione.json", "w").write('{"version":"1.0.0"}\n')
+open(corta + "/apk/version.json", "w").write('{"version":"1.0.0"}\n')
 os.makedirs(corta + "/android/chiave")
 open(corta + "/android/chiave/klippeye.p12", "wb").write(b"chiave")
 prova("salva: spedisce apk/ e chiave", ci.salva(corta, "main", "App 1.0.0 [skip ci]", ["apk", "android/chiave"]) is True)
@@ -241,7 +241,7 @@ git("add", "-A", cwd=altro)
 git("commit", "-q", "-m", "modifica dell'utente", cwd=altro)
 git("push", "-q", "origin", "HEAD:main", cwd=altro)
 open(corta2 + "/apk/KlippEye.apk", "wb").write(b"B" * 2000)
-open(corta2 + "/apk/versione.json", "w").write('{"version":"1.0.1"}\n')
+open(corta2 + "/apk/version.json", "w").write('{"version":"1.0.1"}\n')
 prova("salva: con un push arrivato nel frattempo riesce lo stesso", ci.salva(corta2, "main", "App 1.0.1 [skip ci]", ["apk", "android/chiave"]) is True)
 prova("salva (corsa): il file nuovo e' sul server", git("--git-dir", remoto, "show", "main:apk/KlippEye.apk") == "B" * 2000)
 prova("salva (corsa): la modifica dell'utente e' ancora li'", "modificato dall'utente" in git("--git-dir", remoto, "show", "main:README.md") and "print(1)" in git("--git-dir", remoto, "show", "main:brain/nuovo.py"))

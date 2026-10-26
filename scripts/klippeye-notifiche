@@ -1,17 +1,18 @@
 #!/usr/bin/env bash
-# Il comando di prima ("klippeye-notifiche prova | controlla | stato | log | riavvia | disinstalla"), ora un vestito per "klippeye".
+# Old command of the notifier ("klippeye-notifiche prova | controlla | stato | log | riavvia | disinstalla"), now a wrapper of "klippeye".
+# English names work too: test | check | status | log | restart | uninstall.
 V="$(dirname "$(readlink -f "$0")")/klippeye"
 SUDO="${KLIPPEYE_SUDO-sudo}"
 NSVC=klippeye-notifier
-case "$(basename "$(cd "$(dirname "$V")/.." && pwd)")" in vzbot|VzBot) NSVC=vzbot-notifier ;; esac   # prima del passaggio al nuovo nome
-case "${1:-aiuto}" in
-  prova)       exec "$V" notifiche prova ;;
-  controlla)   exec "$V" notifiche controlla ;;
-  stato)       $SUDO "${KLIPPEYE_SYSTEMCTL:-systemctl}" status "$NSVC" --no-pager -l 2>&1 | head -n 25 ;;
-  log)         exec "$V" log notifiche ;;
-  riavvia)     exec "$V" riavvia notifiche ;;
-  disinstalla)
+case "$(basename "$(cd "$(dirname "$V")/.." && pwd)")" in vzbot|VzBot) NSVC=vzbot-notifier ;; esac   # before the move to the new name
+case "${1:-help}" in
+  prova|test)          exec "$V" notify test ;;
+  controlla|check)     exec "$V" notify check ;;
+  stato|status)        $SUDO "${KLIPPEYE_SYSTEMCTL:-systemctl}" status "$NSVC" --no-pager -l 2>&1 | head -n 25 ;;
+  log)                 exec "$V" log notifier ;;
+  riavvia|restart)     exec "$V" restart notifier ;;
+  disinstalla|uninstall)
     $SUDO "${KLIPPEYE_SYSTEMCTL:-systemctl}" disable --now "$NSVC" 2>/dev/null
-    echo "Servizio delle notifiche fermato e disabilitato. Per riaccenderlo:  sudo systemctl enable --now $NSVC" ;;
-  *) echo "klippeye-notifiche prova | controlla | stato | log | riavvia | disinstalla      (tutti i comandi: klippeye aiuto)" ;;
+    echo "Notification service stopped and disabled. To turn it on again:  sudo systemctl enable --now $NSVC" ;;
+  *) echo "klippeye-notifiche test | check | status | log | restart | uninstall      (all commands: klippeye help)" ;;
 esac

@@ -44,7 +44,7 @@ Per fare una versione nuova **basta alzare il numero in `VERSION`**. Con un nume
 ## Come nasce l'APK
 
 **Da GitHub (il modo normale).** Quando in `android/` cambia qualcosa *e* il numero in `VERSION` è nuovo, il workflow
-`.github/workflows/app.yml` compila l'APK sul computer di GitHub, lo firma e lo mette in `apk/KlippEye.apk` con `apk/versione.json`
+`.github/workflows/app.yml` compila l'APK sul computer di GitHub, lo firma e lo mette in `apk/KlippEye.apk` con `apk/version.json`
 (versione, grandezza, impronta SHA-256, firma). Il Raspberry lo riceve con il normale «Aggiorna KlippEye», il backend lo offre al telefono
 (`/api/app/version`, `/app/KlippEye.apk`) e la dashboard dell'app mostra «Aggiorna l'app». Passo per passo: [`docs/GUIDA.md`](../docs/GUIDA.md), parte C.
 

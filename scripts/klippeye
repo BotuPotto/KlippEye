@@ -1,45 +1,60 @@
 #!/usr/bin/env bash
-# klippeye - comandi per il Raspberry (messi in /usr/local/bin da scripts/install.sh).
-# Servono solo se qualcosa non va o se vuoi guardare dentro: l'uso normale (aggiornare, riavviare) si fa dalla dashboard.
+# klippeye - commands for the Raspberry (linked into /usr/local/bin by scripts/install.sh).
+# Only needed when something is wrong or to look inside: everyday use (updating, restarting) happens in the dashboard.
+# The Italian command names of releases before 1.3.0 still work (stato, versione, riavvia, ripara, aggiorna, notifiche, annulla).
 
 REPO="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)"
 if [ -n "${KLIPPEYE_DATA:-}" ]; then DATA="$KLIPPEYE_DATA"
-elif [ -d "$HOME/printer_data/vzbot" ] && [ ! -d "$HOME/printer_data/klippeye" ]; then DATA="$HOME/printer_data/vzbot"   # prima del passaggio al nuovo nome
+elif [ -d "$HOME/printer_data/vzbot" ] && [ ! -d "$HOME/printer_data/klippeye" ]; then DATA="$HOME/printer_data/vzbot"   # before the move to the new name
 elif [ -d "$HOME/printer_data" ]; then DATA="$HOME/printer_data/klippeye"
 else DATA="$HOME/klippeye_data"; fi
-# prima del passaggio al nuovo nome (cartella ~/vzbot) i servizi si chiamano ancora vzbot e vzbot-notifier
+# before the move to the new name (folder ~/vzbot) the services are still called vzbot and vzbot-notifier
 SVC=klippeye; NSVC=klippeye-notifier
 case "$(basename "$REPO")" in vzbot|VzBot) SVC=vzbot; NSVC=vzbot-notifier ;; esac
-BRAIN_URL="${KLIPPEYE_BRAIN_URL:-http://127.0.0.1:8085}"
+BACKEND_URL="${KLIPPEYE_BRAIN_URL:-http://127.0.0.1:8085}"
 SUDO="${KLIPPEYE_SUDO-sudo}"
 SYSTEMCTL="${KLIPPEYE_SYSTEMCTL:-systemctl}"
 
-service_for() {  # brain|notifiche|tutto -> nomi dei servizi
-  case "${1:-brain}" in
+# Italian names of releases before 1.3.0 -> English
+english() {
+  case "$1" in
+    stato) echo status ;; versione) echo version ;; riavvia) echo restart ;; ripara) echo repair ;; aggiorna) echo update ;;
+    notifiche) echo notify ;; annulla) echo undo-install ;; aiuto) echo help ;;
+    prova) echo test ;; controlla) echo check ;; tutto|tutti) echo all ;; --forza) echo --force ;;
+    *) echo "$1" ;;
+  esac
+}
+
+service_for() {  # backend|notifier|all -> service names
+  case "${1:-backend}" in
     backend|brain|dashboard|klippeye|vzbot) echo "$SVC" ;;
-    notifiche|notifier|notifica) echo "$NSVC" ;;
-    tutto|tutti) echo "$SVC $NSVC" ;;
+    notifier|notifications|notifiche|notifica) echo "$NSVC" ;;
+    all) echo "$SVC $NSVC" ;;
     *) return 1 ;;
   esac
 }
 
-release() { tr -d '[:space:]' < "$REPO/VERSION" 2>/dev/null || echo "sconosciuta"; }
+release() { tr -d '[:space:]' < "$REPO/VERSION" 2>/dev/null || echo "unknown"; }
 
-case "${1:-aiuto}" in
-  versione)
+CMD="$(english "${1:-help}")"
+ARG2="$(english "${2:-}")"
+
+case "$CMD" in
+  version)
     echo "KlippEye $(release)"
-    git -C "$REPO" log -1 --format='commit %h del %cd' --date=short 2>/dev/null
+    git -C "$REPO" log -1 --format='commit %h of %cd' --date=short 2>/dev/null
     ;;
-  stato)
-    echo "KlippEye $(release)   (cartella del programma: $REPO)"
-    echo "Dati e impostazioni:  $DATA"
+  status)
+    echo "KlippEye $(release)   (program folder: $REPO)"
+    echo "Data and settings:   $DATA"
     for s in $SVC $NSVC moonraker; do
-      printf '  %-16s %s\n' "$s" "$($SYSTEMCTL is-active "$s" 2>/dev/null || echo 'non trovato')"
+      printf '  %-16s %s\n' "$s" "$($SYSTEMCTL is-active "$s" 2>/dev/null || echo 'not found')"
     done
-    if [ -e "$DATA/non-riparare" ]; then echo "  Autoriparazione    SPENTA (c'e' il file $DATA/non-riparare)"
-    elif [ -f "$DATA/ripristino.json" ]; then echo "  Autoriparazione    attiva; ultimo ripristino: $(cat "$DATA/ripristino.json")"
-    else echo "  Autoriparazione    attiva (nessun file rovinato finora)"; fi
-    python3 - "$BRAIN_URL" "$DATA" <<'PY'
+    if [ -e "$DATA/no-repair" ] || [ -e "$DATA/non-riparare" ]; then echo "  Self-repair        OFF (the file $DATA/no-repair exists)"
+    elif [ -f "$DATA/repair.json" ]; then echo "  Self-repair        on; last restore: $(cat "$DATA/repair.json")"
+    elif [ -f "$DATA/ripristino.json" ]; then echo "  Self-repair        on; last restore: $(cat "$DATA/ripristino.json")"
+    else echo "  Self-repair        on (no damaged file so far)"; fi
+    python3 - "$BACKEND_URL" "$DATA" <<'PY'
 import json, os, sys, urllib.request
 headers = {}
 try:  # with the password on, the backend wants the internal token of the services on the Raspberry
@@ -50,52 +65,55 @@ def get(path):
     return json.load(urllib.request.urlopen(urllib.request.Request(sys.argv[1] + path, headers=headers), timeout=4))
 try:
     d = get("/api/version")
-    print("  Il backend risponde: release %s, interfaccia %s, acceso da %d minuti" % (d.get("release"), d.get("api"), d.get("uptime", 0) // 60))
+    print("  The backend answers: release %s, API %s, up for %d minutes" % (d.get("release"), d.get("api"), d.get("uptime", 0) // 60))
 except Exception as e:
-    print("  Il backend NON risponde su %s (%s)" % (sys.argv[1], e))
+    print("  The backend does NOT answer on %s (%s)" % (sys.argv[1], e))
 else:
     try:
         a = get("/api/app/version")
-        print("  App Android: " + ("la %s e' pronta per il telefono" % a["version"] if a.get("available") else "niente da offrire (%s)" % a.get("reason", "?")))
+        print("  Android app: " + ("%s is ready for the phone" % a["version"] if a.get("available") else "nothing to offer (%s)" % a.get("reason", "?")))
     except Exception:
         pass
 PY
     ;;
   log)
-    svc="$(service_for "${2:-backend}")" || { echo "Quale? backend oppure notifiche"; exit 2; }
+    svc="$(service_for "${ARG2:-backend}")" || { echo "Which one? backend or notifier"; exit 2; }
     args=(); for s in $svc; do args+=(-u "$s"); done
     journalctl "${args[@]}" -n 80 --no-pager 2>/dev/null || $SUDO journalctl "${args[@]}" -n 80 --no-pager
     ;;
-  riavvia)
-    svc="$(service_for "${2:-backend}")" || { echo "Quale? backend, notifiche oppure tutto"; exit 2; }
-    $SUDO $SYSTEMCTL restart $svc && echo "Riavviato: $svc"
+  restart)
+    svc="$(service_for "${ARG2:-backend}")" || { echo "Which one? backend, notifier or all"; exit 2; }
+    $SUDO $SYSTEMCTL restart $svc && echo "Restarted: $svc"
     ;;
-  aggiorna)
-    # Quello che fa il tasto "Aggiorna" della dashboard, a mano (serve internet e il repository collegato).
+  update)
+    # What the dashboard's "Update" button does, by hand (needs internet and the repository).
     branch="$(git -C "$REPO" rev-parse --abbrev-ref HEAD 2>/dev/null)"
-    [ -n "$branch" ] || { echo "$REPO non e' un repository git: niente da aggiornare."; exit 1; }
+    [ -n "$branch" ] || { echo "$REPO is not a git repository: nothing to update."; exit 1; }
     if [ -n "$(git -C "$REPO" status --porcelain -uno 2>/dev/null)" ]; then
-      echo "Ci sono file del programma modificati a mano in $REPO:"; git -C "$REPO" status --short -uno
-      echo "Per buttarli via e aggiornare:  klippeye aggiorna --forza"
-      [ "${2:-}" = "--forza" ] || exit 1
+      echo "Program files were changed by hand in $REPO:"; git -C "$REPO" status --short -uno
+      echo "To throw the changes away and update:  klippeye update --force"
+      [ "$ARG2" = "--force" ] || exit 1
     fi
-    git -C "$REPO" fetch --quiet origin "$branch" || { echo "Non riesco a contattare il repository (internet?)."; exit 1; }
-    git -C "$REPO" reset --hard "origin/$branch" --quiet && echo "Aggiornato alla release $(release)."
-    $SUDO $SYSTEMCTL restart $SVC && echo "Backend riavviato."
+    git -C "$REPO" fetch --quiet origin "$branch" || { echo "Cannot reach the repository (internet?)."; exit 1; }
+    git -C "$REPO" reset --hard "origin/$branch" --quiet && echo "Updated to release $(release)."
+    $SUDO $SYSTEMCTL restart $SVC && echo "Backend restarted."
     ;;
-  notifiche)
+  notify)
     py="$(command -v python3)"
-    case "${2:-aiuto}" in
-      prova)     "$py" "$REPO/notifier/klippeye_notifier.py" --config "$DATA/notifier.json" --test ;;
-      controlla) "$py" "$REPO/notifier/klippeye_notifier.py" --config "$DATA/notifier.json" --check ;;
-      *) echo "klippeye notifiche prova | controlla" ;;
+    case "${ARG2:-help}" in
+      test)  "$py" "$REPO/notifier/klippeye_notifier.py" --config "$DATA/notifier.json" --test ;;
+      check) "$py" "$REPO/notifier/klippeye_notifier.py" --config "$DATA/notifier.json" --check ;;
+      *) echo "klippeye notify test | check" ;;
     esac
     ;;
-  ripara)
-    # controlla i file del programma e rimette a posto quelli rovinati (dopo un blackout); "klippeye ripara log" = cosa e' stato fatto
-    if [ "${2:-}" = "log" ]; then tail -n 40 "$DATA/riparazioni.log" 2>/dev/null || echo "Nessuna riparazione registrata."; exit 0; fi
-    bash "$REPO/scripts/ripara.sh" && { [ -f "$DATA/ripristino.json" ] && echo "Ultimo ripristino: $(cat "$DATA/ripristino.json")"; }
-    echo "Se i file sono stati rimessi a posto: klippeye riavvia"
+  repair)
+    # checks the program files and restores those damaged by a power loss; "klippeye repair log" = what was done
+    if [ "$ARG2" = "log" ]; then
+      tail -n 40 "$DATA/repair.log" 2>/dev/null || tail -n 40 "$DATA/riparazioni.log" 2>/dev/null || echo "No repair recorded."
+      exit 0
+    fi
+    bash "$REPO/scripts/repair.sh" && { [ -f "$DATA/repair.json" ] && echo "Last restore: $(cat "$DATA/repair.json")"; }
+    echo "If files were restored: klippeye restart"
     ;;
   password)
     [ "$(id -u)" = 0 ] && { echo "Run it without sudo: the password file must stay owned by the service user."; exit 1; }
@@ -110,21 +128,22 @@ PY
     # extra host names and network checks:  klippeye access host-add printer.example.com | host-remove NAME | network-checks on|off
     KLIPPEYE_DATA="$DATA" exec python3 "$REPO/backend/access.py" "${2:-status}" "${@:3}"
     ;;
-  annulla)
+  undo-install)
     exec bash "$REPO/scripts/install.sh" --annulla
     ;;
   *)
     cat <<'HELP'
-klippeye stato             dice se i servizi sono accesi e se il backend risponde
-klippeye versione          la release installata
-klippeye log [notifiche]   le ultime righe del registro (del backend, o delle notifiche)
-klippeye riavvia [backend|notifiche|tutto]
-klippeye ripara            controlla i file del programma e rimette a posto quelli rovinati da un blackout  (ripara log: cosa e' stato fatto)
-klippeye aggiorna          scarica l'ultima versione e riavvia (come il tasto Aggiorna della dashboard)
-klippeye notifiche prova   manda una notifica di prova al telefono   (anche: controlla)
+klippeye status              are the services running, does the backend answer
+klippeye version             the installed release
+klippeye log [notifier]      the last lines of the log (of the backend, or of the notifier)
+klippeye restart [backend|notifier|all]
+klippeye repair              check the program files and restore those damaged by a power loss   (repair log: what was done)
+klippeye update [--force]    download the latest release and restart (like the dashboard's Update button)
+klippeye notify test         send a test notification to the phone   (also: check)
 klippeye password [set|remove|status|logout-all]   optional dashboard password ("klippeye password" sets it)
-klippeye access host-add NAME   allows one more host name (e.g. printer.example.com)   (also: host-remove NAME, network-checks on|off, status)
-klippeye annulla           torna alla disposizione dei file di prima dell'installazione a contenitore (release 1.0)
+klippeye access host-add NAME   allow one more host name (e.g. printer.example.com)   (also: host-remove NAME, network-checks on|off, status)
+klippeye undo-install        go back to the file layout used before the container installation (release 1.0)
+The Italian names of older releases still work (stato, riavvia, aggiorna...).
 HELP
     ;;
 esac
