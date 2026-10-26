@@ -86,7 +86,7 @@ with sync_playwright() as p:
     ok("un altro dispositivo finisce sulla pagina di accesso", B.url.endswith("/login") and B.locator("input[name=password]").count() == 1, B.url)
     B.screenshot(path=os.path.join(out, "login.png"))
     B.fill("input[name=password]", "sbagliata"); B.click("button[type=submit]")
-    ok("... password sbagliata: resta li' e lo dice", "Wrong password" in B.inner_text("body") and B.url.endswith("/login"))
+    ok("... password sbagliata: resta li' e lo dice", "Password sbagliata" in B.inner_text("body") and B.url.endswith("/login"))
     B.fill("input[name=password]", "segreta123"); B.click("button[type=submit]")
     B.wait_for_selector('.app-header button[aria-label="Impostazioni"]', timeout=15000)
     ok("... password giusta: entra nella dashboard", B.url.endswith("/") and B.locator(".app-header").count() == 1, B.url)
