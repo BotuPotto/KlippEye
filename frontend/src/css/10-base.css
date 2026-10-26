@@ -1,0 +1,90 @@
+/* ============================================================================
+   Page base: font, backdrop, typography scale, scrollbars
+   ========================================================================== */
+
+html,
+body,
+#root { min-height: 100%; }
+
+html { background: var(--oui-bg); }
+
+body {
+  margin: 0;
+  color: var(--oui-text);
+  font-family: var(--oui-font);
+  font-size: 15px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ambient backdrop: the dark violet of the logo's tile fading to black, a pool at the top and a fainter one at the
+   bottom; the glass surfaces pick it up (fixed, behind everything) */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(95% 46% at 50% -6%, rgba(var(--oui-backdrop-rgb), 0.34), transparent 72%),
+    radial-gradient(80% 34% at 50% 108%, rgba(var(--oui-backdrop-rgb), 0.15), transparent 70%),
+    var(--oui-bg);
+}
+
+/* every interactive control shows the pointer cursor, unless disabled */
+[role=button]:not([aria-disabled=true]),
+button:not(:disabled),
+label[for],
+select:not(:disabled),
+summary { cursor: pointer; }
+
+::selection { background: rgba(183, 156, 255, 0.35); }
+
+/* phones: never scroll sideways */
+@media (max-width: 768px) {
+  html,
+  body { overflow-x: hidden; max-width: 100vw; }
+}
+
+/* ---- type scale ---- */
+.oui-page-title {
+  margin: 4px 4px 14px;
+  font-size: 30px;
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+}
+.oui-card-title {
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 24px;
+  letter-spacing: -0.005em;
+  color: var(--oui-text);
+}
+.oui-label {
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 18px;
+  color: var(--oui-text-2);
+}
+.oui-caption {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--oui-text-3);
+}
+.oui-value {
+  font-size: 34px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.oui-num { font-variant-numeric: tabular-nums; }
+.oui-mono { font-family: var(--oui-font-mono); }
+
+/* ---- slim scrollbars ---- */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.16); border-radius: 10px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.26); }

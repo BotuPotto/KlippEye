@@ -1,0 +1,77 @@
+/* ============================================================================
+   Files tab: sort row, file tiles, print confirmation preview
+   (the long-press menu of a tile is in 49-file-actions.css)
+   ========================================================================== */
+
+.files-sort {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+  padding: 10px 14px;
+  background: var(--oui-surface-2);
+  border-radius: var(--oui-r-pill);
+}
+.files-sort__icon { display: flex; color: var(--oui-text-2); }
+.files-sort__label { flex: 1; min-width: 0; font-size: 14px; font-weight: 500; color: var(--oui-text-2); }
+.files-hint { margin: -4px 4px 12px; }
+.files-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; } /* 3 columns on a phone (see the media query below), up to 5 on a wide screen */
+.files-notice { grid-column: 1 / -1; padding: 12px 4px; }
+
+.file-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  padding: 8px 8px 10px;
+  background: var(--oui-surface-2);
+  border-radius: var(--oui-r-tile);
+  /* a long press opens the menu: no text selection, no native image menu */
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform var(--oui-dur-press) var(--oui-ease), background var(--oui-dur-fast) var(--oui-ease);
+}
+.file-card:active { transform: scale(0.985); background: var(--oui-surface-3); }
+.file-card .file-thumb { pointer-events: none; -webkit-user-drag: none; }
+.file-card__preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 1;
+  overflow: hidden;
+  background: var(--oui-inset);
+  border-radius: var(--oui-r-field);
+}
+.file-card__body { flex: 1; padding: 0 2px; }
+.file-card__name { font-size: 13px; font-weight: 600; line-height: 1.3; overflow-wrap: anywhere; }
+.file-card__meta { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 8px; font-size: 12px; color: var(--oui-text-3); font-variant-numeric: tabular-nums; }
+.file-card__fact { display: inline-flex; align-items: center; gap: 5px; }
+.file-card__print-short { display: none; }
+
+/* phones: three tiles per row, so the tile is a compact one */
+@media (max-width: 600px) {
+  .files-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .file-card { gap: 8px; padding: 6px 6px 8px; border-radius: 18px; }
+  .file-card__preview { border-radius: 12px; }
+  .file-card .file-thumb { padding: 6px; }
+  .file-card__body { padding: 0 1px; }
+  .file-card__name { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; font-size: 12px; line-height: 1.25; }
+  .file-card__meta { margin-top: 6px; gap: 2px 8px; }
+  .file-card .oui-btn { padding-left: 4px; padding-right: 4px; }
+  .file-card__print-long { display: none; }
+  .file-card__print-short { display: inline; }
+}
+
+.print-preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 220px;
+  max-width: 100%;
+  aspect-ratio: 1;
+  margin: 0 auto 16px;
+  overflow: hidden;
+  border-radius: var(--oui-r-tile);
+}

@@ -1,0 +1,21 @@
+/* ============================================================================
+   AI result views: the print verdict (the log report is in 53-ai-markdown.css)
+   ========================================================================== */
+
+/* ---- summary block ---- */
+.ai-summary { padding: 14px 16px; background: var(--oui-accent-soft); border-radius: var(--oui-r-field); }
+.ai-summary__title { font-size: 14px; font-weight: 600; color: var(--oui-accent-text); }
+.ai-summary__text { font-size: 14px; line-height: 1.55; color: var(--oui-text); word-break: break-word; }
+/* in the print verdict the summary is a neutral tile */
+.ai-print .ai-summary { background: var(--oui-surface-2); }
+
+/* ---- print verdict ---- */
+.ai-print { display: flex; flex-direction: column; gap: 14px; }
+.check-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.check-tile { padding: 12px 14px; background: var(--oui-surface-2); border-radius: var(--oui-r-field); min-width: 0; }
+.check-tile--alert { background: var(--oui-danger-soft); }
+.check-tile__title { margin-bottom: 8px; font-size: 13px; font-weight: 600; color: var(--oui-text-2); }
+.check-tile__status { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-size: 14px; font-weight: 600; }
+.ai-dot--ok { color: var(--oui-ok); }
+.ai-dot--alert { color: var(--oui-danger); animation: oui-pulse 1.4s ease-in-out infinite; }
+@keyframes oui-pulse { 50% { opacity: 0.35; } }

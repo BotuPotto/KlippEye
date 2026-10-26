@@ -1,0 +1,136 @@
+/* ============================================================================
+   App chrome: top bar, floating tab bar, page column
+   ========================================================================== */
+
+/* ---- top bar: glass strip with the brand on the left and the two safety actions on the right ---- */
+.app-header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 30;
+  background: rgba(8, 9, 12, 0.58);
+  -webkit-backdrop-filter: blur(var(--oui-blur)) saturate(1.5);
+  backdrop-filter: blur(var(--oui-blur)) saturate(1.5);
+  border-bottom: 1px solid var(--oui-stroke);
+}
+.app-header__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px; /* the brand never touches the buttons: when space is short the printer name is cut with an ellipsis */
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 1400px;
+  height: var(--oui-header-h);
+  margin: 0 auto;
+  padding: 0 var(--oui-gutter);
+}
+@media (min-width: 1024px) {
+  .app-header__bar { padding: 0 40px; }
+}
+.app-header__brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.app-header__actions { display: flex; align-items: center; gap: 10px; }
+.app-header__logo { display: block; width: 36px; height: 36px; object-fit: contain; }
+/* the wordmark: "Klipp" in the text colour, "Eye" in the accent, in the logo's font (02-wordmark-font.css) */
+.app-header__name { min-width: 0; overflow: hidden; font-family: var(--oui-font-brand); font-size: 20px; font-weight: 600; line-height: 1.2; letter-spacing: -0.01em; text-overflow: ellipsis; white-space: nowrap; }
+.app-header__eye { color: var(--oui-accent); }
+
+/* round header buttons */
+.header-btn {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 46px;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--oui-stroke);
+  border-radius: 50%;
+  background: var(--oui-surface-2);
+  color: var(--oui-text);
+  transition: background var(--oui-dur-fast) var(--oui-ease), transform var(--oui-dur-press) var(--oui-ease), opacity var(--oui-dur-fast) linear;
+}
+.header-btn:hover { background: var(--oui-surface-3); }
+.header-btn:active { transform: scale(0.93); }
+.header-btn--danger {
+  border-color: transparent;
+  background: var(--oui-danger-strong);
+  color: #fff;
+  box-shadow: 0 6px 18px rgba(229, 56, 59, 0.38);
+}
+.header-btn--danger:hover { background: var(--oui-danger-strong); filter: brightness(1.12); }
+
+/* phones: brand, AI badge and three round buttons must all fit side by side (down to 360 px wide) */
+@media (max-width: 420px) {
+  .app-header__bar { padding: 0 12px; }
+  .app-header__brand { gap: 8px; }
+  .app-header__logo { width: 32px; height: 32px; }
+  .app-header__name { font-size: 18px; }
+  .app-header__actions { flex-shrink: 0; gap: 8px; }
+  .header-btn { width: 40px; height: 40px; }
+}
+
+/* ---- floating tab bar: a glass pill above the bottom edge ---- */
+.bottom-nav {
+  position: fixed;
+  left: 50%;
+  bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+  z-index: 900; /* above the page and the top bar, below every dialog, sheet and full-screen layer (9999+) */
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  box-sizing: border-box;
+  width: min(calc(100% - 2 * var(--oui-gutter)), 520px);
+  height: var(--oui-nav-h);
+  padding: 6px;
+  transform: translateX(-50%);
+  background: var(--oui-glass);
+  -webkit-backdrop-filter: blur(var(--oui-blur)) saturate(1.6);
+  backdrop-filter: blur(var(--oui-blur)) saturate(1.6);
+  border: 1px solid var(--oui-stroke-strong);
+  border-radius: calc(var(--oui-nav-h) / 2);
+  box-shadow: var(--oui-shadow-float);
+  transition: opacity var(--oui-dur-fast) linear, visibility var(--oui-dur-fast);
+}
+
+/* While a dialog, sheet or full-screen layer is open the bar is not part of the picture: it would
+   otherwise float, blurred, above the keyboard. (Without :has() support the z-index above still
+   puts the layer in front of it.) */
+body:has(.modal, .confirm-overlay, .sheet-overlay, .screen) .bottom-nav { opacity: 0; visibility: hidden; pointer-events: none; }
+.bottom-nav__tab {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-width: 0;
+  padding: 0 4px;
+  border: 0;
+  border-radius: calc(var(--oui-nav-h) / 2 - 6px);
+  position: relative; /* above the sliding marker */
+  background: transparent;
+  color: var(--oui-text-2);
+  transition: color var(--oui-dur-base) var(--oui-ease);
+}
+.bottom-nav__tab svg { width: 24px; height: 24px; stroke-width: 1.7; transition: transform var(--oui-dur-base) var(--oui-ease); }
+.bottom-nav__label { font-size: 11px; font-weight: 600; line-height: 1; letter-spacing: 0.005em; }
+.bottom-nav__tab:active svg { transform: scale(0.88); }
+.bottom-nav__tab.is-active { color: var(--oui-accent-text); } /* the violet marker behind it is .bottom-nav__pill (22-motion.css) */
+
+/* ---- grids: one gutter everywhere (16px, 12px on phones) ---- */
+.grid { gap: 16px; }
+@media (max-width: 768px) {
+  .grid { gap: 12px; max-width: 100%; }
+}
+
+/* ---- page column: below the fixed header, above the floating tab bar ---- */
+.app-main {
+  box-sizing: border-box;
+  max-width: 980px;
+  margin-left: auto;
+  margin-right: auto;
+  padding: calc(var(--oui-header-h) + 18px) var(--oui-gutter) calc(var(--oui-nav-h) + 56px);
+}

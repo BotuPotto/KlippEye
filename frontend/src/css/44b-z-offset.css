@@ -1,0 +1,39 @@
+/* ============================================================================
+   Z offset card: the big read-out, step chips, raise / lower and the actions
+   (markup: app/44b-z-offset.js)
+   ========================================================================== */
+
+.zoffset-readout { margin-bottom: 16px; padding: 8px 0 4px; text-align: center; }
+.zoffset-readout__value {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 8px;
+  font-size: 48px;
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  color: var(--oui-text-2);
+  transition: color var(--oui-dur-base) var(--oui-ease);
+}
+.zoffset-readout__value.is-set { color: var(--oui-text); }
+.zoffset-readout__unit { font-size: 18px; font-weight: 600; letter-spacing: 0; color: var(--oui-text-3); }
+.zoffset-readout .oui-caption { margin-top: 4px; }
+
+.zoffset-steps { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 8px; margin-bottom: 12px; } /* one to four step sizes (settings menu), sharing the width */
+.zoffset-steps .oui-chip { min-height: 44px; padding: 0 4px; }
+
+.zoffset-adjust { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+.zoffset-adjust__btn {
+  flex-direction: column;
+  gap: 4px;
+  min-height: 84px;
+  border-radius: var(--oui-r-tile);
+  background: var(--oui-surface-3);
+}
+.zoffset-adjust__btn:hover { background: rgba(255, 255, 255, 0.17); }
+.zoffset-adjust__btn:active { background: var(--oui-accent-soft); color: var(--oui-accent-text); }
+.zoffset-adjust__step { font-size: 13px; font-weight: 600; color: var(--oui-text-2); font-variant-numeric: tabular-nums; }
+
+.zoffset-hint { margin-top: 12px; text-align: center; }

@@ -1,0 +1,35 @@
+/* ============================================================================
+   Endstops & probe: the collapsible section at the foot of the Calibrazioni card
+   (markup: app/57a-endstops.js; rows are the shared .oui-row)
+   ========================================================================== */
+
+.endstops { margin-top: 16px; padding-top: 4px; border-top: 1px solid var(--oui-stroke); }
+.endstops-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 52px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--oui-text);
+  font: inherit;
+  text-align: left;
+}
+.endstops-head__icon {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--oui-accent-soft);
+  color: var(--oui-accent-text);
+}
+.endstops-head__title { flex: 1; font-size: 15px; font-weight: 600; }
+.endstops-head .menu-chevron { color: var(--oui-text-3); }
+.endstops-body { padding-top: 4px; }
+.endstops-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 12px; }
+.endstops-foot .oui-caption { min-width: 0; }

@@ -1,0 +1,43 @@
+/* ============================================================================
+   Heater tiles: icon, name, big temperature, target
+   The two glyphs are black PNGs used as masks, so they take the colour of the tile.
+   ========================================================================== */
+
+.heater-tile {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+}
+.heater-tile__top { display: flex; align-items: center; gap: 10px; }
+.heater-tile__name { font-size: 14px; font-weight: 600; color: var(--oui-text-2); }
+.heater-tile__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--oui-surface-2);
+  color: var(--oui-cool);
+  transition: background var(--oui-dur-base) var(--oui-ease), color var(--oui-dur-base) var(--oui-ease);
+}
+.heater-tile__glyph {
+  display: block;
+  width: 20px;
+  height: 20px;
+  background-color: currentColor;
+  -webkit-mask: var(--glyph) center / contain no-repeat;
+  mask: var(--glyph) center / contain no-repeat;
+}
+.heater-tile__reading { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 6px; }
+.heater-tile__target { font-size: 14px; color: var(--oui-text-3); font-variant-numeric: tabular-nums; }
+
+/* hot: the tile warms up */
+.heater-tile--hot { background: linear-gradient(160deg, rgba(255, 123, 74, 0.2), rgba(255, 123, 74, 0.07)); }
+.heater-tile--hot .heater-tile__icon { background: rgba(255, 123, 74, 0.22); color: var(--oui-heat); }
+
+/* gap between the two tiles and the fan list below them */
+.heater-tiles { margin-bottom: 20px; }

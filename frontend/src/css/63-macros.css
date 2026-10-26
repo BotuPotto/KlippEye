@@ -1,0 +1,87 @@
+/* ============================================================================
+   Calibration macros: pills, split button, parameter form and macro picker
+   ========================================================================== */
+
+.macro-empty { font-size: 14px; color: var(--oui-text-3); }
+.macro-grid { display: flex; flex-wrap: wrap; gap: 10px; }
+
+/* one-tap macro */
+.macro-run { min-width: 0; padding: 0 20px; }
+
+/* name | gear in one pill */
+.macro-split {
+  display: inline-flex;
+  align-items: stretch;
+  height: 48px;
+  overflow: hidden;
+  border-radius: var(--oui-r-pill);
+  background: var(--oui-surface-2);
+  transition: background var(--oui-dur-fast) var(--oui-ease);
+  touch-action: manipulation;
+}
+.macro-split:hover { background: var(--oui-surface-3); }
+.macro-split-run,
+.macro-split-gear {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  background: transparent;
+  border: none;
+  color: var(--oui-text);
+  font-weight: 600;
+  user-select: none;
+  transition: background var(--oui-dur-fast) var(--oui-ease);
+}
+.macro-split-run { min-width: 0; padding: 0 16px 0 20px; font-size: 15px; white-space: nowrap; }
+.macro-split-gear { width: 48px; min-width: 48px; border-left: 1px solid var(--oui-stroke); color: var(--oui-text-2); }
+.macro-split-run:active,
+.macro-split-gear:active { background: var(--oui-accent-soft); }
+
+/* round icon button (card header actions) */
+.icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--oui-surface-2);
+  color: var(--oui-text-2);
+  transition: background var(--oui-dur-fast) var(--oui-ease), color var(--oui-dur-fast) var(--oui-ease), transform var(--oui-dur-press) var(--oui-ease);
+}
+.icon-btn:hover { background: var(--oui-surface-3); color: var(--oui-text); }
+.icon-btn:active { transform: scale(0.92); }
+
+/* ---- parameter form ---- */
+.params-body { flex: 1; padding: 6px 22px 8px; overflow-y: auto; }
+.param-field { margin-bottom: 16px; }
+.param-field-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.param-name { font-family: var(--oui-font-mono); font-size: 13px; font-weight: 600; }
+/* a button whose text wraps and shrinks to fit (useFitLabel in app/57-calibration.js) */
+.fit-btn { line-height: 1.2; padding-top: 8px; padding-bottom: 8px; }
+.fit-btn__label { display: block; flex: 0 1 auto; min-width: 0; max-width: 100%; text-align: center; white-space: normal; overflow-wrap: normal; word-break: normal; }
+
+/* ---- macro picker ---- */
+.picker-search { flex-shrink: 0; padding: 0 22px 14px; }
+.picker-stats { margin-top: 10px; font-size: 12px; color: var(--oui-text-3); font-variant-numeric: tabular-nums; }
+.picker-list {
+  flex: 1;
+  min-height: 360px;
+  max-height: 58vh;
+  margin: 0 14px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+.picker-row { display: flex; align-items: flex-start; gap: 14px; padding: 14px 16px; cursor: pointer; transition: background var(--oui-dur-fast) var(--oui-ease); }
+.picker-row:hover { background: var(--oui-surface-3); }
+.picker-row .oui-check { margin-top: 1px; }
+.picker-row-main { flex: 1; min-width: 0; }
+.picker-row-name { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; font-size: 15px; font-weight: 600; }
+.picker-row-description { min-width: 0; margin-top: 3px; overflow: hidden; font-size: 13px; color: var(--oui-text-2); text-overflow: ellipsis; white-space: nowrap; }
+.picker-row-params { margin-top: 3px; font-family: var(--oui-font-mono); font-size: 12px; color: var(--oui-text-3); }
+.picker-row-file { margin-top: 2px; font-size: 12px; color: var(--oui-text-3); }

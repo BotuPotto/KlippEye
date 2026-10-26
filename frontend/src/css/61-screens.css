@@ -1,0 +1,169 @@
+/* ============================================================================
+   Full-screen overlays: the file editor and the image viewer
+   A column of  top bar · content · (bottom bar)  over the whole page. The bars
+   are glass strips like the app header; the content sits in a sunken well.
+   ========================================================================== */
+
+.screen {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background:
+    radial-gradient(90% 42% at 50% -6%, rgba(var(--oui-backdrop-rgb), 0.26), transparent 72%),
+    var(--oui-bg);
+  color: var(--oui-text);
+  font-family: var(--oui-font);
+}
+.screen--editor { z-index: 10000; }
+.screen--viewer { z-index: 10001; }
+
+.screen-bar {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  gap: 10px;
+  padding: 10px 12px;
+}
+.screen-bar:last-child { padding-bottom: max(12px, env(safe-area-inset-bottom)); }
+
+/* ---- editor ---- */
+.editor-bar { flex-wrap: wrap; justify-content: space-between; }
+.editor-close { flex-shrink: 0; }
+.editor-heading { display: flex; flex: 1; flex-direction: column; gap: 2px; min-width: 0; }
+.editor-title-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.editor-title { min-width: 0; overflow: hidden; font-size: 16px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.editor-status { min-height: 16px; font-size: 12px; line-height: 16px; color: var(--oui-text-3); }
+.editor-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.editor-save { min-height: 44px; padding: 0 18px; font-size: 14px; white-space: nowrap; }
+/* phones: the actions drop to their own row and share its width */
+@media (max-width: 640px) {
+  .editor-actions { flex-basis: 100%; }
+  .editor-actions .editor-save { flex: 1; padding: 0 10px; }
+}
+
+.editor-search {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  margin: 0 12px 8px;
+  padding: 4px 6px 4px 18px;
+  background: var(--oui-surface-2);
+  border: 1px solid var(--oui-stroke);
+  border-radius: var(--oui-r-pill);
+}
+/* the tools bar: Annulla / Ripristina (icons) and the comment buttons, which share what is left of the row on a phone */
+.editor-tools { display: flex; flex-shrink: 0; gap: 8px; margin: 0 12px 8px; }
+.editor-tools .oui-btn { flex: 1; min-width: 0; padding: 0 12px; }
+@media (min-width: 641px) {
+  .editor-tools .oui-btn { flex: 0 0 auto; padding: 0 18px; }
+}
+.editor-tools .editor-history { flex: 0 0 auto; width: 40px; padding: 0; }
+/* the narrowest phones (320 px): the comment buttons keep their words and give up their icons */
+@media (max-width: 359px) {
+  .editor-tools { gap: 6px; }
+  .editor-tools .oui-btn:not(.editor-history) { padding: 0 6px; }
+  .editor-tools .oui-btn:not(.editor-history) svg { display: none; }
+}
+
+.editor-search input { flex: 1; min-width: 0; height: 36px; background: transparent; border: 0; color: var(--oui-text); font-family: inherit; font-size: 16px; outline: none; }
+.editor-search input::placeholder { color: var(--oui-text-3); }
+.editor-search-count { min-width: 44px; text-align: center; font-size: 12px; color: var(--oui-text-2); font-variant-numeric: tabular-nums; }
+.editor-icon-btn { display: flex; align-items: center; justify-content: center; flex-shrink: 0; width: 36px; height: 36px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--oui-text-2); font-size: 12px; }
+.editor-icon-btn:hover { background: var(--oui-surface-3); color: var(--oui-text); }
+
+/* the code well: line numbers + highlighted text */
+.editor-body {
+  position: relative;
+  display: flex;
+  flex: 1;
+  margin: 0 12px max(12px, env(safe-area-inset-bottom));
+  overflow: hidden;
+  background: #090a0d;
+  border: 1px solid var(--oui-stroke);
+  border-radius: var(--oui-r-tile);
+}
+.editor-lines {
+  flex-shrink: 0;
+  width: 46px;
+  padding: 16px 0 64px; /* the extra room at the end, like the layer's: it must always be able to follow the textarea */
+  border-right: 1px solid var(--oui-stroke);
+  text-align: center;
+  font: 11px/21px var(--oui-font-mono);
+  color: #5d6371;
+  white-space: pre;
+  overflow: hidden;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.ke-line-num.search-current { background: var(--oui-warn); color: #000; font-weight: 700; }
+.ke-line-num.search-match { background: rgba(255, 183, 64, 0.2); color: var(--oui-warn); }
+
+.editor-area { flex: 1; position: relative; overflow: hidden; }
+/* The highlighted copy and the transparent textarea must lay out text identically. */
+.editor-layer,
+.editor-input {
+  position: absolute;
+  inset: 0;
+  padding: 16px;
+  font: 14px/21px var(--oui-font-mono);
+  white-space: pre;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+.editor-layer { overflow: hidden; color: #d4d4d4; pointer-events: none; }
+/*
+ * The layer is scrolled by the textarea's position, so it must be able to scroll at least as far as the textarea does. The
+ * textarea can go further at the end of the file (the empty line after the last newline, the scrollbars that take room
+ * from its box): without this room the colour copy of the text stops short, and the selection (drawn by the
+ * textarea) lands a line below or above the text it covers. The extra room is never reached by the textarea.
+ */
+.editor-layer { padding-right: 64px; padding-bottom: 64px; }
+.editor-input {
+  z-index: 2;
+  overflow: auto;
+  background: transparent;
+  color: transparent;
+  caret-color: var(--oui-accent);
+  tab-size: 2;
+  border: none;
+  outline: none;
+  resize: none;
+  scrollbar-width: thin;
+  scrollbar-color: #333843 transparent;
+}
+.editor-input::-webkit-scrollbar { width: 8px; }
+.editor-input::-webkit-scrollbar-track { background: transparent; }
+.editor-input::-webkit-scrollbar-thumb { background: #333843; border-radius: 4px; }
+
+/* syntax colours */
+.hl-comment { color: #6a9955; }
+.hl-bracket { color: #569cd6; }
+.hl-type { color: #4ec9b0; font-weight: 600; }
+.hl-name { color: #d7ba7d; font-weight: 600; }
+.hl-key { color: #9cdcfe; }
+.hl-key-pin { color: #dcdcaa; }
+.hl-value,
+.hl-string { color: #ce9178; }
+.hl-number { color: #b5cea8; }
+.hl-bool { color: #569cd6; font-weight: 600; }
+.hl-jinja { color: #c586c0; }
+.hl-jinja-kw { color: #569cd6; font-weight: 600; }
+.hl-jinja-var { color: #9cdcfe; }
+.hl-gcode { color: #d7ba7d; font-weight: 600; }
+.hl-gcode-param { color: #9cdcfe; }
+.editor-layer .hl-search { background: var(--oui-warn); color: #000; border-radius: 3px; }
+
+/* ---- image viewer ---- */
+.viewer-bar { height: auto; }
+.viewer-title { flex: 1; min-width: 0; overflow: hidden; font-size: 16px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.viewer-stage { display: flex; flex: 1; align-items: center; justify-content: center; margin: 0 12px; padding: 16px; overflow: auto; background: var(--oui-inset); border-radius: var(--oui-r-tile); }
+.viewer-stage img { max-width: 100%; max-height: 100%; object-fit: contain; background: var(--oui-surface); border-radius: var(--oui-r-field); }
+.viewer-footer { flex-wrap: wrap; justify-content: space-between; }
+.viewer-info { flex: 1 1 200px; min-width: 0; overflow: hidden; font-size: 12px; color: var(--oui-text-3); text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.viewer-actions { flex-shrink: 0; }
+@media (max-width: 640px) {
+  .viewer-actions { flex-basis: 100%; }
+}

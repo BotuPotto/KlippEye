@@ -1,0 +1,31 @@
+/* ============================================================================
+   Console card: log well, line colours, input row
+   ========================================================================== */
+
+.console-well {
+  box-sizing: border-box;
+  height: 240px;
+  padding: 12px 14px;
+  overflow: auto;
+  border-radius: var(--oui-r-tile);
+  font-family: var(--oui-font-mono);
+  font-size: 12.5px;
+  line-height: 22px;
+}
+.log-line { display: flex; gap: 12px; padding: 0 4px; border-radius: 6px; }
+.log-line--pick { cursor: pointer; }
+.log-line--pick:hover { background: var(--oui-surface-2); }
+.log-time { flex-shrink: 0; color: var(--oui-text-3); }
+.log-msg { word-break: break-all; }
+.log--command { color: var(--oui-accent-text); }
+.log--input { color: var(--oui-text); }
+.log--ok { color: var(--oui-ok); }
+.log--warn { color: var(--oui-warn); }
+.log--error { color: var(--oui-danger); }
+.log--info { color: var(--oui-text-2); }
+.log--dim { color: var(--oui-text-3); }
+.log-line--pick:hover .log--command { color: #fff; }
+
+.console-input { font-size: 15px; }
+.console-send { flex-shrink: 0; width: 48px; }
+.console-send svg { margin-left: 2px; }

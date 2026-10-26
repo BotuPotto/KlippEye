@@ -1,0 +1,71 @@
+/* ============================================================================
+   Sheets: centred glass panels over a blurred, dimmed page
+   Used by the update dialog and the macro form / macro picker. The overlay sets
+   the variant's numbers (custom properties); the defaults describe the update
+   dialog.
+   ========================================================================== */
+
+.sheet-overlay {
+  --sheet-z: 9999;
+  --sheet-gutter: 16px;
+  --sheet-width: 420px;
+  --sheet-max-height: none;
+
+  position: fixed;
+  inset: 0;
+  z-index: var(--sheet-z);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--sheet-gutter);
+  background: rgba(0, 0, 0, 0.5);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+}
+.sheet-overlay--params {
+  --sheet-z: 100000;
+  --sheet-width: 480px;
+  --sheet-max-height: 85vh;
+}
+.sheet-overlay--picker {
+  --sheet-z: 99999;
+  --sheet-width: 640px;
+  --sheet-max-height: 88vh;
+
+  align-items: flex-start;
+  padding: 4vh 16px 16px;
+  overflow: hidden;
+  overscroll-behavior: contain;
+}
+
+.sheet-card {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: var(--sheet-width);
+  overflow: hidden;
+  background: var(--oui-glass);
+  -webkit-backdrop-filter: blur(30px) saturate(1.6);
+  backdrop-filter: blur(30px) saturate(1.6);
+  border: 1px solid var(--oui-stroke-strong);
+  border-radius: var(--oui-r-card);
+}
+.sheet-card--column { display: flex; flex-direction: column; max-height: var(--sheet-max-height); }
+
+.sheet-header { flex-shrink: 0; padding: 22px 22px 14px; }
+.sheet-header--bar { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+/* a long title (a macro name without spaces) wraps instead of pushing the close button out of the card */
+.sheet-header--bar > :first-child { min-width: 0; }
+.sheet-header--bar .dialog-title { overflow-wrap: anywhere; }
+.sheet-header--bar .dialog-close { flex-shrink: 0; }
+.sheet-footer { flex-shrink: 0; display: flex; gap: 12px; padding: 14px 22px 22px; }
+.sheet-footer > .oui-btn { flex: 1; min-width: 0; padding-left: 14px; padding-right: 14px; }
+.sheet-footer > .oui-btn--primary { flex: 1.45; }
+.sheet-footer--split > .oui-btn { flex: 0 1 auto; }
+.sheet-footer--split { justify-content: space-between; align-items: center; }
+
+/* Sheets and full-screen overlays keep the browser's own text selection colour. */
+.sheet-overlay ::selection,
+.screen ::selection {
+  background: Highlight;
+  color: HighlightText;
+}

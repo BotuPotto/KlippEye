@@ -1,0 +1,45 @@
+/* ============================================================================
+   Pull-to-refresh bar (see PullToRefresh in app/34-page-behaviors.js)
+   A glass strip that slides in from the top while the page is dragged down.
+   ========================================================================== */
+
+.pull-refresh {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 999999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  height: 68px;
+  background: var(--oui-glass);
+  -webkit-backdrop-filter: blur(var(--oui-blur)) saturate(1.6);
+  backdrop-filter: blur(var(--oui-blur)) saturate(1.6);
+  color: var(--oui-text-2);
+  font-size: 14px;
+  font-weight: 500;
+  border-bottom: 1px solid var(--oui-stroke-strong);
+  transform: translateY(-100%);
+  transition: transform var(--oui-dur-base) var(--oui-ease);
+  pointer-events: none;
+}
+.pull-refresh.is-dragging { transition: none; }
+.pull-refresh__arrow { font-size: 18px; line-height: 1; transition: transform var(--oui-dur-base) var(--oui-ease); }
+.pull-refresh__spinner {
+  display: none;
+  width: 18px;
+  height: 18px;
+  box-sizing: border-box;
+  border: 3px solid var(--oui-surface-3);
+  border-top-color: var(--oui-accent);
+  border-radius: 50%;
+  animation: ke-spin 0.7s linear infinite;
+}
+.pull-refresh.is-ready .pull-refresh__spinner { display: block; }
+.pull-refresh.is-ready .pull-refresh__arrow { display: none; }
+.pull-refresh.is-ready .pull-refresh__text { color: var(--oui-text); }
+
+/* while pulling, the page itself must not bounce */
+body.is-pulling { overscroll-behavior-y: none; }

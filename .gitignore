@@ -18,3 +18,8 @@ android/.idea/
 android/app/google-services.json
 *.jks
 *.keystore
+
+# Test output
+tests/**/rg_*/
+tests/**/*.log
+/tmp/

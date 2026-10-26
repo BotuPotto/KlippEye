@@ -1,0 +1,217 @@
+/* ============================================================================
+   Controls: buttons, chips, segmented switch, fields, badges, progress, checkbox
+   ========================================================================== */
+
+/* ---- button: pill, 48px tall ---- */
+.oui-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  box-sizing: border-box;
+  min-height: 48px;
+  padding: 0 22px;
+  border: 0;
+  border-radius: var(--oui-r-pill);
+  background: var(--oui-surface-2);
+  color: var(--oui-text);
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.2;
+  text-align: center;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: manipulation;
+  transition: background var(--oui-dur-fast) var(--oui-ease), transform var(--oui-dur-press) var(--oui-ease), opacity var(--oui-dur-fast) linear, filter var(--oui-dur-fast) var(--oui-ease);
+}
+.oui-btn:hover { background: var(--oui-surface-3); }
+.oui-btn:active { transform: scale(0.97); background: var(--oui-surface-3); }
+.oui-btn:disabled { opacity: 0.4; pointer-events: none; }
+
+.oui-btn--primary { background: var(--oui-accent-strong); color: var(--oui-on-accent); }
+.oui-btn--primary:hover { background: var(--oui-accent-strong); filter: brightness(1.12); }
+.oui-btn--primary:active { background: var(--oui-accent-strong); filter: brightness(0.92); }
+.oui-btn--danger { background: var(--oui-danger-strong); color: #fff; }
+.oui-btn--danger:hover { background: var(--oui-danger-strong); filter: brightness(1.12); }
+.oui-btn--danger:active { background: var(--oui-danger-strong); filter: brightness(0.92); }
+.oui-btn--accent-soft { background: var(--oui-accent-soft); color: var(--oui-accent-text); }
+.oui-btn--accent-soft:hover { background: rgba(183, 156, 255, 0.28); }
+.oui-btn--accent-soft:active { background: rgba(183, 156, 255, 0.34); }
+.oui-btn--danger-soft { background: var(--oui-danger-soft); color: var(--oui-danger); }
+.oui-btn--danger-soft:hover { background: rgba(255, 93, 93, 0.26); }
+.oui-btn--danger-soft:active { background: rgba(255, 93, 93, 0.32); }
+.oui-btn--quiet { background: transparent; color: var(--oui-accent-text); }
+.oui-btn--quiet:hover { background: var(--oui-accent-soft); }
+
+.oui-btn--sm { min-height: 40px; padding: 0 16px; font-size: 14px; }
+.oui-btn--block { display: flex; width: 100%; }
+/* round, icon only */
+.oui-btn--icon { width: 44px; min-height: 44px; padding: 0; }
+/* the two buttons at the foot of a dialog or card */
+.oui-btn-row { display: flex; gap: 12px; }
+.oui-btn-row > .oui-btn { flex: 1; min-width: 0; padding-left: 12px; padding-right: 12px; }
+
+/* ---- chip: small selectable pill (presets, filters) ---- */
+.oui-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-height: 36px;
+  min-width: 44px;
+  padding: 0 14px;
+  border: 1px solid transparent;
+  border-radius: var(--oui-r-pill);
+  background: var(--oui-surface-2);
+  color: var(--oui-text-2);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  transition: background var(--oui-dur-fast) var(--oui-ease), color var(--oui-dur-fast) var(--oui-ease), border-color var(--oui-dur-fast) var(--oui-ease), transform var(--oui-dur-press) var(--oui-ease);
+}
+.oui-chip:hover { background: var(--oui-surface-3); }
+.oui-chip:active { transform: scale(0.96); }
+.oui-chip.is-selected {
+  background: var(--oui-accent-soft);
+  border-color: rgba(183, 156, 255, 0.55);
+  color: var(--oui-accent-text);
+  font-weight: 600;
+}
+
+/* ---- segmented switch (2D / 3D, ...) ---- */
+.oui-segmented {
+  display: inline-flex;
+  gap: 2px;
+  padding: 4px;
+  background: var(--oui-inset);
+  border-radius: var(--oui-r-pill);
+}
+.oui-segmented > button {
+  min-height: 36px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: var(--oui-r-pill);
+  background: transparent;
+  color: var(--oui-text-2);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  transition: background var(--oui-dur-fast) var(--oui-ease), color var(--oui-dur-fast) var(--oui-ease);
+}
+.oui-segmented > button.is-selected { background: var(--oui-accent-soft); color: var(--oui-accent-text); box-shadow: inset 0 0 0 1px rgba(183, 156, 255, 0.5); }
+
+/* ---- text field ---- */
+.oui-field {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: 48px;
+  padding: 0 16px;
+  background: var(--oui-inset);
+  border: 1px solid var(--oui-stroke);
+  border-radius: var(--oui-r-field);
+  color: var(--oui-text);
+  font-family: inherit;
+  font-size: 16px;
+  outline: none;
+  transition: border-color var(--oui-dur-fast) var(--oui-ease), box-shadow var(--oui-dur-fast) var(--oui-ease);
+}
+.oui-field::placeholder { color: var(--oui-text-3); }
+.oui-field:focus { border-color: var(--oui-accent); box-shadow: 0 0 0 3px rgba(183, 156, 255, 0.25); }
+.oui-field--num { font-variant-numeric: tabular-nums; font-weight: 600; }
+textarea.oui-field { padding: 12px 16px; line-height: 1.5; }
+select.oui-field {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 44px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23aeb3be' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  background-size: 18px;
+}
+select.oui-field option { background: #1a1c22; color: var(--oui-text); }
+
+/* ---- badge: small status pill ---- */
+.oui-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  box-sizing: border-box;
+  min-height: 26px;
+  padding: 0 11px;
+  border-radius: var(--oui-r-pill);
+  background: var(--oui-surface-2);
+  color: var(--oui-text-2);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+}
+.oui-badge--ok { background: var(--oui-ok-soft); color: var(--oui-ok); }
+.oui-badge--warn { background: var(--oui-warn-soft); color: var(--oui-warn); }
+.oui-badge--danger { background: var(--oui-danger-soft); color: var(--oui-danger); }
+.oui-badge--info { background: var(--oui-accent-soft); color: var(--oui-accent-text); }
+.oui-dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+
+/* ---- progress bar ---- */
+.oui-progress {
+  height: 10px;
+  overflow: hidden;
+  background: var(--oui-inset);
+  border-radius: var(--oui-r-pill);
+}
+.oui-progress__bar {
+  height: 100%;
+  border-radius: var(--oui-r-pill);
+  background: linear-gradient(90deg, var(--oui-accent-strong), var(--oui-accent-text));
+  transition: width var(--oui-dur-bar) var(--oui-ease);
+}
+.oui-progress__bar--ok { background: linear-gradient(90deg, #1fb871, var(--oui-ok)); }
+.oui-progress__bar--warn { background: linear-gradient(90deg, #f29a1d, var(--oui-warn)); }
+.oui-progress__bar--danger { background: linear-gradient(90deg, #e5383b, var(--oui-danger)); }
+
+/* ---- checkbox: round, violet when ticked ---- */
+.oui-check {
+  appearance: none;
+  -webkit-appearance: none;
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  margin: 0;
+  border: 2px solid var(--oui-text-3);
+  border-radius: 50%;
+  background: transparent center / 14px no-repeat;
+  transition: background-color var(--oui-dur-fast) var(--oui-ease), border-color var(--oui-dur-fast) var(--oui-ease);
+}
+.oui-check:checked {
+  border-color: var(--oui-accent-strong);
+  background-color: var(--oui-accent-strong);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%231a1240' stroke-width='3.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5'/%3E%3C/svg%3E");
+}
+
+/* ---- switch: a track and a knob, violet when on (driven by a parent .is-on / .is-unlocked state) ---- */
+.oui-switch {
+  position: relative;
+  flex-shrink: 0;
+  width: 52px;
+  height: 32px;
+  border-radius: var(--oui-r-pill);
+  background: var(--oui-surface-3);
+  transition: background var(--oui-dur-base) var(--oui-ease);
+}
+.oui-switch__knob {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #c9ced8;
+  transition: transform var(--oui-dur-base) var(--oui-ease), background var(--oui-dur-base) var(--oui-ease);
+}
+.is-unlocked > .oui-switch,
+.is-on > .oui-switch { background: var(--oui-accent-strong); }
+.is-unlocked > .oui-switch .oui-switch__knob,
+.is-on > .oui-switch .oui-switch__knob { transform: translateX(20px); background: var(--oui-on-accent); }

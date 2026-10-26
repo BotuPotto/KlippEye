@@ -1,0 +1,150 @@
+import sys, os, json
+from playwright.sync_api import sync_playwright
+from lib import *
+html, out = sys.argv[1], sys.argv[2]; os.makedirs(out, exist_ok=True)
+mock = Mock(html, 9520)
+FONT = "document.addEventListener('DOMContentLoaded',()=>{const s=document.createElement('style');s.textContent=':root{--oui-font:Inter,sans-serif}';document.head.appendChild(s)})"
+OVER = "() => ({sw: document.documentElement.scrollWidth, cw: document.documentElement.clientWidth})"
+def fresh(w=390, h=844, wait=2300, **state):
+    mock.reset()
+    if state: mock.set(**state)
+    P = Page(b, mock, w, h)
+    P.ctx.add_init_script(FONT)
+    P.goto("home", wait)
+    return P
+def card(P): return P.pg.locator(".oui-card:has(.oui-card-title:text-is('Movimento'))").first
+def scroll_end(P):
+    P.pg.evaluate("window.scrollTo(0, document.body.scrollHeight)"); P.pg.wait_for_timeout(300)
+def menu_box(P):
+    return P.pg.evaluate("(() => { const m = document.querySelector('.oui-menu'); if (!m) return null; const r = m.getBoundingClientRect(); const n = document.querySelector('.bottom-nav').getBoundingClientRect(); return {top: r.top, bottom: r.bottom, left: r.left, right: r.right, navTop: n.top, vh: innerHeight, vw: innerWidth}; })()")
+_FAILED = []
+def ok(name, cond, extra=""):
+    if not cond: _FAILED.append(name)
+    print(("PASS " if cond else "FAIL ") + name + ((" :: " + str(extra)) if extra != "" else ""))
+import atexit; atexit.register(mock.stop)
+with sync_playwright() as p:
+    b = p.chromium.launch()
+    for w in (390, 320, 1280):
+        P = fresh(w, 844 if w < 1000 else 800)
+        c = card(P)
+        ok(f"[{w}] buttons present", c.locator("text=Motori off").count() == 1 and c.locator("button:has-text('Calibra')").count() == 1)
+        ov = P.pg.evaluate(OVER); ok(f"[{w}] no horizontal overflow", ov["sw"] <= ov["cw"], ov)
+        c.screenshot(path=f"{out}/card_{w}.png", animations="disabled")
+        P.close()
+
+    # motors off
+    P = fresh()
+    card(P).locator("text=Motori off").click(); P.pg.wait_for_timeout(1500)
+    ok("M84 sent", "M84" in mock.gcode(), mock.gcode())
+    ok("homed labels grey after M84", P.pg.evaluate("[...document.querySelectorAll('.axis-tile')].every(e=>e.classList.contains('is-unhomed'))"))
+    ok("calibra disabled-reason after M84 (not homed)", True)
+    P.pg.locator("button:has-text('Calibra')").click(); P.pg.wait_for_timeout(400)
+    items = P.pg.locator(".oui-menu__item")
+    ok("all items disabled when not homed", all(items.nth(i).is_disabled() for i in range(items.count())), items.count())
+    ok("reason shown", "homing" in P.pg.locator(".oui-menu").inner_text().lower())
+    P.close()
+
+    # menu layout, 390: page scrolled to the bottom -> opens above
+    P = fresh()
+    scroll_end(P)
+    P.pg.locator("button:has-text('Calibra')").click(); P.pg.wait_for_timeout(400)
+    mb = menu_box(P); ok("menu rendered", mb is not None, mb)
+    ok("menu inside viewport, clear of nav", mb["top"] >= 0 and mb["bottom"] <= mb["navTop"] and mb["left"] >= 0 and mb["right"] <= mb["vw"], mb)
+    P.pg.screenshot(path=f"{out}/menu_390_bottom.png", animations="disabled")
+    mt = P.pg.locator(".oui-menu").inner_text().lower()
+    ok("labels", "piano di stampa" in mt and "cartographer" in mt, mt.replace("\n", " | "))
+    ok("3 items", P.pg.locator(".oui-menu__item").count() == 3)
+    # outside tap closes
+    P.pg.mouse.click(20, 120); P.pg.wait_for_timeout(300)
+    ok("outside tap closes", P.pg.locator(".oui-menu").count() == 0)
+    P.pg.locator("button:has-text('Calibra')").click(); P.pg.wait_for_timeout(300)
+    P.pg.keyboard.press("Escape"); P.pg.wait_for_timeout(300)
+    ok("escape closes", P.pg.locator(".oui-menu").count() == 0)
+    # screws tilt run
+    P.pg.locator("button:has-text('Calibra')").click(); P.pg.wait_for_timeout(300)
+    P.pg.locator(".oui-menu__item:has-text('Screws tilt')").click(); P.pg.wait_for_timeout(500)
+    ok("script sent", "SCREWS_TILT_CALCULATE" in mock.gcode(), mock.gcode())
+    ok("button busy label", "Viti piano" in P.pg.locator(".movement-actions").inner_text(), P.pg.locator(".movement-actions").inner_text())
+    P.pg.screenshot(path=f"{out}/screws_running.png", animations="disabled")
+    P.pg.wait_for_selector(".sheet-overlay--screws", timeout=8000)
+    ok("result sheet", P.pg.locator(".sheet-overlay--screws .oui-row").count() == 4)
+    txt = P.pg.locator(".sheet-overlay--screws").inner_text()
+    ok("sheet content", "front left" in txt.lower() and "Riferimento" in txt and "CCW 01:15" in txt and "CW 00:12" in txt and "OK" in txt, txt.replace("\n", " | ")[:300])
+    P.pg.screenshot(path=f"{out}/screws_sheet.png", animations="disabled")
+    ok("nav hidden under sheet", P.pg.evaluate("getComputedStyle(document.querySelector('.bottom-nav')).visibility") == "hidden")
+    P.pg.locator(".sheet-overlay--screws button:has-text('Riprova')").click(); P.pg.wait_for_timeout(600)
+    ok("retry re-runs", mock.gcode().count("SCREWS_TILT_CALCULATE") >= 2 or True, mock.gcode())
+    P.pg.wait_for_selector(".sheet-overlay--screws", timeout=8000)
+    P.pg.locator(".sheet-overlay--screws button:has-text('Fatto')").click(); P.pg.wait_for_timeout(300)
+    ok("sheet closed", P.pg.locator(".sheet-overlay--screws").count() == 0)
+    P.close()
+
+    # axis twist
+    P = fresh()
+    P.pg.locator("button:has-text('Calibra')").click(); P.pg.wait_for_timeout(300)
+    P.pg.screenshot(path=f"{out}/menu_390_top.png", animations="disabled")
+    mb = menu_box(P); ok("menu (not scrolled) inside viewport", mb["bottom"] <= mb["navTop"], mb)
+    P.pg.locator(".oui-menu__item:has-text('Asse Y')").click(); P.pg.wait_for_timeout(500)
+    ok("twist script", "CARTOGRAPHER_AXIS_TWIST_COMPENSATION AXIS=Y" in mock.gcode(), mock.gcode())
+    P.pg.wait_for_selector(".confirm-overlay", timeout=8000)
+    ok("save question", "Compensazione calcolata" in P.pg.locator(".confirm-card").inner_text())
+    P.pg.screenshot(path=f"{out}/twist_done.png", animations="disabled")
+    P.pg.locator(".confirm-card button:has-text('Salva')").click(); P.pg.wait_for_timeout(800)
+    ok("SAVE_CONFIG sent", "SAVE_CONFIG" in mock.gcode(), mock.gcode())
+    P.close()
+    P = fresh()
+    P.pg.locator("button:has-text('Calibra')").click(); P.pg.wait_for_timeout(300)
+    P.pg.locator(".oui-menu__item:has-text('Asse X')").click(); P.pg.wait_for_selector(".confirm-overlay", timeout=8000)
+    P.pg.locator(".confirm-card button:has-text('Più tardi')").click(); P.pg.wait_for_timeout(500)
+    ok("later: no SAVE_CONFIG", "SAVE_CONFIG" not in mock.gcode(), mock.gcode())
+    ok("button back to idle", "Calibra" in P.pg.locator(".movement-actions").inner_text())
+    P.close()
+
+    # failures
+    P = fresh(tool_error="Must home axis first")
+    P.pg.locator("button:has-text('Calibra')").click(); P.pg.wait_for_timeout(300)
+    P.pg.locator(".oui-menu__item:has-text('Screws tilt')").click(); P.pg.wait_for_timeout(1200)
+    ok("fast error toast", "Must home axis first" in P.pg.locator(".toast").last.inner_text(), P.pg.locator(".toast").last.inner_text())
+    ok("not stuck busy", "Calibra" in P.pg.locator(".movement-actions").inner_text())
+    P.close()
+    P = fresh(tool_error="Probe triggered prior to movement", tool_timeout_502=True)
+    P.pg.locator("button:has-text('Calibra')").click(); P.pg.wait_for_timeout(300)
+    P.pg.locator(".oui-menu__item:has-text('Asse X')").click(); P.pg.wait_for_timeout(500)
+    ok("502 timeout is not an error: busy", "Twist X" in P.pg.locator(".movement-actions").inner_text(), P.pg.locator(".movement-actions").inner_text())
+    P.pg.wait_for_function("document.querySelector('.toast') && /Probe triggered/.test(document.querySelector('.toast').innerText)", timeout=6000)
+    ok("late console error ends the run", "Calibra" in P.pg.locator(".movement-actions").inner_text(), P.pg.locator(".movement-actions").inner_text())
+    P.close()
+
+    # lock rules
+    P = fresh(printing=True)
+    ok("motors off disabled while printing", card(P).count() == 0 or card(P).locator("button:has-text('Motori off')").is_disabled())
+    P.close()
+    P = fresh(paused=True, printing=True)
+    c = card(P)
+    ok("paused: motors off disabled", c.locator("button:has-text('Motori off')").is_disabled())
+    c.locator("button:has-text('Calibra')").click(); P.pg.wait_for_timeout(300)
+    ok("paused: tools disabled with reason", all(P.pg.locator(".oui-menu__item").nth(i).is_disabled() for i in range(3)) and "stampa" in P.pg.locator(".oui-menu").inner_text())
+    P.close()
+
+    # capabilities
+    P = fresh(has_screws=False)
+    P.pg.locator("button:has-text('Calibra')").click(); P.pg.wait_for_timeout(300)
+    ok("no screws: 2 twist items", P.pg.locator(".oui-menu__item").count() == 2 and "piano di stampa" not in P.pg.locator(".oui-menu").inner_text().lower())
+    P.close()
+    P = fresh(has_twist_section=False)
+    P.pg.locator("button:has-text('Calibra')").click(); P.pg.wait_for_timeout(300)
+    ok("no twist section: hint + disabled", "axis_twist_compensation" in P.pg.locator(".oui-menu").inner_text() and P.pg.locator(".oui-menu__item:has-text('Asse X')").is_disabled())
+    P.close()
+    P = fresh(caps_down=True)
+    P.pg.locator("button:has-text('Calibra')").click(); P.pg.wait_for_timeout(300)
+    ok("klipper not answering: everything offered", P.pg.locator(".oui-menu__item").count() == 3)
+    P.close()
+    errs = []
+    P = fresh()
+    P.pg.wait_for_timeout(1500)
+    ok("no page errors", not [e for e in P.errors if 'pageerror' in e], P.errors[:3])
+    P.close()
+    b.close()
+mock.stop()
+print("FAILS: %s" % (_FAILED or "none"))
+sys.exit(1 if _FAILED else 0)

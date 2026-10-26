@@ -1,0 +1,95 @@
+/* ============================================================================
+   Surfaces: cards, tiles, grouped lists, wells
+   Selection is always violet, primary actions are solid violet, neutral actions are
+   glass, danger is red: the same four rules apply on every page.
+   ========================================================================== */
+
+/* ---- card: the container of every dashboard section ---- */
+.oui-card {
+  box-sizing: border-box;
+  min-width: 0;
+  max-width: 100%;
+  padding: 20px;
+  background: var(--oui-surface);
+  border: 1px solid var(--oui-stroke);
+  border-radius: var(--oui-r-card);
+}
+.oui-card--flush { padding: 0; overflow: hidden; }
+.oui-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 28px;
+  margin-bottom: 16px;
+}
+/* header of a card whose body goes edge to edge (camera, console, files) */
+.oui-card--flush > .oui-card__head { margin: 0; padding: 18px 20px 14px; }
+
+/* ---- tile: a block inside a card (heater, statistic, field group) ---- */
+.oui-tile {
+  box-sizing: border-box;
+  padding: 16px;
+  background: var(--oui-surface-2);
+  border-radius: var(--oui-r-tile);
+}
+button.oui-tile,
+a.oui-tile {
+  width: 100%;
+  border: 0;
+  text-align: left;
+  color: inherit;
+  transition: background var(--oui-dur-fast) var(--oui-ease), transform var(--oui-dur-press) var(--oui-ease);
+}
+button.oui-tile:hover { background: var(--oui-surface-3); }
+button.oui-tile:active { transform: scale(0.985); background: var(--oui-surface-3); }
+/* tinted variants carry a status */
+.oui-tile--warn { background: var(--oui-warn-soft); }
+.oui-tile--danger { background: var(--oui-danger-soft); }
+.oui-tile--ok { background: var(--oui-ok-soft); }
+
+/* ---- grouped list: rows separated by a hairline gap, outer corners large, inner corners small ---- */
+.oui-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-radius: var(--oui-r-tile);
+  overflow: hidden;
+}
+.oui-list > * {
+  box-sizing: border-box;
+  margin: 0;
+  background: var(--oui-surface-2);
+  border-radius: var(--oui-r-row);
+}
+.oui-list > :first-child { border-top-left-radius: var(--oui-r-tile); border-top-right-radius: var(--oui-r-tile); }
+.oui-list > :last-child { border-bottom-left-radius: var(--oui-r-tile); border-bottom-right-radius: var(--oui-r-tile); }
+.oui-list__row { padding: 14px 16px; }
+
+/* ---- well: sunken area for live content (console, camera, code, previews) ---- */
+.oui-well {
+  background: var(--oui-inset);
+  border-radius: var(--oui-r-field);
+}
+
+/* ---- inline hairline ---- */
+.oui-divider { height: 1px; background: var(--oui-stroke); border: 0; margin: 0; }
+
+/* ---- row: round icon, name with a line of detail, something on the right (a badge, a chevron)
+   Lives inside an .oui-list, which supplies the background and the corners. ---- */
+.oui-row { display: flex; align-items: center; gap: 14px; padding: 12px 16px 12px 12px; }
+.oui-row__icon {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--oui-surface-3);
+  color: var(--oui-text-2);
+}
+.oui-row__icon--accent { background: var(--oui-accent-soft); color: var(--oui-accent-text); }
+.oui-row__text { display: flex; flex: 1; flex-direction: column; gap: 2px; min-width: 0; }
+.oui-row__name { font-size: 15px; font-weight: 600; overflow-wrap: anywhere; }
+.oui-row__meta { font-size: 12px; color: var(--oui-text-3); font-variant-numeric: tabular-nums; }

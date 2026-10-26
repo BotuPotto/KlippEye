@@ -1,0 +1,57 @@
+name: Tests
+
+# Runs the automatic tests on every pull request and on every push to main.
+# The same tests run locally with:  bash tests/run_all.sh   (see tests/README.md)
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend, notifier, app CI, frontend build
+    runs-on: ubuntu-24.04   # pinned: Playwright 1.56 installs its system libraries on 24.04 (ubuntu-latest moves to 26)
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install the Python packages
+        run: pip install flask requests werkzeug numpy opencv-python-headless cryptography pillow playwright==1.56.0
+      - name: Install Chromium (the notifier integration test starts the dashboard stand-in)
+        run: python -m playwright install --with-deps chromium
+      - name: Run the tests (no browser tests)
+        run: bash tests/run_all.sh --no-ui
+
+  ui:
+    name: Dashboard in the browser
+    runs-on: ubuntu-24.04   # pinned: Playwright 1.56 installs its system libraries on 24.04 (ubuntu-latest moves to 26)
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install the Python packages
+        run: pip install flask requests werkzeug numpy opencv-python-headless pillow playwright==1.56.0
+      - name: Install Chromium
+        run: python -m playwright install --with-deps chromium
+      - name: Run the browser tests
+        run: bash tests/ui/run_all.sh "$RUNNER_TEMP/ui"
+      - name: Keep the screenshots and logs when something fails
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-test-output
+          path: ${{ runner.temp }}/ui
+          retention-days: 7

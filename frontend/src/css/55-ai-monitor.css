@@ -1,0 +1,37 @@
+/* ============================================================================
+   AI print monitor: header badge and the Config-page card (nothing in it may
+   push the page wider than the screen)
+   ========================================================================== */
+
+/* ---- badge in the app header (colour comes from --ai-hex / --ai-rgb / --ai-glow) ---- */
+.ai-header-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 11px 0 9px;
+  border-radius: var(--oui-r-pill);
+  background: rgba(var(--ai-rgb), 0.16);
+  color: var(--ai-hex);
+  box-shadow: 0 0 14px rgba(var(--ai-rgb), calc(var(--ai-glow) * 0.5));
+}
+.ai-header-badge__dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ai-hex); box-shadow: 0 0 8px var(--ai-hex); }
+.ai-header-badge__label { font-size: 13px; font-weight: 700; letter-spacing: 0.02em; }
+
+/* ---- card ---- */
+.ai-card-head { display: flex; flex-direction: column; gap: 2px; margin-bottom: 14px; }
+.ai-status { max-width: 100%; margin-bottom: 14px; padding: 6px 12px; white-space: normal; line-height: 1.3; }
+.ai-dot--pulse { animation: oui-pulse 1.4s ease-in-out infinite; }
+.monitor-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-bottom: 14px; }
+.monitor-tile { padding: 12px; min-width: 0; }
+.ai-metric { margin-top: 4px; font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; overflow-wrap: break-word; }
+
+.ai-alert { box-sizing: border-box; max-width: 100%; margin-bottom: 14px; padding: 14px 16px; border-radius: var(--oui-r-field); overflow-wrap: break-word; }
+.ai-alert--warn { background: var(--oui-warn-soft); }
+.ai-alert--danger { background: var(--oui-danger-soft); }
+.ai-alert__title { font-size: 14px; font-weight: 600; }
+.ai-alert--warn .ai-alert__title { color: var(--oui-warn); }
+.ai-alert--danger .ai-alert__title { color: var(--oui-danger); }
+.ai-alert__text { margin-top: 6px; font-size: 14px; line-height: 1.5; color: var(--oui-text-2); }
+
+.ai-result { padding: 14px; background: var(--oui-inset); border-radius: var(--oui-r-tile); overflow-wrap: break-word; }

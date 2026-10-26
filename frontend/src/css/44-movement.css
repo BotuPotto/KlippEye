@@ -1,0 +1,89 @@
+/* ============================================================================
+   Movement card: jog pad (XY wheel, home button), Z buttons, axis tiles
+   ========================================================================= */
+
+/* ---- jog pad: ring segments (SVG), glass fills that turn violet under the finger ---- */
+.bambu-outer { fill: rgba(255, 255, 255, 0.075); transition: fill var(--oui-dur-fast) var(--oui-ease); }
+.bambu-outer:hover { fill: rgba(255, 255, 255, 0.12); }
+.bambu-outer:active { fill: rgba(183, 156, 255, 0.35); }
+.bambu-inner { fill: rgba(255, 255, 255, 0.115); transition: fill var(--oui-dur-fast) var(--oui-ease); }
+.bambu-inner:hover { fill: rgba(255, 255, 255, 0.17); }
+.bambu-inner:active { fill: rgba(183, 156, 255, 0.45); }
+.bambu-num { font-weight: 600; fill: var(--oui-text-3); pointer-events: none; user-select: none; font-variant-numeric: tabular-nums; }
+/* the hairline gaps between segments are darker slices of whatever lies behind */
+.pad-gap { stroke: rgba(4, 5, 8, 0.78); fill: none; }
+.pad-axis { font-size: 19px; font-weight: 600; line-height: 1; color: var(--oui-text); }
+
+/* ---- jog pad: wheel container, home button, Z buttons ---- */
+.jog-pad { transform: scale(0.85); transform-origin: center center; }
+.jog-home {
+  width: 64px;
+  height: 64px;
+  border: 0;
+  background: var(--oui-accent-strong);
+  color: var(--oui-on-accent);
+  box-shadow: 0 6px 20px rgba(183, 156, 255, 0.3);
+  transition: transform var(--oui-dur-press) var(--oui-ease), filter var(--oui-dur-fast) var(--oui-ease);
+}
+.jog-home:hover { filter: brightness(1.12); }
+.jog-home:active { transform: translate(-50%, -50%) scale(0.93); }
+
+.z-btn {
+  width: 56px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--oui-r-field);
+  background: var(--oui-surface-3);
+  color: var(--oui-text);
+  font-size: 14px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  transition: background var(--oui-dur-fast) var(--oui-ease), transform var(--oui-dur-press) var(--oui-ease);
+}
+.z-btn:hover { background: rgba(255, 255, 255, 0.17); }
+.z-btn:active { transform: scale(0.94); background: var(--oui-accent-soft); color: var(--oui-accent-text); }
+.z-btn--big { background: var(--oui-surface-2); color: var(--oui-text-2); }
+.z-divider { width: 32px; height: 2px; margin: 2px 0; background: var(--oui-stroke); border-radius: 1px; }
+
+/* ---- X / Y / Z position tiles: the axis letter lights up once the axis is homed ---- */
+.axis-tile {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 12px 8px;
+  border: 0;
+  border-radius: var(--oui-r-field);
+  background: var(--oui-surface-2);
+  color: var(--oui-text);
+  transition: background var(--oui-dur-fast) var(--oui-ease), transform var(--oui-dur-press) var(--oui-ease);
+}
+.axis-tile:hover { background: var(--oui-surface-3); }
+.axis-tile:active { transform: scale(0.97); }
+.axis-tile__name { font-size: 13px; font-weight: 700; color: var(--oui-text-3); }
+.axis-tile__value { font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.axis-tile.is-homed .axis-tile__name { color: var(--oui-accent-strong); } /* the colour of the jog pad's home button */
+.axis-tile.is-unhomed .axis-tile__name { color: var(--oui-text-3); }
+
+/* ---- home buttons ---- */
+.home-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 0;
+  min-height: 64px;
+  padding: 8px 4px;
+  border: 0;
+  border-radius: var(--oui-r-field);
+  background: var(--oui-surface-2);
+  color: var(--oui-text);
+  font-size: 13px;
+  font-weight: 600;
+  transition: background var(--oui-dur-fast) var(--oui-ease), transform var(--oui-dur-press) var(--oui-ease);
+}
+.home-btn:hover { background: var(--oui-surface-3); }
+.home-btn:active { transform: scale(0.95); background: var(--oui-accent-soft); color: var(--oui-accent-text); }

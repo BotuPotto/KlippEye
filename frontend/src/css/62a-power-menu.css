@@ -1,0 +1,39 @@
+/* ============================================================================
+   Power menu: the sheet behind the header's power button (markup: app/31a-power-menu.js)
+   It reuses the sheet and the rows of the file menu (49-file-actions.css, 62-sheets.css).
+   ========================================================================== */
+
+.sheet-overlay--power { --sheet-width: 420px; --sheet-max-height: 88vh; }
+
+.power-sheet__head { display: flex; align-items: center; gap: 14px; flex-shrink: 0; padding: 20px 20px 8px; }
+.power-sheet__head .dialog-head__icon { margin: 0; }
+.power-sheet__body { flex: 1; min-height: 0; padding: 0 16px 6px; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+.power-sheet__label { margin: 14px 6px 8px; font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--oui-text-3); }
+
+/* ---- a service: state dot, name and state, then restart / start and stop ---- */
+.svc-row { display: flex; align-items: center; gap: 12px; padding: 8px 8px 8px 16px; }
+.svc-row__dot { flex-shrink: 0; width: 10px; height: 10px; border-radius: 50%; background: var(--oui-text-3); }
+.svc-row__dot--on { background: var(--oui-ok); box-shadow: 0 0 0 3px var(--oui-ok-soft); }
+.svc-row__dot--bad { background: var(--oui-danger); box-shadow: 0 0 0 3px var(--oui-danger-soft); }
+.svc-row__text { display: flex; flex: 1; flex-direction: column; gap: 1px; min-width: 0; }
+.svc-row__name { font-size: 15px; font-weight: 600; overflow-wrap: anywhere; }
+.svc-row__state { font-size: 12px; color: var(--oui-text-3); }
+.svc-row__actions { display: flex; flex-shrink: 0; align-items: center; gap: 4px; }
+.svc-row__btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--oui-accent-text);
+  transition: background var(--oui-dur-fast) var(--oui-ease), transform var(--oui-dur-press) var(--oui-ease), opacity var(--oui-dur-fast) linear;
+}
+.svc-row__btn:hover { background: var(--oui-surface-3); }
+.svc-row__btn:active { transform: scale(0.9); }
+.svc-row__btn--stop { color: var(--oui-text-2); }
+.svc-row__btn:disabled { opacity: 0.3; pointer-events: none; }
+.svc-row__btn--none { visibility: hidden; pointer-events: none; }

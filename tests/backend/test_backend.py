@@ -1,0 +1,1032 @@
+#!/usr/bin/env python3
+"""Tests of the backend (backend/klippeye_backend.py): settings, endpoints, persistence, access and the detector itself.
+
+    python3 test_brain.py [--quick]
+
+--quick skips the two slow runs (original-vs-new comparison at the real 3 s rhythm).
+The detector tests use the real OpenCV with synthetic pictures: a white square that appears / disappears at the edge of
+the watched area makes a "movement" of a known size, so each threshold can be checked against what it should do.
+"""
+import importlib.util
+import json
+import os
+import shutil
+import stat
+import sys
+import tempfile
+import time
+import types
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, HERE)
+sys.path.insert(0, os.path.join(HERE, "stubs"))
+import fakes  # noqa: E402
+
+ROOT = os.path.dirname(os.path.dirname(HERE))   # the repository
+NEW_BRAIN = os.path.join(ROOT, "backend", "klippeye_backend.py")
+OLD_BRAIN = os.path.join(HERE, "fixtures", "vzbot_brain_original.py")   # the original VzBot Brain: same detector results with the default values
+QUICK = "--quick" in sys.argv
+
+passed, failed = 0, 0
+
+
+def check(name, condition, detail=""):
+    global passed, failed
+    if condition:
+        passed += 1
+        print("  PASS  " + name)
+    else:
+        failed += 1
+        print("  FAIL  " + name + ("   -> " + str(detail) if detail != "" else ""))
+
+
+_modules = []
+
+
+def load_brain(path, data_dir, fake=None, brain_json=None, name=None):
+    """Imports a fresh copy of the Brain with its own data folder (and optionally a prepared brain.json)."""
+    os.makedirs(data_dir, exist_ok=True)
+    if brain_json is not None:
+        with open(os.path.join(data_dir, "brain.json"), "w", encoding="utf-8") as f:
+            json.dump(brain_json, f)
+    os.environ["KLIPPEYE_DATA"] = data_dir
+    modname = name or "brain_%d" % len(_modules)
+    spec = importlib.util.spec_from_file_location(modname, path)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[modname] = module
+    spec.loader.exec_module(module)
+    _modules.append(module)
+    if fake is not None:
+        module.MOONRAKER_URL = fake.url
+        module.CAMERA_NGINX_URL = fake.url + "/webcam"
+    return module
+
+
+def stop_all():
+    for module in _modules:
+        try:
+            module.detector.stop()
+        except Exception:
+            pass
+
+
+def wait_for(predicate, seconds, step=0.2):
+    end = time.time() + seconds
+    while time.time() < end:
+        if predicate():
+            return True
+        time.sleep(step)
+    return predicate()
+
+
+def tmp():
+    return tempfile.mkdtemp(prefix="brain_test_")
+
+
+# ---------------------------------------------------------------------------------------------------------------------
+print("== Impostazioni: valori di sempre, API, controlli")
+d = tmp()
+b = load_brain(NEW_BRAIN, d, brain_json={"formato": 1, "values": {"enabled": False}})  # spento: nessun ciclo parte da solo
+client = b.app.test_client()
+
+r = client.get("/api/backend/config")
+j = r.get_json()
+check("GET /api/backend/config risponde 200", r.status_code == 200)
+defaults = j["defaults"]
+check("valori di sempre = quelli del Brain V18", defaults["sensitivity"] == 35 and defaults["score_threshold"] == 2.5 and defaults["trigger_count"] == 3
+      and defaults["check_interval"] == 3 and defaults["cooldown"] == 90 and defaults["ai_cooldown"] == 120 and defaults["warmup_seconds"] == 90
+      and defaults["min_progress"] == 2 and defaults["hotend_tolerance"] == 8 and defaults["border"] == 25 and defaults["roi"] == [20, 20, 60, 60], defaults)
+check("la risposta porta spec, gruppi e api", j["api"] == 2 and len(j["spec"]) == len(j["defaults"]) and len(j["groups"]) >= 5)
+check("ogni voce della spec ha etichetta e gruppo esistente", all(s["label"] and s["group"] in [g["id"] for g in j["groups"]] for s in j["spec"]))
+check("le voci numeriche dicono minimo, massimo e unita'", all(("min" in s and "max" in s) for s in j["spec"] if s["type"] in ("int", "float")))
+check("il pattern interno non esce nella spec", all("pattern" not in s for s in j["spec"]))
+check("enabled=false letto da brain.json: il rilevatore non parte", b.detector.running is False and j["values"]["enabled"] is False)
+
+r = client.post("/api/backend/config", json={"values": {"sensitivity": 50, "trigger_count": 5}})
+j = r.get_json()
+check("POST valido: 200, ok, changed", r.status_code == 200 and j["ok"] and sorted(j["changed"]) == ["sensitivity", "trigger_count"], j)
+check("... mette in uso le soglie nel rilevatore", b.detector.sensitivity == 50 and b.detector.trigger_threshold == 5)
+saved = json.load(open(os.path.join(d, "brain.json")))
+check("... e le salva in brain.json", saved["values"]["sensitivity"] == 50 and saved["values"]["trigger_count"] == 5 and saved["formato"] == 1, saved)
+check("... senza lasciare file temporanei", [f for f in os.listdir(d) if f.startswith(".tmp")] == [], os.listdir(d))
+
+r = client.post("/api/backend/config", json={"values": {"sensitivity": 500, "cooldown": 5, "pippo": 1}})
+j = r.get_json()
+check("POST non valido: 400 con un errore per chiave", r.status_code == 400 and not j["ok"] and set(j["errors"]) == {"sensitivity", "cooldown", "pippo"}, j)
+check("... non cambia niente (nemmeno i valori buoni)", b.detector.sensitivity == 50 and j["values"]["sensitivity"] == 50)
+check("... e il messaggio e' in italiano", "deve stare tra" in j["errors"]["sensitivity"] and "sconosciuta" in j["errors"]["pippo"], j["errors"])
+
+for bad, label in (({"sensitivity": True}, "bool al posto di un numero"), ({"sensitivity": 3.5}, "decimale in un intero"), ({"sensitivity": "abc"}, "testo"),
+                   ({"sensitivity": None}, "null"), ({"enabled": 1}, "1 al posto di sì/no"), ({"enabled": "true"}, "'true' al posto di sì/no"),
+                   ({"roi": [0, 0, 5, 50]}, "area troppo stretta"), ({"roi": [50, 0, 60, 50]}, "area fuori dall'immagine"), ({"roi": [1, 2, 3]}, "area con 3 numeri"),
+                   ({"ai_model": "a b"}, "modello con spazi"), ({"ai_model": "x" * 200}, "modello troppo lungo"), ({"score_threshold": float("nan")}, "NaN")):
+    try:
+        r = client.post("/api/backend/config", json={"values": bad})
+        code = r.status_code
+    except Exception as e:  # NaN is not valid JSON: the client refuses before sending
+        code = 400
+    check("rifiuta " + label, code == 400)
+
+r = client.post("/api/backend/config", json={"values": {"sensitivity": "40", "score_threshold": "3,5", "check_interval": 4.0}})
+check("accetta numeri scritti come testo ('3,5') e interi 4.0", r.status_code == 200 and b.detector.sensitivity == 40 and b.detector.score_threshold == 3.5 and b.detector.check_interval == 4, r.get_json())
+r = client.post("/api/backend/config", json={"sensitivity": 41})
+check("accetta anche l'oggetto senza 'values'", r.status_code == 200 and b.detector.sensitivity == 41)
+r = client.post("/api/backend/config", data="non json", content_type="text/plain")
+check("un corpo che non e' JSON da' 400", r.status_code == 400)
+
+r = client.post("/api/backend/config", json={"values": {"roi": [10, 15.55, 70, 60.04]}})
+check("area: arrotondata a un decimale e convertita in pixel 1080x720", r.status_code == 200 and b.brain_config.snapshot()["roi"] == [10.0, 15.6, 70.0, 60.0]
+      and b.detector.roi == (108, 112, 756, 432), (b.brain_config.snapshot()["roi"], b.detector.roi))
+r = client.post("/api/backend/config", json={"values": {"border": 30, "warmup_seconds": 20, "min_progress": 0.5, "hotend_tolerance": 12, "ai_model": "qwen/qwen3.8-27b", "ai_cooldown": 300, "cooldown": 30}})
+check("tutte le altre soglie arrivano al rilevatore", r.status_code == 200 and b.detector.border == 0.30 and b.detector.warmup == 20 and b.detector.min_progress == 0.5
+      and b.detector.hotend_tol == 12 and b.detector.ai_model == "qwen/qwen3.8-27b" and b.detector.ai_cooldown == 300 and b.detector.cooldown_sec == 30)
+
+# persistenza: un Brain nuovo che parte con la stessa cartella ritrova tutto
+b2 = load_brain(NEW_BRAIN, d, brain_json=None)
+v2 = b2.brain_config.snapshot()
+check("persistenza: dopo un riavvio le soglie sono quelle salvate", v2["sensitivity"] == 41 and v2["border"] == 30 and v2["ai_model"] == "qwen/qwen3.8-27b" and v2["roi"] == [10.0, 15.6, 70.0, 60.0], v2)
+check("... e il rilevatore le usa subito", b2.detector.sensitivity == 41 and b2.detector.warmup == 20 and b2.detector.roi == (108, 112, 756, 432))
+b2.detector.stop()
+
+r = client.post("/api/backend/config/reset", json={"keys": ["sensitivity"]})
+check("reset di una sola voce", r.status_code == 200 and b.detector.sensitivity == 35 and b.detector.warmup == 20)
+r = client.post("/api/backend/config/reset")
+j = r.get_json()
+check("reset di tutto: tornano i valori di sempre", r.status_code == 200 and j["values"] == defaults and b.detector.warmup == 90 and b.detector.roi == (216, 144, 648, 432), j["values"])
+
+# file mancante / rovinato / con valori strani
+d2 = tmp()
+b3 = load_brain(NEW_BRAIN, d2, brain_json={"formato": 1, "values": {"sensitivity": 9999, "trigger_count": "tre", "cooldown": 45, "roi": "tutto", "x": 1, "enabled": False}})
+v3 = b3.brain_config.snapshot()
+check("valori strani nel file: ignorati uno per uno, gli altri restano", v3["sensitivity"] == 35 and v3["trigger_count"] == 3 and v3["cooldown"] == 45 and v3["roi"] == [20, 20, 60, 60], v3)
+d3 = tmp()
+os.makedirs(d3, exist_ok=True)
+open(os.path.join(d3, "brain.json"), "w").write("{ questo non e' json")
+os.environ["KLIPPEYE_DATA"] = d3
+b4 = load_brain(NEW_BRAIN, d3)
+check("file rovinato: il Brain parte lo stesso con i valori di sempre", b4.brain_config.snapshot() == b4.config_defaults())
+check("... e il file rovinato viene messo da parte, non perso", any(f.startswith("brain.json.rovinato-") for f in os.listdir(d3)), os.listdir(d3))
+b4.detector.stop()
+d4 = tmp()
+open(os.path.join(d4, "brain.json"), "w").write("[1,2,3]")
+b5 = load_brain(NEW_BRAIN, d4)
+check("file con la forma sbagliata (una lista): valori di sempre", b5.brain_config.snapshot() == b5.config_defaults())
+b5.detector.stop()
+
+# cartella non scrivibile: l'impostazione vale ma il Brain lo dice
+d5 = tmp()
+b6 = load_brain(NEW_BRAIN, d5, brain_json={"values": {"enabled": False}})
+os.chmod(d5, 0o500)
+if os.geteuid() == 0:
+    check("(salto la prova della cartella non scrivibile: sono root)", True)
+else:
+    r = b6.app.test_client().post("/api/backend/config", json={"values": {"sensitivity": 60}})
+    j = r.get_json()
+    check("cartella non scrivibile: 200, valore in uso, ma save_error", r.status_code == 200 and b6.detector.sensitivity == 60 and j["save_error"], j)
+os.chmod(d5, 0o700)
+
+# vecchi endpoint
+r = client.post("/api/print/detector/config", json={"sensitivity": 5000, "cooldown": 60, "roi": [100, 100, 500, 400]})
+check("vecchio /detector/config: limita la sensibilita' a 100, accetta cooldown e area in pixel", r.status_code == 200 and b.detector.sensitivity == 100 and b.detector.cooldown_sec == 60
+      and b.brain_config.snapshot()["roi"][0] == round(100 * 100 / 1080, 1), (b.detector.sensitivity, b.detector.cooldown_sec, b.brain_config.snapshot()["roi"]))
+r = client.post("/api/print/detector/config", json={"roi": [0, 0, 5, 5], "sensitivity": 50})
+check("... un'area non valida viene lasciata com'era, il resto si applica", r.status_code == 200 and b.detector.sensitivity == 50 and b.brain_config.snapshot()["roi"][2] == round(500 * 100 / 1080, 1))
+st = client.get("/api/print/detector/status").get_json()
+check("/detector/status ha ancora tutti i campi di prima", all(k in st for k in ("ok", "enabled", "running", "has_cv2", "stats", "real_print_started", "real_print_reason", "progress", "roi", "sensitivity", "last_alert_img")), list(st))
+client.post("/api/backend/config/reset")
+
+# versione
+r = client.get("/api/version")
+j = r.get_json()
+check("/api/version: release, api, uptime, cartella dati, python", r.status_code == 200 and j["api"] == 2 and j["release"] and j["uptime"] >= 0 and j["data_dir"] == d and j["has_cv2"] is True, j)
+check("la release e' quella scritta nel file VERSION del repository", j["release"] == open(os.path.join(ROOT, "VERSION")).read().strip(), j["release"])
+nover = tmp()
+os.makedirs(os.path.join(nover, "backend"))
+shutil.copy(NEW_BRAIN, os.path.join(nover, "backend", "klippeye_backend.py"))
+b6 = load_brain(os.path.join(nover, "backend", "klippeye_backend.py"), tmp(), brain_json={"values": {"enabled": False}})
+check("senza il file VERSION la release e' 'sviluppo'", b6.RELEASE == "sviluppo", b6.RELEASE)
+vroot = tmp()
+os.makedirs(os.path.join(vroot, "backend"))
+shutil.copy(NEW_BRAIN, os.path.join(vroot, "backend", "klippeye_backend.py"))
+open(os.path.join(vroot, "VERSION"), "w").write("1.2.3\n")
+b7 = load_brain(os.path.join(vroot, "backend", "klippeye_backend.py"), tmp(), brain_json={"values": {"enabled": False}})
+check("con il file VERSION accanto a backend/ la release e' quella", b7.RELEASE == "1.2.3" and b7.app.test_client().get("/api/version").get_json()["release"] == "1.2.3")
+open(os.path.join(vroot, "VERSION"), "w").write("<script>alert(1)</script>\n")
+b7b = load_brain(os.path.join(vroot, "backend", "klippeye_backend.py"), tmp(), brain_json={"values": {"enabled": False}})
+check("un VERSION con roba strana non passa", b7b.RELEASE == "sviluppo")
+
+# dashboard servita dal posto nuovo
+os.makedirs(os.path.join(vroot, "frontend"))
+open(os.path.join(vroot, "frontend", "klippeye_frontend.html"), "w").write("<!doctype html><html><head><title>KlippEye</title></head><body>nuova dashboard</body></html>\n")
+b8 = load_brain(os.path.join(vroot, "backend", "klippeye_backend.py"), tmp(), brain_json={"values": {"enabled": False}})
+r = b8.app.test_client().get("/")
+check("la dashboard si serve da frontend/klippeye_frontend.html", r.status_code == 200 and b"nuova dashboard" in r.data)
+r.close()
+check("/api/version dice quale file serve", b8.app.test_client().get("/api/version").get_json()["frontend"].endswith("frontend/klippeye_frontend.html"))
+
+# pagina rovinata da un blackout: vuota o troncata -> pagina d'emergenza 503 (mai una pagina bianca), senza lo script di riparazione non si inventa niente
+fe = os.path.join(vroot, "frontend", "klippeye_frontend.html")
+good_page = open(fe, "rb").read()
+check("frontend_ok: pagina intera si', vuota no, troncata no, tutta zeri no, file che non c'e' no",
+      b8.frontend_ok(fe) and not (open(fe, "wb").close() or b8.frontend_ok(fe)) and not (open(fe, "wb").write(good_page[:-20]) and b8.frontend_ok(fe))
+      and not (open(fe, "wb").write(b"\x00" * 400) and b8.frontend_ok(fe)) and not b8.frontend_ok(fe + ".manca"))
+for label, damage in (("vuota", b""), ("troncata", good_page[:-20])):
+    open(fe, "wb").write(damage)
+    r = b8.app.test_client().get("/")
+    check("pagina %s e nessuno script di riparazione: 503 con la pagina d'emergenza che si ricarica" % label,
+          r.status_code == 503 and b"rimettendo a posto" in r.data and b'http-equiv="refresh"' in r.data and r.headers.get("Retry-After") == "8", (r.status_code, r.data[:80]))
+    r.close()
+open(fe, "wb").write(good_page)
+r = b8.app.test_client().get("/")
+check("rimessa a posto la pagina, la dashboard torna normale", r.status_code == 200 and b"nuova dashboard" in r.data)
+r.close()
+check("/api/version: campo repair (null se non c'e' mai stato un ripristino)", "repair" in b8.app.test_client().get("/api/version").get_json())
+rk = tmp()
+json.dump({"time": 1, "restored": ["a"], "failed": []}, open(os.path.join(rk, "ripristino.json"), "w"))
+b8b = load_brain(os.path.join(vroot, "backend", "klippeye_backend.py"), rk, brain_json={"values": {"enabled": False}})
+check("... e con un ripristino registrato lo riporta", b8b.app.test_client().get("/api/version").get_json()["repair"] == {"time": 1, "restored": ["a"], "failed": []})
+open(os.path.join(rk, "ripristino.json"), "w").write("{rovinato")
+check("... un ripristino.json rovinato non rompe /api/version", b8b.app.test_client().get("/api/version").get_json()["repair"] is None)
+
+# chiave dell'IA: nuovo posto con permessi 600, vecchio posto ancora letto
+dk = tmp()
+bk = load_brain(NEW_BRAIN, dk, brain_json={"values": {"enabled": False}})
+ck = bk.app.test_client()
+r = ck.post("/api/ai/config", json={"api_key": "k" * 30, "provider": "groq"})
+j = r.get_json()
+mode = stat.S_IMODE(os.stat(os.path.join(dk, "ai.json")).st_mode)
+check("salvare la chiave dell'IA: va in ai.json con permessi 600", r.status_code == 200 and j["saved_to"] == [os.path.join(dk, "ai.json")] and mode == 0o600, (j, oct(mode)))
+g = ck.get("/api/ai/config").get_json()
+check("... e la chiave non esce intera", g["configured"] and "k" * 30 not in json.dumps(g) and g["provider"] == "groq", g)
+check("... load_ai_config la legge", bk.load_ai_config()["api_key"] == "k" * 30)
+legacy = os.path.join(tmp(), "old_ai.json")
+json.dump({"api_key": "L" * 30, "provider": "openai"}, open(legacy, "w"))
+dk2 = tmp()
+bk2 = load_brain(NEW_BRAIN, dk2, brain_json={"values": {"enabled": False}})
+bk2.AI_CONFIG_PATH_LEGACY = legacy
+check("la chiave nel vecchio posto si legge ancora", bk2.load_ai_config() and bk2.load_ai_config()["api_key"] == "L" * 30)
+bk2.app.test_client().post("/api/ai/config", json={"api_key": "N" * 30})
+check("... e una chiave nuova (nuovo posto) vince su quella vecchia", bk2.load_ai_config()["api_key"] == "N" * 30)
+check("... il vecchio file non viene toccato", json.load(open(legacy))["api_key"] == "L" * 30)
+
+# ponte verso Moonraker: attesa lunga solo per update/servizi
+seen = {}
+
+
+class FakeResp:
+    status_code = 200
+    headers = {"Content-Type": "application/json"}
+
+    def iter_content(self, chunk_size=8192):
+        yield b"{}"
+
+
+def fake_request(method, url, **kw):
+    seen["timeout"] = kw.get("timeout")
+    return FakeResp()
+
+
+bp = load_brain(NEW_BRAIN, tmp(), brain_json={"values": {"enabled": False}})
+real_request = bp.requests.request
+bp.requests.request = fake_request
+cp = bp.app.test_client()
+cp.post("/machine/update/upgrade", json={"name": "klippeye"}).close()
+check("ponte: /machine/update/* aspetta fino a 10 minuti", seen["timeout"] == (5, 600), seen)
+cp.post("/machine/services/restart?service=klippeye").close()
+check("ponte: /machine/services/* idem", seen["timeout"] == (5, 600), seen)
+cp.get("/printer/info").close()
+check("ponte: il resto resta a 10 secondi", seen["timeout"] == 10, seen)
+bp.requests.request = real_request
+
+# ---------------------------------------------------------------------------------------------------------------------
+print("== Rilevatore: lo stesso comportamento di prima con i valori di sempre")
+SQUARE = (60, 60, 120, 100)  # (x, y, w, h) nella fascia esterna dell'area di sempre? vedi sotto: l'area va da (216,144) a (864,576)
+# fascia esterna dell'area di sempre: 25% dell'area -> da x=216 a 378 (sinistra), y=144..252 (alto)...
+EDGE = (230, 160, 100, 100)  # dentro la fascia esterna in alto a sinistra dell'area
+CENTER = (500, 330, 100, 100)  # al centro dell'area: non conta come sospetto
+OUTSIDE = (20, 20, 100, 100)  # fuori dall'area controllata
+
+
+def blink(rect, n, base=100):
+    """n foto che alternano 'quadrato bianco' / 'niente': ogni confronto vede il quadrato apparire o sparire."""
+    on, off = fakes.jpeg(fakes.frame(rect)), fakes.jpeg(fakes.frame())
+    return [on if i % 2 == 0 else off for i in range(n)]
+
+
+def run_scenario(path, fake, frames, seconds, brain_json=None, state=None, interval=None, extra=None):
+    """Starts a Brain on the fake machine, lets it watch for `seconds`, returns (module, trace of stats)."""
+    fake.snapshots = 0
+    fake.state["frames"] = frames
+    fake.state.update({"print_state": "printing", "progress": 0.5, "file_position": 5000, "file_size": 10000, "total_duration": 500.0,
+                       "hotend": 210.0, "hotend_target": 210.0})
+    if state:
+        fake.state.update(state)
+    values = {"enabled": False, "persistent_filter": False}  # i test di una volta provano il rilevamento di prima; il filtro nuovo ha la sua sezione
+    values.update(brain_json or {})
+    m = load_brain(path, tmp(), fake, brain_json={"values": values} if path == NEW_BRAIN else None)
+    m.detector.last_ai_call = time.time() + 99999  # niente chiamata all'IA: qui conta solo quando scatta
+    if path == NEW_BRAIN and interval:
+        m.set_brain_config({"check_interval": interval})
+    if extra:
+        extra(m)
+    m.detector.enabled = True
+    m.detector.start()
+    trace = []
+    end = time.time() + seconds
+    while time.time() < end:
+        s = dict(m.detector.stats)
+        trace.append((round(time.time() - (end - seconds), 1), s.get("frames_checked"), s.get("anomalies"), s.get("last_score"), s.get("last_trigger"), s.get("status")))
+        time.sleep(0.5)
+    m.detector.stop()
+    time.sleep(0.3)
+    return m, trace
+
+
+fake = fakes.Fake()
+frames_edge = blink(EDGE, 40)
+
+if QUICK:
+    print("  (salto il confronto al ritmo vero di 3 s: --quick)")
+else:
+    t0 = time.time()
+    mo, to = run_scenario(OLD_BRAIN, fake, frames_edge, 22)
+    old_stats = (mo.detector.stats["frames_checked"], mo.detector.stats["anomalies"], mo.detector.stats["last_trigger"] is not None, mo.detector.stats["last_score"])
+    mn, tn = run_scenario(NEW_BRAIN, fake, frames_edge, 22)
+    new_stats = (mn.detector.stats["frames_checked"], mn.detector.stats["anomalies"], mn.detector.stats["last_trigger"] is not None, mn.detector.stats["last_score"])
+    print("      vecchio:", old_stats, " nuovo:", new_stats)
+    check("stesso numero di foto controllate, anomalie, punteggio e scatto (vecchio Brain = nuovo con i valori di sempre)",
+          abs(old_stats[0] - new_stats[0]) <= 1 and abs(old_stats[1] - new_stats[1]) <= 1 and old_stats[2] == new_stats[2] and abs(old_stats[3] - new_stats[3]) < 0.01, (old_stats, new_stats))
+    check("... e il rilevamento scatta davvero (3 anomalie)", new_stats[2] is True and new_stats[1] >= 3, new_stats)
+
+print("== Rilevatore: ogni soglia fa quello che dice (ritmo 1 s)")
+
+
+def outcome(m):
+    s = m.detector.stats
+    return {"frames": s["frames_checked"], "anomalies": s["anomalies"], "triggered": s["last_trigger"] is not None, "score": s["last_score"], "status": s["status"]}
+
+
+m, _ = run_scenario(NEW_BRAIN, fake, frames_edge, 9, interval=1)
+base = outcome(m)
+check("base: il quadrato ai bordi scatta con 3 anomalie", base["triggered"] and base["anomalies"] >= 3 and base["score"] > 2.5, base)
+check("... il punteggio e' il peso del quadrato sull'area (circa 3-4%)", 2.5 < base["score"] < 6, base)
+
+m, _ = run_scenario(NEW_BRAIN, fake, blink(CENTER, 40), 9, interval=1)
+o = outcome(m)
+check("movimento al centro dell'area: non conta (fascia esterna soltanto)", not o["triggered"] and o["anomalies"] == 0 and o["score"] < 1, o)
+
+m, _ = run_scenario(NEW_BRAIN, fake, blink(OUTSIDE, 40), 9, interval=1)
+o = outcome(m)
+check("movimento fuori dall'area controllata: non conta", not o["triggered"] and o["anomalies"] == 0, o)
+
+m, _ = run_scenario(NEW_BRAIN, fake, frames_edge, 9, interval=1, brain_json={"trigger_count": 1})
+o = outcome(m)
+check("trigger_count=1: scatta alla prima anomalia", o["triggered"], o)
+
+m, _ = run_scenario(NEW_BRAIN, fake, frames_edge, 9, interval=1, brain_json={"trigger_count": 10})
+o = outcome(m)
+check("trigger_count=10: 9 secondi non bastano per scattare", not o["triggered"] and o["anomalies"] >= 3, o)
+
+m, _ = run_scenario(NEW_BRAIN, fake, frames_edge, 9, interval=1, brain_json={"score_threshold": 8})
+o = outcome(m)
+check("score_threshold=8: il quadrato (3-4%) non basta", not o["triggered"] and o["anomalies"] == 0 and o["score"] > 0, o)
+
+m, _ = run_scenario(NEW_BRAIN, fake, frames_edge, 9, interval=1, brain_json={"score_threshold": 0.5})
+o = outcome(m)
+check("score_threshold=0.5: scatta", o["triggered"], o)
+
+m, _ = run_scenario(NEW_BRAIN, fake, frames_edge, 9, interval=1, brain_json={"sensitivity": 100})
+o = outcome(m)
+check("sensitivity=100 (soglia piu' alta): il quadrato 255 su 100 (salto 155) conta ancora", o["triggered"], o)
+
+dim = [fakes.jpeg(fakes.frame((230, 160, 100, 100)) // 5 + 80) if i % 2 == 0 else fakes.jpeg(fakes.frame() // 5 + 80) for i in range(40)]  # salto di circa 31 livelli
+m, _ = run_scenario(NEW_BRAIN, fake, dim, 9, interval=1, brain_json={"sensitivity": 35})
+o35 = outcome(m)
+m, _ = run_scenario(NEW_BRAIN, fake, dim, 9, interval=1, brain_json={"sensitivity": 10})
+o10 = outcome(m)
+check("sensitivity: un salto di ~31 livelli non passa con 35 ma passa con 10", not o35["triggered"] and o10["triggered"], (o35, o10))
+
+m, _ = run_scenario(NEW_BRAIN, fake, frames_edge, 9, interval=1, brain_json={"roi": [0, 0, 100, 100]})
+o = outcome(m)
+check("area = tutta l'immagine: la stessa macchia pesa molto meno sull'area (e non scatta)", not o["triggered"] and 0 < o["score"] < base["score"] / 2, (o, base))
+
+m, _ = run_scenario(NEW_BRAIN, fake, frames_edge, 9, interval=1, brain_json={"roi": [50, 50, 50, 50]})
+o = outcome(m)
+check("area spostata in basso a destra: il quadrato non e' piu' dentro", not o["triggered"] and o["score"] == 0, o)
+
+m, _ = run_scenario(NEW_BRAIN, fake, frames_edge, 9, interval=1, brain_json={"border": 10})
+o = outcome(m)
+check("border=10: la fascia e' piu' stretta (il quadrato la copre solo in parte) e il punteggio scende", o["score"] < base["score"], (o, base))
+
+# intervallo: quante foto in 7 secondi
+m, _ = run_scenario(NEW_BRAIN, fake, blink(CENTER, 80), 7, interval=1)
+fast = outcome(m)["frames"]
+m, _ = run_scenario(NEW_BRAIN, fake, blink(CENTER, 80), 7, interval=3)
+slow = outcome(m)["frames"]
+check("check_interval: 1 s controlla piu' foto di 3 s", fast >= slow + 2, (fast, slow))
+
+# avvio: non controlla durante riscaldamento
+m, _ = run_scenario(NEW_BRAIN, fake, frames_edge, 5, interval=1, state={"total_duration": 60.0})
+o = outcome(m)
+check("durata 60 s < 90 s: attende, nessuna foto controllata", o["frames"] == 0 and "durata 60s <90s" in m.detector.stats.get("real_print_reason", ""), (o, m.detector.stats.get("real_print_reason")))
+m, _ = run_scenario(NEW_BRAIN, fake, frames_edge, 9, interval=1, state={"total_duration": 60.0}, brain_json={"warmup_seconds": 30})
+o = outcome(m)
+check("warmup_seconds=30: con 60 s di stampa il controllo parte", o["frames"] > 0 and o["triggered"], o)
+m, _ = run_scenario(NEW_BRAIN, fake, frames_edge, 5, interval=1, state={"progress": 0.01, "file_position": 50, "file_size": 10000})
+o = outcome(m)
+check("avanzamento 1% < 2%: attende", o["frames"] == 0 and "<2%" in m.detector.stats.get("real_print_reason", ""), (o, m.detector.stats.get("real_print_reason")))
+m, _ = run_scenario(NEW_BRAIN, fake, frames_edge, 9, interval=1, state={"progress": 0.01, "file_position": 50, "file_size": 10000}, brain_json={"min_progress": 0.5})
+o = outcome(m)
+check("min_progress=0.5: con 1% il controllo parte", o["frames"] > 0, o)
+m, _ = run_scenario(NEW_BRAIN, fake, frames_edge, 5, interval=1, state={"hotend": 190.0})
+o = outcome(m)
+check("ugello 20 gradi sotto il target (tolleranza 8): attende", o["frames"] == 0 and "non a temp" in m.detector.stats.get("real_print_reason", ""), (o, m.detector.stats.get("real_print_reason")))
+m, _ = run_scenario(NEW_BRAIN, fake, frames_edge, 9, interval=1, state={"hotend": 190.0}, brain_json={"hotend_tolerance": 25})
+o = outcome(m)
+check("hotend_tolerance=25: il controllo parte", o["frames"] > 0, o)
+m, tr = run_scenario(NEW_BRAIN, fake, frames_edge, 4, interval=1, state={"print_state": "standby"})
+o = outcome(m)
+check("senza stampa in corso: non controlla", o["frames"] == 0 and "idle" in str(tr[-1][5]), (o, tr[-1]))
+
+# cooldown dopo lo scatto
+m, tr = run_scenario(NEW_BRAIN, fake, frames_edge, 12, interval=1, brain_json={"cooldown": 10})
+trig = [t for t in tr if t[4]]
+check("dopo lo scatto parte la pausa ('cooldown Ns')", any("cooldown" in str(t[5]) for t in tr), tr[-3:])
+
+# ---------------------------------------------------------------------------------------------------------------------
+print("== Filtro anti falsi allarmi: testina che passa, luce, macchia che resta")
+HEAD_POS = [(230, 160, 100, 100), (390, 160, 100, 100), (550, 160, 100, 100), (710, 160, 100, 100)]  # una "testina" che salta da un punto all'altro della fascia alta
+head_frames = [fakes.jpeg(fakes.frame(HEAD_POS[i % 4])) for i in range(80)]
+FILTER = {"persistent_filter": True, "reference_seconds": 20, "persist_checks": 3}
+BLOB = (230, 160, 100, 100)
+empty_j, blob_j = fakes.jpeg(fakes.frame()), fakes.jpeg(fakes.frame(BLOB))
+
+m, _ = run_scenario(NEW_BRAIN, fake, head_frames, 22, interval=1, brain_json={})
+o_old = outcome(m)
+m, _ = run_scenario(NEW_BRAIN, fake, head_frames, 30, interval=1, brain_json=FILTER)
+o_new = outcome(m)
+check("testina che salta nella fascia esterna: il rilevamento di prima scatta (falso allarme)", o_old["triggered"], o_old)
+check("... con il filtro NO: nessuna anomalia, nessuno scatto", not o_new["triggered"] and o_new["anomalies"] == 0 and o_new["frames"] > 12, o_new)
+
+flicker = [fakes.jpeg(fakes.frame(base=100 if i % 2 == 0 else 150)) for i in range(80)]  # luce che cambia ovunque di 50 livelli
+m, _ = run_scenario(NEW_BRAIN, fake, flicker, 22, interval=1, brain_json={})
+o_old = outcome(m)
+m, _ = run_scenario(NEW_BRAIN, fake, flicker, 30, interval=1, brain_json=FILTER)
+o_new = outcome(m)
+check("luce che cambia in tutta l'immagine: il rilevamento di prima scatta", o_old["triggered"], o_old)
+check("... con il filtro la luminosita' media viene allineata: niente anomalie", not o_new["triggered"] and o_new["anomalies"] == 0, o_new)
+
+half = [fakes.jpeg(fakes.frame((0, 0, 540, 720))) if i % 2 == 0 else empty_j for i in range(80)]  # meta' immagine cambia di colpo: luce, camera mossa
+m, _ = run_scenario(NEW_BRAIN, fake, half, 30, interval=1, brain_json=FILTER)
+o = outcome(m)
+check("meta' immagine cambia di colpo: il controllo viene ignorato (cambio di luce)", not o["triggered"] and o["anomalies"] == 0 and m.detector.stats.get("ignored_global", 0) > 3, (o, m.detector.stats))
+half_stay = [empty_j] * 14 + [fakes.jpeg(fakes.frame((0, 0, 540, 720)))] * 60
+m, _ = run_scenario(NEW_BRAIN, fake, half_stay, 38, interval=1, brain_json=FILTER, extra=lambda mm: setattr(mm, "GLOBAL_STREAK_MAX", 4))
+o = outcome(m)
+check("... ma se il grande cambiamento resta (non e' un lampo) dopo qualche controllo conta come cambiamento vero", o["triggered"], (o, m.detector.stats))
+
+still = [empty_j] * 14 + [blob_j] * 70
+m, _ = run_scenario(NEW_BRAIN, fake, still, 30, interval=1, brain_json={})
+o_old = outcome(m)
+m, _ = run_scenario(NEW_BRAIN, fake, still, 36, interval=1, brain_json=FILTER)
+o_new = outcome(m)
+check("macchia che compare ai bordi e RESTA (spaghetti fermi): il rilevamento di prima non se ne accorge", not o_old["triggered"], o_old)
+check("... con il filtro scatta", o_new["triggered"], o_new)
+
+mixed = [fakes.jpeg(fakes.frame(HEAD_POS[i % 4])) for i in range(14)] + [fakes.jpeg(fakes.frame(HEAD_POS[i % 4], (230, 440, 100, 100))) for i in range(80)]  # testina + macchia ferma in basso
+m, _ = run_scenario(NEW_BRAIN, fake, mixed, 38, interval=1, brain_json=FILTER)
+o = outcome(m)
+check("testina che passa E macchia che resta: scatta per la macchia, non per la testina", o["triggered"], o)
+
+m, tr6 = run_scenario(NEW_BRAIN, fake, still, 6, interval=1, brain_json=FILTER)
+o = outcome(m)
+check("all'inizio prepara lo sfondo: nessun allarme prima di avere 5 foto ('preparo il confronto')", not o["triggered"] and o["anomalies"] == 0, (o, m.detector.stats["status"]))
+check("... e lo dice nello stato", any("preparo il confronto" in str(t[5]) for t in tr6), [t[5] for t in tr6])  # lo stato si legge MENTRE gira: a rilevatore fermo dice solo "stopped"
+
+m, _ = run_scenario(NEW_BRAIN, fake, still, 24, interval=1, brain_json=dict(FILTER, persistent_filter=False))
+check("filtro spento: torna il rilevamento di prima (nessuna foto di sfondo conservata)", len(m.detector.ref_small) == 0 and m.detector.bg is None)
+m, _ = run_scenario(NEW_BRAIN, fake, still, 30, interval=1, brain_json=FILTER)
+check("memoria limitata: al massimo 7 foto di sfondo (e 7 foto dalla camera)", 0 < len(m.detector.ref_small) <= 7 and len(m.detector.ref_jpegs) <= 7, (len(m.detector.ref_small), len(m.detector.ref_jpegs)))
+m, _ = run_scenario(NEW_BRAIN, fake, still, 4, interval=1, brain_json=FILTER, state={"print_state": "standby"})
+check("senza stampa in corso lo sfondo si azzera (una stampa nuova riparte da capo)", len(m.detector.ref_small) == 0 and m.detector.bg is None)
+
+
+# acceso/spento a caldo
+mt = load_brain(NEW_BRAIN, tmp(), fake, brain_json={"values": {"enabled": True}})
+fake.state["frames"] = blink(CENTER, 80)
+fake.snapshots = 0
+time.sleep(0.5)
+ct = mt.app.test_client()
+check("enabled=true salvato: all'avvio il rilevatore parte da solo", mt.detector.running is True)
+ct.post("/api/backend/config", json={"values": {"enabled": False}})
+check("Monitor spento dal menu: il rilevatore si ferma subito", mt.detector.running is False and mt.detector.enabled is False)
+ct.post("/api/backend/config", json={"values": {"enabled": True}})
+check("... e riacceso dal menu riparte", mt.detector.running is True and mt.detector.enabled is True)
+gen_before = mt.detector.generation
+ct.post("/api/backend/config", json={"values": {"check_interval": 1}})
+ct.post("/api/backend/config", json={"values": {"enabled": False}})
+ct.post("/api/backend/config", json={"values": {"enabled": True}})
+time.sleep(2.5)
+import threading  # noqa: E402
+loops = [t for t in threading.enumerate() if t.is_alive() and getattr(t, "_target", None) and getattr(t._target, "__name__", "") == "loop" and getattr(t._target, "__self__", None) is mt.detector]
+check("spegni e riaccendi in fretta: resta UN solo ciclo (nessun doppione)", len(loops) == 1, len(loops))
+mt.detector.stop()
+
+# foto di allarme: non si accumulano
+alerts = tmp()
+for i in range(15):
+    p = os.path.join(alerts, "klippeye_alert_%d.jpg" % (1000 + i))
+    open(p, "wb").write(b"x")
+    os.utime(p, (1000 + i, 1000 + i))
+mt.prune_alert_images(pattern=os.path.join(alerts, "klippeye_alert_*.jpg"))
+left = sorted(os.listdir(alerts))
+check("prune_alert_images tiene le ultime 10", len(left) == 10 and "klippeye_alert_1014.jpg" in left and "klippeye_alert_1004.jpg" not in left and "klippeye_alert_1005.jpg" in left, left)
+
+# modello IA: il Brain lo usa al posto di quello predefinito
+cap = {}
+
+
+class AIResp:
+    ok = True
+    status_code = 200
+
+    def json(self):
+        return {"choices": [{"message": {"content": json.dumps({"spaghetti": {"detected": False, "confidence": 10}, "action": "CONTINUA", "summary": "tutto bene"})}}]}
+
+
+def fake_post(url, headers=None, json=None, timeout=None):
+    cap["url"], cap["model"] = url, json["model"]
+    return AIResp()
+
+
+real_post = __import__("requests").post
+for provider, expected_default in (("groq", "qwen/qwen3.8-27b"), ("openai", "gpt-4o-mini")):
+    dm = tmp()
+    mm = load_brain(NEW_BRAIN, dm, fake, brain_json={"values": {"enabled": False}})
+    mm.requests.post = fake_post
+    mm.AI_CONFIG_PATH = os.path.join(dm, "ai.json")
+    json.dump({"api_key": "k" * 30, "provider": provider}, open(mm.AI_CONFIG_PATH, "w"))
+    img = os.path.join(dm, "a.jpg")
+    open(img, "wb").write(fakes.jpeg(fakes.frame()))
+    mm.detector.last_ai_call = 0
+    mm.detector.call_ai_analysis(img)
+    check("IA %s: senza modello scelto usa quello predefinito" % provider, cap.get("model") == expected_default, cap)
+    mm.set_brain_config({"ai_model": "mio/modello-nuovo"})
+    mm.detector.last_ai_call = 0
+    mm.detector.call_ai_analysis(img)
+    check("IA %s: con ai_model scelto usa quello" % provider, cap.get("model") == "mio/modello-nuovo", cap)
+    check("IA %s: l'analisi viene salvata" % provider, mm.detector.last_analysis and mm.detector.last_analysis["analysis"]["action"] == "CONTINUA")
+
+# ---------------------------------------------------------------------------------------------------------------------
+print("== IA: richiesta con foto di prima, testo neutro, fiducia minima, storico degli allarmi")
+prompt1 = mm.build_ai_prompt(3.1, "printing", "x.gcode", 12.0, 210.0, None)
+prompt2 = mm.build_ai_prompt(3.1, "printing", "x.gcode", 12.0, 210.0, 55)
+check("il testo non dice piu' 'sospetto spaghetti' ne' 'VzBot' e dice cosa NON e' un problema", "sospetto spaghetti" not in prompt1 and "VzBot" not in prompt1 and "NON SONO PROBLEMI" in prompt1 and "testina" in prompt1 and "nel dubbio" in prompt1, prompt1[:300])
+check("con la foto di prima il testo spiega 'prima'/'adesso' (circa 55 s), senza dice 'UNA foto'", "DUE foto" in prompt2 and "55 secondi" in prompt2 and "UNA foto" in prompt1)
+check("il formato della risposta e' quello di sempre (+ 'osservazione')", all(k in prompt1 for k in ('"spaghetti"', '"empty_bed"', '"layer_shift"', '"warping"', '"action"', '"summary"', '"osservazione"')))
+
+seen_calls = []
+
+
+def ai_reply(defect_confidence=40, action="PAUSA", fail_two=False):
+    def _post(url, headers=None, json=None, timeout=None):
+        images = [c for c in json["messages"][1]["content"] if c.get("type") == "image_url"]
+        seen_calls.append(len(images))
+
+        class R:
+            ok = True
+            status_code = 200
+            text = "rifiutato"
+
+            def json(self_inner):
+                return {"choices": [{"message": {"content": __import__("json").dumps({"osservazione": "la testina", "spaghetti": {"detected": True, "confidence": defect_confidence},
+                                                                                        "empty_bed": {"detected": False, "confidence": 0}, "action": action, "summary": "forse un problema"})}}]}
+        r = R()
+        if fail_two and len(images) == 2:
+            r.ok, r.status_code = False, 400
+        return r
+    return _post
+
+
+def fresh_ai(post):
+    dd = tmp()
+    b_ai = load_brain(NEW_BRAIN, dd, fake, brain_json={"values": {"enabled": False}})
+    b_ai.requests.post = post
+    b_ai.AI_CONFIG_PATH = os.path.join(dd, "ai.json")
+    json.dump({"api_key": "k" * 30, "provider": "groq"}, open(b_ai.AI_CONFIG_PATH, "w"))
+    cur, prev = os.path.join(dd, "a.jpg"), os.path.join(dd, "a_prima.jpg")
+    open(cur, "wb").write(fakes.jpeg(fakes.frame(BLOB)))
+    open(prev, "wb").write(fakes.jpeg(fakes.frame()))
+    b_ai.detector.last_ai_call = 0
+    return b_ai, cur, prev
+
+
+del seen_calls[:]
+b_ai, cur, prev = fresh_ai(ai_reply(defect_confidence=40))
+b_ai.detector.call_ai_analysis(cur, prev, 60)
+check("con la foto di prima: l'IA riceve DUE foto", seen_calls == [2], seen_calls)
+check("... difetto con fiducia 40% sotto la soglia 70%: PAUSA diventa CONTINUA e resta scritto l'originale",
+      b_ai.detector.last_analysis["analysis"]["action"] == "CONTINUA" and b_ai.detector.last_analysis["analysis"]["action_originale"] == "PAUSA" and "soglia 70%" in b_ai.detector.last_analysis["analysis"]["summary"], b_ai.detector.last_analysis)
+check("... e /api/print/last_analysis lo mostra cosi' (e dice 'forse un problema' nel riassunto)", "forse un problema" in b_ai.app.test_client().get("/api/print/last_analysis").get_json()["analysis"]["summary"])
+hist = b_ai.read_alert_history()
+check("storico: un evento con esito 'declassato', verdetto, osservazione e le due foto copiate",
+      len(hist) == 1 and "declassato" in hist[0]["esito"] and hist[0]["action"] == "CONTINUA" and hist[0]["action_originale"] == "PAUSA" and hist[0]["osservazione"] == "la testina"
+      and os.path.isfile(os.path.join(b_ai.ALERT_HISTORY_DIR, hist[0]["image"])) and os.path.isfile(os.path.join(b_ai.ALERT_HISTORY_DIR, hist[0]["reference"])), hist)
+cl_ai = b_ai.app.test_client()
+j = cl_ai.get("/api/print/alerts/history").get_json()
+check("/api/print/alerts/history elenca gli allarmi (piu' recente per primo)", j["ok"] and len(j["alerts"]) == 1 and j["alerts"][0]["id"] == hist[0]["id"])
+r = cl_ai.get("/api/print/alerts/image/" + hist[0]["image"])
+check("/api/print/alerts/image/<nome> manda la foto (jpeg)", r.status_code == 200 and r.mimetype == "image/jpeg" and r.data[:2] == b"\xff\xd8")
+r.close()
+check("... e rifiuta nomi strani (niente percorsi): 404", all(cl_ai.get("/api/print/alerts/image/" + n).status_code == 404 for n in ("..%2F..%2Fai.json", "ai.json", "20260101-000000-adesso.png", "x-adesso.jpg")))
+
+b_ai, cur, prev = fresh_ai(ai_reply(defect_confidence=85))
+b_ai.detector.call_ai_analysis(cur, prev, 60)
+check("difetto con fiducia 85% sopra la soglia: PAUSA resta PAUSA", b_ai.detector.last_analysis["analysis"]["action"] == "PAUSA" and "action_originale" not in b_ai.detector.last_analysis["analysis"])
+b_ai, cur, prev = fresh_ai(ai_reply(defect_confidence=40))
+b_ai.set_brain_config({"ai_min_confidence": 0})
+b_ai.detector.call_ai_analysis(cur, prev, 60)
+check("ai_min_confidence=0: si fida sempre (PAUSA resta PAUSA)", b_ai.detector.last_analysis["analysis"]["action"] == "PAUSA")
+b_ai, cur, prev = fresh_ai(ai_reply(defect_confidence=40))
+b_ai.set_brain_config({"ai_send_reference": False})
+del seen_calls[:]
+b_ai.detector.call_ai_analysis(cur, None, None)
+check("senza foto di prima (o con l'opzione spenta): una foto sola", seen_calls == [1], seen_calls)
+b_ai, cur, prev = fresh_ai(ai_reply(defect_confidence=85, fail_two=True))
+del seen_calls[:]
+b_ai.detector.call_ai_analysis(cur, prev, 60)
+check("il servizio rifiuta due foto (400): riprova da solo con una e l'analisi arriva comunque", seen_calls == [2, 1] and b_ai.detector.last_analysis["analysis"]["action"] == "PAUSA" and b_ai.detector.last_analysis["with_reference"] is False, (seen_calls, b_ai.detector.last_analysis))
+check("... e lo storico lo segna ('senza foto di prima', senza copiare quella)", b_ai.read_alert_history()[0]["con_foto_di_prima"] is False and "reference" not in b_ai.read_alert_history()[0])
+
+b_ai, cur, prev = fresh_ai(ai_reply())
+b_ai.detector.last_ai_call = time.time()
+b_ai.detector.call_ai_analysis(cur, prev, 60)
+check("pausa tra due analisi non finita: salta ma lo scrive nello storico", "saltata" in b_ai.read_alert_history()[0]["esito"])
+
+b_ai, cur, prev = fresh_ai(ai_reply())
+for i in range(45):
+    b_ai.record_alert({"esito": "prova %d" % i}, cur, prev)
+    time.sleep(0.002) if i % 7 == 0 else None
+lines = open(os.path.join(b_ai.ALERT_HISTORY_DIR, "storico.jsonl")).read().splitlines()
+jpgs = [n for n in os.listdir(b_ai.ALERT_HISTORY_DIR) if n.endswith(".jpg")]
+check("lo storico tiene gli ultimi 40 eventi e cancella le foto degli altri", len(lines) == 40 and len(jpgs) <= 80, (len(lines), len(jpgs)))
+bad_dir = tmp()
+b_ai.ALERT_HISTORY_DIR = os.path.join(bad_dir, "file")
+open(b_ai.ALERT_HISTORY_DIR, "w").write("x")
+b_ai.record_alert({"esito": "x"}, cur, prev)
+check("cartella dello storico non scrivibile: nessuna eccezione (il monitor non si ferma)", True)
+
+check("impostazioni nuove: valori di serie (filtro acceso, 3 controlli, 60 s, 30%, fiducia 70%, foto di prima accesa)",
+      (lambda v: v["persistent_filter"] is True and v["persist_checks"] == 3 and v["reference_seconds"] == 60 and v["global_change"] == 30 and v["ai_min_confidence"] == 70 and v["ai_send_reference"] is True)(mm.brain_config.snapshot()))
+r = mm.app.test_client().post("/api/backend/config", json={"values": {"persist_checks": 5, "reference_seconds": 90, "ai_min_confidence": 55, "persistent_filter": False}})
+check("... si cambiano dal menu e arrivano al rilevatore", r.status_code == 200 and mm.detector.persist_checks == 5 and mm.detector.recent_masks.maxlen == 5 and mm.detector.reference_seconds == 90
+      and mm.detector.ai_min_confidence == 55 and mm.detector.persistent_filter is False, r.get_json())
+r = mm.app.test_client().post("/api/backend/config", json={"values": {"persist_checks": 1, "reference_seconds": 5, "global_change": 500, "ai_min_confidence": 101}})
+check("... valori fuori limite: 400 con un errore per voce", r.status_code == 400 and set(r.get_json()["errors"]) == {"persist_checks", "reference_seconds", "global_change", "ai_min_confidence"}, r.get_json())
+
+
+# ---------------------------------------------------------------------------------------------------------------------
+print("== App Android: /api/app/version e /app/KlippEye.apk")
+import hashlib  # noqa: E402
+
+da = tmp()
+ba = load_brain(NEW_BRAIN, da, brain_json={"values": {"enabled": False}})
+cl = ba.app.test_client()
+apkdir = os.path.join(tmp(), "apk")
+ba.APK_DIR, ba.APK_PATH, ba.APK_INFO_PATH = apkdir, os.path.join(apkdir, "KlippEye.apk"), os.path.join(apkdir, "versione.json")
+check("la cartella apk/ del repository e' accanto a backend/ (come scrive il workflow)", os.path.basename(NEW_BRAIN) == "klippeye_backend.py"
+      and load_brain(NEW_BRAIN, tmp(), brain_json={"values": {"enabled": False}}).APK_PATH == os.path.join(os.path.dirname(os.path.dirname(NEW_BRAIN)), "apk", "KlippEye.apk"))
+r = cl.get("/api/app/version")
+j = r.get_json()
+check("senza apk/: 200, available=false e il motivo", r.status_code == 200 and j["ok"] and j["available"] is False and "nessuna app" in j["reason"], j)
+check("... e il file non si scarica (404 con il motivo)", cl.get("/app/KlippEye.apk").status_code == 404 and cl.get("/app/KlippEye.apk").get_json()["ok"] is False)
+
+apk = bytes((i * 7 + 3) % 251 for i in range(300000))
+os.makedirs(apkdir)
+open(ba.APK_PATH, "wb").write(apk)
+info = {"version": "1.0.0", "code": 10000, "size": len(apk), "sha256": hashlib.sha256(apk).hexdigest(), "firma": "ab" * 32, "built": "2026-10-22T21:15:07Z", "source": "abc"}
+json.dump(info, open(ba.APK_INFO_PATH, "w"))
+r = cl.get("/api/app/version")
+j = r.get_json()
+check("con apk/ coerente: available, versione, codice, grandezza, impronta, indirizzo",
+      r.status_code == 200 and j["available"] is True and j["version"] == "1.0.0" and j["code"] == 10000 and j["size"] == len(apk) and j["sha256"] == info["sha256"] and j["url"] == "/app/KlippEye.apk" and j["built"] == info["built"], j)
+check("... la risposta non si tiene in cache", r.headers.get("Cache-Control") == "no-store")
+check("... e non svela cose in piu' (niente percorsi del Raspberry, niente firma)", set(j) == {"ok", "available", "version", "code", "size", "sha256", "built", "url"}, set(j))
+r = cl.get("/app/KlippEye.apk")
+check("il file arriva uguale, come APK", r.status_code == 200 and r.data == apk and r.mimetype == "application/vnd.android.package-archive", (r.status_code, r.mimetype))
+check("... con la grandezza giusta e il nome con la versione", int(r.headers["Content-Length"]) == len(apk) and "KlippEye-1.0.0.apk" in r.headers.get("Content-Disposition", ""), dict(r.headers))
+check("... non si tiene in cache", r.headers.get("Cache-Control") == "no-store")
+r = cl.get("/app/KlippEye.apk", headers={"Range": "bytes=100-199"})
+check("... e si puo' riprendere (Range)", r.status_code == 206 and r.data == apk[100:200])
+check("... solo con GET", cl.post("/app/KlippEye.apk").status_code == 405 and cl.post("/api/app/version").status_code == 405)
+
+# il calcolo dell'impronta si rifa' solo se i file cambiano
+calls = []
+real_sha = ba._apk_sha256
+ba._apk_sha256 = lambda path: (calls.append(path), real_sha(path))[1]
+cl.get("/api/app/version")
+cl.get("/api/app/version")
+cl.get("/app/KlippEye.apk")
+check("l'impronta non si ricalcola a ogni richiesta (file invariati)", calls == [], calls)
+# ... ma si rifa' appena cambia qualcosa
+apk2 = apk[:-1] + b"X"
+open(ba.APK_PATH, "wb").write(apk2)
+j = cl.get("/api/app/version").get_json()
+check("APK cambiato ma versione.json no: non si offre (impronta diversa)", j["available"] is False and "impronta" in j["reason"] and len(calls) == 1, (j, calls))
+check("... e il file non si scarica", cl.get("/app/KlippEye.apk").status_code == 404)
+info.update(sha256=hashlib.sha256(apk2).hexdigest(), version="1.0.1", code=10001)
+json.dump(info, open(ba.APK_INFO_PATH, "w"))
+j = cl.get("/api/app/version").get_json()
+check("versione.json aggiornato insieme all'APK: si offre la nuova", j["available"] is True and j["version"] == "1.0.1" and j["code"] == 10001 and cl.get("/app/KlippEye.apk").data == apk2)
+ba._apk_sha256 = real_sha
+
+# file rovinati / aggiornamento a meta'
+def offre():
+    return cl.get("/api/app/version").get_json()
+
+open(ba.APK_PATH, "wb").write(apk2[:1000])
+j = offre()
+check("APK piu' corto di quanto dice versione.json (git a meta'): non si offre", j["available"] is False and "corrisponde" in j["reason"], j)
+open(ba.APK_PATH, "wb").write(apk2)
+check("... a lavoro finito torna disponibile da solo", offre()["available"] is True)
+for contenuto, nome in ((b"{rotto", "JSON rotto"), (b"[1,2]", "non e' un oggetto"), (b'{"version":"boh","sha256":"%s","size":%d}' % (info["sha256"].encode(), len(apk2)), "versione non valida"),
+                        (b'{"version":"1.0.1","sha256":"abc","size":%d}' % len(apk2), "impronta non valida"), (b'{"version":"1.0.1","sha256":"%s"}' % info["sha256"].encode(), "manca la grandezza"),
+                        (b'{"version":"1.0.100","sha256":"%s","size":%d}' % (info["sha256"].encode(), len(apk2)), "versione fuori dai limiti")):
+    open(ba.APK_INFO_PATH, "wb").write(contenuto)
+    j = offre()
+    check("versione.json " + nome + ": non si offre, nessun errore 500", j["available"] is False and j["ok"] is True and cl.get("/app/KlippEye.apk").status_code == 404, j)
+info["sha256"] = info["sha256"].upper()
+json.dump(info, open(ba.APK_INFO_PATH, "w"))
+check("l'impronta scritta in maiuscolo si riconosce lo stesso (e si restituisce minuscola)", offre()["available"] is True and offre()["sha256"] == info["sha256"].lower())
+os.remove(ba.APK_INFO_PATH)
+check("manca versione.json: non si offre", offre()["available"] is False)
+json.dump(info, open(ba.APK_INFO_PATH, "w"))
+os.remove(ba.APK_PATH)
+check("manca l'APK: non si offre", offre()["available"] is False)
+check("il codice della versione e' quello di Gradle e di Kotlin", [ba._apk_code(v) for v in ("1.0.0", "1.2.3", "0.0.1", "99.99.99", "1.0", "1.0.100", "mk218", None)] == [10000, 10203, 1, 999999, None, None, None, None])
+
+# ---------------------------------------------------------------------------------------------------------------------
+print("== KlippEye: nome vecchio (VZBOT_DATA, /app/VzBot.apk), loghi, passaggio da VzBot")
+# l'app con il vecchio nome cerca l'aggiornamento su /app/VzBot.apk: e' lo stesso file
+open(ba.APK_PATH, "wb").write(apk2)
+json.dump(dict(info, sha256=hashlib.sha256(apk2).hexdigest()), open(ba.APK_INFO_PATH, "w"))
+r1, r2 = cl.get("/app/KlippEye.apk"), cl.get("/app/VzBot.apk")
+check("/app/VzBot.apk e' lo stesso file di /app/KlippEye.apk (per l'app con il vecchio nome)", r1.status_code == 200 and r2.status_code == 200 and r1.data == r2.data == apk2 and r2.mimetype == "application/vnd.android.package-archive")
+os.remove(ba.APK_PATH)
+
+# la variabile d'ambiente del vecchio servizio funziona ancora
+dleg = tmp()
+saved_env = {k: os.environ.pop(k, None) for k in ("KLIPPEYE_DATA", "VZBOT_DATA")}
+os.makedirs(dleg, exist_ok=True)
+os.environ["VZBOT_DATA"] = dleg
+spec = importlib.util.spec_from_file_location("brain_legacyenv", NEW_BRAIN)
+mod = importlib.util.module_from_spec(spec); sys.modules["brain_legacyenv"] = mod; spec.loader.exec_module(mod); _modules.append(mod)
+check("un servizio con VZBOT_DATA (vecchia unita') usa quella cartella dati", mod.DATA_DIR == dleg, mod.DATA_DIR)
+os.environ.pop("VZBOT_DATA")
+os.environ["KLIPPEYE_DATA"] = dleg + "_nuova"
+os.makedirs(dleg + "_nuova", exist_ok=True)
+os.environ["VZBOT_DATA"] = dleg
+spec = importlib.util.spec_from_file_location("brain_bothenv", NEW_BRAIN)
+mod = importlib.util.module_from_spec(spec); sys.modules["brain_bothenv"] = mod; spec.loader.exec_module(mod); _modules.append(mod)
+check("con tutte e due vince KLIPPEYE_DATA", mod.DATA_DIR == dleg + "_nuova", mod.DATA_DIR)
+for k, v in saved_env.items():
+    if v is None: os.environ.pop(k, None)
+    else: os.environ[k] = v
+
+# ---- loghi della stampante
+dl = tmp()
+bl = load_brain(NEW_BRAIN, dl, brain_json={"values": {"enabled": False}})
+logos = os.path.join(tmp(), "logos")
+os.makedirs(logos)
+for name, content in (("vzbot.png", b"\x89PNG-vz"), ("voron.svg", b"<svg xmlns='http://www.w3.org/2000/svg'/>"), ("voron.png", b"\x89PNG-voron"), ("ratrig.webp", b"RIFFxxxxWEBP"),
+                      ("evil.svg", b"<svg/>"), ("voron.gif", b"GIF89a"), ("README.md", b"x"), ("Voron.SVG", b"<svg/>")):
+    open(os.path.join(logos, name), "wb").write(content)
+open(os.path.join(logos, "ratrig.png"), "wb").write(b"0" * (bl.LOGO_MAX_BYTES + 1))
+open(os.path.join(logos, "vuoto.png"), "wb").close()
+os.symlink("/etc/passwd", os.path.join(logos, "vzbot.svg"))
+bl.LOGOS_DIR = logos
+cl2 = bl.app.test_client()
+j = cl2.get("/api/logos").get_json()
+check("/api/logos elenca un file per marca, solo i nomi previsti (svg prima di png), nell'ordine vzbot, voron, ratrig", j == {"ok": True, "files": ["vzbot.png", "voron.svg", "ratrig.webp"]}, j)
+check("... e non si tiene in cache", cl2.get("/api/logos").headers.get("Cache-Control") == "no-store")
+r = cl2.get("/logos/voron.svg")
+check("/logos/voron.svg: 200, tipo SVG, e un SVG aperto da solo non esegue script", r.status_code == 200 and r.mimetype == "image/svg+xml" and r.data.startswith(b"<svg") and "default-src 'none'" in r.headers.get("Content-Security-Policy", "") and r.headers.get("X-Content-Type-Options") == "nosniff", dict(r.headers))
+check("/logos/vzbot.png e /logos/ratrig.webp: il tipo giusto", cl2.get("/logos/vzbot.png").mimetype == "image/png" and cl2.get("/logos/ratrig.webp").mimetype == "image/webp")
+for nome in ("evil.svg", "voron.gif", "README.md", "Voron.SVG", "voron.png", "ratrig.png", "vuoto.png", "vzbot.svg", "../README.md", "..%2Fbackend%2Fklippeye_backend.py", "%2e%2e/VERSION", "nonesiste.svg"):
+    st = cl2.get("/logos/" + nome).status_code
+    check("/logos/%s non si serve (404)" % nome, st in (404, 308), st)
+bl.LOGOS_DIR = os.path.join(tmp(), "nessuna")
+check("senza cartella logos/: elenco vuoto, nessun errore", cl2.get("/api/logos").get_json() == {"ok": True, "files": []})
+check("... e nessun file", cl2.get("/logos/voron.svg").status_code == 404)
+
+# ---- passaggio da VzBot
+print("   (passaggio: /api/migrate/...)")
+import time as _time  # noqa: E402
+
+
+def backend_in(dirname):
+    """The Brain copied under <tmp>/<dirname>/backend/, as the repository would be named; with a fake script that only writes the status."""
+    root = os.path.join(tmp(), dirname)
+    os.makedirs(os.path.join(root, "backend")); os.makedirs(os.path.join(root, "scripts"))
+    shutil.copy(NEW_BRAIN, os.path.join(root, "backend", "klippeye_backend.py"))
+    return root
+
+
+status_file = os.path.join(tmp(), "migrazione.json")
+script_body = """#!/usr/bin/env bash
+echo "$@" > "$KLIPPEYE_TEST_ARGS"
+printf '{"state":"done","step":6,"steps":6,"message":"fatto","time":%s}' "$(date +%s)" > "$KLIPPEYE_MIGRATION_STATUS"
+"""
+os.environ["KLIPPEYE_MIGRATION_STATUS"] = status_file
+os.environ["KLIPPEYE_SUDO"] = ""
+os.environ["KLIPPEYE_MIGRATION_LAUNCHER"] = "env"
+args_file = os.path.join(tmp(), "args.txt")
+os.environ["KLIPPEYE_TEST_ARGS"] = args_file
+
+root_new = backend_in("klippeye")
+bn = load_brain(os.path.join(root_new, "backend", "klippeye_backend.py"), tmp(), brain_json={"values": {"enabled": False}})
+cn = bn.app.test_client()
+check("in ~/klippeye: /api/version dice legacy=false", cn.get("/api/version").get_json()["legacy"] is False)
+r = cn.post("/api/migrate/start")
+check("... e /api/migrate/start risponde 400 (niente da spostare)", r.status_code == 400 and r.get_json()["ok"] is False, r.get_json())
+check("... /api/migrate/status: stato 'none', non legacy, con il comando da terminale", cn.get("/api/migrate/status").get_json()["state"] == "none" and cn.get("/api/migrate/status").get_json()["legacy"] is False)
+
+root_old = backend_in("vzbot")
+open(os.path.join(root_old, "scripts", "passa-a-klippeye.sh"), "w").write(script_body)
+bo = load_brain(os.path.join(root_old, "backend", "klippeye_backend.py"), tmp(), fake=fake, brain_json={"values": {"enabled": False}})
+co = bo.app.test_client()
+check("in ~/vzbot: /api/version dice legacy=true", co.get("/api/version").get_json()["legacy"] is True)
+j = co.get("/api/migrate/status").get_json()
+check("... /api/migrate/status: legacy, nessuno stato, comando 'bash ~/vzbot/scripts/passa-a-klippeye.sh'", j["legacy"] is True and j["state"] == "none" and j["command"] == "bash ~/vzbot/scripts/passa-a-klippeye.sh", j)
+fake.state["print_state"] = "printing"
+r = co.post("/api/migrate/start")
+check("mentre stampa non parte (409)", r.status_code == 409 and not os.path.exists(args_file), (r.status_code, r.get_json()))
+fake.state["print_state"] = "standby"
+bo.MIGRATION_SUDO = "false"
+bo.MIGRATION_LAUNCHER = ""
+r = co.post("/api/migrate/start")
+j = r.get_json()
+check("senza sudo senza password: 501 'no_sudo' e il comando da lanciare a mano", r.status_code == 501 and j["error"] == "no_sudo" and "passa-a-klippeye.sh" in j["command"] and not os.path.exists(args_file), j)
+bo.MIGRATION_SUDO = ""
+bo.MIGRATION_LAUNCHER = "env"
+r = co.post("/api/migrate/start")
+check("a stampante ferma e con il permesso: parte", r.status_code == 200 and r.get_json() == {"ok": True, "started": True}, r.get_json())
+for _ in range(40):
+    if os.path.exists(args_file) and co.get("/api/migrate/status").get_json()["state"] == "done": break
+    _time.sleep(0.1)
+check("lo script e' lanciato con --dal-backend", os.path.exists(args_file) and open(args_file).read().strip() == "--dal-backend", open(args_file).read() if os.path.exists(args_file) else None)
+check("lo stato scritto dallo script si legge: done, passo 6 di 6", co.get("/api/migrate/status").get_json()["state"] == "done" and co.get("/api/migrate/status").get_json()["step"] == 6)
+json.dump({"state": "running", "step": 2, "steps": 6, "message": "x", "time": _time.time()}, open(status_file, "w"))
+r = co.post("/api/migrate/start")
+check("se e' gia' in corso: 409", r.status_code == 409, r.get_json())
+json.dump({"state": "running", "step": 2, "steps": 6, "message": "x", "time": _time.time() - 2000}, open(status_file, "w"))
+j = co.get("/api/migrate/status").get_json()
+check("uno stato 'in corso' fermo da 15 minuti diventa errore (script morto)", j["state"] == "error" and "15 minuti" in j["message"], j)
+open(status_file, "w").write("{rotto")
+check("un file di stato rovinato non rompe niente: 'none'", co.get("/api/migrate/status").get_json()["state"] == "none")
+os.remove(os.path.join(root_old, "scripts", "passa-a-klippeye.sh"))
+r = co.post("/api/migrate/start")
+check("senza lo script: 500 con il comando da terminale", r.status_code == 500 and "passa-a-klippeye.sh" in r.get_json()["command"], r.get_json())
+for k in ("KLIPPEYE_MIGRATION_STATUS", "KLIPPEYE_SUDO", "KLIPPEYE_MIGRATION_LAUNCHER", "KLIPPEYE_TEST_ARGS"):
+    os.environ.pop(k, None)
+
+print("== Accesso (1.2.0): password facoltativa, gettoni, controlli di rete, permessi")
+import subprocess as _sp
+da = tmp()
+os.makedirs(da, exist_ok=True)
+for _n in ("ai.json", "service-account.json"):
+    with open(os.path.join(da, _n), "w") as _f:
+        _f.write('{"api_key": "' + "Z" * 30 + '"}' if _n == "ai.json" else "{}")
+    os.chmod(os.path.join(da, _n), 0o644)
+os.chmod(da, 0o755)
+ba = load_brain(NEW_BRAIN, da, fake, brain_json={"values": {"enabled": False}})
+_mode = lambda p: stat.S_IMODE(os.stat(p).st_mode)
+check("all'avvio i segreti copiati a mano con permessi larghi tornano 600", _mode(os.path.join(da, "ai.json")) == 0o600 and _mode(os.path.join(da, "service-account.json")) == 0o600,
+      (oct(_mode(os.path.join(da, "ai.json"))), oct(_mode(os.path.join(da, "service-account.json")))))
+check("... e la cartella dati 700", _mode(da) == 0o700, oct(_mode(da)))
+_tok_path = os.path.join(da, "internal.token")
+internal = open(_tok_path).read().strip() if os.path.exists(_tok_path) else ""
+check("gettone interno creato: lungo, permessi 600", len(internal) >= 64 and _mode(_tok_path) == 0o600, (len(internal), oct(_mode(_tok_path)) if os.path.exists(_tok_path) else None))
+check("access.json creato con permessi 600", _mode(os.path.join(da, "access.json")) == 0o600)
+
+ca = ba.app.test_client()
+j = ca.get("/api/auth/status").get_json()
+check("di serie la password NON e' attiva", j["ok"] and j["enabled"] is False and j["logged_in"] is True and j["network_checks"] is True, j)
+check("senza password tutto si apre come prima (/api/version, la pagina)", ca.get("/api/version").status_code == 200 and ca.get("/").status_code in (200, 404))
+g = ca.get("/api/ai/config").get_json()
+check("anteprima della chiave IA: solo le ultime 4 lettere", g.get("key_preview") == "…ZZZZ", g)
+
+# nome di rete (DNS rebinding) e origine
+r = ca.get("/api/version", headers={"Host": "stampante-cattiva.example.com"})
+check("chiamato con un nome di internet: 403 'host' con il comando per ammetterlo", r.status_code == 403 and r.get_json()["error"] == "host" and "host-add" in r.get_json()["message"], (r.status_code, r.get_json()))
+for _h in ("192.168.1.17:8085", "172.25.170.177:8085", "klippeye.local:8085", "voron:8085", "[fe80::1]:8085", "localhost:8085", "stampante.lan"):
+    if ca.get("/api/version", headers={"Host": _h}).status_code != 200:
+        check("nome di rete ammesso: " + _h, False)
+        break
+else:
+    check("ammessi: indirizzi IP (anche IPv6), nomi .local/.lan, nome senza punti, localhost", True)
+r = ca.post("/api/gcode", json={"script": "M115"}, headers={"Origin": "http://sito-cattivo.example"})
+check("un comando che arriva da un'altra pagina web: 403 'origin'", r.status_code == 403 and r.get_json()["error"] == "origin", (r.status_code, r.get_json()))
+r = ca.post("/api/backend/config", json={"values": {"sensitivity": 40}}, headers={"Origin": "http://localhost"})
+check("... dalla dashboard stessa (Origin = stesso indirizzo) passa", r.status_code == 200, (r.status_code, r.get_json()))
+r = ca.get("/api/version", headers={"Sec-Fetch-Site": "cross-site", "Sec-Fetch-Mode": "cors"})
+check("lettura da un altro sito (Sec-Fetch-Site cross-site): 403", r.status_code == 403)
+r = ca.get("/", headers={"Sec-Fetch-Site": "cross-site", "Sec-Fetch-Mode": "navigate"})
+check("... ma aprire la dashboard da un collegamento si puo'", r.status_code in (200, 404))
+r = ca.get("/api/version", headers={"Origin": "http://sito-cattivo.example"})
+check("niente piu' CORS aperto: nessun Access-Control-Allow-Origin", "Access-Control-Allow-Origin" not in r.headers, dict(r.headers))
+r = ca.get("/api/version", headers={"Host": "nome.di.internet.com", "X-KlippEye-Token": internal})
+check("i servizi del Raspberry (gettone interno) passano sempre", r.status_code == 200)
+
+# attivo la password
+r = ca.post("/api/auth/password", json={"new": "abc"})
+check("password troppo corta: rifiutata", r.status_code == 400 and r.get_json()["error"] == "weak", r.get_json())
+r = ca.post("/api/auth/password", json={"new": "segreta123"})
+check("attivare la password: ok e questo dispositivo resta dentro (cookie)", r.status_code == 200 and "klippeye_session=" in r.headers.get("Set-Cookie", "") and "HttpOnly" in r.headers.get("Set-Cookie", ""), (r.status_code, r.headers.get("Set-Cookie")))
+check("... il cookie e' SameSite=Strict", "SameSite=Strict" in r.headers.get("Set-Cookie", ""))
+saved = json.load(open(os.path.join(da, "access.json")))
+check("in access.json non c'e' la password, solo il suo hash con sale", saved["enabled"] and "segreta123" not in json.dumps(saved) and len(saved["hash"]) == 64 and len(saved["salt"]) == 32, saved)
+check("chi l'ha attivata continua a usare la dashboard", ca.get("/api/version").status_code == 200)
+
+cb = ba.app.test_client()   # un altro dispositivo, senza cookie
+r = cb.get("/api/version")
+check("un altro dispositivo senza accesso: 401 con il segnale X-KlippEye-Login", r.status_code == 401 and r.headers.get("X-KlippEye-Login") == "1" and r.get_json()["error"] == "login", (r.status_code, dict(r.headers)))
+r = cb.get("/")
+check("... aprendo la dashboard va alla pagina di accesso", r.status_code == 303 and r.headers["Location"].endswith("/login"), (r.status_code, r.headers.get("Location")))
+r = cb.get("/login")
+check("... che e' una pagina con il modulo della password", r.status_code == 200 and b'name="password"' in r.data and b"klippeye password remove" in r.data and r.headers.get("X-Frame-Options") == "DENY")
+blocked = {p: cb.get(p).status_code for p in ("/webcam/?action=snapshot", "/printer/info", "/server/files/list", "/api/print/snapshot", "/api/logs/list")}
+check("... camera, Moonraker, file e log chiusi (401)", set(blocked.values()) == {401}, blocked)
+check("... anche i comandi: /api/gcode e /api/migrate/start", cb.post("/api/gcode", json={"script": "M112"}).status_code == 401 and cb.post("/api/migrate/start").status_code == 401)
+check("... restano aperti: stato dell'accesso e aggiornamento dell'app", cb.get("/api/auth/status").status_code == 200 and cb.get("/api/app/version").status_code == 200)
+check("... lo stato dice: attiva, non sei dentro", cb.get("/api/auth/status").get_json()["enabled"] is True and cb.get("/api/auth/status").get_json()["logged_in"] is False)
+
+r = cb.post("/api/auth/login", json={"password": "sbagliata"})
+check("password sbagliata: 401 'password'", r.status_code == 401 and r.get_json()["error"] == "password")
+r = cb.post("/api/auth/login", json={"password": "segreta123"})
+check("password giusta: entra", r.status_code == 200 and cb.get("/api/version").status_code == 200)
+cc = ba.app.test_client()
+r = cc.post("/login", data={"password": "segreta123"})
+check("anche dal modulo della pagina di accesso: 303 alla dashboard con il cookie", r.status_code == 303 and r.headers["Location"].endswith("/") and "klippeye_session=" in r.headers.get("Set-Cookie", ""))
+r = cc.post("/login", data={"password": "no"})
+check("... sbagliata: la pagina lo dice (in inglese di serie)", r.status_code == 401 and "Wrong password" in r.get_data(as_text=True))
+r = cc.post("/login", data={"password": "no"}, headers={"Accept-Language": "it-IT,it;q=0.9,en;q=0.8"})
+check("... e in italiano per un browser italiano", "Password sbagliata" in r.get_data(as_text=True) and 'lang="it"' in r.get_data(as_text=True))
+check("pagina di accesso in italiano per un browser italiano", "Accedi" in ba.app.test_client().get("/login", headers={"Accept-Language": "it"}).get_data(as_text=True) and "Log in" in ba.app.test_client().get("/login").get_data(as_text=True))
+
+cd = ba.app.test_client()
+codes = [cd.post("/api/auth/login", json={"password": "x%d" % i}, environ_base={"REMOTE_ADDR": "10.9.9.9"}).status_code for i in range(7)]
+check("tentativi a raffica: dopo 5 errori bisogna aspettare (429)", codes[:5] == [401] * 5 and 429 in codes[5:], codes)
+r = cd.post("/api/auth/login", json={"password": "segreta123"}, environ_base={"REMOTE_ADDR": "10.9.9.9"})
+check("... anche con la password giusta, finche' non e' passata l'attesa", r.status_code == 429, r.status_code)
+r = cd.post("/api/auth/login", json={"password": "segreta123"}, environ_base={"REMOTE_ADDR": "10.9.9.8"})
+check("... gli altri indirizzi non sono bloccati", r.status_code == 200)
+
+check("i servizi del Raspberry (notifiche) passano col gettone interno", ba.app.test_client().get("/api/print/last_analysis", headers={"X-KlippEye-Token": internal}).status_code == 200)
+check("... un gettone interno sbagliato no", ba.app.test_client().get("/api/version", headers={"X-KlippEye-Token": "a" * 64}).status_code == 401)
+check("un cookie falsificato non vale", ba.app.test_client().get("/api/version", headers={"Cookie": "klippeye_session=eyJ2IjoxLCJleHAiOjk5OTk5OTk5OTksImdlbiI6OTl9.firmafalsa"}).status_code == 401)
+_s = ba.ACCESS.load()
+check("un gettone scaduto non vale", not ba.access.token_valid(_s, ba.access.make_token(_s, now=time.time() - 200 * 86400)) and ba.access.token_valid(_s, ba.access.make_token(_s)))
+
+r = ca.post("/api/auth/password", json={"current": "sbagliata", "new": "nuova4567"})
+check("cambiare la password vuole quella attuale", r.status_code == 401)
+r = ca.post("/api/auth/password", json={"current": "segreta123", "new": "nuova4567"})
+check("... con quella giusta cambia; chi la cambia resta dentro", r.status_code == 200 and ca.get("/api/version").status_code == 200)
+check("... gli altri dispositivi devono rifare l'accesso", cb.get("/api/version").status_code == 401 and cc.get("/api/version").status_code == 401)
+cb.post("/api/auth/login", json={"password": "nuova4567"})
+r = ca.post("/api/auth/logout_all")
+check("'fai uscire tutti gli altri': gli altri fuori, questo dentro", r.status_code == 200 and cb.get("/api/version").status_code == 401 and ca.get("/api/version").status_code == 200)
+r = ca.post("/api/auth/logout")
+check("'esci da questo dispositivo'", r.status_code == 200 and ca.get("/api/version").status_code == 401)
+ca.post("/api/auth/login", json={"password": "nuova4567"})
+r = ca.post("/api/auth/disable", json={"current": "no"})
+check("togliere la password vuole quella attuale", r.status_code == 401)
+r = ca.post("/api/auth/disable", json={"current": "nuova4567"})
+check("... con quella giusta si toglie e tutti rientrano senza accesso", r.status_code == 200 and ba.app.test_client().get("/api/version").status_code == 200)
+
+# comando da terminale (klippeye password ...): stesso file, il backend se ne accorge senza riavvio
+_acc = os.path.join(ROOT, "backend", "access.py")
+_env = dict(os.environ, KLIPPEYE_DATA=da)
+out = _sp.run([sys.executable, _acc, "set", "dalterminale9"], env=_env, capture_output=True, text=True)
+time.sleep(0.05)
+check("da terminale 'set': il backend chiede subito l'accesso", out.returncode == 0 and ba.app.test_client().get("/api/version").status_code == 401, out.stdout + out.stderr)
+check("... e la password vale", ba.app.test_client().post("/api/auth/login", json={"password": "dalterminale9"}).status_code == 200)
+out = _sp.run([sys.executable, _acc, "remove"], env=_env, capture_output=True, text=True)
+check("da terminale 'remove' (password dimenticata): si rientra senza", out.returncode == 0 and ba.app.test_client().get("/api/version").status_code == 200, out.stdout)
+out = _sp.run([sys.executable, _acc, "host-add", "stampante.casa.it"], env=_env, capture_output=True, text=True)
+check("da terminale 'host-add': quel nome viene accettato", ba.app.test_client().get("/api/version", headers={"Host": "stampante.casa.it:8085"}).status_code == 200, out.stdout)
+_sp.run([sys.executable, _acc, "network-checks", "off"], env=_env, capture_output=True, text=True)
+check("'network-checks off' torna al comportamento di prima (qualunque nome e origine)",
+      ba.app.test_client().get("/api/version", headers={"Host": "x.example.com"}).status_code == 200 and ba.app.test_client().post("/api/backend/config", json={"values": {}}, headers={"Origin": "http://altro.example"}).status_code == 200)
+_sp.run([sys.executable, _acc, "network-checks", "on"], env=_env, capture_output=True, text=True)
+out = _sp.run([sys.executable, _acc, "status"], env=_env, capture_output=True, text=True)
+check("'status' racconta password, controlli e nomi aggiunti", "off (anyone" in out.stdout and "Network checks (host name and origin of requests): on" in out.stdout and "stampante.casa.it" in out.stdout, out.stdout)
+open(os.path.join(da, "access.json"), "w").write("{rotto")
+time.sleep(0.05)
+check("access.json rovinato (blackout): si riparte senza password invece di chiudere fuori", ba.app.test_client().get("/api/version").status_code == 200 and json.load(open(os.path.join(da, "access.json")))["enabled"] is False)
+
+__import__("requests").post = real_post
+stop_all()
+fake.close()
+print("\n%d PASS, %d FAIL" % (passed, failed))
+sys.exit(1 if failed else 0)
