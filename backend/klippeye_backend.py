@@ -33,6 +33,7 @@ import copy
 import hashlib
 import time
 import tempfile
+import shutil
 import threading
 import subprocess
 
@@ -107,6 +108,8 @@ CONFIG_GROUPS = [
     {"id": "monitor", "title": "Monitor", "note": ""},
     {"id": "rilevamento", "title": "Rilevamento del movimento",
      "note": "Ogni pochi secondi il backend confronta due foto della camera: se molti punti della fascia esterna dell'area controllata cambiano, e succede più volte, chiede all'IA di guardare la foto."},
+    {"id": "filtro", "title": "Falsi allarmi",
+     "note": "Il filtro confronta la foto di adesso con uno «sfondo» fatto da più foto degli ultimi minuti (la testina che passa non ne fa parte) e conta solo i cambiamenti che restano per più controlli di fila. Ignora anche i cambi di luce."},
     {"id": "area", "title": "Area controllata", "note": "Il rettangolo dove il backend cerca il movimento sospetto. Di serie è il 60% centrale dell'immagine."},
     {"id": "tempi", "title": "Pause e consumi", "note": "L'analisi dell'IA usa un servizio online: queste pause evitano di chiamarla troppo spesso."},
     {"id": "avvio", "title": "Quando comincia a controllare",
@@ -132,6 +135,22 @@ CONFIG_SPEC = [
     {"key": "border", "type": "int", "default": 25, "min": 10, "max": 45, "step": 1, "unit": "%", "group": "rilevamento",
      "label": "Larghezza della fascia esterna",
      "help": "Il movimento che conta è quello ai bordi dell'area controllata (spaghetti in aria), non quello al centro dove stampa. Misurata in % dell'area."},
+    {"key": "persistent_filter", "type": "bool", "default": True, "group": "filtro", "label": "Ignora i movimenti passeggeri (consigliato)",
+     "help": "Acceso: conta solo ciò che cambia e resta (spaghetti, pezzo staccato); la testina che passa, le ombre e i cambi di luce non fanno scattare l'allarme. Spento: il rilevamento di prima (basta un movimento ai bordi)."},
+    {"key": "persist_checks", "type": "int", "default": 3, "min": 2, "max": 6, "step": 1, "unit": "", "group": "filtro",
+     "label": "Controlli di fila in cui il cambiamento deve restare",
+     "help": "Più alto = meno falsi allarmi ma un problema si nota qualche secondo più tardi (controlli × intervallo)."},
+    {"key": "reference_seconds", "type": "int", "default": 60, "min": 20, "max": 300, "step": 10, "unit": "s", "group": "filtro",
+     "label": "Tempo coperto dallo sfondo",
+     "help": "Lo sfondo si fa con le foto degli ultimi N secondi. Più lungo = la testina e i movimenti lenti pesano meno, ma un problema che dura da molto viene «assorbito» più tardi."},
+    {"key": "global_change", "type": "float", "default": 30, "min": 5, "max": 100, "step": 5, "decimals": 0, "unit": "%", "group": "filtro",
+     "label": "Cambio di luce: ignora se cambia più di",
+     "help": "Se più di questa parte dell'intera immagine cambia di colpo (luce accesa o spenta, camera mossa, testina enorme davanti all'obiettivo) il controllo viene ignorato. Se dura più di una trentina di secondi conta come cambiamento vero."},
+    {"key": "ai_min_confidence", "type": "int", "default": 70, "min": 0, "max": 100, "step": 5, "unit": "%", "group": "ia",
+     "label": "Fiducia minima dell'IA per segnalare un problema",
+     "help": "Se l'IA consiglia PAUSA o CANCELLA ma nessun difetto ha almeno questa fiducia, il verdetto diventa CONTINUA (resta scritto nello storico). 0 = si fida sempre."},
+    {"key": "ai_send_reference", "type": "bool", "default": True, "group": "ia", "label": "Manda all'IA anche la foto di prima",
+     "help": "L'IA vede «prima» e «adesso» e giudica se è cambiato qualcosa di grave: sbaglia meno. Usa più dati per chiamata; se il servizio rifiuta due foto, ne manda una."},
     {"key": "roi", "type": "area", "default": [20, 20, 60, 60], "group": "area", "label": "Area controllata",
      "help": "Sinistra, alto, larghezza e altezza in % dell'immagine."},
     {"key": "cooldown", "type": "int", "default": 90, "min": 10, "max": 3600, "step": 10, "unit": "s", "group": "tempi",
@@ -1338,6 +1357,70 @@ except ImportError as e:
     HAS_CV2 = False
     print(f"[OPENCV] cv2/numpy non installati, detector disabilitato: {e} - installa con: pip install opencv-python-headless numpy")
 
+# --- storico degli allarmi: cosa ha visto il monitor e cosa ha detto l'IA, con le foto (cosi' si capisce quanti erano veri) ---
+ALERT_HISTORY_DIR = os.path.join(DATA_DIR, "allarmi")
+ALERT_HISTORY_KEEP = 40  # eventi con foto
+REFERENCE_SAMPLES = 7  # foto dello sfondo (mediana)
+REFERENCE_MIN = 5  # sotto questo numero il confronto non e' pronto
+GLOBAL_STREAK_MAX = 10  # controlli di fila con il cambio "globale" prima di considerarlo vero
+_history_lock = threading.Lock()
+
+
+def record_alert(event, image_path=None, reference_path=None):
+    """Aggiunge un evento a <dati>/allarmi/storico.jsonl e copia le foto accanto. Non deve mai far fallire il monitor."""
+    try:
+        with _history_lock:
+            os.makedirs(ALERT_HISTORY_DIR, exist_ok=True)
+            stamp = time.strftime("%Y%m%d-%H%M%S")
+            event = dict(event, time=time.strftime("%Y-%m-%d %H:%M:%S"), id=stamp)
+            for key, path, suffix in (("image", image_path, "adesso"), ("reference", reference_path, "prima")):
+                if path and os.path.isfile(path):
+                    name = "%s-%s.jpg" % (stamp, suffix)
+                    shutil.copyfile(path, os.path.join(ALERT_HISTORY_DIR, name))
+                    event[key] = name
+            log = os.path.join(ALERT_HISTORY_DIR, "storico.jsonl")
+            lines = []
+            try:
+                with open(log, encoding="utf-8") as fh:
+                    lines = [l for l in fh.read().splitlines() if l.strip()]
+            except OSError:
+                pass
+            lines.append(json.dumps(event, ensure_ascii=False))
+            lines = lines[-ALERT_HISTORY_KEEP:]
+            with open(log + ".tmp", "w", encoding="utf-8") as fh:
+                fh.write("\n".join(lines) + "\n")
+            os.replace(log + ".tmp", log)
+            keep = set()
+            for line in lines:
+                try:
+                    entry = json.loads(line)
+                    keep.update(n for n in (entry.get("image"), entry.get("reference")) if n)
+                except ValueError:
+                    pass
+            for name in os.listdir(ALERT_HISTORY_DIR):
+                if name.endswith(".jpg") and name not in keep:
+                    try:
+                        os.remove(os.path.join(ALERT_HISTORY_DIR, name))
+                    except OSError:
+                        pass
+    except Exception as error:
+        print(f"[STORICO] non riesco a scrivere lo storico degli allarmi: {error}")
+
+
+def read_alert_history(limit=20):
+    try:
+        with open(os.path.join(ALERT_HISTORY_DIR, "storico.jsonl"), encoding="utf-8") as fh:
+            rows = []
+            for line in fh.read().splitlines():
+                try:
+                    rows.append(json.loads(line))
+                except ValueError:
+                    pass
+        return rows[-limit:][::-1]
+    except OSError:
+        return []
+
+
 def prune_alert_images(keep=10, pattern="/tmp/klippeye_alert_*.jpg"):
     """Tiene le ultime `keep` foto di allarme in /tmp e toglie le altre (ognuna e' ~100 KB e prima non si cancellavano mai)."""
     try:
@@ -1350,6 +1433,64 @@ def prune_alert_images(keep=10, pattern="/tmp/klippeye_alert_*.jpg"):
                 pass
     except Exception:
         pass
+
+
+AI_DEFECT_KEYS = ("spaghetti", "empty_bed", "layer_shift", "warping")
+
+
+def build_ai_prompt(score, state, filename, progress, hotend, ref_age=None):
+    """Il testo per l'IA: neutro (non dice "e' spaghetti"), spiega cosa vede la camera, cosa e' un difetto e cosa no, e chiede di descrivere prima di decidere."""
+    foto = ("Ti mando DUE foto: la prima e' PRIMA (circa %d secondi fa), la seconda e' ADESSO. Confrontale: conta cio' che e' cambiato e resta." % (ref_age or 0)
+            if ref_age is not None else "Ti mando UNA foto (adesso).")
+    return f"""Sorvegli una stampa 3D (stampante Klipper). La camera e' fissa, molto vicina e sopra il piatto, in un angolo: la testina di stampa, i cavi e parti del portale compaiono spesso nell'immagine.
+
+Il controllo locale ha notato un cambiamento che resta nell'immagine (punteggio {score}%), ma di solito e' innocuo: testina, pezzo che cresce, ombre, riflessi. NON sappiamo se c'e' un problema.
+
+{foto}
+
+TELEMETRIA: stato {state}; file {filename}; avanzamento {progress:.1f}%; ugello {hotend:.0f} C.
+
+PROBLEMI VERI (solo se li vedi con chiarezza):
+- spaghetti: filamento aggrovigliato o staccato dal pezzo, filo in aria, matassa sul piatto o attorno all'ugello;
+- pezzo staccato dal piatto, spostato o caduto;
+- sfasamento di strato (il pezzo ha un gradino laterale netto);
+- warping evidente (angoli sollevati dal piatto);
+- piatto vuoto SOLO se l'avanzamento e' oltre il 5% e non si vede alcun pezzo.
+
+NON SONO PROBLEMI: la testina e il suo cablaggio, il portale, gonna, brim e linea di spurgo, supporti, riempimento visibile, il pezzo che sale strato dopo strato, riflessi, ombre, peluria sottile (stringing).
+
+Come procedere: 1) descrivi in una frase cosa vedi; 2) segnala un difetto solo se e' evidente; nel dubbio la risposta e' CONTINUA. La confidenza e' la probabilita' in % che il difetto sia reale: sotto 50 se non sei sicuro.
+
+Rispondi SOLO con JSON valido:
+{{
+  "osservazione": "cosa vedi, una frase",
+  "spaghetti": {{"detected": true/false, "confidence": 0-100, "note": "dettaglio"}},
+  "empty_bed": {{"detected": true/false, "confidence": 0-100}},
+  "layer_shift": {{"detected": true/false, "confidence": 0-100}},
+  "warping": {{"detected": true/false, "confidence": 0-100}},
+  "action": "CONTINUA|PAUSA|CANCELLA",
+  "summary": "frase breve in italiano, max 20 parole"
+}}
+"""
+
+
+def apply_min_confidence(parsed, minimum):
+    """Se l'IA consiglia PAUSA/CANCELLA ma nessun difetto ha la fiducia minima, il verdetto diventa CONTINUA (l'originale resta scritto). -> (verdetto, declassato)"""
+    action = str(parsed.get("action", "")).upper()
+    if minimum <= 0 or action not in ("PAUSA", "CANCELLA"):
+        return parsed, False
+    defects = [v for k, v in parsed.items() if k in AI_DEFECT_KEYS and isinstance(v, dict)]
+    if not defects:
+        return parsed, False  # una risposta senza dettagli non si puo' filtrare
+    for d in defects:
+        confidence = d.get("confidence")
+        if d.get("detected") is True and isinstance(confidence, (int, float)) and not isinstance(confidence, bool) and confidence >= minimum:
+            return parsed, False
+    out = dict(parsed)
+    out["action_originale"] = action
+    out["action"] = "CONTINUA"
+    out["summary"] = ("Nessun difetto abbastanza sicuro (soglia %d%%). " % minimum) + str(parsed.get("summary", ""))
+    return out, True
 
 
 class LightDetector:
@@ -1376,6 +1517,17 @@ class LightDetector:
         self.min_progress = 2  # % di avanzamento prima di cominciare a controllare
         self.hotend_tol = 8  # scarto massimo dell'ugello dalla temperatura impostata
         self.ai_model = ""  # vuoto: il modello predefinito del servizio
+        self.persistent_filter = True  # filtro anti falsi allarmi (vedi _persistent_score)
+        self.persist_checks = 3
+        self.reference_seconds = 60
+        self.global_change = 30.0
+        self.ai_min_confidence = 70
+        self.ai_send_reference = True
+        self.recent_masks = deque(maxlen=3)
+        self.ref_small = deque(maxlen=REFERENCE_SAMPLES)  # (istante, foto piccola in grigio) per lo sfondo
+        self.ref_jpegs = deque(maxlen=REFERENCE_SAMPLES)  # (istante, foto com'e' arrivata dalla camera) per mostrare all'IA "com'era prima"
+        self.bg = None
+        self.global_streak = 0
         self.stats = {
             "frames_checked": 0,
             "anomalies": 0,
@@ -1402,6 +1554,14 @@ class LightDetector:
         self.min_progress = values["min_progress"]
         self.hotend_tol = values["hotend_tolerance"]
         self.ai_model = values["ai_model"]
+        self.persistent_filter = values["persistent_filter"]
+        if values["persist_checks"] != self.persist_checks or self.recent_masks.maxlen != values["persist_checks"]:
+            self.recent_masks = deque(maxlen=values["persist_checks"])
+        self.persist_checks = values["persist_checks"]
+        self.reference_seconds = values["reference_seconds"]
+        self.global_change = values["global_change"]
+        self.ai_min_confidence = values["ai_min_confidence"]
+        self.ai_send_reference = values["ai_send_reference"]
         x, y, w, h = values["roi"]  # in % dell'immagine -> pixel dell'immagine ridimensionata (1080x720)
         self.roi = (int(OPENCV_WIDTH * x / 100), int(OPENCV_HEIGHT * y / 100), int(OPENCV_WIDTH * w / 100), int(OPENCV_HEIGHT * h / 100))
 
@@ -1425,6 +1585,12 @@ class LightDetector:
         self.stats["status"] = "stopped"
         print("[OPENCV] Light detector stopped")
 
+    def _nap(self, generation, seconds):
+        """Dorme `seconds` ma si sveglia subito se il rilevatore e' stato fermato o riavviato: un vecchio ciclo non resta in giro."""
+        end = time.time() + seconds
+        while time.time() < end and self.running and generation == self.generation:
+            time.sleep(min(0.1, max(0.0, end - time.time())))
+
     def loop(self, generation=None):
         if generation is None:
             generation = self.generation
@@ -1432,15 +1598,15 @@ class LightDetector:
             try:
                 if not HAS_CV2:
                     self.stats["status"] = "cv2 non installato"
-                    time.sleep(5)
+                    self._nap(generation, 5)
                     continue
                 if not self.enabled:
-                    time.sleep(1)
+                    self._nap(generation, 1)
                     continue
                 # Cooldown check
                 if time.time() < self.cooldown_until:
                     self.stats["status"] = f"cooldown {int(self.cooldown_until - time.time())}s"
-                    time.sleep(1)
+                    self._nap(generation, 1)
                     continue
                 # Check if printing
                 # === SOLUZIONE 5 - IBRIDA - CHECK STAMPA REALE ===
@@ -1456,10 +1622,11 @@ class LightDetector:
                     state = ps.get("state","")
 
                     if state != "printing":
+                        self._reset_reference()  # una stampa nuova riparte con uno sfondo nuovo
                         self.stats["status"] = f"idle (state={state})"
                         self.stats["real_print_started"] = False
                         self.stats["real_print_reason"] = f"state={state}"
-                        time.sleep(5)
+                        self._nap(generation, 5)
                         continue
 
                     # Calcola se stampa reale iniziata
@@ -1509,76 +1676,35 @@ class LightDetector:
 
                     if not real_started:
                         self.stats["status"] = f"riscaldamento/mesh - attesa stampa reale ({'; '.join(reasons)[:80]})"
-                        time.sleep(3)
+                        self._nap(generation, 3)
                         continue
 
                 except Exception as e:
                     print(f"[DETECTOR] real_print check err: {e}")
-                    time.sleep(3)
+                    self._nap(generation, 3)
                     continue
 
                 # Get snapshot low-res
                 try:
                     r = requests.get(f"{CAMERA_NGINX_URL}/snapshot", timeout=4)
                     if not r.ok or len(r.content) < 1000:
-                        time.sleep(2)
+                        self._nap(generation, 2)
                         continue
                     img_arr = np.frombuffer(r.content, np.uint8)
                     frame = cv2.imdecode(img_arr, cv2.IMREAD_COLOR)
                     if frame is None:
-                        time.sleep(2)
+                        self._nap(generation, 2)
                         continue
                 except Exception as e:
                     print(f"[OPENCV] snapshot fail: {e}")
-                    time.sleep(3)
+                    self._nap(generation, 3)
                     continue
 
-                # Resize a 1080x720 per dettaglio - V18 FULL HD (6-11% CPU)
-                small = cv2.resize(frame, (OPENCV_WIDTH, OPENCV_HEIGHT))
-                gray = cv2.cvtColor(small, cv2.COLOR_BGR2GRAY)
-                gray = cv2.GaussianBlur(gray, (21,21), 0)
-
-                self.last_frames.append(gray)
-                self.stats["frames_checked"] += 1
-                self.stats["status"] = "scanning"
-
-                if len(self.last_frames) < 3:
-                    time.sleep(self.check_interval)  # intervallo check
+                score = self._persistent_score(frame, r.content) if self.persistent_filter else self._motion_score(frame)
+                if score is None:  # il confronto non e' ancora pronto, oppure il controllo e' da ignorare (cambio di luce)
+                    self._nap(generation, self.check_interval)
                     continue
-
-                # Confronto con frame precedente (background subtraction semplice)
-                prev = self.last_frames[-2]
-                diff = cv2.absdiff(prev, gray)
-                thresh = cv2.threshold(diff, self.sensitivity, 255, cv2.THRESH_BINARY)[1]
-                thresh = cv2.dilate(thresh, None, iterations=2)
-
-                # ROI: se non impostato, usa 60% centrale (area piatto)
-                if self.roi is None:
-                    h,w = thresh.shape
-                    x = int(w*0.2); y = int(h*0.2); rw = int(w*0.6); rh = int(h*0.6)
-                else:
-                    # scala ROI da 1080x720 a thresh shape (V18 full HD)
-                    x,y,rw,rh = self.roi
-
-                roi_thresh = thresh[y:y+rh, x:x+rw]
-
-                # Conta pixel bianchi (movimento) FUORI dal centro atteso del pezzo
-                # Per spaghetti, il movimento è in alto / ai lati, non al centro dove c'è estrusione normale
-                # Dividiamo ROI in 3 zone: centro (pezzo) e periferia (possibile spaghetti)
-                h_roi, w_roi = roi_thresh.shape
-                center_x, center_y = w_roi//2, h_roi//2
-                # Maschera periferia (bordo 25%)
-                border = self.border  # fascia esterna: di serie il 25% (0.25 / 0.75)
-                mask_periphery = np.zeros_like(roi_thresh)
-                mask_periphery[:int(h_roi*border), :] = 255  # top
-                mask_periphery[int(h_roi*(1-border)):, :] = 255  # bottom
-                mask_periphery[:, :int(w_roi*border)] = 255  # left
-                mask_periphery[:, int(w_roi*(1-border)):] = 255  # right
-
-                periphery_motion = cv2.bitwise_and(roi_thresh, roi_thresh, mask=mask_periphery)
-                score = (cv2.countNonZero(periphery_motion) / (w_roi*h_roi)) * 100
-
-                self.stats["last_score"] = round(score,2)
+                self.stats["last_score"] = round(score, 2)
 
                 # Soglia: se piu' del 2.5% (di serie) di pixel in periferia si muove = sospetto
                 if score > self.score_threshold:  # V18: da 1.5% a 2.5% per ridurre falsi positivi
@@ -1597,7 +1723,7 @@ class LightDetector:
                     self.trigger_count = 0
                     # Salva immagine full-res per AI
                     try:
-                        prune_alert_images()  # le foto degli allarmi vecchie non si accumulano per sempre
+                        prune_alert_images(keep=20)  # le foto degli allarmi vecchie non si accumulano per sempre (adesso + prima)
                         full_path = f"/tmp/klippeye_alert_{int(time.time())}.jpg"
                         # Riscarica e ridimensiona a 1080x720 per AI - V17 anti-falso positivo
                         r_full = requests.get(f"{CAMERA_NGINX_URL}/snapshot", timeout=5)
@@ -1618,25 +1744,165 @@ class LightDetector:
                             self.last_alert_img_path = full_path
                             print(f"[OPENCV] Saved alert image {full_path}")
                             # Auto-chiama AI analysis in background (non blocca loop)
-                            threading.Thread(target=self.call_ai_analysis, args=(full_path,), daemon=True).start()
+                            ref_path, ref_age = self._save_reference(full_path)
+                            threading.Thread(target=self.call_ai_analysis, args=(full_path, ref_path, ref_age), daemon=True).start()
                     except Exception as e:
                         print(f"[OPENCV] save alert fail: {e}")
 
-                time.sleep(self.check_interval)  # check ogni 3s di serie (la dashboard: Monitor IA > Ogni quanto guarda la camera)
+                self._nap(generation, self.check_interval)  # check ogni 3s di serie (la dashboard: Monitor IA > Ogni quanto guarda la camera)
 
             except Exception as e:
                 print(f"[OPENCV] loop error: {e}")
-                time.sleep(3)
+                self._nap(generation, 3)
 
-    def call_ai_analysis(self, img_path):
-        """AUTO-CHIAMA GROQ quando triggera, senza intervento umano"""
+    def _motion_score(self, frame):
+        """Il rilevamento di prima (filtro spento): quanto si muove la fascia esterna fra due foto di fila, in % dell'area."""
+        # Resize a 1080x720 per dettaglio - V18 FULL HD (6-11% CPU)
+        small = cv2.resize(frame, (OPENCV_WIDTH, OPENCV_HEIGHT))
+        gray = cv2.cvtColor(small, cv2.COLOR_BGR2GRAY)
+        gray = cv2.GaussianBlur(gray, (21, 21), 0)
+
+        self.last_frames.append(gray)
+        self.stats["frames_checked"] += 1
+        self.stats["status"] = "scanning"
+
+        if len(self.last_frames) < 3:
+            return None
+
+        # Confronto con frame precedente (background subtraction semplice)
+        prev = self.last_frames[-2]
+        diff = cv2.absdiff(prev, gray)
+        thresh = cv2.threshold(diff, self.sensitivity, 255, cv2.THRESH_BINARY)[1]
+        thresh = cv2.dilate(thresh, None, iterations=2)
+        return self._periphery_score(thresh, 1.0)
+
+    def _roi_rect(self, shape, scale):
+        """L'area controllata (pixel dell'immagine 1080x720) portata alla scala dell'immagine che si sta guardando."""
+        h, w = shape[:2]
+        if self.roi is None:
+            return int(w * 0.2), int(h * 0.2), int(w * 0.6), int(h * 0.6)
+        x, y, rw, rh = self.roi
+        return int(x * scale), int(y * scale), int(rw * scale), int(rh * scale)
+
+    def _periphery_mask(self, h, w):
+        border = self.border  # fascia esterna: di serie il 25% (0.25 / 0.75)
+        mask = np.zeros((h, w), np.uint8)
+        mask[:int(h * border), :] = 255  # alto
+        mask[int(h * (1 - border)):, :] = 255  # basso
+        mask[:, :int(w * border)] = 255  # sinistra
+        mask[:, int(w * (1 - border)):] = 255  # destra
+        return mask
+
+    def _periphery_score(self, thresh, scale):
+        """% dell'area controllata coperta da punti "cambiati" nella fascia esterna."""
+        x, y, rw, rh = self._roi_rect(thresh.shape, scale)
+        roi_thresh = thresh[y:y + rh, x:x + rw]
+        h_roi, w_roi = roi_thresh.shape
+        if h_roi == 0 or w_roi == 0:
+            return 0.0
+        moved = cv2.bitwise_and(roi_thresh, roi_thresh, mask=self._periphery_mask(h_roi, w_roi))
+        return (cv2.countNonZero(moved) / (w_roi * h_roi)) * 100
+
+    def _save_reference(self, adesso_path):
+        """La foto "di prima" per l'IA: la piu' vecchia fra quelle dello sfondo (~reference_seconds fa). -> (percorso, eta' in secondi) o (None, None)."""
+        if not (self.ai_send_reference and self.persistent_filter and self.ref_jpegs):
+            return None, None
+        try:
+            taken, raw = self.ref_jpegs[0]
+            frame = cv2.imdecode(np.frombuffer(raw, np.uint8), cv2.IMREAD_COLOR)
+            if frame is None:
+                return None, None
+            path = adesso_path[:-4] + "_prima.jpg"
+            resized = cv2.resize(frame, (AI_IMAGE_WIDTH, AI_IMAGE_HEIGHT), interpolation=cv2.INTER_AREA)
+            cv2.imwrite(path, resized, [int(cv2.IMWRITE_JPEG_QUALITY), AI_IMAGE_QUALITY])
+            return path, int(time.time() - taken)
+        except Exception as error:
+            print(f"[OPENCV] foto di prima non salvata: {error}")
+            return None, None
+
+    def _reset_reference(self):
+        self.ref_small.clear()
+        self.ref_jpegs.clear()
+        self.recent_masks.clear()
+        self.bg = None
+        self.global_streak = 0
+
+    def _persistent_score(self, frame, raw):
+        """
+        Il filtro anti falsi allarmi. Invece di confrontare due foto di fila (basta la testina che passa per far scattare tutto):
+          1. lo SFONDO e' la mediana di 7 foto sparse negli ultimi `reference_seconds`: cio' che sta in un punto solo per poco
+             (testina, mano, riflesso) non ne fa parte;
+          2. la luminosita' media viene allineata a quella dello sfondo (la camera che regola l'esposizione non e' un movimento);
+          3. se cambia piu' di `global_change`% dell'intera immagine di colpo (luce, camera mossa) il controllo si ignora, ma se dura
+             piu' di GLOBAL_STREAK_MAX controlli di fila e' un cambiamento vero;
+          4. conta solo cio' che, nella fascia esterna dell'area, e' cambiato rispetto allo sfondo in TUTTI gli ultimi `persist_checks` controlli.
+        Lavora a meta' risoluzione: 4 volte meno punti da guardare di prima. -> % dell'area, oppure None (niente da contare adesso).
+        """
+        now = time.time()
+        small = cv2.resize(frame, (OPENCV_WIDTH // 2, OPENCV_HEIGHT // 2), interpolation=cv2.INTER_AREA)
+        gray = cv2.GaussianBlur(cv2.cvtColor(small, cv2.COLOR_BGR2GRAY), (11, 11), 0)
+        self.stats["frames_checked"] += 1
+        if self.ref_small and now - self.ref_small[-1][0] > 2 * self.reference_seconds:
+            self._reset_reference()  # una lunga pausa: lo sfondo vecchio non vale piu'
+        result = None
+        if self.bg is not None and self.bg.shape == gray.shape:
+            result = self._compare_with_background(gray)
+        else:
+            self.stats["status"] = "preparo il confronto (%d/%d foto)" % (len(self.ref_small), REFERENCE_MIN)
+        step = max(self.check_interval, self.reference_seconds / REFERENCE_SAMPLES)
+        if not self.ref_small or now - self.ref_small[-1][0] >= step:
+            self.ref_small.append((now, gray))
+            self.ref_jpegs.append((now, raw))
+            if len(self.ref_small) >= REFERENCE_MIN:
+                self.bg = np.median(np.stack([g for _, g in self.ref_small]), axis=0).astype(np.uint8)
+        return result
+
+    def _compare_with_background(self, gray):
+        shift = float(gray.mean()) - float(self.bg.mean())
+        if abs(shift) > 1:
+            gray = cv2.convertScaleAbs(gray, alpha=1.0, beta=-shift)
+        thresh = cv2.threshold(cv2.absdiff(self.bg, gray), self.sensitivity, 255, cv2.THRESH_BINARY)[1]
+        changed = cv2.countNonZero(thresh) * 100.0 / thresh.size
+        self.stats["global_change"] = round(changed, 1)
+        if changed > self.global_change:
+            self.global_streak += 1
+            self.recent_masks.clear()
+            if self.global_streak < GLOBAL_STREAK_MAX:
+                self.stats["ignored_global"] = self.stats.get("ignored_global", 0) + 1
+                self.stats["status"] = f"cambio di luce o camera mossa ({changed:.0f}% dell'immagine): ignoro"
+                return None
+            self.stats["status"] = "scanning (cambiamento grande e persistente)"
+            return changed  # dura da molti controlli: non e' un lampo di luce
+        self.global_streak = 0
+        thresh = cv2.dilate(thresh, None, iterations=1)
+        x, y, rw, rh = self._roi_rect(thresh.shape, 0.5)
+        roi = thresh[y:y + rh, x:x + rw]
+        if roi.size == 0:
+            return 0.0
+        if self.recent_masks and self.recent_masks[-1].shape != roi.shape:
+            self.recent_masks.clear()  # l'area e' stata cambiata dal menu
+        self.recent_masks.append(roi)
+        self.stats["status"] = "scanning"
+        if len(self.recent_masks) < self.recent_masks.maxlen:
+            return 0.0
+        persistent = self.recent_masks[0]
+        for other in list(self.recent_masks)[1:]:
+            persistent = cv2.bitwise_and(persistent, other)
+        h_roi, w_roi = persistent.shape
+        stays = cv2.bitwise_and(persistent, persistent, mask=self._periphery_mask(h_roi, w_roi))
+        return (cv2.countNonZero(stays) / (w_roi * h_roi)) * 100
+
+    def call_ai_analysis(self, img_path, ref_path=None, ref_age=None):
+        """Chiede all'IA di guardare la foto (e, se c'e', com'era prima) quando il monitor scatta, senza intervento umano."""
+        score = self.stats.get("last_score", 0)
         try:
             now = time.time()
             if now - self.last_ai_call < self.ai_cooldown:
                 print(f"[OPENCV] AI cooldown attivo, salto (mancano {int(self.ai_cooldown - (now-self.last_ai_call))}s)")
+                record_alert({"esito": "saltata: pausa tra due analisi dell'IA", "score": score}, img_path, ref_path)
                 return
             self.last_ai_call = now
-            print(f"[OPENCV] AUTO-CHIAMATA GROQ per {img_path}")
+            print(f"[OPENCV] AUTO-CHIAMATA IA per {img_path}")
 
             # Leggi immagine e converti base64
             if not os.path.exists(img_path):
@@ -1644,6 +1910,10 @@ class LightDetector:
                 return
             with open(img_path, 'rb') as f:
                 img_b64 = base64.b64encode(f.read()).decode('utf-8')
+            ref_b64 = None
+            if ref_path and os.path.exists(ref_path):
+                with open(ref_path, 'rb') as f:
+                    ref_b64 = base64.b64encode(f.read()).decode('utf-8')
 
             # Telemetria
             telemetry = {}
@@ -1656,38 +1926,15 @@ class LightDetector:
             print_stats = telemetry.get("print_stats",{})
             display = telemetry.get("display_status",{})
             extruder = telemetry.get("extruder",{})
-            bed = telemetry.get("heater_bed",{})
             state = print_stats.get("state","unknown")
             filename = print_stats.get("filename","")
             progress = display.get("progress",0)*100
             temp_h = extruder.get("temperature",0)
 
-            prompt_text = f"""Sei un esperto di stampa 3D VzBot 235.
-
-Analizza questa immagine - sospetto spaghetti rilevato da OpenCV locale (score {self.stats.get('last_score',0)}%).
-
-TELEMETRIA:
-- Stato: {state}
-- File: {filename}
-- Progresso: {progress:.1f}%
-- Hotend: {temp_h:.1f}°C
-
-TASK V17 ANTI-FALSO: Rileva SPAGHETTI, PIATTO VUOTO (solo se progress >5% e confidence >=70%), LAYER SHIFT, WARPING. Immagine 1080x720 dettagliata - guarda bene se c'è anche solo un bordo sottile sul piatto = NON vuoto. Dai confidenza % e azione CONTINUA/PAUSA/CANCELLA.
-
-Rispondi SOLO con JSON valido + breve summary:
-{{
-  "spaghetti": {{"detected": true/false, "confidence": 0-100, "note": "dettaglio"}},
-  "empty_bed": {{"detected": true/false, "confidence": 0-100}},
-  "layer_shift": {{"detected": true/false, "confidence": 0-100}},
-  "warping": {{"detected": true/false, "confidence": 0-100}},
-  "action": "CONTINUA|PAUSA|CANCELLA",
-  "summary": "frase breve in italiano, max 20 parole"
-}}
-"""
-
             cfg = load_ai_config()
             if not cfg.get("api_key"):
                 print("[OPENCV] No API key per AI auto-call")
+                record_alert({"esito": "saltata: manca la chiave dell'IA", "score": score}, img_path, ref_path)
                 return
 
             provider = cfg.get("provider","groq").lower()
@@ -1701,63 +1948,79 @@ Rispondi SOLO con JSON valido + breve summary:
                 final_model = self.ai_model
 
             headers = {"Authorization": f"Bearer {api_key}", "Content-Type":"application/json"}
-            payload = {
-                "model": final_model,
-                "messages":[
-                    {"role":"system","content":"Sei un esperto stampa 3D. Rispondi SOLO con JSON valido come richiesto."},
-                    {"role":"user","content":[
-                        {"type":"text","text":prompt_text},
-                        {"type":"image_url","image_url":{"url": f"data:image/jpeg;base64,{img_b64}"}}
-                    ]}
-                ],
-                "temperature":0.2,
-                "max_tokens": 800,
-                "response_format": {"type": "json_object"}
-            }
 
-            r = requests.post(endpoint, headers=headers, json=payload, timeout=30)
+            def ask(with_reference):
+                prompt = build_ai_prompt(score, state, filename, progress, temp_h, ref_age if with_reference else None)
+                content = [{"type": "text", "text": prompt}]
+                for b64 in ([ref_b64, img_b64] if with_reference else [img_b64]):
+                    content.append({"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}})
+                payload = {
+                    "model": final_model,
+                    "messages": [
+                        {"role": "system", "content": "Sei un esperto stampa 3D prudente: segnali un difetto solo se lo vedi con chiarezza. Rispondi SOLO con JSON valido come richiesto."},
+                        {"role": "user", "content": content},
+                    ],
+                    "temperature": 0.1,
+                    "max_tokens": 900,
+                    "response_format": {"type": "json_object"},
+                }
+                return requests.post(endpoint, headers=headers, json=payload, timeout=40)
+
+            used_reference = bool(ref_b64)
+            r = ask(used_reference)
+            if not r.ok and used_reference:
+                # alcuni servizi/modelli accettano una sola foto (o hanno un limite di dati): riprovo con la sola foto di adesso
+                print(f"[OPENCV] IA ha rifiutato due foto ({r.status_code}): riprovo con una sola")
+                used_reference = False
+                r = ask(False)
             if not r.ok:
-                print(f"[OPENCV] Groq error {r.status_code}: {r.text[:500]}")
+                print(f"[OPENCV] IA error {r.status_code}: {r.text[:500]}")
+                record_alert({"esito": f"errore IA {r.status_code}", "score": score, "model": final_model}, img_path, ref_path)
                 return
             j = r.json()
             answer = j["choices"][0]["message"]["content"] if "choices" in j else str(j)
             print(f"[OPENCV] AI Risposta: {answer[:500]}")
 
             # Parsa JSON
+            parsed = None
             try:
-                parsed = None
-                # Prova a estrarre JSON
-                import json as js
-                # Se risposta contiene solo JSON
-                parsed = js.loads(answer)
+                parsed = json.loads(answer)
                 if isinstance(parsed, dict) and "spaghetti" not in parsed:
-                    # Prova a cercare nested
-                    for v in parsed.values():
+                    for v in parsed.values():  # a volte la risposta e' dentro un altro oggetto
                         if isinstance(v, dict) and "spaghetti" in v:
                             parsed = v
                             break
-            except:
-                # Fallback: cerca JSON con regex
+            except Exception:
                 try:
-                    import json as js, re
                     m = re.search(r'\{[\s\S]*"spaghetti"[\s\S]*\}', answer)
                     if m:
-                        parsed = js.loads(m.group(0))
-                except:
+                        parsed = json.loads(m.group(0))
+                except Exception:
                     parsed = None
 
-            if parsed:
+            if isinstance(parsed, dict):
+                parsed, downgraded = apply_min_confidence(parsed, self.ai_min_confidence)
                 self.last_analysis = {
                     "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
                     "model": final_model,
                     "progress": progress,
                     "filename": filename,
                     "image_path": img_path,
+                    "with_reference": used_reference,
                     "analysis": parsed,
                     "raw": answer
                 }
-                self.stats["status"] = f"AI: {parsed.get('action','?')} - {parsed.get('summary','')[:40]}"
+                self.stats["status"] = f"AI: {parsed.get('action','?')} - {str(parsed.get('summary',''))[:40]}"
                 print(f"[OPENCV] AI analysis salvata: {parsed}")
+                confidences = [d.get("confidence") for k, d in parsed.items() if k in AI_DEFECT_KEYS and isinstance(d, dict) and d.get("detected") is True]
+                record_alert({
+                    "esito": "analizzato" + (" (declassato: fiducia sotto la soglia)" if downgraded else ""),
+                    "score": score, "progress": round(progress, 1), "filename": filename, "model": final_model,
+                    "action": parsed.get("action"), "action_originale": parsed.get("action_originale"),
+                    "confidence": max([c for c in confidences if isinstance(c, (int, float))] or [0]),
+                    "summary": parsed.get("summary"), "osservazione": parsed.get("osservazione"),
+                    "con_foto_di_prima": used_reference, "filtro": self.persistent_filter,
+                }, img_path, ref_path if used_reference else None)
             else:
                 self.last_analysis = {
                     "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
@@ -1766,6 +2029,7 @@ Rispondi SOLO con JSON valido + breve summary:
                     "analysis": {"action":"PAUSA","summary":answer[:200],"raw":True},
                     "raw": answer
                 }
+                record_alert({"esito": "risposta dell'IA non leggibile", "score": score, "model": final_model, "summary": answer[:200]}, img_path, ref_path)
 
         except Exception as e:
             print(f"[OPENCV] AI call fail: {e}")
@@ -2164,6 +2428,26 @@ def api_print_alerts():
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+@app.route("/api/print/alerts/history", methods=["GET"])
+def api_alert_history():
+    """Gli ultimi allarmi del monitor (con il verdetto dell'IA e i nomi delle foto), dal piu' recente."""
+    try:
+        limit = max(1, min(ALERT_HISTORY_KEEP, int(request.args.get("limit", 20))))
+    except ValueError:
+        limit = 20
+    return jsonify({"ok": True, "alerts": read_alert_history(limit)})
+
+
+@app.route("/api/print/alerts/image/<name>", methods=["GET"])
+def api_alert_image(name):
+    if not re.fullmatch(r"\d{8}-\d{6}-(adesso|prima)\.jpg", name):
+        return jsonify({"ok": False, "error": "nome non valido"}), 404
+    path = os.path.join(ALERT_HISTORY_DIR, name)
+    if not os.path.isfile(path):
+        return jsonify({"ok": False, "error": "foto non trovata"}), 404
+    return send_file(path, mimetype="image/jpeg", max_age=0)
+
 
 @app.route("/api/print/last_analysis", methods=["GET"])
 def api_print_last_analysis():
