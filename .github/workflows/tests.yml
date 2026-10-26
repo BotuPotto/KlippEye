@@ -27,7 +27,7 @@ jobs:
         with:
           python-version: "3.11"
       - name: Install the Python packages
-        run: pip install flask requests werkzeug numpy opencv-python-headless cryptography pillow playwright
+        run: pip install flask requests werkzeug numpy opencv-python-headless cryptography pillow playwright==1.56.0
       - name: Install Chromium (the notifier integration test starts the dashboard stand-in)
         run: python -m playwright install --with-deps chromium
       - name: Run the tests (no browser tests)
@@ -43,7 +43,7 @@ jobs:
         with:
           python-version: "3.11"
       - name: Install the Python packages
-        run: pip install flask requests werkzeug numpy opencv-python-headless pillow playwright
+        run: pip install flask requests werkzeug numpy opencv-python-headless pillow playwright==1.56.0
       - name: Install Chromium
         run: python -m playwright install --with-deps chromium
       - name: Run the browser tests

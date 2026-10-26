@@ -2,7 +2,8 @@
 
 ## Unreleased
 
-Repository only, nothing changes on the Raspberry:
+Almost only the repository; on the Raspberry the only change is a minimum space between the printer name and the round
+buttons of the top bar (on 360-pixel phones they could touch).
 
 * **License: GNU GPL v3.0** (`LICENSE`), the same as Klipper, Moonraker, Mainsail and Fluidd; third-party components in `THIRD_PARTY_NOTICES.md`.
 * **Dashboard sources** are now in the repository (`frontend/src`, `frontend/build.py`): the published `frontend/klippeye_frontend.html`

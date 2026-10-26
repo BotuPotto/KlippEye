@@ -18,6 +18,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px; /* the brand never touches the buttons: when space is short the printer name is cut with an ellipsis */
   box-sizing: border-box;
   width: 100%;
   max-width: 1400px;
