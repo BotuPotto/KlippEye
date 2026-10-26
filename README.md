@@ -17,7 +17,7 @@ Security: [SECURITY.md](SECURITY.md) · Contributing: [CONTRIBUTING.md](CONTRIBU
   editor, bed mesh, calibrations, endstops, service and host restarts, software updates.
 * AI print monitor: a local OpenCV filter on the Raspberry; an online AI (Groq or OpenAI, with your own key) only judges
   the pictures that look suspicious. Alerts are kept with their images.
-* Push notifications to the Android app (Firebase Cloud Messaging), with optional automatic pause/cancel.
+* Push notifications to the Android app (Firebase Cloud Messaging), in English or Italian, with optional automatic pause/cancel.
 * Self-repair after a power loss: damaged program files are restored from git at every start.
 * English and Italian dashboard (it follows the device's language; *Settings → Language* to choose).
 * Optional password, network checks (host name and origin of requests) and restricted permissions of the secrets.

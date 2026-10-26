@@ -8,7 +8,8 @@ def ok(name, cond, extra=""):
     if not cond: FAILS.append(name)
     print(("PASS " if cond else "FAIL ") + name + ((" :: " + str(extra)) if extra != "" else ""))
 
-USER_TEXTS = {
+# the Italian texts the notifications were asked with (release 1.0): they stay the Italian ones
+ITALIAN_TEXTS = {
     "error": "Stampante in errore! Effettuare riavvio.",
     "complete": "Stampa completata!",
     "cancelled": "Stampa interrotta!",
@@ -17,6 +18,7 @@ USER_TEXTS = {
     "ai_pause": "Difetti di stampa rilevati, verificare e mettere in pausa la stampa!",
     "ai_cancel": "Difetti gravi di stampa rilevati, verificare e interrompere la stampa",
 }
+USER_TEXTS = vn.MESSAGES["en"]  # with no language chosen the notifications are in English
 RUNOUT = "echo: O2S: Printer paused due to filament runout!"
 
 def cfg(**over):
@@ -41,7 +43,15 @@ class Sim:
 def ai(key, action): return vn.AiVerdict(key=key, action=action)
 
 # --------------------------------------------------------------------------------------------------- the texts
-ok("default texts are exactly the ones asked for", all(vn.DEFAULT_MESSAGES[k] == v for k, v in USER_TEXTS.items()), {k: vn.DEFAULT_MESSAGES[k] for k in USER_TEXTS if vn.DEFAULT_MESSAGES[k] != USER_TEXTS[k]})
+ok("the Italian texts are exactly the ones asked for", all(vn.MESSAGES["it"][k] == v for k, v in ITALIAN_TEXTS.items()), {k: vn.MESSAGES["it"][k] for k in ITALIAN_TEXTS if vn.MESSAGES["it"][k] != ITALIAN_TEXTS[k]})
+# the dashboard lists the same texts (Settings -> Notifications) in the same languages
+import re as _re
+_root = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..")
+_dash = dict(_re.findall(r'id: "(\w+)", title: [^}]*?text: txn\("([^"]+)"\)', open(os.path.join(_root, "frontend", "src", "app", "16-settings.js"), encoding="utf-8").read()))
+_it = json.load(open(os.path.join(_root, "frontend", "src", "i18n", "it.json"), encoding="utf-8"))
+ok("the dashboard shows the same English texts the service sends", len(_dash) == 7 and all(vn.MESSAGES["en"][k] == v for k, v in _dash.items()), _dash)
+ok("... and the same Italian ones", all(_it.get(v) == vn.MESSAGES["it"][k] for k, v in _dash.items()), {k: _it.get(v) for k, v in _dash.items()})
+ok("every language has every text", all(set(texts) == set(vn.MESSAGES["en"]) and all(texts.values()) for texts in vn.MESSAGES.values()), {k: set(vn.MESSAGES["en"]) ^ set(t) for k, t in vn.MESSAGES.items()})
 
 # --------------------------------------------------------------------------------------------------- starting up says nothing
 s = Sim(); s.lines = [(1.0, RUNOUT)]; s.state = "complete"; s.ai = ai("old", "CANCELLA")
@@ -122,7 +132,9 @@ s = started(); s.step(state="paused"); s.ai = ai("v0", "CONTINUA"); s.step(); ok
 for kind, drive in (("complete", lambda s: s.step(state="complete")), ("cancelled", lambda s: s.step(state="cancelled")), ("error", lambda s: s.step(klippy="shutdown"))):
     s = started(events={kind: False}); ok(f"switched off: {kind}", drive(s) == [])
 s = started(events={"ai_pause": False}); s.ai = ai("v0", "CONTINUA"); s.step(); ok("switched off: ai_pause (ai_cancel still on)", s.step(ai=ai("v1", "PAUSA")) == [] and s.step(ai=ai("v2", "CANCELLA")) == ["ai_cancel"])
-s = started(messages={"complete": "Fatto!"}); ok("a message can be changed in the config, the others stay", s.step(state="complete") == ["complete"] and s.log[-1][2] == "Fatto!" and cfg(messages={"complete": "x"})["messages"]["error"] == USER_TEXTS["error"])
+s = started(messages={"complete": "Fatto!"}); ok("a message can be changed in the config, the others stay", s.step(state="complete") == ["complete"] and s.log[-1][2] == "Fatto!" and vn.message_text(cfg(messages={"complete": "x"}), None, "error") == USER_TEXTS["error"])
+s = started(language="it"); ok("language 'it' in notifier.json: Italian texts", s.step(state="complete") == ["complete"] and s.log[-1][2] == "Stampa completata!")
+s = started(language="xx"); ok("an unknown language in notifier.json: English", s.step(state="complete") == ["complete"] and s.log[-1][2] == "Print completed!")
 
 # --------------------------------------------------------------------------------------------------- the console lines
 s = Sim(); s.lines = [(5000.0, "old")]; s.step(); s.line(RUNOUT, 4000.0)
@@ -179,8 +191,8 @@ ok("every kind has a channel (the two 'automatically' texts belong to the AI kin
 
 # --------------------------------------------------------------------------------------------------- config
 c = vn.merge(vn.DEFAULT_CONFIG, {"messages": {"complete": "Ok"}, "events": {"paused": False}, "topic": "t"})
-ok("config: nested dictionaries are merged, not replaced", c["messages"]["complete"] == "Ok" and c["messages"]["error"] == USER_TEXTS["error"] and c["events"]["paused"] is False and c["events"]["error"] is True)
-ok("config: the defaults dictionary is not changed", vn.DEFAULT_CONFIG["events"]["paused"] is True and vn.DEFAULT_CONFIG["messages"]["complete"] == "Stampa completata!")
+ok("config: nested dictionaries are merged, not replaced", c["messages"] == {"complete": "Ok"} and c["events"]["paused"] is False and c["events"]["error"] is True)
+ok("config: the defaults dictionary is not changed", vn.DEFAULT_CONFIG["events"]["paused"] is True and vn.DEFAULT_CONFIG["messages"] == {})
 
 
 # =================================================================================================== version 1.1: the dashboard's settings
@@ -216,7 +228,7 @@ def printing2(**over):
 
 # ---- sanitising: the document comes from a browser
 ok("settings: nothing stored -> every notification as in notifier.json, automatic actions off, 1 verdict, no filters",
-   vn.dash_settings({}) == {"events": {}, "ai": {"auto_pause": False, "auto_cancel": False, "confirmations": 1, "min_confidence": 0, "defects": {k: True for k in vn.DASH_DEFECTS}}, "stamp": 0})
+   vn.dash_settings({}) == {"events": {}, "ai": {"auto_pause": False, "auto_cancel": False, "confirmations": 1, "min_confidence": 0, "defects": {k: True for k in vn.DASH_DEFECTS}}, "language": None, "stamp": 0})
 for junk in (None, "x", 5, [], {"ai": "x", "notifications": 3}, {"ai": {"autoPause": "yes", "autoCancel": 1, "confirmations": "2", "minConfidence": 60, "defects": {"warping": 0}}}):
     d = vn.dash_settings(junk)
     ok("settings: garbage %r changes nothing (no automatic action, defaults)" % (junk,), not d["ai"]["auto_pause"] and not d["ai"]["auto_cancel"] and d["ai"]["confirmations"] == 1 and d["ai"]["min_confidence"] == 0 and all(d["ai"]["defects"].values()) and d["events"] == {}, d)
@@ -224,9 +236,20 @@ ok("settings: only a real true switches an automatic action on (not 1, not 'true
 ok("settings: confirmations only 1-3, confidence only 0/50/70/85, True is not a number", vn.dash_settings({"ai": {"confirmations": 3, "minConfidence": 85}})["ai"]["confirmations"] == 3 and vn.dash_settings({"ai": {"confirmations": 9, "minConfidence": 60}})["ai"]["confirmations"] == 1 and vn.dash_settings({"ai": {"minConfidence": 60}})["ai"]["min_confidence"] == 0 and vn.dash_settings({"ai": {"confirmations": True}})["ai"]["confirmations"] == 1)
 ok("settings: a notification switch must be a real boolean", vn.dash_settings({"notifications": {"error": False, "paused": "no", "complete": 0, "bogus": False}})["events"] == {"error": False})
 
+# ---- the language of the notifications chosen in the dashboard (1.3)
+ok("settings: the language is one the service has, else not chosen", vn.dash_settings({"language": "it"})["language"] == "it" and vn.dash_settings({"language": "fr"})["language"] is None and vn.dash_settings({"language": 1})["language"] is None)
+s = Sim2(); s.step(); s.step(state="printing"); s.settings = doc(language="it")
+ok("language: Italian chosen in the dashboard -> Italian push", s.step(state="complete") == ["complete"] and s.log[-1][2] == "Stampa completata!", s.log)
+s = Sim2(language="it"); s.step(); s.step(state="printing"); s.settings = doc(language="en")
+ok("language: the dashboard's choice wins over notifier.json", s.step(state="complete") == ["complete"] and s.log[-1][2] == "Print completed!", s.log)
+s = Sim2(messages={"complete": "Finito"}); s.step(); s.step(state="printing"); s.settings = doc(language="it")
+ok("language: a text written in notifier.json wins over the language", s.step(state="complete") == ["complete"] and s.log[-1][2] == "Finito", s.log)
+s = Sim2(); s.printing(); s.settings = doc(language="it", autoPause=True); s.step(ai=verdict("p1", "PAUSA")); s.w.report_action("pause", True); s.step(state="paused")
+ok("language: the 'automatically' text is Italian too", [x[2] for x in s.log if x[1] == "ai_pause"] == ["Difetti di stampa rilevati: stampa messa in pausa automaticamente."], s.log)
+
 # ---- the notification switches of the dashboard win over notifier.json
 s = started2 = Sim2(); s.step(); s.step(state="printing"); s.settings = doc(notifications={"complete": False})
-ok("switch: 'Stampa completata' off in the dashboard -> no push", s.step(state="complete") == [] and s.step() == [])
+ok("switch: 'Print completed' off in the dashboard -> no push", s.step(state="complete") == [] and s.step() == [])
 s = Sim2(events={"complete": False}); s.step(); s.step(state="printing"); s.settings = doc(notifications={"complete": True})
 ok("switch: on in the dashboard wins over 'false' in notifier.json", s.step(state="complete") == ["complete"])
 s = Sim2(events={"complete": False}); s.step(); s.step(state="printing"); s.settings = {}
@@ -276,7 +299,7 @@ ok("auto pause ON: a PAUSA verdict asks for a pause, and no notice goes out yet"
 s.w.report_action("pause", True); s.step(state="paused", dt=0.1); k = s.step(dt=0.1)
 ok("... when it is done the notice says it was done automatically (the ai_pause kind, the 'automatically' text)", [x for x in s.log if x[1] == "ai_pause"] and s.log[-1][2] == vn.DEFAULT_MESSAGES["ai_pause_auto"] and s.log[-1][1] == "ai_pause", s.log)
 s.step(dt=10); s.step(dt=10)
-ok("... and the plain 'Stampante in pausa' is NOT sent on top (the pause was ours)", [x[1] for x in s.log] == ["ai_pause"], s.log)
+ok("... and the plain 'Printer paused' is NOT sent on top (the pause was ours)", [x[1] for x in s.log] == ["ai_pause"], s.log)
 ok("... and the dashboard is told what happened", s.w.last_action and s.w.last_action["kind"] == "pause" and s.w.last_action["ok"] is True, s.w.last_action)
 s.step(state="printing"); n = len(s.actions)
 s.step(ai=verdict("b", "PAUSA"), dt=200)
@@ -304,7 +327,7 @@ ok("auto cancel only: a PAUSA verdict is NOT cancelled (just notified)", s.actio
 k = s.step(ai=verdict("b", "CANCELLA"), dt=200)
 ok("auto cancel ON: a CANCELLA verdict asks for the cancel, no notice yet", s.actions == ["cancel"] and k == [], (s.actions, k))
 s.step(state="cancelled", dt=0.1); s.w.report_action("cancel", True); s.step(dt=0.1)
-ok("... then: the 'automatically' text, and no plain 'Stampa interrotta!' on top", [x[1] for x in s.log] == ["ai_pause", "ai_cancel"] and s.log[-1][2] == vn.DEFAULT_MESSAGES["ai_cancel_auto"], s.log)
+ok("... then: the 'automatically' text, and no plain 'Print cancelled!' on top", [x[1] for x in s.log] == ["ai_pause", "ai_cancel"] and s.log[-1][2] == vn.DEFAULT_MESSAGES["ai_cancel_auto"], s.log)
 s.step(dt=10)
 
 s = printing2(); s.settings = doc(autoPause=True)
@@ -390,7 +413,7 @@ time.sleep(0.02)
 open(watched, "w").write("y = 2\n")
 runner.join(5)
 ok("run(): file replaced -> the service ends by itself (systemd restarts it)", not runner.is_alive() and stop.is_set())
-ok("version is 1.2", vn.__version__ == "1.2", vn.__version__)
+ok("version is 1.3", vn.__version__ == "1.3", vn.__version__)
 
 print("\nFAILED: %d %s" % (len(FAILS), FAILS) if FAILS else "\nALL PASS")
 sys.exit(1 if FAILS else 0)

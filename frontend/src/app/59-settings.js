@@ -544,9 +544,14 @@ function NotificationsPage({ active }) {
         "div",
         { className: "oui-list" },
         NOTIFICATION_KINDS.map((kind) =>
-          h(SwitchRow, { key: kind.id, title: kind.title, detail: kind.text, checked: settings.notifications[kind.id], onChange: (value) => update((draft) => (draft.notifications[kind.id] = value)) }),
+          h(SwitchRow, { key: kind.id, title: kind.title, detail: txIn(settings.language, kind.text), checked: settings.notifications[kind.id], onChange: (value) => update((draft) => (draft.notifications[kind.id] = value)) }),
         ),
       ),
+    ),
+    h(
+      SettingsGroup,
+      { title: tx("Language of the notifications"), note: tx("The same for every phone, whatever language the dashboard shows.") },
+      h(ChoiceRows, { label: tx("Language of the notifications"), options: I18N_LANGUAGES.map((language) => ({ id: language.code, label: language.name })), value: settings.language, onChange: (id) => update((draft) => (draft.language = id)) }),
     ),
   );
 }
