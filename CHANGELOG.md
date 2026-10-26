@@ -2,6 +2,12 @@
 
 ## 1.1.0
 
+* **Monitor IA con meno falsi allarmi**: il confronto non usa più solo la foto precedente ma uno sfondo calcolato su più foto (la mediana di 7 foto, coperte per circa un minuto), perciò
+  la testina e i passaggi veloci spariscono dallo sfondo; ignora i cambi di luce (se più del 30% dell'immagine cambia di colpo, quel controllo non conta) e normalizza la luminosità;
+  un cambiamento conta solo se **resta** per alcuni controlli di fila; all'IA online va anche la foto di riferimento (prima) con un testo neutro; se l'IA non è abbastanza sicura
+  (fiducia sotto il 70%) il problema non viene segnalato. Nuovo **storico degli allarmi** con le immagini in `~/printer_data/klippeye/allarmi/`
+  (`/api/print/alerts/history`). Tutte le soglie si regolano da *Impostazioni → Monitor IA*; «Ignora i movimenti passeggeri» spento riporta il comportamento di prima.
+* Corretto: dopo «spegni e riaccendi» il monitor poteva avere per qualche secondo due cicli di controllo insieme; ora il vecchio ciclo si ferma subito.
 * **Riparazione automatica dopo un blackout**: se la corrente salta e un file del programma resta vuoto o a metà (dashboard bianca, servizio che non parte), a ogni avvio
   `scripts/ripara.sh` confronta i file con la copia buona che git ha sul Raspberry (niente internet) e rimette a posto solo quelli rovinati o spariti, toglie anche il blocco di git
   rimasto. Parte prima del servizio (`ExecStartPre`), all'avvio del backend e quando la pagina risulta vuota/troncata (che mostra intanto una pagina d'emergenza 503 che si ricarica

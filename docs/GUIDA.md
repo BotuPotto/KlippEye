@@ -35,7 +35,8 @@ cambia al passo successivo). La pagina si ricarica da sola. Nel menu **Aggiornam
 **P5. L'app Android nuova.** L'app ha cambiato nome *interno* (`com.klippeye.app`, prima `com.vzbot.dashboard`): per Android è **un'altra app**, quindi la nuova si installa
 *accanto* alla vecchia e poi si toglie la vecchia. Serve un passo su Firebase (le notifiche dell'app nuova):
 
-1. Console Firebase → il tuo progetto → ingranaggio → *Impostazioni progetto* → *Le tue app* → **Aggiungi app** → Android → **nome del pacchetto** `com.klippeye.app` → *Registra app*
+1. **Usa lo STESSO progetto Firebase del Raspberry** (non crearne uno nuovo): l'ID si legge con `grep project_id ~/printer_data/klippeye/service-account.json` (per esempio `vzbot-f256b`). Se l'app e il Raspberry stanno in progetti diversi le notifiche partono ma non arrivano mai.
+   Console Firebase → quel progetto → ingranaggio → *Impostazioni progetto* → *Le tue app* → **Aggiungi app** → Android → **nome del pacchetto** `com.klippeye.app` → *Registra app*
    → scarica `google-services.json`. (L'app vecchia resta registrata: non toccarla finché non l'hai disinstallata.)
 2. GitHub → *Settings → Secrets and variables → Actions* → apri il segreto `GOOGLE_SERVICES_JSON` → **Update** → incolla il contenuto del file nuovo.
 3. Il segreto della chiave: se in C1 avevi chiamato il segreto `VZBOT_CHIAVE_PASSWORD`, va bene lo stesso (il nuovo nome è `KLIPPEYE_CHIAVE_PASSWORD`: GitHub usa
@@ -314,3 +315,22 @@ Per sapere cosa è successo: `klippeye ripara log` (SSH) oppure il file `~/print
 `/api/version` il campo `repair`. Per controllare a mano: `klippeye ripara`.
 **Se modifichi i file del programma a mano** (sconsigliato, ma succede) la riparazione li rimetterebbe com'erano: prima crea un file vuoto
 `~/printer_data/klippeye/non-riparare` (`touch ~/printer_data/klippeye/non-riparare`), e toglilo quando hai finito.
+
+---
+
+## H. Monitor IA: come ridurre i falsi allarmi
+
+Il monitor guarda la camera ogni circa 3 secondi. Dalla 1.1.0 confronta ogni foto con uno **sfondo** (la mediana delle ultime foto) invece che con la foto precedente, ignora i cambi di luce e
+vuole che il cambiamento **resti** per alcuni controlli. Se qualcosa scatta, manda all'IA online la foto di adesso e quella di prima.
+
+Cosa regolare in *Impostazioni → Monitor IA* se hai ancora falsi allarmi:
+
+| Se succede… | Prova a… |
+|---|---|
+| Allarmi quando passa la testina | lasciare acceso «Ignora i movimenti passeggeri»; alzare «Controlli di fila in cui il cambiamento deve restare» (3 → 4 o 5) |
+| Allarmi quando cambia la luce | tenere «Cambio di luce» a 30 (abbassa per essere più severo); fissare l'esposizione della camera e coprire il LED con carta da forno |
+| L'IA segnala problemi dubbi | alzare «Fiducia minima dell'IA» (70 → 80); nel pannello Notifiche alzare anche la «confidenza minima» |
+| Non si accorge di un guasto vero | abbassare «Movimento ai bordi» o allargare «Area controllata» |
+
+Ogni allarme salva l'immagine in `~/printer_data/klippeye/allarmi/`: l'elenco è nel pannello del monitor e in `/api/print/alerts/history`. Guardarle aiuta a capire cosa ha fatto scattare il monitor.
+

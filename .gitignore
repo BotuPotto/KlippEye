@@ -1,0 +1,20 @@
+__pycache__/
+*.pyc
+*.pyo
+*.orig
+*.bak
+*.rovinato-*
+.DS_Store
+Thumbs.db
+
+# App Android: quello che si fabbrica sul computer o che non deve stare nel repository
+# (la chiave android/chiave/klippeye.p12 invece SI carica: e' cifrata con la password che sta nei segreti di GitHub)
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/.idea/
+*.iml
+android/app/google-services.json
+*.jks
+*.keystore
