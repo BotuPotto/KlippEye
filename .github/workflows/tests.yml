@@ -19,7 +19,7 @@ concurrency:
 jobs:
   backend:
     name: Backend, notifier, app CI, frontend build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04   # pinned: Playwright 1.56 installs its system libraries on 24.04 (ubuntu-latest moves to 26)
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
@@ -35,7 +35,7 @@ jobs:
 
   ui:
     name: Dashboard in the browser
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04   # pinned: Playwright 1.56 installs its system libraries on 24.04 (ubuntu-latest moves to 26)
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
