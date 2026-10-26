@@ -1,5 +1,23 @@
 # Cosa cambia in ogni release
 
+## 1.2.0
+
+* **Password facoltativa** (*Impostazioni → Accesso*): spenta di serie, quindi tutto funziona come prima finché non la attivi. Con la password attiva ogni dispositivo
+  (browser o app) la chiede una volta e la ricorda per 6 mesi; senza accesso il backend non apre niente: dashboard, camera, comandi, file, log e il ponte verso Moonraker.
+  Dal menu: attivarla, cambiarla, toglierla, far uscire gli altri dispositivi, uscire da questo. Dal Raspberry: `klippeye password` (imposta), `klippeye password togli`
+  (password dimenticata), `klippeye password stato`, `klippeye password esci-tutti`. Non viene mai salvata la password, solo il suo «hash» con sale in
+  `~/printer_data/klippeye/accesso.json` (permessi 600). Dopo 5 tentativi sbagliati dallo stesso indirizzo bisogna aspettare (da 2 secondi a 5 minuti).
+* **Controlli di rete, sempre attivi** (anche senza password): il backend risponde solo se lo chiami con un indirizzo IP, il nome del Raspberry o un nome della rete
+  di casa (`.local`, `.lan`…), e rifiuta i comandi che arrivano da pagine di altri siti. Niente più CORS «aperto a tutti». Per un nome tuo (es. un dominio):
+  `klippeye accesso host-aggiungi NOME`; per tornare al comportamento di prima: `klippeye accesso controlli-rete off`.
+* **I servizi del Raspberry** (notifiche, comando `klippeye`) si presentano al backend con un gettone interno (`interno.token`, permessi 600): le notifiche
+  dell'IA funzionano anche con la password attiva.
+* **Permessi dei segreti**: all'avvio il backend riporta a 600 `ai.json`, `service-account.json`, `notifier.json`, `accesso.json` e alla cartella dati 700
+  se qualcuno li ha copiati a mano con permessi larghi (lo scrive nel log).
+* La chiave dell'IA nella dashboard si vede solo nelle ultime 4 lettere (prima anche le prime 8).
+* **App Android 1.2.0**: i download (log, file, immagini) mandano il cookie di accesso; il cookie resta salvato anche se Android chiude l'app.
+* `flask_cors` non serve più (resta facoltativo, solo per sviluppo con `KLIPPEYE_CORS`).
+
 ## 1.1.1
 
 * **Monitor IA con meno falsi allarmi**: il confronto non usa più solo la foto precedente ma uno sfondo calcolato su più foto (la mediana di 7 foto, coperte per circa un minuto), perciò

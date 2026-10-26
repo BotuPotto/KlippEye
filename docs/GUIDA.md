@@ -334,3 +334,38 @@ Cosa regolare in *Impostazioni → Monitor IA* se hai ancora falsi allarmi:
 
 Ogni allarme salva l'immagine in `~/printer_data/klippeye/allarmi/`: l'elenco è nel pannello del monitor e in `/api/print/alerts/history`. Guardarle aiuta a capire cosa ha fatto scattare il monitor.
 
+---
+
+## I. Password e sicurezza (dalla 1.2.0)
+
+**Di serie non cambia niente**: la password è spenta e la dashboard si apre come prima. Attivarla è consigliato se in casa ci sono altri dispositivi, ospiti sul Wi-Fi
+o se usi ZeroTier/VPN.
+
+**Attivarla**: dashboard → menu ☰ → **Accesso** → scrivi la password due volte (almeno 6 caratteri) → **Attiva la password**. Il dispositivo che stai usando resta dentro;
+gli altri (anche l'app sul telefono) mostrano una volta la pagina «Accedi» e poi ricordano l'accesso per 6 mesi.
+
+**App Android**: aggiornala alla **1.2.0** (*Impostazioni → Aggiornamenti → App Android*). Funziona anche la 1.1.0, ma con la password attiva non riesce a scaricare file e log sul telefono.
+
+Nella stessa pagina: **Cambia la password** (serve quella attuale; gli altri dispositivi dovranno rientrare), **Fai uscire tutti gli altri dispositivi**,
+**Esci da questo dispositivo**, **Togli la password** (serve quella attuale).
+
+**Password dimenticata**: entra nel Raspberry con SSH (dal terminale del PC: `ssh pi@INDIRIZZO-DEL-RASPBERRY`, con il tuo utente) e scrivi `klippeye password togli`. Per sceglierne una nuova da lì: `klippeye password`.
+Senza `sudo`.
+
+**Controlli di rete** (sempre accesi, anche senza password): il backend risponde solo se lo chiami con l'**indirizzo IP** del Raspberry (casa o ZeroTier), con il suo
+**nome** (es. `http://voron:8085`) o con un nome della rete di casa (`.local`, `.lan`…). Se lo apri con un nome diverso (un tuo dominio, un nome di Tailscale) compare un
+messaggio con il comando da usare, per esempio:
+
+```
+klippeye accesso host-aggiungi stampante.casa.it
+```
+
+Rifiuta anche i comandi che arrivano da **pagine di altri siti** aperte nel browser. Se qualcosa che usavi smette di funzionare: `klippeye accesso controlli-rete off`
+riporta il comportamento di prima (e dimmelo, così lo sistemiamo).
+
+**Se un blackout rovina il file della password** (`accesso.json`) il backend riparte **senza** password, invece di chiuderti fuori: in *Accesso* vedrai «Password non
+attiva» e potrai riattivarla.
+
+**Cosa non fa la password**: non protegge Moonraker sulla porta 7125 né Mainsail/Fluidd (hanno le loro impostazioni, sezione `[authorization]` di `moonraker.conf`), e il
+traffico resta in chiaro (http) sulla rete di casa. Non aprire mai la porta 8085 su internet: da fuori casa usa ZeroTier o Tailscale.
+

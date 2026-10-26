@@ -13,6 +13,7 @@ import android.os.Environment
 import android.provider.MediaStore
 import android.text.InputType
 import android.view.View
+import android.webkit.CookieManager
 import android.webkit.JavascriptInterface
 import android.webkit.MimeTypeMap
 import android.webkit.URLUtil
@@ -421,6 +422,12 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    override fun onPause() {
+        super.onPause()
+        // Il cookie di accesso resta salvato anche se Android chiude l'app subito dopo: niente password da rifare
+        CookieManager.getInstance().flush()
+    }
+
     override fun onResume() {
         super.onResume()
         // Tornati dalla pagina dei permessi di Android: se ora KlippEye puo' installare, l'aggiornamento riparte da solo
@@ -468,6 +475,8 @@ class MainActivity : AppCompatActivity() {
         val connection = url.openConnection() as HttpURLConnection
         connection.connectTimeout = 5000
         connection.readTimeout = 30000
+        // Con la password attiva (KlippEye 1.2.0) il Raspberry vuole il gettone di accesso: e' il cookie della WebView
+        CookieManager.getInstance().getCookie(url.toString())?.let { connection.setRequestProperty("Cookie", it) }
         try {
             val code = connection.responseCode
             if (code !in 200..299) throw IOException("HTTP $code")

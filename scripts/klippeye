@@ -39,16 +39,23 @@ case "${1:-aiuto}" in
     if [ -e "$DATA/non-riparare" ]; then echo "  Autoriparazione    SPENTA (c'e' il file $DATA/non-riparare)"
     elif [ -f "$DATA/ripristino.json" ]; then echo "  Autoriparazione    attiva; ultimo ripristino: $(cat "$DATA/ripristino.json")"
     else echo "  Autoriparazione    attiva (nessun file rovinato finora)"; fi
-    python3 - "$BRAIN_URL" <<'PY'
-import json, sys, urllib.request
+    python3 - "$BRAIN_URL" "$DATA" <<'PY'
+import json, os, sys, urllib.request
+headers = {}
+try:  # con la password attiva il backend chiede il gettone interno dei servizi del Raspberry
+    headers["X-KlippEye-Token"] = open(os.path.join(sys.argv[2], "interno.token")).read().strip()
+except OSError:
+    pass
+def get(path):
+    return json.load(urllib.request.urlopen(urllib.request.Request(sys.argv[1] + path, headers=headers), timeout=4))
 try:
-    d = json.load(urllib.request.urlopen(sys.argv[1] + "/api/version", timeout=4))
+    d = get("/api/version")
     print("  Il backend risponde: release %s, interfaccia %s, acceso da %d minuti" % (d.get("release"), d.get("api"), d.get("uptime", 0) // 60))
 except Exception as e:
     print("  Il backend NON risponde su %s (%s)" % (sys.argv[1], e))
 else:
     try:
-        a = json.load(urllib.request.urlopen(sys.argv[1] + "/api/app/version", timeout=4))
+        a = get("/api/app/version")
         print("  App Android: " + ("la %s e' pronta per il telefono" % a["version"] if a.get("available") else "niente da offrire (%s)" % a.get("reason", "?")))
     except Exception:
         pass
@@ -90,6 +97,19 @@ PY
     bash "$REPO/scripts/ripara.sh" && { [ -f "$DATA/ripristino.json" ] && echo "Ultimo ripristino: $(cat "$DATA/ripristino.json")"; }
     echo "Se i file sono stati rimessi a posto: klippeye riavvia"
     ;;
+  password)
+    [ "$(id -u)" = 0 ] && { echo "Senza sudo, per favore: il file della password deve restare dell'utente dei servizi."; exit 1; }
+    # password della dashboard (facoltativa): "klippeye password" la imposta, "togli" la toglie, "stato" dice com'e'
+    case "${2:-imposta}" in
+      imposta|togli|stato|esci-tutti) KLIPPEYE_DATA="$DATA" exec python3 "$REPO/backend/accesso.py" "${2:-imposta}" ;;
+      *) echo "Uso: klippeye password [imposta|togli|stato|esci-tutti]"; exit 2 ;;
+    esac
+    ;;
+  accesso)
+    [ "$(id -u)" = 0 ] && { echo "Senza sudo, per favore: il file della password deve restare dell'utente dei servizi."; exit 1; }
+    # nomi di rete in piu' e controlli di rete:  klippeye accesso host-aggiungi stampante.casa.it | host-togli NOME | controlli-rete on|off
+    KLIPPEYE_DATA="$DATA" exec python3 "$REPO/backend/accesso.py" "${2:-stato}" "${@:3}"
+    ;;
   annulla)
     exec bash "$REPO/scripts/install.sh" --annulla
     ;;
@@ -102,6 +122,8 @@ klippeye riavvia [backend|notifiche|tutto]
 klippeye ripara            controlla i file del programma e rimette a posto quelli rovinati da un blackout  (ripara log: cosa e' stato fatto)
 klippeye aggiorna          scarica l'ultima versione e riavvia (come il tasto Aggiorna della dashboard)
 klippeye notifiche prova   manda una notifica di prova al telefono   (anche: controlla)
+klippeye password          imposta la password della dashboard (facoltativa); "password togli" la toglie, "password stato" dice com'e'
+klippeye accesso host-aggiungi NOME   ammette un nome di rete in piu' (es. stampante.casa.it)   (anche: host-togli, controlli-rete on|off)
 klippeye annulla           torna alla disposizione dei file di prima dell'installazione a contenitore (release 1.0)
 HELP
     ;;

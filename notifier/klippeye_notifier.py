@@ -137,7 +137,21 @@ def load_config(path: str) -> Dict[str, Any]:
     base = os.path.dirname(os.path.abspath(path))
     if not os.path.isabs(config["service_account_file"]):
         config["service_account_file"] = os.path.join(base, config["service_account_file"])
+    config["_token_file"] = os.path.join(base, "interno.token")  # creato dal backend (1.2.0): con la password attiva il backend lo chiede
     return config
+
+
+def brain_headers(config: Dict[str, Any]) -> Dict[str, str]:
+    """Il gettone interno dei servizi del Raspberry, se c'e' (si rilegge ogni volta: il backend puo' crearlo dopo)."""
+    path = config.get("_token_file")
+    if not path:
+        return {}
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            token = handle.read().strip()
+    except OSError:
+        return {}
+    return {"X-KlippEye-Token": token} if token else {}
 
 
 # ---------------------------------------------------------------------------------------------------------------------
@@ -536,6 +550,7 @@ class PrinterReader:
     def __init__(self, config: Dict[str, Any]) -> None:
         self.moonraker = config["moonraker_url"].rstrip("/")
         self.brain = config["brain_url"].rstrip("/")
+        self.config = config
         self.ai_every = float(config["ai_poll_seconds"])
         self.settings_every = float(config["settings_poll_seconds"])
         self.action_timeout = float(config["action_timeout_seconds"])
@@ -632,7 +647,7 @@ class PrinterReader:
 
     def _read_ai(self) -> Optional[AiVerdict]:
         try:
-            status, response = http_json(self.brain + "/api/print/last_analysis")
+            status, response = http_json(self.brain + "/api/print/last_analysis", headers=brain_headers(self.config))
         except OSError:
             self._note("brain", False, "Il backend (analisi IA)")
             return None
@@ -1015,7 +1030,7 @@ def command_check(config: Dict[str, Any]) -> int:
     except OSError as error:
         report(False, "", "Moonraker non raggiungibile su %s (%s). Controlla \"moonraker_url\"" % (config["moonraker_url"], error))
     try:
-        status, response = http_json(config["brain_url"].rstrip("/") + "/api/print/last_analysis")
+        status, response = http_json(config["brain_url"].rstrip("/") + "/api/print/last_analysis", headers=brain_headers(config))
         report(status == 200, "backend raggiunto (analisi IA)", "Il backend risponde %s su %s: gli avvisi dell'IA non arriveranno" % (status, config["brain_url"]), required=False)
     except OSError as error:
         report(False, "", "backend non raggiungibile su %s (%s): gli avvisi dell'IA non arriveranno" % (config["brain_url"], error), required=False)
