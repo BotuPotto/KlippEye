@@ -64,6 +64,26 @@ const AI_BADGES = {
   pause: { rgb: "255,183,64", hex: "#ffb740", glow: 0.4, title: tx("Defect - PAUSE suggested") },
 };
 
+/**
+ * The detector's status line, written by the backend in English (1.7.0), in the page's language. Technical words
+ * (idle, scanning, TRIGGERED, cooldown) stay as they are; an Italian line of an older backend passes unchanged.
+ */
+const DETECTOR_STATUS_TEXTS = [
+  [/^idle - waiting for a print$/, () => tx("idle - waiting for a print")],
+  [/^heating\/mesh - waiting for the real print(.*)$/, (m) => tx("heating/mesh - waiting for the real print") + m[1]],
+  [/^preparing the comparison \((\d+)\/(\d+) pictures\)$/, (m) => tx("preparing the comparison ({count}/{total} pictures)", { count: m[1], total: m[2] })],
+  [/^light change or camera moved \((\d+)% of the picture\): ignored$/, (m) => tx("light change or camera moved ({percent}% of the picture): ignored", { percent: m[1] })],
+  [/^scanning \(large lasting change\)$/, () => "scanning (" + tx("large lasting change") + ")"],
+  [/^cv2 not installed$/, () => tx("OpenCV not installed")],
+];
+function detectorStatusText(status) {
+  for (const [pattern, text] of DETECTOR_STATUS_TEXTS) {
+    const match = pattern.exec(status);
+    if (match) return text(match);
+  }
+  return status;
+}
+
 /** Card header pill + dot for the detector status. */
 function describeDetector(json) {
   const stats = json.stats || {};
@@ -73,11 +93,11 @@ function describeDetector(json) {
   const realStarted = json.real_print_started !== undefined ? json.real_print_started : stats.real_print_started;
 
   let pill = { text: tx("Waiting for a print"), tone: "waiting" };
-  if (realStarted === false && status.toLowerCase().includes("riscaldamento")) pill = { text: tx("Heating/mesh - waiting for the real print"), tone: "warming" };
+  if (realStarted === false && /heating|riscaldamento/i.test(status)) pill = { text: tx("Heating/mesh - waiting for the real print"), tone: "warming" };
   else if (printing) pill = { text: tx("Monitoring on • printing"), tone: "active" };
 
   return {
-    state: (status || "idle").slice(0, 30),
+    state: detectorStatusText(status || "idle").slice(0, 30),
     score: (stats.last_score || 0) + "%",
     checks: stats.frames_checked || 0,
     dot: printing ? "active" : idle ? "idle" : "warming",

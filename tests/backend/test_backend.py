@@ -453,7 +453,7 @@ o = outcome(m)
 check("min_progress=0.5: con 1% il controllo parte", o["frames"] > 0, o)
 m, _ = run_scenario(NEW_BRAIN, fake, frames_edge, 5, interval=1, state={"hotend": 190.0})
 o = outcome(m)
-check("ugello 20 gradi sotto il target (tolleranza 8): attende", o["frames"] == 0 and "non a temp" in m.detector.stats.get("real_print_reason", ""), (o, m.detector.stats.get("real_print_reason")))
+check("ugello 20 gradi sotto il target (tolleranza 8): attende", o["frames"] == 0 and "not at temperature" in m.detector.stats.get("real_print_reason", ""), (o, m.detector.stats.get("real_print_reason")))
 m, _ = run_scenario(NEW_BRAIN, fake, frames_edge, 9, interval=1, state={"hotend": 190.0}, brain_json={"hotend_tolerance": 25})
 o = outcome(m)
 check("hotend_tolerance=25: il controllo parte", o["frames"] > 0, o)
@@ -514,7 +514,7 @@ check("testina che passa E macchia che resta: scatta per la macchia, non per la 
 m, tr6 = run_scenario(NEW_BRAIN, fake, still, 6, interval=1, brain_json=FILTER)
 o = outcome(m)
 check("all'inizio prepara lo sfondo: nessun allarme prima di avere 5 foto ('preparo il confronto')", not o["triggered"] and o["anomalies"] == 0, (o, m.detector.stats["status"]))
-check("... e lo dice nello stato", any("preparo il confronto" in str(t[5]) for t in tr6), [t[5] for t in tr6])  # lo stato si legge MENTRE gira: a rilevatore fermo dice solo "stopped"
+check("... e lo dice nello stato", any("preparing the comparison" in str(t[5]) for t in tr6), [t[5] for t in tr6])  # lo stato si legge MENTRE gira: a rilevatore fermo dice solo "stopped"
 
 m, _ = run_scenario(NEW_BRAIN, fake, still, 24, interval=1, brain_json=dict(FILTER, persistent_filter=False))
 check("filtro spento: torna il rilevamento di prima (nessuna foto di sfondo conservata)", len(m.detector.ref_small) == 0 and m.detector.bg is None)
@@ -719,7 +719,10 @@ check("la cartella apk/ del repository e' accanto a backend/ (come scrive il wor
       and load_brain(NEW_BRAIN, tmp(), brain_json={"values": {"enabled": False}}).APK_PATH == os.path.join(os.path.dirname(os.path.dirname(NEW_BRAIN)), "apk", "KlippEye.apk"))
 r = cl.get("/api/app/version")
 j = r.get_json()
-check("senza apk/: 200, available=false e il motivo", r.status_code == 200 and j["ok"] and j["available"] is False and "nessuna app" in j["reason"], j)
+check("senza apk/: 200, available=false e il motivo (in inglese di serie)", r.status_code == 200 and j["ok"] and j["available"] is False and "no app published" in j["reason"], j)
+cl.set_cookie("klippeye_lang", "it")
+check("... e in italiano per una dashboard in italiano (cookie klippeye_lang)", "nessuna app" in cl.get("/api/app/version").get_json()["reason"])
+cl.delete_cookie("klippeye_lang")
 check("... e il file non si scarica (404 con il motivo)", cl.get("/app/KlippEye.apk").status_code == 404 and cl.get("/app/KlippEye.apk").get_json()["ok"] is False)
 
 apk = bytes((i * 7 + 3) % 251 for i in range(300000))
@@ -753,7 +756,7 @@ check("l'impronta non si ricalcola a ogni richiesta (file invariati)", calls == 
 apk2 = apk[:-1] + b"X"
 open(ba.APK_PATH, "wb").write(apk2)
 j = cl.get("/api/app/version").get_json()
-check("APK cambiato ma version.json no: non si offre (impronta diversa)", j["available"] is False and "impronta" in j["reason"] and len(calls) == 1, (j, calls))
+check("APK cambiato ma version.json no: non si offre (impronta diversa)", j["available"] is False and "fingerprint" in j["reason"] and len(calls) == 1, (j, calls))
 check("... e il file non si scarica", cl.get("/app/KlippEye.apk").status_code == 404)
 info.update(sha256=hashlib.sha256(apk2).hexdigest(), version="1.0.1", code=10001)
 json.dump(info, open(ba.APK_INFO_PATH, "w"))
@@ -767,7 +770,7 @@ def offre():
 
 open(ba.APK_PATH, "wb").write(apk2[:1000])
 j = offre()
-check("APK piu' corto di quanto dice version.json (git a meta'): non si offre", j["available"] is False and "corrisponde" in j["reason"], j)
+check("APK piu' corto di quanto dice version.json (git a meta'): non si offre", j["available"] is False and "does not match" in j["reason"], j)
 open(ba.APK_PATH, "wb").write(apk2)
 check("... a lavoro finito torna disponibile da solo", offre()["available"] is True)
 for contenuto, nome in ((b"{rotto", "JSON rotto"), (b"[1,2]", "non e' un oggetto"), (b'{"version":"boh","sha256":"%s","size":%d}' % (info["sha256"].encode(), len(apk2)), "versione non valida"),

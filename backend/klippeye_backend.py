@@ -1,25 +1,25 @@
 """
-KlippEye backend - server del frontend (Flask) + monitor IA (OpenCV) + ponte verso Moonraker.
+KlippEye backend - serves the dashboard (Flask), runs the AI print monitor (OpenCV) and bridges to Moonraker.
 
-Parte del progetto KlippEye (cartella ~/klippeye, vedi README.md): questo file sta in backend/, il frontend (la dashboard) in
-frontend/, la versione in VERSION. Il codice qui sotto e' quello del backend V18 (UI 1:1 identica ma NON MOCK, dati reali, comandi
-reali, camera, ZeroTier fix, FIX 404 Groq, FIX 413 TPM) con queste aggiunte della release 1.0:
+Part of the KlippEye project (folder ~/klippeye, see README.md): this file is in backend/, the dashboard in frontend/, the
+release in VERSION. It grew out of the "V18" backend of the VzBot days (real data and commands, camera, ZeroTier, fixes for
+Groq's 404 and 413) with what release 1.0 and later added:
 
-  * le soglie del monitor IA (sensibilita', quante anomalie, ogni quanti secondi, avvio dopo N secondi, ROI...) sono
-    impostazioni: si leggono e si cambiano da /api/backend/config (la dashboard ha il menu) e restano salvate in
-    <cartella dati>/brain.json. Un file mancante o rovinato vuol dire "valori di sempre": non impedisce mai l'avvio;
-  * /api/version dice release, livello dell'interfaccia (API_LEVEL) e commit; la release viene dal file VERSION;
-  * la cartella dati (default ~/printer_data/klippeye, cambia con la variabile KLIPPEYE_DATA; il vecchio nome VZBOT_DATA vale
-    ancora) tiene tutto quello che e' del
-    Raspberry e non del codice: impostazioni, chiave dell'IA (file con permessi 600), notifiche. Gli aggiornamenti
-    del codice (Moonraker -> update manager) non la toccano mai;
-  * il ponte verso Moonraker aspetta fino a 10 minuti le operazioni lunghe (/machine/update/...) invece di 10 secondi;
-  * l'app Android: l'APK costruito da GitHub arriva nella cartella apk/ del repository con l'aggiornamento di KlippEye e il backend
-    lo offre al telefono (/api/app/version dice quale versione e', /app/KlippEye.apk e' il file; /app/VzBot.apk e' lo stesso file,
-    per l'app con il vecchio nome che cerca li' l'aggiornamento);
-  * la cartella dati e le vecchie posizioni (/home/pi/vzbot_ai_config.json...) si leggono entrambe: nessun dato perso;
-  * dal vecchio nome: un'installazione che sta ancora in ~/vzbot (servizio "vzbot") si sposta da sola in ~/klippeye
-    (/api/migrate/..., scripts/passa-a-klippeye.sh), vedi la sezione PASSAGGIO A KLIPPEYE.
+  * the AI monitor thresholds (sensitivity, how many anomalies, how often, start after N seconds, watched area...) are
+    settings: read and changed through /api/backend/config (the dashboard has the menu) and saved in
+    <data folder>/monitor.json. A missing or damaged file means "default values": it never stops the start;
+  * /api/version tells the release, the interface level (API_LEVEL) and the commit; the release comes from VERSION;
+  * the data folder (default ~/printer_data/klippeye, changed with KLIPPEYE_DATA; the old name VZBOT_DATA still works)
+    keeps what belongs to the Raspberry and not to the code: settings, AI key (mode 600), notifications. Code updates
+    (Moonraker's update manager) never touch it;
+  * the bridge to Moonraker waits up to 10 minutes for long operations (/machine/update/...) instead of 10 seconds;
+  * the Android app: the APK built by GitHub reaches the repository's apk/ folder with the KlippEye update and the backend
+    offers it to the phone (/api/app/version says which version, /app/KlippEye.apk is the file; /app/VzBot.apk is the same
+    file, for the app with the old name that looks for its update there);
+  * the data folder and the old places (/home/pi/vzbot_ai_config.json...) are both read: no data is lost;
+  * from the old name: an install still in ~/vzbot (service "vzbot") moves to ~/klippeye by itself
+    (/api/migrate/..., scripts/passa-a-klippeye.sh), see the section MOVE TO KLIPPEYE.
+  * texts for people are in English and translated with the dashboard's dictionaries (bt()).
 """
 from flask import Flask, request, Response, jsonify, send_file
 try:  # optional since 1.2.0: only needed with KLIPPEYE_CORS (development)
@@ -45,17 +45,17 @@ app = Flask(__name__)
 
 MOONRAKER_URL = "http://127.0.0.1:7125"
 CAMERA_NGINX_URL = "http://127.0.0.1/webcam"
-PORT = int(os.environ.get("KLIPPEYE_PORT") or 8085)  # 8085 di sempre (la variabile serve solo alle prove)
+PORT = int(os.environ.get("KLIPPEYE_PORT") or 8085)  # always 8085 (the variable is for the tests only)
 
-# === BASE: release, cartella dati, impostazioni salvate ===========================================
+# === BASE: release, data folder, saved settings ===========================================
 BRAIN_DIR = os.path.dirname(os.path.abspath(__file__))
-REPO_DIR = os.path.dirname(BRAIN_DIR)  # ~/klippeye: la cartella del repository (backend/, frontend/, VERSION...)
-API_LEVEL = 2  # sale quando cambia il "linguaggio" tra backend e dashboard (la dashboard dice quale le serve)
+REPO_DIR = os.path.dirname(BRAIN_DIR)  # ~/klippeye: the repository folder (backend/, frontend/, VERSION...)
+API_LEVEL = 2  # goes up when the "language" between backend and dashboard changes (the dashboard says which one it needs)
 START_TS = time.time()
 
 
 def _read_release():
-    """La release e' scritta in VERSION (accanto a backend/, frontend/...). Senza il file (backend copiato da solo): 'sviluppo'."""
+    """The release is written in VERSION (next to backend/, frontend/...). Without the file (backend copied alone): 'sviluppo' (development)."""
     try:
         with open(os.path.join(REPO_DIR, "VERSION"), encoding="utf-8") as f:
             value = f.read().strip()
@@ -70,13 +70,13 @@ RELEASE = _read_release()
 
 
 def _default_data_dir():
-    chosen = (os.environ.get("KLIPPEYE_DATA") or os.environ.get("VZBOT_DATA") or "").strip()  # VZBOT_DATA: il servizio col vecchio nome
+    chosen = (os.environ.get("KLIPPEYE_DATA") or os.environ.get("VZBOT_DATA") or "").strip()  # VZBOT_DATA: the service with the old name
     if chosen:
         return os.path.abspath(os.path.expanduser(chosen))
     home = os.path.expanduser("~")
     if os.path.isdir(os.path.join(home, "printer_data")):
         new, old = os.path.join(home, "printer_data", "klippeye"), os.path.join(home, "printer_data", "vzbot")
-        return old if os.path.isdir(old) and not os.path.isdir(new) else new  # prima del passaggio al nuovo nome i dati stanno ancora nella vecchia
+        return old if os.path.isdir(old) and not os.path.isdir(new) else new  # before the move to the new name the data is still in the old folder
     return os.path.join(home, "klippeye_data")
 
 
@@ -102,7 +102,7 @@ BRAIN_CONFIG_PATH = MONITOR_CONFIG_PATH   # old name of the variable, kept for c
 
 
 def write_json_atomic(path, data, private=False):
-    """Scrive su un file temporaneo e lo sostituisce: una caduta di corrente non lascia mai mezzo file."""
+    """Writes a temporary file and swaps it in: a power cut never leaves half a file."""
     folder = os.path.dirname(path)
     os.makedirs(folder, exist_ok=True)
     fd, tmp = tempfile.mkstemp(prefix=".tmp-", suffix=".json", dir=folder)
@@ -198,6 +198,11 @@ def _dictionary(lang):
         except (OSError, ValueError):
             _I18N[lang] = {}
     return _I18N[lang]
+
+
+def btn(text):
+    """Marks an English text for the dictionaries without translating it now (bt() translates it later)."""
+    return text
 
 
 def bt(text, lang="en", **values):
@@ -586,13 +591,13 @@ def coerce_config_value(spec, raw):
 
 
 class backendConfig:
-    """Le soglie in uso e il file dove restano. Tutto passa da qui, sempre con il lucchetto."""
+    """The thresholds in use and the file where they stay. Everything goes through here, always under the lock."""
 
     def __init__(self, path):
         self.path = path
         self.lock = threading.RLock()
         self.values = config_defaults()
-        self.saved = False  # esiste un file letto o scritto da noi
+        self.saved = False  # there is a file we read or wrote
         self.save_error = ""
         self.load()
 
@@ -603,11 +608,11 @@ class backendConfig:
         except FileNotFoundError:
             return
         except (OSError, ValueError) as error:
-            self._set_aside("illeggibile (%s)" % error)
+            self._set_aside("unreadable (%s)" % error)
             return
         stored = document.get("values") if isinstance(document, dict) and isinstance(document.get("values"), dict) else document
         if not isinstance(stored, dict):
-            self._set_aside("non è un elenco di impostazioni")
+            self._set_aside("is not a list of settings")
             return
         for spec in CONFIG_SPEC:
             if spec["key"] not in stored:
@@ -615,24 +620,24 @@ class backendConfig:
             try:
                 self.values[spec["key"]] = coerce_config_value(spec, stored[spec["key"]])
             except ValueError as error:
-                print("[CONFIG] %s: '%s' ignorata (%s), uso %r" % (self.path, spec["key"], error, self.values[spec["key"]]))
+                print("[CONFIG] %s: '%s' ignored (%s), using %r" % (self.path, spec["key"], error, self.values[spec["key"]]))
         self.saved = True
 
     def _set_aside(self, why):
-        """Un file rovinato non deve fermare il backend: lo metto da parte (si può guardare) e riparto dai valori di sempre."""
+        """A damaged file must not stop the backend: it is set aside (it can be looked at) and the default values are used."""
         target = "%s.damaged-%d" % (self.path, int(time.time()))
         try:
             os.replace(self.path, target)
         except OSError:
-            target = "(non spostato)"
-        print("[CONFIG] %s %s: uso i valori di sempre. Copia: %s" % (self.path, why, target))
+            target = "(not moved)"
+        print("[CONFIG] %s %s: using the default values. Copy: %s" % (self.path, why, target))
 
     def snapshot(self):
         with self.lock:
             return copy.deepcopy(self.values)
 
     def update(self, changes):
-        """Applica `changes` {chiave: valore}. Restituisce (errori, chiavi cambiate); con un errore non cambia niente."""
+        """Applies `changes` {key: value}. Returns (errors, changed keys); with an error nothing changes."""
         errors, clean = {}, {}
         for key, raw in changes.items():
             spec = SPEC_BY_KEY.get(key)
@@ -664,14 +669,14 @@ class backendConfig:
             self.saved, self.save_error = True, ""
         except OSError as error:
             self.save_error = str(error)
-            print("[CONFIG] non riesco a salvare %s: %s" % (self.path, error))
+            print("[CONFIG] cannot save %s: %s" % (self.path, error))
 
 
 brain_config = backendConfig(BRAIN_CONFIG_PATH)
 
 
 def _git_info(_cache={"at": 0.0, "value": None}):
-    """Commit e ramo del repository (best effort, ricordati per un minuto). None se non e' un repository git."""
+    """Commit and branch of the repository (best effort, remembered for a minute). None when it is not a git repository."""
     now = time.time()
     if now - _cache["at"] < 60 and _cache["at"]:
         return _cache["value"]
@@ -694,12 +699,12 @@ AI_IMAGE_HEIGHT = 720
 AI_IMAGE_QUALITY = 85  # jpeg quality
 OPENCV_WIDTH = 1080
 OPENCV_HEIGHT = 720
-# V18: TUTTO a 1080x720 - CPU più alta ma dettaglio massimo
+# V18: everything at 1080x720 - more CPU but the most detail
 
 
 FRONTEND_CANDIDATES = [
-    os.path.join(REPO_DIR, "frontend", "klippeye_frontend.html"),  # il posto di sempre (~/klippeye/frontend/)
-    # prima del nome KlippEye (release 1.0.x) e prima del repository: si cercano ancora, nel caso
+    os.path.join(REPO_DIR, "frontend", "klippeye_frontend.html"),  # the usual place (~/klippeye/frontend/)
+    # before the KlippEye name (release 1.0.x) and before the repository: still looked for, just in case
     os.path.join(REPO_DIR, "dashboard", "vzbot_dashboard.html"),
     os.path.join(os.path.dirname(__file__), "vzbot_frontend_original.html"),
     "/home/pi/vzbot_frontend_original.html",
@@ -787,15 +792,25 @@ def _repair_at_startup():
             print(f"[REPAIR] {time.strftime('%H:%M:%S')} restored: {mark.get('restored')} - failed: {mark.get('failed')}")
 
 
-EMERGENCY_PAGE = """<!doctype html><html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+EMERGENCY_PAGE = """<!doctype html><html lang="%(lang)s"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta http-equiv="refresh" content="8"><title>KlippEye</title>
 <style>body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#120d22;color:#e8e1ff;font:16px/1.5 system-ui,sans-serif;text-align:center;padding:24px;box-sizing:border-box}
 h1{font-size:20px;margin:0 0 8px}p{margin:6px 0;color:#b9afd6;max-width:420px}</style></head><body><div>
-<h1>KlippEye sta rimettendo a posto i suoi file</h1>
-<p>Dopo uno spegnimento improvviso la pagina della dashboard risulta rovinata. La sto ripristinando da sola: questa pagina si ricarica ogni pochi secondi.</p>
-<p>Se non cambia nulla, apri Mainsail &rarr; Machine &rarr; Update Manager &rarr; klippeye &rarr; <b>Recover</b> (hard).</p></div></body></html>"""
+<h1>%(title)s</h1>
+<p>%(lead)s</p>
+<p>%(hint)s</p></div></body></html>"""
 
-# Le operazioni che Moonraker finisce solo a lavoro fatto (aggiornamenti, riavvii di servizi): 10 secondi non bastano.
+
+def emergency_page():
+    lang = _lang()
+    return EMERGENCY_PAGE % {
+        "lang": lang,
+        "title": bt("KlippEye is putting its files back in order", lang),
+        "lead": bt("After a sudden power loss the dashboard page is damaged. It is being restored by itself: this page reloads every few seconds.", lang),
+        "hint": bt("If nothing changes, open Mainsail → Machine → Update Manager → klippeye → Recover (hard).", lang),
+    }
+
+# The operations Moonraker answers only when the work is done (updates, service restarts): 10 seconds are not enough.
 LONG_MOONRAKER_PATHS = ("machine/update/", "machine/services/")
 
 def proxy_moonraker(path):
@@ -816,18 +831,18 @@ def proxy_moonraker(path):
 def index():
     f = find_frontend()
     if f and not frontend_ok(f):
-        ran = run_repair()    # pagina vuota o troncata (blackout): la rimetto a posto adesso, prima di servirla
+        ran = run_repair()    # empty or truncated page (power cut): put it back now, before serving it
         f = find_frontend()
         print(f"[REPAIR] {time.strftime('%H:%M:%S')} the page {os.path.basename(str(f))} is damaged: check {'done' if ran else 'skipped (another one just ran)'}")
         if not f or not frontend_ok(f):
-            return Response(EMERGENCY_PAGE, status=503, mimetype="text/html", headers={"Retry-After": "8", "Cache-Control": "no-store"})
+            return Response(emergency_page(), status=503, mimetype="text/html", headers={"Retry-After": "8", "Cache-Control": "no-store"})
     if f:
         return send_file(f)
-    run_repair()              # file mancante: stessa cosa
+    run_repair()              # missing file: the same
     f = find_frontend()
     if f and frontend_ok(f):
         return send_file(f)
-    return "frontend/klippeye_frontend.html non trovato in " + REPO_DIR, 404
+    return "frontend/klippeye_frontend.html not found in " + REPO_DIR, 404
 
 @app.route("/api/health")
 def health():
@@ -873,14 +888,14 @@ def api_printer():
 
 @app.route("/api/gcode", methods=["POST", "OPTIONS"])
 def api_gcode():
-    """Riceve {script: 'G28'} dal frontend e lo manda a Moonraker POST /printer/gcode/script"""
+    """Takes {script: 'G28'} from the dashboard and sends it to Moonraker's POST /printer/gcode/script"""
     if request.method == "OPTIONS":
         return "", 200
     try:
         body = request.get_json(force=True, silent=True) or {}
         script = body.get("script") or body.get("gcode") or request.data.decode() if request.data else ""
         if not script:
-            # prova anche query param
+            # also try the query parameter
             script = request.args.get("script", "")
         if not script:
             return jsonify({"error": "no script"}), 400
@@ -904,7 +919,7 @@ def api_gcode():
 @app.route("/server", methods=["GET","POST"])
 def moonraker_proxy(path=""):
     full = request.path.lstrip("/")
-    # se è gcode/script, usa handler dedicato
+    # gcode/script has its own handler
     return proxy_moonraker(full)
 
 # Proxy Camera via nginx (FIX ZeroTier) - handles /webcam/, /webcam, and /webcam/<path>
@@ -938,7 +953,7 @@ def webcam_proxy(path=""):
 
 
 
-# === MACROS SYSTEM V34 - Metodo V30 che trovava TUTTE le macro + params defaults ===
+# === MACROS SYSTEM V34 - the V30 method that found ALL the macros + default params ===
 import glob as globmod
 import re as re_global
 import os
@@ -1048,7 +1063,7 @@ def get_macros_from_moonraker_both():
                             "name": name,
                             "file": "live (Shaketune?)",
                             "filepath": "",
-                            "description": "da objects/list (iniettata live)",
+                            "description": "from objects/list (injected live)",
                             "gcode": "",
                             "params": [],
                             "has_params": False,
@@ -1121,7 +1136,7 @@ def scan_shaketune_folders():
                                                 "name": name,
                                                 "file": os.path.basename(fp),
                                                 "filepath": fp,
-                                                "description": "Shaketune (da scan cartella)",
+                                                "description": "Shaketune (from the folder scan)",
                                                 "params": [],
                                                 "has_params": False,
                                                 "gcode": ""
@@ -1247,8 +1262,8 @@ def api_macros_run():
 # === CALIBRATION SELECTED SYNC - cross-device ===
 import json
 
-# Prima stava in printer_data/config/vzbot_calibration_selected.json (nessuna macro lo usa): ora e' nella cartella dati.
-# I due posti di prima si leggono ancora (niente si perde); si scrive solo qui.
+# It used to be printer_data/config/vzbot_calibration_selected.json (no macro uses it): now it is in the data folder.
+# The two old places are still read (nothing is lost); only this one is written.
 CALIBRATION_SELECTED_FILE = os.path.join(DATA_DIR, "calibration_selected.json")
 CALIBRATION_SELECTED_LEGACY = ["/home/pi/printer_data/config/vzbot_calibration_selected.json", "/home/pi/vzbot_calibration_selected.json"]
 
@@ -1275,7 +1290,7 @@ def save_calibration_selected(selected):
                 os.makedirs(dir_path, exist_ok=True)
             with open(fp, 'w', encoding='utf-8') as f:
                 json.dump(data, f)
-            # Scrivi solo nel primo path riuscito
+            # write only to the first path that works
             break
         except Exception as e:
             continue
@@ -1332,7 +1347,7 @@ def api_logs_list():
                 })
             except Exception as e:
                 files.append({"name": name, "error": str(e)})
-        # ordina per modified desc (più recenti prima)
+        # sort by modified desc (newest first)
         files.sort(key=lambda x: x.get("modified",0), reverse=True)
         return jsonify({"dir": LOGS_DIR, "files": files, "count": len(files)})
     except Exception as e:
@@ -1352,17 +1367,17 @@ def api_logs_content():
         full = os.path.join(LOGS_DIR, fname)
         if not os.path.exists(full):
             return jsonify({"error": "file not found"}), 404
-        # leggi ultime N righe
+        # read the last N lines
         try:
             max_lines = int(request.args.get("lines", "2000"))
         except:
             max_lines = 2000
         max_lines = max(50, min(max_lines, 10000))
-        # leggi file efficientemente dal fondo
+        # read the file efficiently from the end
         try:
             with open(full, 'r', encoding='utf-8', errors='ignore') as f:
                 lines = f.readlines()
-                # prendi ultime max_lines
+                # take the last max_lines
                 if len(lines) > max_lines:
                     lines = lines[-max_lines:]
                 content = "".join(lines)
@@ -1395,11 +1410,11 @@ def api_logs_download():
 # === END LOGS ===
 
 
-# === AUTO AI ANALYSIS V4 - Soluzione B ===
+# === AUTO AI ANALYSIS V4 - solution B ===
 import json
 
-AI_CONFIG_PATH = os.path.join(DATA_DIR, "ai.json")  # release 1.0: nella cartella dati, permessi 600 (e' una password)
-AI_CONFIG_PATH_LEGACY = "/home/pi/vzbot_ai_config.json"  # dove stava prima: si legge ancora, non si scrive piu'
+AI_CONFIG_PATH = os.path.join(DATA_DIR, "ai.json")  # release 1.0: in the data folder, mode 600 (it is a password)
+AI_CONFIG_PATH_LEGACY = "/home/pi/vzbot_ai_config.json"  # where it used to be: still read, no longer written
 AI_CONFIG_PATH_ALT = os.path.join(os.path.dirname(__file__), "vzbot_ai_config.json")
 
 def load_ai_config():
@@ -1407,7 +1422,7 @@ def load_ai_config():
         try:
             if os.path.exists(p):
                 if p.endswith('.txt'):
-                    # file txt con solo la key
+                    # a text file with only the key
                     with open(p,'r') as f:
                         key=f.read().strip()
                         if key:
@@ -1426,7 +1441,7 @@ def load_ai_config():
     return None
 
 def get_logs_combined(max_files=25, lines_per_file=400, max_chars=12000):
-    """Prende TUTTI i file .log (esclusi *.log.*) con priorità klippy/moonraker"""
+    """Takes ALL the .log files (not *.log.*), klippy and moonraker first"""
     if not os.path.exists(LOGS_DIR):
         return "", []
     files=[]
@@ -1435,8 +1450,8 @@ def get_logs_combined(max_files=25, lines_per_file=400, max_chars=12000):
             if ".log." in name:  # esclude rotati tipo klippy.log.2024-10-01
                 continue
             if not name.endswith('.log'):
-                # include anche file senza estensione .log? no, solo .log
-                # ma includiamo anche .log con prefissi strani
+                # files without the .log extension? no, only .log
+                # but also .log files with odd prefixes
                 if '.log' not in name:
                     continue
             full=os.path.join(LOGS_DIR,name)
@@ -1444,7 +1459,7 @@ def get_logs_combined(max_files=25, lines_per_file=400, max_chars=12000):
                 continue
             try:
                 stat=os.stat(full)
-                # priorità: klippy e moonraker prima
+                # priority: klippy and moonraker first
                 priority = 0
                 low = name.lower()
                 if 'klippy' in low:
@@ -1460,12 +1475,12 @@ def get_logs_combined(max_files=25, lines_per_file=400, max_chars=12000):
                 files.append((name,full,stat.st_mtime,stat.st_size,priority))
             except:
                 pass
-        # ordina per priority desc, poi per mtime desc
+        # sort by priority desc, then by mtime desc
         files.sort(key=lambda x: (x[4], x[2]), reverse=True)
-        # prendi TUTTI (max_files è alto)
+        # take them ALL (max_files is high)
         files=files[:max_files]
     except Exception as e:
-        print(f"[LOGS] errore lista: {e}")
+        print(f"[LOGS] list error: {e}")
         files=[]
     combined=""
     used=[]
@@ -1474,7 +1489,7 @@ def get_logs_combined(max_files=25, lines_per_file=400, max_chars=12000):
         try:
             with open(full,'r',encoding='utf-8',errors='ignore') as f:
                 lines=f.readlines()
-                # linee in base alla priorità - FIX 413 ridotto drasticamente per TPM Groq
+                # lines by priority - FIX 413: cut down a lot for the Groq TPM limit
                 if 'klippy' in name.lower():
                     want_lines = 1200
                     want_chars = 4000
@@ -1493,29 +1508,29 @@ def get_logs_combined(max_files=25, lines_per_file=400, max_chars=12000):
                 chunk="".join(lines)
                 if len(chunk)>want_chars:
                     chunk=chunk[-want_chars:]
-                # se file vuoto, segnala
+                # an empty file is said so
                 if not chunk.strip():
-                    chunk="(file vuoto - 0 byte di contenuto utile)"
+                    chunk="(empty file - 0 bytes of useful content)"
 
-                header=f"\n\n===== FILE: {name} ({len(lines)} righe prese, {size} byte totali, priority {priority}) =====\n"
+                header=f"\n\n===== FILE: {name} ({len(lines)} lines taken, {size} bytes in total, priority {priority}) =====\n"
                 entry=header+chunk
                 # controlla se superiamo max_chars totale
                 if total_chars+len(entry) > max_chars and 'klippy' not in name.lower() and 'moonraker' not in name.lower():
-                    # per file non critici, se superiamo, saltiamo
-                    # ma per klippy/moonraker forziamo sempre
+                    # a file that is not critical is skipped when over the limit,
+                    # klippy and moonraker always go in
                     if total_chars > max_chars*0.8:
                         continue
                 combined+=entry
                 total_chars+=len(entry)
                 used.append(name)
         except Exception as e:
-            combined+=f"\n\n===== FILE: {name} ERRORE LETTURA: {e} =====\n"
+            combined+=f"\n\n===== FILE: {name} READ ERROR: {e} =====\n"
             used.append(name)
 
-    # Se ancora troppo lungo, taglia mantenendo inizio (con lista file) e fine (con klippy che è all'inizio per priorità)
+    # still too long: cut, keeping the start (with the list of files) and the end
     if len(combined)>max_chars:
         # mantieni primi 500 char (lista) + ultimi max_chars-500
-        combined = combined[:800] + "\n...[TAGLIO PER LUNGHEZZA, MANTENGO ULTIMI LOG]...\n" + combined[-(max_chars-800):]
+        combined = combined[:800] + "\n...[CUT FOR LENGTH, KEEPING THE LAST LOGS]...\n" + combined[-(max_chars-800):]
 
     print(f"[LOGS] Combinati {len(used)} file: {used} - tot chars {len(combined)}")
     return combined, used
@@ -1526,8 +1541,8 @@ def api_ai_config():
         if request.method=="GET":
             cfg=load_ai_config()
             if not cfg:
-                return jsonify({"configured": False, "message": "Nessuna config trovata. Inserisci la chiave dalla dashboard (Config > Log di sistema > ingranaggio) oppure crea %s con {\"api_key\": \"...\", \"provider\": \"openai\"}" % AI_CONFIG_PATH})
-            # non esporre key intera
+                return jsonify({"configured": False, "message": bt("No configuration found. Enter the key from the dashboard (Config > System logs > gear) or create {path} with {\"api_key\": \"...\", \"provider\": \"openai\"}", _lang(), path=AI_CONFIG_PATH)})
+            # never show the whole key
             safe={"provider":cfg.get("provider"),"model":cfg.get("model"),"key_preview": ("…"+cfg.get("api_key","")[-4:]) if cfg.get("api_key") else "", "configured": True}
             return jsonify(safe)
         else:
@@ -1538,11 +1553,11 @@ def api_ai_config():
             if not key or len(key)<20:
                 return jsonify({"error":"api_key troppo corta"}),400
             cfg={"provider":provider,"api_key":key,"model":model}
-            # release 1.0: un solo posto (cartella dati), file leggibile solo dall'utente del servizio
+            # release 1.0: one place only (data folder), readable only by the service user
             try:
                 write_json_atomic(AI_CONFIG_PATH, cfg, private=True)
             except OSError as e:
-                return jsonify({"error": "non riesco a salvare la chiave in %s: %s" % (AI_CONFIG_PATH, e)}), 500
+                return jsonify({"error": bt("cannot save the key in {path}: {error}", _lang(), path=AI_CONFIG_PATH, error=e)}), 500
             return jsonify({"ok":True,"saved_to":[AI_CONFIG_PATH]})
     except Exception as e:
         return jsonify({"error":str(e)}),500
@@ -1553,8 +1568,8 @@ def api_logs_analyze():
         cfg=load_ai_config()
         if not cfg or not cfg.get("api_key"):
             return jsonify({
-                "error":"API key non configurata",
-                "howto":"Inserisci la chiave dalla dashboard (Config > Log di sistema > ingranaggio) oppure crea il file %s con contenuto: {\"api_key\": \"sk-...\", \"provider\": \"openai\", \"model\": \"gpt-4o-mini\"} oppure fai POST a /api/ai/config con {\"api_key\": \"...\"}" % AI_CONFIG_PATH,
+                "error": bt("API key not set", _lang()),
+                "howto": bt("Enter the key from the dashboard (Config > System logs > gear) or create the file {path} with: {\"api_key\": \"sk-...\", \"provider\": \"openai\", \"model\": \"gpt-4o-mini\"}, or POST {\"api_key\": \"...\"} to /api/ai/config", _lang(), path=AI_CONFIG_PATH),
                 "configured": False
             }), 400
 
@@ -1565,7 +1580,7 @@ def api_logs_analyze():
             safe_name = os.path.basename(single_file)
             full = os.path.join(LOGS_DIR, safe_name)
             if ".log." in safe_name or not os.path.isfile(full):
-                return jsonify({"error": f"File {safe_name} non trovato"}), 404
+                return jsonify({"error": bt("File {name} not found", _lang(), name=safe_name)}), 404
             try:
                 with open(full,'r',encoding='utf-8',errors='ignore') as f:
                     lines = f.readlines()
@@ -1574,18 +1589,18 @@ def api_logs_analyze():
                         lines = lines[-want:]
                     content = "".join(lines)[-18000:]
                     if not content.strip():
-                        content = "(file vuoto)"
-                combined = f"===== FILE: {safe_name} ({len(lines)} righe, analisi singola) =====\n" + content
+                        content = "(empty file)"
+                combined = f"===== FILE: {safe_name} ({len(lines)} lines, single analysis) =====\n" + content
                 used_files = [safe_name]
                 is_single = True
             except Exception as e:
-                return jsonify({"error": f"Errore lettura {safe_name}: {e}"}), 500
+                return jsonify({"error": bt("Cannot read {name}: {error}", _lang(), name=safe_name, error=e)}), 500
         else:
-            # FIX 413 - ridotto da 30000 a 12000 char per non superare TPM 8000 di Groq gpt-oss-120b (8000 token limit)
-            # 12000 char ~ 3000 token, lascia spazio per prompt
+            # FIX 413 - cut from 30000 to 12000 characters to stay under Groq's 8000 tokens per minute (gpt-oss-120b)
+            # 12000 characters ~ 3000 tokens, leaving room for the prompt
             combined, used_files = get_logs_combined(max_files=20, lines_per_file=400, max_chars=12000)
             if not combined:
-                return jsonify({"error":"nessun log trovato"}),404
+                return jsonify({"error": bt("no log found", _lang())}), 404
 
         language = _lang()
         if is_single:
@@ -1628,12 +1643,12 @@ Answer in {LANGUAGE_NAMES.get(language, "English")}, technical but clear, with b
         model=cfg.get("model","gpt-4o-mini")
         api_key=cfg.get("api_key")
 
-        # Chiamata AI - supporta openai, meta, groq, together, openrouter, ecc (tutti OpenAI-compat)
+        # AI call - openai, meta, groq, together, openrouter, etc. (all OpenAI-compatible)
         provider = provider.lower()
-        # Fix: se hai salvato un modello GPT ma usi Groq/Meta, correggi automaticamente
+        # Fix: a GPT model saved while using Groq/Meta is corrected automatically
         if provider in ["groq","meta","llama","llama.com","together","openrouter","fireworks"]:
             if model and "gpt-" in model.lower():
-                print(f"[AI-FIX] Modello {model} non valido per {provider}, uso default Llama")
+                print(f"[AI-FIX] Model {model} not valid for {provider}, using the default Llama")
                 model = None
 
         # Mappa provider -> endpoint base e modello default
@@ -1642,23 +1657,23 @@ Answer in {LANGUAGE_NAMES.get(language, "English")}, technical but clear, with b
             "meta": ("https://api.llama.com/compat/v1/chat/completions", model or "Llama-4-Maverick-17B-128E-Instruct-FP8"),
             "llama": ("https://api.llama.com/compat/v1/chat/completions", model or "Llama-4-Maverick-17B-128E-Instruct-FP8"),
             "llama.com": ("https://api.llama.com/compat/v1/chat/completions", model or "Llama-4-Maverick-17B-128E-Instruct-FP8"),
-            "groq": ("https://api.groq.com/openai/v1/chat/completions", model or "openai/gpt-oss-20b"),  # FIX 413: gpt-oss-120b ha TPM 8000 troppo basso, uso llama-3.3 con TPM più alto
+            "groq": ("https://api.groq.com/openai/v1/chat/completions", model or "openai/gpt-oss-20b"),  # FIX 413: gpt-oss-120b has a TPM of 8000, too low: a model with a higher TPM
             "together": ("https://api.together.xyz/v1/chat/completions", model or "meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo"),
             "openrouter": ("https://openrouter.ai/api/v1/chat/completions", model or "meta-llama/llama-3.3-70b-instruct"),
             "fireworks": ("https://api.fireworks.ai/inference/v1/chat/completions", model or "accounts/fireworks/models/llama-v3p3-70b-instruct"),
         }
         endpoint, final_model = provider_map.get(provider, (f"https://api.openai.com/v1/chat/completions", model or "gpt-4o-mini"))
-        # Sicurezza extra: se final_model contiene gpt e provider è groq, forza llama
+        # extra safety: a gpt model with groq becomes llama
         if provider=="groq" and final_model.lower() in ["llama-3.1-8b-instant","llama3-70b-8192","llama3-8b-8192"]:
             final_model="openai/gpt-oss-20b"
-        # Se final_model è ancora vecchio llama su groq, forza nuovo
+        # an old llama on groq becomes the new one
         if provider=="groq" and "gpt-oss" in final_model:
             final_model="openai/gpt-oss-20b"  # FIX 413
         if provider in ["meta","llama"] and "gpt" in final_model.lower():
             final_model="Llama-4-Maverick-17B-128E-Instruct-FP8"
 
 
-        # Per Meta API serve anche base_url diverso se usato api.meta.ai (nuovo)
+        # the Meta API needs another base_url with api.meta.ai (new)
         if provider in ["meta","llama"] and "api.meta.ai" in endpoint:
             endpoint = "https://api.meta.ai/v1/chat/completions"
 
@@ -1685,7 +1700,7 @@ Answer in {LANGUAGE_NAMES.get(language, "English")}, technical but clear, with b
             if not r.ok:
                 return jsonify({"error": f"{provider} API error {r.status_code}: {r.text[:800]}", "used_files": used_files, "endpoint": endpoint, "model": final_model}), 500
             j=r.json()
-            # Supporta sia choices[0].message.content che altri formati
+            # both choices[0].message.content and other shapes
             try:
                 answer=j["choices"][0]["message"]["content"]
             except:
@@ -1721,14 +1736,14 @@ except ImportError as e:
     cv2 = None
     np = None
     HAS_CV2 = False
-    print(f"[OPENCV] cv2/numpy non installati, detector disabilitato: {e} - installa con: pip install opencv-python-headless numpy")
+    print(f"[OPENCV] cv2/numpy not installed, detector off: {e} - install with: sudo apt install python3-opencv")
 
-# --- storico degli allarmi: cosa ha visto il monitor e cosa ha detto l'IA, con le foto (cosi' si capisce quanti erano veri) ---
+# --- alert history: what the monitor saw and what the AI said, with the pictures (to see how many were real) ---
 ALERT_HISTORY_DIR = os.path.join(DATA_DIR, "alerts")
-ALERT_HISTORY_KEEP = 40  # eventi con foto
-REFERENCE_SAMPLES = 7  # foto dello sfondo (mediana)
-REFERENCE_MIN = 5  # sotto questo numero il confronto non e' pronto
-GLOBAL_STREAK_MAX = 10  # controlli di fila con il cambio "globale" prima di considerarlo vero
+ALERT_HISTORY_KEEP = 40  # events with pictures
+REFERENCE_SAMPLES = 7  # background pictures (median)
+REFERENCE_MIN = 5  # below this number the comparison is not ready
+GLOBAL_STREAK_MAX = 10  # checks in a row with a "global" change before it counts as real
 _history_lock = threading.Lock()
 
 
@@ -1800,7 +1815,7 @@ def read_alert_history(limit=20):
 
 
 def prune_alert_images(keep=10, pattern="/tmp/klippeye_alert_*.jpg"):
-    """Tiene le ultime `keep` foto di allarme in /tmp e toglie le altre (ognuna e' ~100 KB e prima non si cancellavano mai)."""
+    """Keeps the last `keep` alert pictures in /tmp and removes the others (each is ~100 KB and they used to pile up)."""
     try:
         import glob
         files = sorted(glob.glob(pattern), key=os.path.getmtime, reverse=True)
@@ -1896,25 +1911,25 @@ class LightDetector:
         self.enabled = True  # AUTO-ENABLED
         self.running = False
         self.thread = None
-        self.generation = 0  # ogni start() ne apre una nuova: un vecchio ciclo ancora addormentato capisce da solo di dover finire
+        self.generation = 0  # every start() opens a new one: an old loop still asleep understands by itself that it must end
         self.last_frames = deque(maxlen=5)
         self.roi = None
-        # Le soglie qui sotto sono i valori di sempre; subito dopo la creazione apply_config() mette quelli salvati
-        # (brain.json) e da allora li cambia la dashboard: /api/backend/config.
-        self.sensitivity = 35  # V18: alzata da 25 a 35 per meno falsi positivi
+        # The thresholds below are the defaults; right after creation apply_config() puts the saved ones
+        # (monitor.json) and from then on the dashboard changes them: /api/backend/config.
+        self.sensitivity = 35  # V18: raised from 25 to 35 for fewer false positives
         self.trigger_count = 0
         self.trigger_threshold = 3
         self.cooldown_until = 0
-        self.cooldown_sec = 90  # cooldown più lungo per non spammare Groq
+        self.cooldown_sec = 90  # longer cooldown, not to flood the AI service
         self.last_ai_call = 0
-        self.ai_cooldown = 120  # 120s tra chiamate AI
-        self.score_threshold = 2.5  # % della fascia esterna che deve muoversi (V18: da 1.5 a 2.5)
+        self.ai_cooldown = 120  # 120 s between AI calls
+        self.score_threshold = 2.5  # % of the outer band that must move (V18: from 1.5 to 2.5)
         self.check_interval = 3  # secondi tra due controlli
-        self.border = 0.25  # larghezza della fascia esterna, frazione dell'area controllata
-        self.warmup = 90  # secondi di stampa prima di cominciare a controllare
-        self.min_progress = 2  # % di avanzamento prima di cominciare a controllare
+        self.border = 0.25  # width of the outer band, fraction of the watched area
+        self.warmup = 90  # seconds of printing before checking starts
+        self.min_progress = 2  # % of progress before checking starts
         self.hotend_tol = 8  # scarto massimo dell'ugello dalla temperatura impostata
-        self.ai_model = ""  # vuoto: il modello predefinito del servizio
+        self.ai_model = ""  # empty: the service's default model
         self.persistent_filter = True  # filtro anti falsi allarmi (vedi _persistent_score)
         self.persist_checks = 3
         self.reference_seconds = 60
@@ -1922,8 +1937,8 @@ class LightDetector:
         self.ai_min_confidence = 70
         self.ai_send_reference = True
         self.recent_masks = deque(maxlen=3)
-        self.ref_small = deque(maxlen=REFERENCE_SAMPLES)  # (istante, foto piccola in grigio) per lo sfondo
-        self.ref_jpegs = deque(maxlen=REFERENCE_SAMPLES)  # (istante, foto com'e' arrivata dalla camera) per mostrare all'IA "com'era prima"
+        self.ref_small = deque(maxlen=REFERENCE_SAMPLES)  # (time, small grey picture) for the background
+        self.ref_jpegs = deque(maxlen=REFERENCE_SAMPLES)  # (time, picture as the camera sent it) to show the AI "how it was before"
         self.bg = None
         self.global_streak = 0
         self.stats = {
@@ -1931,16 +1946,16 @@ class LightDetector:
             "anomalies": 0,
             "last_trigger": None,
             "last_score": 0,
-            "status": "idle - in attesa stampa"
+            "status": "idle - waiting for a print"
         }
         self.last_alert_img_path = None
-        self.last_analysis = None  # ultimo risultato AI formattato
+        self.last_analysis = None  # last AI result, formatted
 
     def set_roi(self, x, y, w, h):
         self.roi = (x,y,w,h)
 
     def apply_config(self, values):
-        """Mette in uso le soglie (dict di backendConfig). Vale dal controllo successivo, senza riavviare niente."""
+        """Puts the thresholds in use (a backendConfig dict). They apply from the next check, nothing is restarted."""
         self.sensitivity = values["sensitivity"]
         self.score_threshold = values["score_threshold"]
         self.trigger_threshold = values["trigger_count"]
@@ -1965,7 +1980,7 @@ class LightDetector:
 
     def start(self):
         if not HAS_CV2:
-            print("[OPENCV] Impossibile avviare, cv2 mancante")
+            print("[OPENCV] Cannot start: cv2 missing")
             return
         if self.running:
             return
@@ -1984,7 +1999,7 @@ class LightDetector:
         print("[OPENCV] Light detector stopped")
 
     def _nap(self, generation, seconds):
-        """Dorme `seconds` ma si sveglia subito se il rilevatore e' stato fermato o riavviato: un vecchio ciclo non resta in giro."""
+        """Sleeps `seconds` but wakes up at once when the detector was stopped or restarted: an old loop does not linger."""
         end = time.time() + seconds
         while time.time() < end and self.running and generation == self.generation:
             time.sleep(min(0.1, max(0.0, end - time.time())))
@@ -1995,7 +2010,7 @@ class LightDetector:
         while self.running and generation == self.generation:
             try:
                 if not HAS_CV2:
-                    self.stats["status"] = "cv2 non installato"
+                    self.stats["status"] = "cv2 not installed"
                     self._nap(generation, 5)
                     continue
                 if not self.enabled:
@@ -2007,7 +2022,7 @@ class LightDetector:
                     self._nap(generation, 1)
                     continue
                 # Check if printing
-                # === SOLUZIONE 5 - IBRIDA - CHECK STAMPA REALE ===
+                # === SOLUTION 5 - HYBRID - IS THE REAL PRINT RUNNING ===
                 try:
                     pr = requests.get(f"{MOONRAKER_URL}/printer/objects/query?print_stats&extruder&display_status&virtual_sdcard&toolhead&heater_bed", timeout=3).json()
                     status = pr.get("result",{}).get("status",{})
@@ -2020,14 +2035,14 @@ class LightDetector:
                     state = ps.get("state","")
 
                     if state != "printing":
-                        self._reset_reference()  # una stampa nuova riparte con uno sfondo nuovo
+                        self._reset_reference()  # a new print starts with a new background
                         self.stats["status"] = f"idle (state={state})"
                         self.stats["real_print_started"] = False
                         self.stats["real_print_reason"] = f"state={state}"
                         self._nap(generation, 5)
                         continue
 
-                    # Calcola se stampa reale iniziata
+                    # has the real print started?
                     progress = disp.get("progress",0)  # 0-1
                     temp_h = extr.get("temperature",0)
                     target_h = extr.get("target",0)
@@ -2038,42 +2053,42 @@ class LightDetector:
                     file_progress = file_pos / file_size if file_size>0 else 0
                     total_dur = ps.get("total_duration",0)
 
-                    # Criteri per stampa reale
+                    # criteria of a real print
                     reasons = []
                     real_started = True
 
-                    # 1. Progress deve superare la soglia (di serie 2%; il file la meta' di quella)
+                    # 1. progress above the threshold (2% by default; the file half of that)
                     if progress < self.min_progress/100 and file_progress < self.min_progress/200:
                         real_started = False
                         reasons.append(f"progress {progress*100:.1f}% <{self.min_progress:g}%")
-                    # 2. Hotend deve essere vicino al target
+                    # 2. hotend close to its target
                     if target_h > 0 and abs(temp_h - target_h) > self.hotend_tol:
                         real_started = False
-                        reasons.append(f"hotend {temp_h:.0f}/{target_h:.0f}C non a temp")
-                    # 3. Bed vicino a target se ha target
+                        reasons.append(f"hotend {temp_h:.0f}/{target_h:.0f}C not at temperature")
+                    # 3. bed close to its target, if it has one
                     if target_b > 0 and abs(temp_b - target_b) > 10:
-                        # Non blocchiamo per bed, ma logghiamo
-                        reasons.append(f"bed {temp_b:.0f}/{target_b:.0f}C non a temp")
-                    # 4. Deve aver passato almeno N secondi di stampa (di serie 90: riscaldamento+mesh spesso <60s)
+                        # the bed does not block, it is only written down
+                        reasons.append(f"bed {temp_b:.0f}/{target_b:.0f}C not at temperature")
+                    # 4. at least N seconds of printing (90 by default: heating + mesh often take < 60 s)
                     if total_dur < self.warmup:
                         real_started = False
-                        reasons.append(f"durata {total_dur:.0f}s <{self.warmup}s")
-                    # 5. Toolhead Z: se è ancora alto >10mm probabilmente è in mesh/homing
+                        reasons.append(f"duration {total_dur:.0f}s <{self.warmup}s")
+                    # 5. toolhead Z: still high (>10 mm) probably means mesh/homing
                     try:
                         z_pos = tool.get("position",[0,0,0])[2] if tool.get("position") else 0
                         if z_pos > 15:
-                            reasons.append(f"Z={z_pos:.1f}mm alto (mesh?)")
+                            reasons.append(f"Z={z_pos:.1f}mm high (mesh?)")
                     except:
                         pass
 
                     self.stats["real_print_started"] = real_started
-                    self.stats["real_print_reason"] = "; ".join(reasons) if reasons else "ok - stampa reale"
+                    self.stats["real_print_reason"] = "; ".join(reasons) if reasons else "ok - real print"
                     self.stats["progress"] = progress
                     self.stats["file_progress"] = file_progress
                     self.stats["total_duration"] = total_dur
 
                     if not real_started:
-                        self.stats["status"] = f"riscaldamento/mesh - attesa stampa reale ({'; '.join(reasons)[:80]})"
+                        self.stats["status"] = f"heating/mesh - waiting for the real print ({'; '.join(reasons)[:80]})"
                         self._nap(generation, 3)
                         continue
 
@@ -2099,13 +2114,13 @@ class LightDetector:
                     continue
 
                 score = self._persistent_score(frame, r.content) if self.persistent_filter else self._motion_score(frame)
-                if score is None:  # il confronto non e' ancora pronto, oppure il controllo e' da ignorare (cambio di luce)
+                if score is None:  # the comparison is not ready yet, or this check is to be ignored (light change)
                     self._nap(generation, self.check_interval)
                     continue
                 self.stats["last_score"] = round(score, 2)
 
-                # Soglia: se piu' del 2.5% (di serie) di pixel in periferia si muove = sospetto
-                if score > self.score_threshold:  # V18: da 1.5% a 2.5% per ridurre falsi positivi
+                # threshold: more than 2.5% (default) of the outer pixels moving = suspicious
+                if score > self.score_threshold:  # V18: from 1.5% to 2.5% for fewer false positives
                     self.trigger_count += 1
                     self.stats["anomalies"] += 1
                     print(f"[OPENCV] Anomalia {self.trigger_count}/{self.trigger_threshold} score={score:.2f}%")
@@ -2119,15 +2134,15 @@ class LightDetector:
                     self.stats["status"] = f"TRIGGERED score={score:.2f}%"
                     self.cooldown_until = time.time() + self.cooldown_sec
                     self.trigger_count = 0
-                    # Salva immagine full-res per AI
+                    # save a full-resolution picture for the AI
                     try:
-                        prune_alert_images(keep=20)  # le foto degli allarmi vecchie non si accumulano per sempre (adesso + prima)
+                        prune_alert_images(keep=20)  # old alert pictures do not pile up for ever (now + before)
                         full_path = f"/tmp/klippeye_alert_{int(time.time())}.jpg"
-                        # Riscarica e ridimensiona a 1080x720 per AI - V17 anti-falso positivo
+                        # download again and resize to 1080x720 for the AI - V17 against false positives
                         r_full = requests.get(f"{CAMERA_NGINX_URL}/snapshot", timeout=5)
                         if r_full.ok:
                             try:
-                                # Resize a 1080x720 con qualità 85% per dettaglio piatto
+                                # resize to 1080x720, quality 85%, for the detail of the bed
                                 img_arr_full = np.frombuffer(r_full.content, np.uint8)
                                 frame_full = cv2.imdecode(img_arr_full, cv2.IMREAD_COLOR)
                                 if frame_full is not None:
@@ -2141,21 +2156,21 @@ class LightDetector:
                                     f.write(r_full.content)
                             self.last_alert_img_path = full_path
                             print(f"[OPENCV] Saved alert image {full_path}")
-                            # Auto-chiama AI analysis in background (non blocca loop)
+                            # call the AI analysis in the background (the loop does not wait)
                             ref_path, ref_age = self._save_reference(full_path)
                             threading.Thread(target=self.call_ai_analysis, args=(full_path, ref_path, ref_age), daemon=True).start()
                     except Exception as e:
                         print(f"[OPENCV] save alert fail: {e}")
 
-                self._nap(generation, self.check_interval)  # check ogni 3s di serie (la dashboard: Monitor IA > Ogni quanto guarda la camera)
+                self._nap(generation, self.check_interval)  # a check every 3 s by default (dashboard: Monitor thresholds > How often it looks at the camera)
 
             except Exception as e:
                 print(f"[OPENCV] loop error: {e}")
                 self._nap(generation, 3)
 
     def _motion_score(self, frame):
-        """Il rilevamento di prima (filtro spento): quanto si muove la fascia esterna fra due foto di fila, in % dell'area."""
-        # Resize a 1080x720 per dettaglio - V18 FULL HD (6-11% CPU)
+        """The older detection (filter off): how much the outer band moves between two pictures in a row, in % of the area."""
+        # resize to 1080x720 for detail - V18 FULL HD (6-11% CPU)
         small = cv2.resize(frame, (OPENCV_WIDTH, OPENCV_HEIGHT))
         gray = cv2.cvtColor(small, cv2.COLOR_BGR2GRAY)
         gray = cv2.GaussianBlur(gray, (21, 21), 0)
@@ -2167,7 +2182,7 @@ class LightDetector:
         if len(self.last_frames) < 3:
             return None
 
-        # Confronto con frame precedente (background subtraction semplice)
+        # compare with the previous frame (simple background subtraction)
         prev = self.last_frames[-2]
         diff = cv2.absdiff(prev, gray)
         thresh = cv2.threshold(diff, self.sensitivity, 255, cv2.THRESH_BINARY)[1]
@@ -2175,7 +2190,7 @@ class LightDetector:
         return self._periphery_score(thresh, 1.0)
 
     def _roi_rect(self, shape, scale):
-        """L'area controllata (pixel dell'immagine 1080x720) portata alla scala dell'immagine che si sta guardando."""
+        """The watched area (pixels of the 1080x720 picture) at the scale of the picture being looked at."""
         h, w = shape[:2]
         if self.roi is None:
             return int(w * 0.2), int(h * 0.2), int(w * 0.6), int(h * 0.6)
@@ -2183,7 +2198,7 @@ class LightDetector:
         return int(x * scale), int(y * scale), int(rw * scale), int(rh * scale)
 
     def _periphery_mask(self, h, w):
-        border = self.border  # fascia esterna: di serie il 25% (0.25 / 0.75)
+        border = self.border  # outer band: 25% by default (0.25 / 0.75)
         mask = np.zeros((h, w), np.uint8)
         mask[:int(h * border), :] = 255  # alto
         mask[int(h * (1 - border)):, :] = 255  # basso
@@ -2192,7 +2207,7 @@ class LightDetector:
         return mask
 
     def _periphery_score(self, thresh, scale):
-        """% dell'area controllata coperta da punti "cambiati" nella fascia esterna."""
+        """% of the watched area covered by "changed" points in the outer band."""
         x, y, rw, rh = self._roi_rect(thresh.shape, scale)
         roi_thresh = thresh[y:y + rh, x:x + rw]
         h_roi, w_roi = roi_thresh.shape
@@ -2202,7 +2217,7 @@ class LightDetector:
         return (cv2.countNonZero(moved) / (w_roi * h_roi)) * 100
 
     def _save_reference(self, adesso_path):
-        """La foto "di prima" per l'IA: la piu' vecchia fra quelle dello sfondo (~reference_seconds fa). -> (percorso, eta' in secondi) o (None, None)."""
+        """The "before" picture for the AI: the oldest of the background ones (~reference_seconds ago). -> (path, age in seconds) or (None, None)."""
         if not (self.ai_send_reference and self.persistent_filter and self.ref_jpegs):
             return None, None
         try:
@@ -2215,7 +2230,7 @@ class LightDetector:
             cv2.imwrite(path, resized, [int(cv2.IMWRITE_JPEG_QUALITY), AI_IMAGE_QUALITY])
             return path, int(time.time() - taken)
         except Exception as error:
-            print(f"[OPENCV] foto di prima non salvata: {error}")
+            print(f"[OPENCV] earlier picture not saved: {error}")
             return None, None
 
     def _reset_reference(self):
@@ -2227,26 +2242,26 @@ class LightDetector:
 
     def _persistent_score(self, frame, raw):
         """
-        Il filtro anti falsi allarmi. Invece di confrontare due foto di fila (basta la testina che passa per far scattare tutto):
-          1. lo SFONDO e' la mediana di 7 foto sparse negli ultimi `reference_seconds`: cio' che sta in un punto solo per poco
-             (testina, mano, riflesso) non ne fa parte;
-          2. la luminosita' media viene allineata a quella dello sfondo (la camera che regola l'esposizione non e' un movimento);
-          3. se cambia piu' di `global_change`% dell'intera immagine di colpo (luce, camera mossa) il controllo si ignora, ma se dura
-             piu' di GLOBAL_STREAK_MAX controlli di fila e' un cambiamento vero;
-          4. conta solo cio' che, nella fascia esterna dell'area, e' cambiato rispetto allo sfondo in TUTTI gli ultimi `persist_checks` controlli.
-        Lavora a meta' risoluzione: 4 volte meno punti da guardare di prima. -> % dell'area, oppure None (niente da contare adesso).
+        The filter against false alarms. Instead of comparing two pictures in a row (the passing print head is enough to trigger):
+          1. the BACKGROUND is the median of 7 pictures spread over the last `reference_seconds`: what stays in a place only
+             for a moment (print head, hand, reflection) is not part of it;
+          2. the average brightness is aligned to the background's (the camera adjusting its exposure is not movement);
+          3. if more than `global_change`% of the whole picture changes at once (light, camera moved) the check is ignored, but
+             if it lasts more than GLOBAL_STREAK_MAX checks in a row it is a real change;
+          4. only what changed against the background, in the outer band of the area, in ALL the last `persist_checks` checks counts.
+        It works at half resolution: 4 times fewer points to look at. -> % of the area, or None (nothing to count now).
         """
         now = time.time()
         small = cv2.resize(frame, (OPENCV_WIDTH // 2, OPENCV_HEIGHT // 2), interpolation=cv2.INTER_AREA)
         gray = cv2.GaussianBlur(cv2.cvtColor(small, cv2.COLOR_BGR2GRAY), (11, 11), 0)
         self.stats["frames_checked"] += 1
         if self.ref_small and now - self.ref_small[-1][0] > 2 * self.reference_seconds:
-            self._reset_reference()  # una lunga pausa: lo sfondo vecchio non vale piu'
+            self._reset_reference()  # a long pause: the old background is no longer valid
         result = None
         if self.bg is not None and self.bg.shape == gray.shape:
             result = self._compare_with_background(gray)
         else:
-            self.stats["status"] = "preparo il confronto (%d/%d foto)" % (len(self.ref_small), REFERENCE_MIN)
+            self.stats["status"] = "preparing the comparison (%d/%d pictures)" % (len(self.ref_small), REFERENCE_MIN)
         step = max(self.check_interval, self.reference_seconds / REFERENCE_SAMPLES)
         if not self.ref_small or now - self.ref_small[-1][0] >= step:
             self.ref_small.append((now, gray))
@@ -2267,10 +2282,10 @@ class LightDetector:
             self.recent_masks.clear()
             if self.global_streak < GLOBAL_STREAK_MAX:
                 self.stats["ignored_global"] = self.stats.get("ignored_global", 0) + 1
-                self.stats["status"] = f"cambio di luce o camera mossa ({changed:.0f}% dell'immagine): ignoro"
+                self.stats["status"] = f"light change or camera moved ({changed:.0f}% of the picture): ignored"
                 return None
-            self.stats["status"] = "scanning (cambiamento grande e persistente)"
-            return changed  # dura da molti controlli: non e' un lampo di luce
+            self.stats["status"] = "scanning (large lasting change)"
+            return changed  # it lasted many checks: not a flash of light
         self.global_streak = 0
         thresh = cv2.dilate(thresh, None, iterations=1)
         x, y, rw, rh = self._roi_rect(thresh.shape, 0.5)
@@ -2291,20 +2306,20 @@ class LightDetector:
         return (cv2.countNonZero(stays) / (w_roi * h_roi)) * 100
 
     def call_ai_analysis(self, img_path, ref_path=None, ref_age=None):
-        """Chiede all'IA di guardare la foto (e, se c'e', com'era prima) quando il monitor scatta, senza intervento umano."""
+        """Asks the AI to look at the picture (and, if there is one, at how it was before) when the monitor triggers, with nobody involved."""
         score = self.stats.get("last_score", 0)
         try:
             now = time.time()
             if now - self.last_ai_call < self.ai_cooldown:
-                print(f"[OPENCV] AI cooldown attivo, salto (mancano {int(self.ai_cooldown - (now-self.last_ai_call))}s)")
+                print(f"[OPENCV] AI cooldown on, skipped ({int(self.ai_cooldown - (now-self.last_ai_call))}s to go)")
                 record_alert({"outcome": "skipped: AI cooldown not over", "score": score}, img_path, ref_path)
                 return
             self.last_ai_call = now
-            print(f"[OPENCV] AUTO-CHIAMATA IA per {img_path}")
+            print(f"[OPENCV] calling the AI for {img_path}")
 
-            # Leggi immagine e converti base64
+            # read the picture as base64
             if not os.path.exists(img_path):
-                print(f"[OPENCV] img non trovata {img_path}")
+                print(f"[OPENCV] picture not found {img_path}")
                 return
             with open(img_path, 'rb') as f:
                 img_b64 = base64.b64encode(f.read()).decode('utf-8')
@@ -2331,7 +2346,7 @@ class LightDetector:
 
             cfg = load_ai_config()
             if not cfg.get("api_key"):
-                print("[OPENCV] No API key per AI auto-call")
+                print("[OPENCV] No API key for the AI call")
                 record_alert({"outcome": "skipped: no AI key", "score": score}, img_path, ref_path)
                 return
 
@@ -2342,7 +2357,7 @@ class LightDetector:
             if provider == "openai":
                 endpoint = "https://api.openai.com/v1/chat/completions"
                 final_model = "gpt-4o-mini"
-            if self.ai_model:  # scelto dalla dashboard (Monitor IA): vince su quello predefinito del servizio
+            if self.ai_model:  # chosen in the dashboard (Monitor thresholds): wins over the service's default
                 final_model = self.ai_model
 
             headers = {"Authorization": f"Bearer {api_key}", "Content-Type":"application/json"}
@@ -2369,8 +2384,8 @@ class LightDetector:
             used_reference = bool(ref_b64)
             r = ask(used_reference)
             if not r.ok and used_reference:
-                # alcuni servizi/modelli accettano una sola foto (o hanno un limite di dati): riprovo con la sola foto di adesso
-                print(f"[OPENCV] IA ha rifiutato due foto ({r.status_code}): riprovo con una sola")
+                # some services/models accept one picture only (or have a data limit): try again with the current picture only
+                print(f"[OPENCV] the AI refused two pictures ({r.status_code}): trying with one")
                 used_reference = False
                 r = ask(False)
             if not r.ok:
@@ -2379,14 +2394,14 @@ class LightDetector:
                 return
             j = r.json()
             answer = j["choices"][0]["message"]["content"] if "choices" in j else str(j)
-            print(f"[OPENCV] AI Risposta: {answer[:500]}")
+            print(f"[OPENCV] AI answer: {answer[:500]}")
 
             # Parsa JSON
             parsed = None
             try:
                 parsed = json.loads(answer)
                 if isinstance(parsed, dict) and "spaghetti" not in parsed:
-                    for v in parsed.values():  # a volte la risposta e' dentro un altro oggetto
+                    for v in parsed.values():  # sometimes the answer is inside another object
                         if isinstance(v, dict) and "spaghetti" in v:
                             parsed = v
                             break
@@ -2414,7 +2429,7 @@ class LightDetector:
                     "raw": answer
                 }
                 self.stats["status"] = f"AI: {parsed.get('action','?')} - {str(parsed.get('summary',''))[:40]}"
-                print(f"[OPENCV] AI analysis salvata: {parsed}")
+                print(f"[OPENCV] AI analysis saved: {parsed}")
                 confidences = [d.get("confidence") for k, d in parsed.items() if k in AI_DEFECT_KEYS and isinstance(d, dict) and d.get("detected") is True]
                 record_alert({
                     "outcome": "analysed" + (" (downgraded: confidence below the minimum)" if downgraded else ""),
@@ -2439,11 +2454,11 @@ class LightDetector:
             import traceback; traceback.print_exc()
 
 detector = LightDetector()
-detector.apply_config(brain_config.snapshot())  # le soglie salvate (o quelle di sempre) valgono dal primo controllo
+detector.apply_config(brain_config.snapshot())  # the saved thresholds (or the defaults) apply from the first check
 
 
 def set_brain_config(changes):
-    """Cambia delle soglie: le controlla, le salva in brain.json e le mette in uso. -> (errori, chiavi cambiate)."""
+    """Changes thresholds: checks them, saves them in monitor.json and puts them in use. -> (errors, changed keys)."""
     errors, changed = brain_config.update(changes)
     if errors:
         return errors, changed
@@ -2459,7 +2474,7 @@ def set_brain_config(changes):
 
 @app.route("/api/version", methods=["GET"])
 def api_version():
-    """Chi sono: release (file VERSION), livello dell'interfaccia, commit del repository, da quanto sono acceso."""
+    """Who am I: release (VERSION file), interface level, repository commit, how long I have been up."""
     return jsonify({
         "ok": True,
         "release": RELEASE,
@@ -2472,31 +2487,31 @@ def api_version():
         "data_dir": DATA_DIR,
         "frontend": find_frontend(),
         "repair": read_repair_mark(),  # the last self-repair of the files (after a power loss), if any
-        "legacy": LEGACY_INSTALL,  # True: sta ancora in ~/vzbot (servizio "vzbot"): la dashboard propone il passaggio a KlippEye
+        "legacy": LEGACY_INSTALL,  # True: still in ~/vzbot (service "vzbot"): the dashboard offers the move to KlippEye
     })
 
 
 # === PASSAGGIO A KLIPPEYE: dal vecchio nome (~/vzbot, servizio "vzbot") al nuovo ===================================
-# Chi ha installato la 1.0.x ha cartella, dati e servizi che si chiamano "vzbot". L'aggiornamento normale porta qui il codice
-# nuovo senza spostare niente (il servizio vecchio continua a partire, grazie al file brain/vzbot_brain.py, che lancia questo
-# file). Lo spostamento vero lo fa scripts/passa-a-klippeye.sh: la dashboard lo lancia con il pulsante "Passa a KlippEye"
-# (/api/migrate/start) e ne segue i passi (/api/migrate/status); da terminale: bash ~/vzbot/scripts/passa-a-klippeye.sh.
+# Whoever installed 1.0.x has a folder, data and services called "vzbot". The normal update brings the new code here without
+# moving anything (the old service still starts, thanks to brain/vzbot_brain.py, which launches this file). The real move
+# is done by scripts/passa-a-klippeye.sh: the dashboard starts it with the "Move to KlippEye" button (/api/migrate/start)
+# and follows its steps (/api/migrate/status); from the terminal: bash ~/vzbot/scripts/passa-a-klippeye.sh.
 LEGACY_INSTALL = os.path.basename(REPO_DIR).lower() == "vzbot"
 MIGRATION_SCRIPT = os.path.join(REPO_DIR, "scripts", "passa-a-klippeye.sh")
 MIGRATION_STATUS_PATH = os.environ.get("KLIPPEYE_MIGRATION_STATUS") or os.path.join(tempfile.gettempdir(), "klippeye-migrazione.json")
-MIGRATION_SUDO = os.environ.get("KLIPPEYE_SUDO", "sudo")  # "" = niente sudo (prove, o se il servizio gira gia' come amministratore)
-MIGRATION_LAUNCHER = os.environ.get("KLIPPEYE_MIGRATION_LAUNCHER", "")  # solo per le prove: al posto di "sudo systemd-run ..."
+MIGRATION_SUDO = os.environ.get("KLIPPEYE_SUDO", "sudo")  # "" = no sudo (tests, or a service already running as administrator)
+MIGRATION_LAUNCHER = os.environ.get("KLIPPEYE_MIGRATION_LAUNCHER", "")  # tests only: instead of "sudo systemd-run ..."
 MIGRATION_COMMAND = "bash ~/%s/scripts/passa-a-klippeye.sh" % os.path.basename(REPO_DIR)
 
 
 def read_migration_status():
-    """Lo stato scritto dallo script: {"state": "none" | "running" | "done" | "error", "step", "steps", "message"}."""
+    """The state written by the script: {"state": "none" | "running" | "done" | "error", "step", "steps", "message"}."""
     try:
         with open(MIGRATION_STATUS_PATH, encoding="utf-8") as f:
             data = json.load(f)
         if isinstance(data, dict) and data.get("state") in ("running", "done", "error"):
             if data["state"] == "running" and time.time() - float(data.get("time") or 0) > 900:
-                return {"state": "error", "step": data.get("step", 0), "steps": data.get("steps", 6), "message": "Lo script non da' piu' notizie da 15 minuti."}
+                return {"state": "error", "step": data.get("step", 0), "steps": data.get("steps", 6), "message": bt("The script has not reported anything for 15 minutes.", _lang())}
             return data
     except (OSError, ValueError, TypeError):
         pass
@@ -2520,22 +2535,22 @@ def api_migrate_status():
 
 @app.route("/api/migrate/start", methods=["POST"])
 def api_migrate_start():
-    """Lancia lo script del passaggio, staccato dal servizio (che lo script stesso fermera' e ricreera' col nuovo nome)."""
+    """Starts the move script, detached from the service (which the script itself stops and recreates with the new name)."""
     if not LEGACY_INSTALL:
-        return jsonify({"ok": False, "error": "Sei gia' in ~/klippeye: non c'e' niente da spostare."}), 400
+        return jsonify({"ok": False, "error": bt("You are already in ~/klippeye: there is nothing to move.", _lang())}), 400
     if not os.path.isfile(MIGRATION_SCRIPT):
-        return jsonify({"ok": False, "error": "Manca scripts/passa-a-klippeye.sh: aggiorna prima KlippEye.", "command": MIGRATION_COMMAND}), 500
+        return jsonify({"ok": False, "error": bt("scripts/passa-a-klippeye.sh is missing: update KlippEye first.", _lang()), "command": MIGRATION_COMMAND}), 500
     if read_migration_status()["state"] == "running":
-        return jsonify({"ok": False, "error": "Il passaggio e' gia' in corso."}), 409
+        return jsonify({"ok": False, "error": bt("The move is already running.", _lang())}), 409
     if _is_printing_now():
-        return jsonify({"ok": False, "error": "Sta stampando: il passaggio riavvia il backend e Moonraker. Aspetta la fine della stampa."}), 409
+        return jsonify({"ok": False, "error": bt("The printer is printing: the move restarts the backend and Moonraker. Wait for the print to end.", _lang())}), 409
     sudo = [MIGRATION_SUDO] if MIGRATION_SUDO else []
     if MIGRATION_LAUNCHER:
         command = MIGRATION_LAUNCHER.split() + ["bash", MIGRATION_SCRIPT, "--dal-backend"]
     else:
         if sudo and subprocess.run(sudo + ["-n", "true"], capture_output=True).returncode != 0:
             return jsonify({"ok": False, "error": "no_sudo", "command": MIGRATION_COMMAND,
-                            "message": "Qui non posso farlo da solo (serve la password di amministratore). Da terminale: " + MIGRATION_COMMAND}), 501
+                            "message": bt("It cannot be done from here (it needs the administrator password). From the terminal: {command}", _lang(), command=MIGRATION_COMMAND)}), 501
         user = __import__("pwd").getpwuid(os.getuid()).pw_name
         env = ["--setenv=HOME=" + os.path.expanduser("~"), "--setenv=PATH=" + os.environ.get("PATH", "/usr/bin:/bin")]
         env += ["--setenv=%s=%s" % (k, v) for k, v in os.environ.items() if k.startswith("KLIPPEYE_") or k.startswith("VZBOT_")]
@@ -2546,12 +2561,12 @@ def api_migrate_start():
             json.dump({"state": "running", "step": 0, "steps": 6, "message": "Parto...", "time": time.time()}, f)
         subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True, cwd="/tmp")
     except Exception as e:
-        return jsonify({"ok": False, "error": "Non riesco a lanciare lo script: %s" % e, "command": MIGRATION_COMMAND}), 500
+        return jsonify({"ok": False, "error": bt("Cannot start the script: {error}", _lang(), error=e), "command": MIGRATION_COMMAND}), 500
     return jsonify({"ok": True, "started": True})
 # === fine PASSAGGIO A KLIPPEYE ============================================================================
 
 
-# === APP ANDROID: l'APK che GitHub costruisce (apk/KlippEye.apk + apk/version.json) ===============================
+# === ANDROID APP: the APK GitHub builds (apk/KlippEye.apk + apk/version.json) ===============================
 APK_DIR = os.path.join(REPO_DIR, "apk")
 APK_PATH = os.path.join(APK_DIR, "KlippEye.apk")
 APK_INFO_PATH = os.path.join(APK_DIR, "version.json")
@@ -2563,7 +2578,7 @@ _apk_lock = threading.Lock()
 
 
 def _apk_code(version):
-    """1.2.3 -> 10203: la stessa formula di android/app/build.gradle (None se il formato non va)."""
+    """1.2.3 -> 10203: the same formula as android/app/build.gradle (None when the format is wrong)."""
     match = _APK_VERSION_RE.match(version or "")
     return int(match.group(1)) * 10000 + int(match.group(2)) * 100 + int(match.group(3)) if match else None
 
@@ -2578,15 +2593,15 @@ def _apk_sha256(path):
 
 def read_apk_info():
     """
-    Cosa offre il backend al telefono: {"available": True, "version", "code", "size", "sha256", "built", "url"} oppure
-    {"available": False, "reason": ...}. Il file apk/version.json e' scritto da GitHub insieme all'APK; qui si controlla che
-    i due vadano d'accordo (grandezza e impronta SHA-256 del file vero), cosi' un aggiornamento a meta' o un file rovinato
-    non arriva mai al telefono. Il calcolo (qualche decimo di secondo sul Raspberry) si rifa' solo se i file cambiano.
+    What the backend offers the phone: {"available": True, "version", "code", "size", "sha256", "built", "url"} or
+    {"available": False, "reason": ...} (the reason in English, marked with btn() for the dictionaries). apk/version.json
+    is written by GitHub together with the APK; here the two must agree (size and SHA-256 of the real file), so half an
+    update or a damaged file never reaches the phone. The check (a few tenths of a second) is redone only when the files change.
     """
     try:
         info_stat, apk_stat = os.stat(APK_INFO_PATH), os.stat(APK_PATH)
     except OSError:
-        return {"available": False, "reason": "nessuna app pubblicata"}
+        return {"available": False, "reason": btn("no app published")}
     key = (info_stat.st_mtime_ns, info_stat.st_size, apk_stat.st_mtime_ns, apk_stat.st_size)
     with _apk_lock:
         if _apk_cache["key"] == key:
@@ -2601,20 +2616,20 @@ def _read_apk_info_uncached(apk_size):
         with open(APK_INFO_PATH, encoding="utf-8") as f:
             data = json.load(f)
     except (OSError, ValueError):
-        return {"available": False, "reason": "apk/version.json non si legge"}
+        return {"available": False, "reason": btn("apk/version.json cannot be read")}
     if not isinstance(data, dict):
-        return {"available": False, "reason": "apk/version.json non e' valido"}
+        return {"available": False, "reason": btn("apk/version.json is not valid")}
     version, sha = data.get("version"), str(data.get("sha256") or "").lower()
     if not isinstance(version, str) or _apk_code(version) is None or not _APK_SHA_RE.match(sha):
-        return {"available": False, "reason": "apk/version.json non e' valido"}
+        return {"available": False, "reason": btn("apk/version.json is not valid")}
     if data.get("size") != apk_size:
-        return {"available": False, "reason": "l'APK non corrisponde a version.json (aggiornamento a meta'?)"}
+        return {"available": False, "reason": btn("the APK does not match version.json (half an update?)")}
     try:
         actual = _apk_sha256(APK_PATH)
     except OSError:
-        return {"available": False, "reason": "l'APK non si legge"}
+        return {"available": False, "reason": btn("the APK cannot be read")}
     if actual != sha:
-        return {"available": False, "reason": "l'APK non corrisponde a version.json (impronta diversa)"}
+        return {"available": False, "reason": btn("the APK does not match version.json (different fingerprint)")}
     built = data.get("built")
     return {
         "available": True,
@@ -2629,38 +2644,41 @@ def _read_apk_info_uncached(apk_size):
 
 @app.route("/api/app/version", methods=["GET"])
 def api_app_version():
-    """L'app Android che il backend puo' dare al telefono (vedi read_apk_info). Mai in cache: dopo un aggiornamento cambia."""
-    response = jsonify(dict(read_apk_info(), ok=True))
+    """The Android app the backend can give the phone (see read_apk_info). Never cached: an update changes it."""
+    info = read_apk_info()
+    if info.get("reason"):
+        info = dict(info, reason=bt(info["reason"], _lang()))
+    response = jsonify(dict(info, ok=True))
     response.headers["Cache-Control"] = "no-store"
     return response
 
 
 @app.route("/app/KlippEye.apk", methods=["GET"])
-@app.route("/app/VzBot.apk", methods=["GET"])  # lo stesso file: l'app con il vecchio nome (VzBot 1.0.x) cerca l'aggiornamento li'
+@app.route("/app/VzBot.apk", methods=["GET"])  # the same file: the app with the old name (VzBot 1.0.x) looks for its update there
 def app_apk():
-    """Il file dell'app. Si da' solo se e' coerente con version.json (grandezza e impronta), altrimenti 404 con il motivo."""
+    """The app file. Given only when it matches version.json (size and fingerprint), else 404 with the reason."""
     info = read_apk_info()
     if not info["available"]:
-        return jsonify({"ok": False, "error": info["reason"]}), 404
+        return jsonify({"ok": False, "error": bt(info["reason"], _lang())}), 404
     response = send_file(APK_PATH, mimetype=APK_MIMETYPE, as_attachment=True, download_name="KlippEye-%s.apk" % info["version"], conditional=True, max_age=0)
     response.headers["Cache-Control"] = "no-store"
     return response
 # === fine APP ANDROID ==================================================================================
 
 
-# === LOGHI DELLA STAMPANTE: la cartella logos/ del repository ==================================================
-# La dashboard puo' mostrare nella barra in alto il logo di VzBot, Voron o RatRig (Impostazioni -> Stampante). I file ufficiali
-# si mettono in logos/ (voron.svg, ratrig.png...) e arrivano col normale aggiornamento: nessuna ricostruzione della dashboard.
+# === PRINTER LOGOS: the repository's logos/ folder ==================================================
+# The dashboard can show the VzBot, Voron or RatRig logo in its top bar (Settings -> Printer). The official files go in
+# logos/ (voron.svg, ratrig.png...) and arrive with the normal update: the dashboard is not rebuilt.
 LOGOS_DIR = os.path.join(REPO_DIR, "logos")
 LOGO_BRANDS = ("vzbot", "voron", "ratrig")
 LOGO_FILE_RE = re.compile(r"^(vzbot|voron|ratrig)\.(svg|png|webp)$")
 LOGO_MIMETYPES = {"svg": "image/svg+xml", "png": "image/png", "webp": "image/webp"}
 LOGO_MAX_BYTES = 2 * 1024 * 1024
-LOGO_EXT_ORDER = ("svg", "png", "webp")  # se ce ne sono due della stessa marca vince il primo
+LOGO_EXT_ORDER = ("svg", "png", "webp")  # with two files of the same brand the first wins
 
 
 def list_logo_files():
-    """I loghi presenti, un file per marca: ["voron.svg", ...] (ignora nomi diversi, cartelle e file troppo grandi)."""
+    """The logos there are, one file per brand: ["voron.svg", ...] (other names, folders and files too big are ignored)."""
     try:
         names = os.listdir(LOGOS_DIR)
     except OSError:
@@ -2691,16 +2709,16 @@ def api_logos():
 
 @app.route("/logos/<name>", methods=["GET"])
 def logo_file(name):
-    """Un logo della cartella logos/ (solo i nomi previsti: vzbot|voron|ratrig . svg|png|webp)."""
+    """A logo of the logos/ folder (only the expected names: vzbot|voron|ratrig . svg|png|webp)."""
     if name not in list_logo_files():
-        return jsonify({"ok": False, "error": "logo non trovato"}), 404
+        return jsonify({"ok": False, "error": "logo not found"}), 404
     response = send_file(os.path.join(LOGOS_DIR, name), mimetype=LOGO_MIMETYPES[name.rsplit(".", 1)[1]], conditional=True, max_age=0)
-    # un SVG aperto da solo non deve poter eseguire script; dentro un <img> non lo fa comunque
+    # an SVG opened by itself must not be able to run scripts; inside an <img> it cannot anyway
     response.headers["Content-Security-Policy"] = "default-src 'none'; style-src 'unsafe-inline'; img-src data:"
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["Cache-Control"] = "no-cache"
     return response
-# === fine LOGHI DELLA STAMPANTE ===========================================================================
+# === end PRINTER LOGOS ===========================================================================
 
 
 def brain_config_reply(ok=True, status=200, **extra):
@@ -2717,7 +2735,7 @@ def brain_config_reply(ok=True, status=200, **extra):
 
 @app.route("/api/backend/config", methods=["GET"])
 def api_brain_config_get():
-    """Le soglie del monitor IA con tutto quello che serve per disegnare il menu (etichette, limiti, valori di sempre)."""
+    """The AI monitor thresholds with all it takes to draw the menu (labels, limits, defaults)."""
     return brain_config_reply(
         defaults=config_defaults(),
         groups=CONFIG_GROUPS,
@@ -2730,10 +2748,10 @@ def api_brain_config_get():
 
 @app.route("/api/backend/config", methods=["POST"])
 def api_brain_config_set():
-    """{"values": {chiave: valore, ...}}: solo le chiavi indicate. Se un valore non va non cambia niente (400 + errors)."""
+    """{"values": {key: value, ...}}: only the given keys. When a value is wrong nothing changes (400 + errors)."""
     body = request.get_json(silent=True)
     if not isinstance(body, dict):
-        return brain_config_reply(False, 400, errors={"_": "serve un oggetto JSON"})
+        return brain_config_reply(False, 400, errors={"_": "a JSON object is needed"})
     changes = body.get("values") if isinstance(body.get("values"), dict) else body
     errors, changed = set_brain_config(changes)
     if errors:
@@ -2743,7 +2761,7 @@ def api_brain_config_set():
 
 @app.route("/api/backend/config/reset", methods=["POST"])
 def api_brain_config_reset():
-    """Torna ai valori di sempre: tutti, oppure solo {"keys": [...]}."""
+    """Back to the defaults: all of them, or only {"keys": [...]}."""
     body = request.get_json(silent=True) or {}
     keys = body.get("keys") if isinstance(body.get("keys"), list) else None
     defaults = config_defaults()
@@ -2791,8 +2809,8 @@ def api_detector_status():
 
 @app.route("/api/print/detector/config", methods=["POST"])
 def api_detector_config():
-    # Vecchio endpoint, tenuto uguale per chi lo usa: ora passa dalle impostazioni, quindi la modifica resta salvata.
-    # (Il menu della dashboard usa /api/backend/config.) roi = [x,y,w,h] in pixel dell'immagine 1080x720.
+    # Old endpoint, kept the same for whoever uses it: it now goes through the settings, so the change stays saved.
+    # (The dashboard menu uses /api/backend/config.) roi = [x,y,w,h] in pixels of the 1080x720 picture.
     data = request.get_json(silent=True) or {}
     changes = {}
     try:
@@ -2807,7 +2825,7 @@ def api_detector_config():
         pass
     if changes:
         errors, _ = set_brain_config(changes)
-        if errors:  # un valore non accettabile (es. area fuori dall'immagine): si lascia com'era, come faceva il try/except di prima
+        if errors:  # a value that is not acceptable (e.g. an area outside the picture): left as it was, like the old try/except did
             for key in errors:
                 changes.pop(key, None)
             if changes:
@@ -2834,7 +2852,7 @@ def api_print_alerts():
 
 @app.route("/api/print/alerts/history", methods=["GET"])
 def api_alert_history():
-    """Gli ultimi allarmi del monitor (con il verdetto dell'IA e i nomi delle foto), dal piu' recente."""
+    """The monitor's last alerts (with the AI verdict and the picture names), newest first."""
     try:
         limit = max(1, min(ALERT_HISTORY_KEEP, int(request.args.get("limit", 20))))
     except ValueError:
@@ -2854,7 +2872,7 @@ def api_alert_image(name):
 
 @app.route("/api/print/last_analysis", methods=["GET"])
 def api_print_last_analysis():
-    """Ritorna ultima analisi AI pretty JSON - per dashboard auto"""
+    """The last AI analysis as JSON, for the dashboard"""
     try:
         if not detector.last_analysis:
             return jsonify({"ok": True, "has_analysis": False, "stats": detector.stats})
@@ -2892,15 +2910,15 @@ def api_print_snapshot():
 @app.route("/api/print/analyze", methods=["POST","GET"])
 def api_print_analyze():
     """
-    Analizza stampa in corso: snapshot camera + telemetria
-    Stesso approccio dei log ma con visione
+    Analyses the print in progress: camera snapshot + telemetry
+    (the same approach as the logs, with vision)
     """
     try:
         cfg = load_ai_config()
         if not cfg.get("api_key"):
-            return jsonify({"error":"API Key non configurata, vai in LOGS SISTEMA > ⚙️ e inserisci Groq/OpenAI key", "howto":"Usa stessa key dei log"}), 401
+            return jsonify({"error": bt("API key not set: go to System logs > ⚙️ and enter a Groq/OpenAI key", _lang()), "howto": bt("Use the same key as the logs", _lang())}), 401
 
-        # 1. Snapshot camera - V17 resize a 1080x720 per dettaglio piatto vuoto
+        # 1. camera snapshot - V17: resized to 1080x720 for the detail of an empty bed
         img_b64 = None
         img_resized_bytes = None
         try:
@@ -2933,9 +2951,9 @@ def api_print_analyze():
             print(f"[PRINT-AI] snapshot error: {e}")
 
         if not img_b64:
-            return jsonify({"error":"Impossibile catturare snapshot camera, verifica camera in Home"}), 500
+            return jsonify({"error": bt("Cannot take a camera snapshot: check the camera on the Home page", _lang())}), 500
 
-        # 2. Telemetria stampa
+        # 2. print telemetry
         telemetry = {}
         try:
             pr = requests.get(f"{MOONRAKER_URL}/printer/objects/query?print_stats&extruder&heater_bed&display_status&toolhead&virtual_sdcard&gcode_move", timeout=3).json()
@@ -2956,8 +2974,8 @@ def api_print_analyze():
         target_h = extruder.get("target",0)
         temp_b = bed.get("temperature",0)
 
-        # 3. Prompt per vision - SOLUZIONE 5 ibrida
-        # Calcola real_print_started anche qui per prompt
+        # 3. vision prompt - hybrid solution 5
+        # real_print_started is worked out here too, for the prompt
         real_print_started = False
         real_reason = ""
         try:
@@ -2966,7 +2984,7 @@ def api_print_analyze():
             file_progress = file_pos / file_size if file_size>0 else 0
             total_dur = print_stats.get("total_duration",0)
             progress_frac = progress/100 if progress>1 else progress
-            # Stessi criteri del detector
+            # the same criteria as the detector
             checks = []
             if progress_frac < detector.min_progress/100 and file_progress < detector.min_progress/200:
                 checks.append(f"progress {progress_frac*100:.1f}% low")
@@ -3043,7 +3061,7 @@ Then add a markdown section with a detailed explanation.
         # OpenAI: gpt-4o-mini supporta vision
         provider_map_vision = {
             "openai": ("https://api.openai.com/v1/chat/completions", model if "vision" in model.lower() or "gpt-4o" in model.lower() or "gpt-4" in model.lower() else "gpt-4o-mini"),
-            "groq": ("https://api.groq.com/openai/v1/chat/completions", "qwen/qwen3.8-27b"),  # FIX 2026-10: Llama-4 Scout rimosso da Groq, ora solo Qwen 3.8 vision
+            "groq": ("https://api.groq.com/openai/v1/chat/completions", "qwen/qwen3.8-27b"),  # FIX 2026-10: Llama-4 Scout removed from Groq, now only Qwen 3.8 vision
             "meta": ("https://api.llama.com/compat/v1/chat/completions", "Llama-4-Scout-17B-16E-Instruct"),
             "llama": ("https://api.llama.com/compat/v1/chat/completions", "Llama-4-Scout-17B-16E-Instruct"),
         }
@@ -3054,7 +3072,7 @@ Then add a markdown section with a detailed explanation.
             headers["HTTP-Referer"]="https://klippeye.local"
             endpoint = "https://openrouter.ai/api/v1/chat/completions"
             final_model = "meta-llama/llama-4-scout-17b-16e-instruct"
-        if detector.ai_model:  # scelto dalla dashboard (Monitor IA): vince su quello predefinito del servizio
+        if detector.ai_model:  # chosen in the dashboard (Monitor thresholds): wins over the service's default
             final_model = detector.ai_model
 
         payload = {
@@ -3070,13 +3088,13 @@ Then add a markdown section with a detailed explanation.
             "max_tokens": 1800
         }
 
-        # Per provider che non supportano array content (vecchi), fallback a solo testo se errore
+        # providers that do not take an array as content (old ones): text only after an error
         try:
             r = requests.post(endpoint, headers=headers, json=payload, timeout=40)
             if not r.ok:
-                # Prova senza immagine ma con nota
+                # try without the picture, with a note
                 print(f"[PRINT-AI] vision failed {r.status_code}: {r.text[:500]}")
-                # Fallback: analisi solo telemetria
+                # fallback: telemetry only
                 payload_fallback = {
                     "model": final_model,
                     "messages":[
@@ -3110,22 +3128,22 @@ Then add a markdown section with a detailed explanation.
 # === END PRINT AI V9 ===
 
 
-# Auto-start detector se cv2 disponibile (e se non l'hai spento dal menu: Monitor IA > Monitor attivo)
+# start the detector when cv2 is there (unless switched off in the menu: Monitor thresholds > Monitor on)
 try:
     if HAS_CV2 and brain_config.snapshot()["enabled"]:
         detector.start()
-        print("[OPENCV] Auto-start detector attivo (parte quando stampa)")
+        print("[OPENCV] Detector started (it checks while printing)")
     elif HAS_CV2:
         detector.enabled = False
         detector.stats["status"] = "stopped"
-        print("[OPENCV] Detector spento dal menu: non parte")
+        print("[OPENCV] Detector switched off in the menu: not started")
     else:
-        print("[OPENCV] Detector non avviato, manca cv2")
+        print("[OPENCV] Detector not started: cv2 missing")
 except Exception as e:
     print(f"[OPENCV] Auto-start fail: {e}")
 
 if __name__ == "__main__":
     threading.Thread(target=_repair_at_startup, name="repair", daemon=True).start()
-    print(f"KlippEye backend {RELEASE} (api {API_LEVEL}) - dati in {DATA_DIR} - impostazioni {'lette da ' + BRAIN_CONFIG_PATH if brain_config.saved else 'di serie (nessun file salvato)'}")
+    print(f"KlippEye backend {RELEASE} (api {API_LEVEL}) - data in {DATA_DIR} - settings {'read from ' + BRAIN_CONFIG_PATH if brain_config.saved else 'default (no saved file)'}")
     print(f"KlippEye backend running on 0.0.0.0:{PORT}")
     app.run(host="0.0.0.0", port=PORT, debug=False)
