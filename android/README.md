@@ -19,16 +19,11 @@ android/
   tools/                  prove (AggiornamentoTest.kt, IndirizziTest.kt) e script per le icone
 ```
 
-## Nome dell'app e passaggio dalla vecchia app VzBot
+## Nome dell'app
 
-Con il cambio di nome l'app ha un **nome interno nuovo**: `com.klippeye.app` (la vecchia era `com.vzbot.dashboard`), e il ponte con la dashboard si chiama `KlippEyeApp`
-(`KlippEyeApp/5` nell'user agent; la vecchia era `VzBotApp`). Per Android è **un'altra app**: si installa accanto alla vecchia, che poi si disinstalla.
-
-* **Firebase**: nel progetto va registrata l'app Android `com.klippeye.app` e il suo `google-services.json` va messo nel segreto `GOOGLE_SERVICES_JSON` (vedi `docs/GUIDA.md`, parte P5).
-  L'argomento delle notifiche (`vzbot-pp3zt27qxb49fw3fsbvv`) **non cambia**: è scritto anche in `notifier.json` sul Raspberry; finché le due app sono installate le notifiche arrivano a entrambe.
-* **La vecchia app** non sa dell'altro nome: il backend offre il nuovo APK anche su `/app/VzBot.apk` (alias) e la dashboard, dentro la vecchia app, mostra *Installa la nuova app KlippEye*.
-  La dashboard riconosce entrambi i ponti (`KlippEyeApp` e `VzBotApp`) e le due funzioni di ritorno (`klippeyeSetAddresses`/`vzSetAddresses`, `klippeyeAppUpdate`/`vzAppUpdate`).
-* **Chiave di firma**: quella nuova è `chiave/klippeye.p12` (la crea GitHub); la vecchia (`chiave/vzbot.p12`), se c'è, si può cancellare dopo il passaggio.
+Il nome interno è `com.klippeye.app` e il ponte con la dashboard si chiama `KlippEyeApp` (`KlippEyeApp/5` nell'user agent).
+L'argomento delle notifiche (`vzbot-pp3zt27qxb49fw3fsbvv`) ha ancora il nome di quando il progetto si chiamava VzBot: è scritto anche
+in `notifier.json` sul Raspberry, quindi non cambia.
 
 ## Versione
 

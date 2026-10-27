@@ -1,0 +1,48 @@
+name: End-to-end
+
+# Installs and updates KlippEye on a simulated Raspberry Pi with a real Moonraker (see tests/e2e/README.md).
+# The same test runs locally with:  python3 tests/e2e/setup.py && python3 tests/e2e/e2e_test.py
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    name: Install and updates on a simulated Raspberry
+    runs-on: ubuntu-24.04   # pinned like the Tests workflow (Playwright 1.56 system libraries)
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install the system and Python packages
+        run: |
+          sudo apt-get install -y --no-install-recommends libsodium23
+          pip install flask requests werkzeug numpy opencv-python-headless cryptography pillow playwright==1.56.0
+          python -m playwright install --with-deps chromium
+      - name: Prepare Moonraker
+        run: python tests/e2e/setup.py
+      - name: Run the end-to-end test
+        run: python tests/e2e/e2e_test.py
+      - name: Keep the logs when something fails
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-worlds
+          path: |
+            tests/e2e/.work/worlds/*/*.out
+            tests/e2e/.work/worlds/*/state/*.log
+            tests/e2e/.work/worlds/*/home/printer_data/logs/
+            tests/e2e/.work/worlds/*/home/printer_data/config/moonraker.conf
+          retention-days: 7

@@ -184,8 +184,8 @@ except ImportError:
     print("SKIP RS256 tests: cryptography not installed")
 
 # --------------------------------------------------------------------------------------------------- the FCM message
-msg = vn.build_message(cfg(topic="vzbot-abc"), vn.Notice("runout", USER_TEXTS["runout"]))["message"]
-ok("message: topic, title and body", msg["topic"] == "vzbot-abc" and msg["notification"] == {"title": "KlippEye", "body": USER_TEXTS["runout"]}, msg)
+msg = vn.build_message(cfg(topic="klippeye-abc"), vn.Notice("runout", USER_TEXTS["runout"]))["message"]
+ok("message: topic, title and body", msg["topic"] == "klippeye-abc" and msg["notification"] == {"title": "KlippEye", "body": USER_TEXTS["runout"]}, msg)
 ok("message: high priority, channel 'allarmi', tag and collapse key = kind, ttl 6 h", msg["android"]["priority"] == "HIGH" and msg["android"]["notification"]["channel_id"] == "allarmi" and msg["android"]["notification"]["tag"] == "runout" and msg["android"]["collapse_key"] == "runout" and msg["android"]["ttl"] == "21600s", msg["android"])
 ok("message: channels by kind", {k: vn.build_message(cfg(topic="t"), vn.Notice(k, "x"))["message"]["android"]["notification"]["channel_id"] for k in vn.KIND_CHANNEL} == vn.KIND_CHANNEL)
 AUTO_ONLY = {"ai_pause_auto", "ai_cancel_auto"}
@@ -415,7 +415,7 @@ time.sleep(0.02)
 open(watched, "w").write("y = 2\n")
 runner.join(5)
 ok("run(): file replaced -> the service ends by itself (systemd restarts it)", not runner.is_alive() and stop.is_set())
-ok("version is 1.4", vn.__version__ == "1.4", vn.__version__)
+ok("version is 1.5", vn.__version__ == "1.5", vn.__version__)
 
 print("\nFAILED: %d %s" % (len(FAILS), FAILS) if FAILS else "\nALL PASS")
 sys.exit(1 if FAILS else 0)

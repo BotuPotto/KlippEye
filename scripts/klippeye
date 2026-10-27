@@ -5,12 +5,9 @@
 
 REPO="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)"
 if [ -n "${KLIPPEYE_DATA:-}" ]; then DATA="$KLIPPEYE_DATA"
-elif [ -d "$HOME/printer_data/vzbot" ] && [ ! -d "$HOME/printer_data/klippeye" ]; then DATA="$HOME/printer_data/vzbot"   # before the move to the new name
 elif [ -d "$HOME/printer_data" ]; then DATA="$HOME/printer_data/klippeye"
 else DATA="$HOME/klippeye_data"; fi
-# before the move to the new name (folder ~/vzbot) the services are still called vzbot and vzbot-notifier
 SVC=klippeye; NSVC=klippeye-notifier
-case "$(basename "$REPO")" in vzbot|VzBot) SVC=vzbot; NSVC=vzbot-notifier ;; esac
 BACKEND_URL="${KLIPPEYE_BRAIN_URL:-http://127.0.0.1:8085}"
 SUDO="${KLIPPEYE_SUDO-sudo}"
 SYSTEMCTL="${KLIPPEYE_SYSTEMCTL:-systemctl}"
@@ -27,7 +24,7 @@ english() {
 
 service_for() {  # backend|notifier|all -> service names
   case "${1:-backend}" in
-    backend|brain|dashboard|klippeye|vzbot) echo "$SVC" ;;
+    backend|brain|dashboard|klippeye) echo "$SVC" ;;
     notifier|notifications|notifiche|notifica) echo "$NSVC" ;;
     all) echo "$SVC $NSVC" ;;
     *) return 1 ;;

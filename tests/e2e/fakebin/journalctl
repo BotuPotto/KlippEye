@@ -1,0 +1,6 @@
+#!/bin/sh
+# Fake journalctl: the last lines of the log of the service given with -u NAME.
+unit=""
+while [ $# -gt 0 ]; do case "$1" in -u) unit="$2"; shift 2;; *) shift;; esac; done
+tail -n 12 "$FAKE_SYSTEMD_STATE/$unit.log" 2>/dev/null
+exit 0

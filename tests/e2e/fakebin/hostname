@@ -1,0 +1,3 @@
+#!/bin/sh
+# Fake hostname: the e2e world lives on 127.0.0.1.
+echo "127.0.0.1"

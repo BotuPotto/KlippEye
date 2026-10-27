@@ -1,4 +1,0 @@
-#!/usr/bin/env bash
-# Compatibility: the command "vzbot" is now called "klippeye" (same commands). After the move to the new name this file is no longer needed.
-echo "(the command 'vzbot' is now called 'klippeye': using it)" >&2
-exec bash "$(dirname "$(readlink -f "$0")")/klippeye" "$@"

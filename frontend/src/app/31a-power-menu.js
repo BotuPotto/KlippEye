@@ -19,8 +19,7 @@ const CAMERA_RELOAD_AFTER_RESTART_MS = 7000;
 
 const capitalize = (text) => (text ? text.charAt(0).toUpperCase() + text.slice(1) : text);
 /** Friendly names of the services of KlippEye (the others keep their own name, capitalised). */
-// (vzbot, vzbot-notifier: the names before the move to KlippEye, see scripts/passa-a-klippeye.sh)
-const SERVICE_LABELS = { klippeye: "KlippEye (backend)", "klippeye-notifier": tx("KlippEye notifications"), vzbot: "KlippEye (backend)", "vzbot-notifier": tx("KlippEye notifications") };
+const SERVICE_LABELS = { klippeye: "KlippEye (backend)", "klippeye-notifier": tx("KlippEye notifications") };
 const serviceLabel = (name) => SERVICE_LABELS[name] || capitalize(name);
 const isCameraService = (name) => /crowsnest|webcam|camera|streamer|mjpg/i.test(name);
 const SERVICE_STATE_TEXT = { active: txc("service", "running"), inactive: txc("service", "stopped"), failed: txc("service", "failed"), activating: txc("service", "starting"), deactivating: txc("service", "stopping") };
@@ -39,7 +38,7 @@ const PRINT_WARNING = tx("A print is running and it will fail!");
 
 /** What each confirmation says. `always`: asked even when nothing prints. `service`: the systemd name, for the ones that need their own words. */
 function powerConfirmation(kind, label, service) {
-  if (kind === "restart" && (service === "klippeye" || service === "vzbot")) {
+  if (kind === "restart" && service === "klippeye") {
     return { title: tx("Restart the backend?"), message: tx("The backend (dashboard, AI monitor, link to Moonraker) restarts: the page does not answer for a few seconds, then reloads by itself. A running print does not stop."), confirmLabel: tx("Restart") };
   }
   switch (kind) {

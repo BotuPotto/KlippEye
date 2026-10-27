@@ -4,7 +4,6 @@
 V="$(dirname "$(readlink -f "$0")")/klippeye"
 SUDO="${KLIPPEYE_SUDO-sudo}"
 NSVC=klippeye-notifier
-case "$(basename "$(cd "$(dirname "$V")/.." && pwd)")" in vzbot|VzBot) NSVC=vzbot-notifier ;; esac   # before the move to the new name
 case "${1:-help}" in
   prova|test)          exec "$V" notify test ;;
   controlla|check)     exec "$V" notify check ;;

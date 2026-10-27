@@ -17,7 +17,6 @@
 
 REPO="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
 if [ -n "${KLIPPEYE_DATA:-}" ]; then DATA="$KLIPPEYE_DATA"
-elif [ -d "$HOME/printer_data/vzbot" ] && [ ! -d "$HOME/printer_data/klippeye" ]; then DATA="$HOME/printer_data/vzbot"
 elif [ -d "$HOME/printer_data" ]; then DATA="$HOME/printer_data/klippeye"
 else DATA="$HOME/klippeye_data"; fi
 LOG="$DATA/repair.log"
@@ -44,7 +43,7 @@ log() {
 # scripts/install.sh puts the line straight into the service file and removes the drop-in.
 enable_at_start() {
   local unit dir cat tmp sudo_cmd
-  unit=klippeye; case "$(basename "$REPO")" in vzbot|VzBot) unit=vzbot ;; esac
+  unit=klippeye
   dir="${KLIPPEYE_SYSTEMD_DIR:-/etc/systemd/system}"
   cat="$("${KLIPPEYE_SYSTEMCTL:-systemctl}" cat "$unit" 2>/dev/null)" || return 0   # no service with this name: nothing to do
   case "$cat" in *repair.sh*|*ripara.sh*) return 0 ;; esac                         # already there

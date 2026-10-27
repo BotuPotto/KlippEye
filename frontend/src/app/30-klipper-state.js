@@ -45,9 +45,9 @@ const RESTART_KINDS = {
   save: { label: tx("Saving and restarting Klipper"), limit: 90000, grace: 4000, reload: false }, // SAVE_CONFIG may have nothing to save: then nothing restarts
 };
 /** Services whose restart takes Klipper (or the whole of Moonraker) away for a while, by name. */
-const SERVICE_RESTART_KIND = { klipper: "service", moonraker: "moonraker", klippeye: "brain", vzbot: "brain" };
+const SERVICE_RESTART_KIND = { klipper: "service", moonraker: "moonraker", klippeye: "brain" };
 /** Services whose restart cuts the connection of this very page (Moonraker answers through the backend; the backend is the page's server). */
-const CUTS_CONNECTION = ["moonraker", "klippeye", "vzbot"];
+const CUTS_CONNECTION = ["moonraker", "klippeye"];
 
 /* Messages of the console that mean "Klipper is down". */
 const isShutdownMessage = (msg) => msg.includes("klipper state: shutdown") || msg.includes("shutdown due to") || msg.includes("printer is shutdown");

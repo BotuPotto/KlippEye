@@ -691,7 +691,7 @@ function SettingsHome({ menu }) {
           { key: entry.id, type: "button", className: "set-entry", "data-page": entry.id, onClick: () => menu.goTo(entry.id) },
           h("span", { className: "oui-row__icon oui-row__icon--accent" }, h(entry.icon)),
           h("span", { className: "oui-row__text" }, h("span", { className: "oui-row__name" }, entry.title), h("span", { className: "oui-row__meta set-entry__meta" }, settingsSummary(entry.id, settings, brain))),
-          entry.id === "software" && ((brain.version.state === "ok" && brain.version.info.legacy === true) || (brain.update.phase === "ok" && Number(brain.update.raw.commits_behind_count) > 0) || appUpdateWaiting(brain.app, readInstalledApp())) && h("span", { className: "set-entry__badge" }, tx("New")),
+          entry.id === "software" && ((brain.update.phase === "ok" && Number(brain.update.raw.commits_behind_count) > 0) || appUpdateWaiting(brain.app, readInstalledApp())) && h("span", { className: "set-entry__badge" }, tx("New")),
           h("span", { className: "set-entry__go", "aria-hidden": "true" }, h(Icons.Forward)),
         ),
       ),

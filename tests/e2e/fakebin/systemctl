@@ -1,0 +1,233 @@
+#!/usr/bin/env python3
+"""A small systemd for the end-to-end test: it really starts and stops the programs of the .service files in
+$KLIPPEYE_SYSTEMD_DIR. It understands WorkingDirectory, Environment, ExecStartPre, ExecStart, Restart=always, RestartSec
+and drop-ins (<name>.service.d/*.conf). Its state (pid files, logs, calls.log) is in $FAKE_SYSTEMD_STATE.
+A service named in $KLIPPEYE_FAKE_FAIL_START refuses to start (an injected fault)."""
+import os
+import shlex
+import signal
+import subprocess
+import sys
+import time
+
+UNITS = os.environ["KLIPPEYE_SYSTEMD_DIR"]
+STATE = os.environ["FAKE_SYSTEMD_STATE"]
+os.makedirs(STATE, exist_ok=True)
+
+
+def log_call(argv):
+    with open(os.path.join(STATE, "calls.log"), "a") as f:
+        f.write(" ".join(argv) + "\n")
+
+
+def parse_unit(name):
+    path = os.path.join(UNITS, name + ".service")
+    if not os.path.isfile(path):
+        return None
+    unit = {"env": {}, "restart": "no", "restart_sec": 1.0, "cwd": None, "exec": None, "pre": []}
+    files = [path]
+    dropdir = os.path.join(UNITS, name + ".service.d")
+    if os.path.isdir(dropdir):
+        files += [os.path.join(dropdir, f) for f in sorted(os.listdir(dropdir)) if f.endswith(".conf")]
+    lines = []
+    for fp in files:
+        lines += open(fp, encoding="utf-8").read().splitlines()
+    for line in lines:
+        line = line.strip()
+        if not line or line[0] in "#;[":
+            continue
+        key, _, value = line.partition("=")
+        if key == "WorkingDirectory":
+            unit["cwd"] = value
+        elif key == "ExecStart":
+            unit["exec"] = value
+        elif key == "ExecStartPre":
+            unit["pre"].append(value)
+        elif key == "Restart":
+            unit["restart"] = value
+        elif key == "RestartSec":
+            unit["restart_sec"] = float(value.rstrip("s"))
+        elif key == "Environment":
+            for item in shlex.split(value):
+                env_key, _, env_value = item.partition("=")
+                unit["env"][env_key] = env_value
+    return unit
+
+
+def pidfile(name):
+    return os.path.join(STATE, name + ".pid")
+
+
+def read_pid(name):
+    try:
+        pid = int(open(pidfile(name)).read().strip())
+        os.kill(pid, 0)
+        return pid
+    except Exception:
+        return None
+
+
+def supervise(name):
+    """The service process: runs ExecStart and, with Restart=always, runs it again when it ends."""
+    unit = parse_unit(name)
+    stop_state = {"flag": False, "child": None}
+
+    def on_term(*_):
+        stop_state["flag"] = True
+        if stop_state["child"] and stop_state["child"].poll() is None:
+            stop_state["child"].terminate()
+    signal.signal(signal.SIGTERM, on_term)
+    env = {"PATH": os.environ["PATH"], "HOME": os.environ["HOME"], "LANG": "C.UTF-8"}
+    for keep in os.environ:  # the test variables (KLIPPEYE_*, FAKE_*) reach the services, as if set for the whole system
+        if keep.startswith(("KLIPPEYE_", "FAKE_")):
+            env[keep] = os.environ[keep]
+    env.update(unit["env"])
+    logf = open(os.path.join(STATE, name + ".log"), "ab", buffering=0)
+    while not stop_state["flag"]:
+        logf.write(("--- start %s ---\n" % time.strftime("%H:%M:%S")).encode())
+        failed = False
+        for pre in unit["pre"]:  # "-" in front: a failure is ignored; without it the service does not start
+            rc = subprocess.call(shlex.split(pre.lstrip("-")), cwd=unit["cwd"] or "/", env=env, stdout=logf, stderr=subprocess.STDOUT)
+            if rc != 0 and not pre.startswith("-"):
+                failed = True
+                break
+        if failed:
+            time.sleep(unit["restart_sec"])
+            continue
+        stop_state["child"] = subprocess.Popen(shlex.split(unit["exec"]), cwd=unit["cwd"] or "/", env=env, stdout=logf, stderr=subprocess.STDOUT)
+        while stop_state["child"].poll() is None and not stop_state["flag"]:
+            time.sleep(0.2)
+        if stop_state["flag"] or unit["restart"] != "always":
+            break
+        waited = 0.0
+        while waited < unit["restart_sec"] and not stop_state["flag"]:  # a "stop" ends the wait at once, as in systemd
+            time.sleep(0.1)
+            waited += 0.1
+    if stop_state["child"] and stop_state["child"].poll() is None:
+        try:
+            stop_state["child"].wait(5)
+        except Exception:
+            stop_state["child"].kill()
+    try:
+        os.remove(pidfile(name))
+    except OSError:
+        pass
+
+
+def start(name):
+    if name in os.environ.get("KLIPPEYE_FAKE_FAIL_START", "").split(","):
+        print("Job for %s.service failed." % name, file=sys.stderr)
+        return 1
+    if parse_unit(name) is None:
+        print("Failed to start %s.service: Unit not found." % name, file=sys.stderr)
+        return 5
+    if read_pid(name):
+        return 0
+    process = subprocess.Popen([sys.executable, os.path.abspath(__file__), "--supervise", name], start_new_session=True,
+                               stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=os.environ.copy())
+    with open(pidfile(name), "w") as f:
+        f.write(str(process.pid))
+    return 0
+
+
+def stop(name):
+    pid = read_pid(name)
+    if not pid:
+        return 0
+    os.kill(pid, signal.SIGTERM)
+    for _ in range(80):
+        time.sleep(0.1)
+        if read_pid(name) is None:
+            return 0
+    try:
+        os.kill(pid, signal.SIGKILL)
+    except OSError:
+        pass
+    return 0
+
+
+def main(argv):
+    if argv[:1] == ["--supervise"]:
+        supervise(argv[1])
+        return 0
+    log_call(argv)
+    cleaned, skip = [], False
+    for a in argv:
+        if skip:
+            skip = False
+            continue
+        if a == "-p":
+            skip = True
+            continue
+        cleaned.append(a)
+    args = [a for a in cleaned if not a.startswith("-") or a == "--now"]
+    cmd = args[0] if args else ""
+    names = [a for a in args[1:] if a != "--now"]
+    now = "--now" in argv
+    if argv[:1] == ["--version"]:
+        print("systemd 252 (fake)")
+        return 0
+    if cmd in ("daemon-reload", "reset-failed"):
+        return 0
+    if cmd == "cat":
+        name = names[0] if names else ""
+        path = os.path.join(UNITS, name + ".service")
+        if not os.path.isfile(path):
+            print("No files found for %s.service." % name, file=sys.stderr)
+            return 1
+        print("# " + path)
+        sys.stdout.write(open(path, encoding="utf-8").read())
+        dropdir = path[:-len(".service")] + ".service.d"
+        if os.path.isdir(dropdir):
+            for f in sorted(os.listdir(dropdir)):
+                print("\n# " + os.path.join(dropdir, f))
+                sys.stdout.write(open(os.path.join(dropdir, f), encoding="utf-8").read())
+        return 0
+    if cmd == "enable":
+        for name in names:
+            open(os.path.join(STATE, name + ".enabled"), "w").close()
+        if now:
+            for name in names:
+                start(name)
+        return 0
+    if cmd == "disable":
+        for name in names:
+            try:
+                os.remove(os.path.join(STATE, name + ".enabled"))
+            except OSError:
+                pass
+            if now:
+                stop(name)
+        return 0
+    if cmd == "start":
+        return max([start(n) for n in names] or [0])
+    if cmd == "stop":
+        return max([stop(n) for n in names] or [0])
+    if cmd == "restart":
+        rc = 0
+        for name in names:
+            stop(name)
+            rc = max(rc, start(name))
+        return rc
+    if cmd == "is-active":
+        if read_pid(names[0]):
+            print("active")
+            return 0
+        print("inactive")
+        return 3
+    if cmd == "list-units":
+        for f in sorted(os.listdir(UNITS)):
+            if f.endswith(".service"):
+                print("%s loaded active running fake" % f)
+        return 0
+    if cmd == "show":  # systemctl show -p ActiveState,SubState --value a b c
+        print("\n".join("active\nrunning\n" if read_pid(n) else "inactive\ndead\n" for n in names))
+        return 0
+    if cmd == "status":
+        name = names[0] if names else ""
+        print("* %s.service - fake\n   Active: %s" % (name, "active (running)" if read_pid(name) else "inactive (dead)"))
+        return 0
+    return 0
+
+
+sys.exit(main(sys.argv[1:]))

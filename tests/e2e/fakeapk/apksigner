@@ -1,0 +1,4 @@
+#!/bin/bash
+# Fake apksigner: always the same certificate.
+echo "Signer #1 certificate DN: CN=KlippEye, O=KlippEye"
+echo "Signer #1 certificate SHA-256 digest: 00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff"

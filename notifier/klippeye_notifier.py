@@ -54,7 +54,7 @@ import urllib.request
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-__version__ = "1.4"
+__version__ = "1.5"
 
 LOG = logging.getLogger("klippeye-notifier")
 
@@ -223,7 +223,6 @@ RUNOUT_LINE = re.compile(r"paused due to filament runout", re.IGNORECASE)
 
 # ---- the dashboard's settings (Moonraker database, namespace "klippeye", key "settings")
 DASH_NAMESPACE = "klippeye"
-DASH_NAMESPACE_LEGACY = "vzbot_dashboard"  # where the dashboard kept them before it was called KlippEye: still read until the dashboard has copied them
 DASH_EVENTS = ("error", "complete", "cancelled", "paused", "runout", "ai_pause", "ai_cancel")
 DASH_DEFECTS = ("spaghetti", "empty_bed", "layer_shift", "warping")
 AI_CONFIRMATIONS = (1, 2, 3)
@@ -649,8 +648,6 @@ class PrinterReader:
         """The dashboard's settings document; {} when nothing is stored yet; None when it could not be read (the last one stays)."""
         try:
             status, answer = http_json(self._database_url("settings"))
-            if status == 404:  # nothing under the new name yet: the dashboard of the old name may have saved something
-                status, answer = http_json(self._database_url("settings", DASH_NAMESPACE_LEGACY))
         except OSError:
             return None
         if status == 200 and isinstance(answer, dict):
@@ -1070,8 +1067,6 @@ def command_check(config: Dict[str, Any]) -> int:
         report(False, "", "Backend not reachable at %s (%s): the AI alerts will not arrive" % (config["brain_url"], error), required=False)
     try:
         status, answer = http_json("%s/server/database/item?namespace=%s&key=settings" % (config["moonraker_url"].rstrip("/"), DASH_NAMESPACE))
-        if status == 404:
-            status, answer = http_json("%s/server/database/item?namespace=%s&key=settings" % (config["moonraker_url"].rstrip("/"), DASH_NAMESPACE_LEGACY))
         if status == 200 and isinstance(answer, dict):
             chosen = dash_settings((answer.get("result") or {}).get("value"))
             off = sorted(name for name, value in chosen["events"].items() if not value)
@@ -1097,13 +1092,12 @@ def command_check(config: Dict[str, Any]) -> int:
 
 def dashboard_language(config: Dict[str, Any]) -> Optional[str]:
     """The notification language chosen in the dashboard, read once from Moonraker's database (None if not known)."""
-    for namespace in (DASH_NAMESPACE, DASH_NAMESPACE_LEGACY):
-        try:
-            status, answer = http_json("%s/server/database/item?namespace=%s&key=settings" % (config["moonraker_url"].rstrip("/"), namespace))
-        except OSError:
-            return None
-        if status == 200 and isinstance(answer, dict):
-            return dash_settings((answer.get("result") or {}).get("value"))["language"]
+    try:
+        status, answer = http_json("%s/server/database/item?namespace=%s&key=settings" % (config["moonraker_url"].rstrip("/"), DASH_NAMESPACE))
+    except OSError:
+        return None
+    if status == 200 and isinstance(answer, dict):
+        return dash_settings((answer.get("result") or {}).get("value"))["language"]
     return None
 
 

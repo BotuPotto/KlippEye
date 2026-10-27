@@ -244,7 +244,6 @@ function describeComponent(key, info) {
 }
 
 function describeUpdates(updates) {
-  programEntry(updates && updates.version_info); // which name Moonraker knows the program by (KlippEye, or VzBot before the move)
   const components = Object.entries((updates && updates.version_info) || {})
     .filter(([, info]) => info && typeof info === "object")
     .map(([key, info]) => describeComponent(key, info));

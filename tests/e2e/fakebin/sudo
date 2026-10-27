@@ -1,0 +1,4 @@
+#!/bin/sh
+# Fake sudo: drops its options and runs the command as it is.
+while [ $# -gt 0 ]; do case "$1" in -n|-S|-E|-H|-k) shift;; --) shift; break;; *) break;; esac; done
+exec "$@"
