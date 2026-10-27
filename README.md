@@ -6,9 +6,9 @@ Raspberry: Moonraker's update manager installs and updates it from here.
 
 > Until release 1.0.x the project was called **VzBot**. Existing VzBot installs move to KlippEye with one button of the
 > dashboard (*Settings → Updates → Move to KlippEye*; *Impostazioni → Aggiornamenti → Passa a KlippEye* on a release before 1.4.0);
-> see part **P** of the guide.
+> see appendix **B** of the guide.
 
-**Step-by-step guide (Italian for now, English coming): [docs/GUIDA.md](docs/GUIDA.md).**
+**Step-by-step guide: [docs/GUIDE.md](docs/GUIDE.md)** (in Italian: [docs/GUIDA.md](docs/GUIDA.md)).
 Security: [SECURITY.md](SECURITY.md) · Contributing: [CONTRIBUTING.md](CONTRIBUTING.md) · Changes: [CHANGELOG.md](CHANGELOG.md)
 
 ## Features

@@ -173,7 +173,7 @@ function AppBlock({ app, installed }) {
         AppStatus,
         { tone: none ? undefined : "warn" },
         none
-          ? tx("There is no app on the Raspberry yet. GitHub builds it when you upload the android/ folder (guide: docs/GUIDA.md, «The Android app»); then it comes here with «Update KlippEye».")
+          ? tx("There is no app on the Raspberry yet: it comes with the next «Update KlippEye». For your own build see the guide, docs/GUIDE.md (appendix A).")
           : tx("The app on the Raspberry is not complete ({reason}). Update KlippEye and check again.", { reason: String(info.reason || tx("unknown reason")) }),
       ),
     );
