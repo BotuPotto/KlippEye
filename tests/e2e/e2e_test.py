@@ -665,6 +665,8 @@ if scenario("app") and PLAYWRIGHT:
             apk = os.path.join(w.tmp, "built.apk")
             make_apk(apk, "app " + app_version)
             env = dict(os.environ, PATH=os.path.join(HERE, "fakeapk") + ":" + os.environ["PATH"], FAKE_APK_VERSION=app_version, FAKE_APK_CODE=code)
+            for sdk in ("ANDROID_HOME", "ANDROID_SDK_ROOT"):  # app_ci.py looks in the SDK first: the fake tools must win
+                env.pop(sdk, None)
             r = subprocess.run([sys.executable, os.path.join(dev, "ci", "app_ci.py"), "--radice", dev, "pubblica", "--apk", apk, "--sorgente", "abc123"], capture_output=True, text=True, env=env)
             if r.returncode != 0:
                 raise RuntimeError("publish: " + r.stdout + r.stderr)
