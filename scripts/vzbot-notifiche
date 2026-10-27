@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
-# Compatibilita': il comando "vzbot-notifiche" ora si chiama "klippeye-notifiche".
-echo "(il comando 'vzbot-notifiche' ora si chiama 'klippeye-notifiche': uso quello)" >&2
+# Compatibility: the command "vzbot-notifiche" is now called "klippeye-notifiche".
+echo "(the command 'vzbot-notifiche' is now called 'klippeye-notifiche': using it)" >&2
 exec bash "$(dirname "$(readlink -f "$0")")/klippeye-notifiche" "$@"

@@ -1,22 +1,23 @@
 #!/usr/bin/env bash
-# KlippEye - installazione sul Raspberry (si fa UNA volta; si puo' rilanciare quando si vuole, e' fatta per non rompere niente)
+# KlippEye - installation on the Raspberry (done ONCE; it can be run again at any time, it is made not to break anything)
 #
-#   bash ~/klippeye/scripts/install.sh                  installa o ripara
-#   bash ~/klippeye/scripts/install.sh --senza-moonraker   non tocca la configurazione di Moonraker
-#   bash ~/klippeye/scripts/install.sh --annulla        torna a come era prima (servizi vecchi, niente voce nell'update manager)
+#   bash ~/klippeye/scripts/install.sh                  install or repair
+#   bash ~/klippeye/scripts/install.sh --no-moonraker   do not touch Moonraker's configuration
+#   bash ~/klippeye/scripts/install.sh --undo           go back to how it was (old services, no update manager entry)
+#   (the Italian options of older releases still work: --senza-moonraker, --annulla, --aiuto)
 #
-# Cosa fa, nell'ordine:
-#   1. controlla Python, git e i moduli che servono al backend
-#   2. crea la cartella dei DATI (~/printer_data/klippeye: impostazioni, chiave dell'IA, notifiche) e ci COPIA quello che
-#      avevi gia' (~/vzbot_ai_config.json, ~/vzbot-notifier/..., ~/printer_data/vzbot). I file vecchi restano dove sono: niente viene cancellato
-#   3. installa i servizi "klippeye" (backend + dashboard) e "klippeye-notifier" (notifiche) e li fa partire a ogni accensione;
-#      i servizi con i nomi di prima ("vzbot", "vzbot-notifier") vengono fermati e tolti (se ne tiene una copia);
-#      se il backend nuovo non risponde rimette tutto com'era
-#   4. mette i comandi "klippeye" e "klippeye-notifiche" in /usr/local/bin
-#   5. collega il programma all'UPDATE MANAGER di Moonraker (moonraker.conf e moonraker.asvc): e' quello che fa funzionare
-#      il tasto "Aggiorna" della dashboard e di Mainsail/Fluidd
+# What it does, in this order:
+#   1. checks Python, git and the modules the backend needs
+#   2. creates the DATA folder (~/printer_data/klippeye: settings, AI key, notifications) and COPIES into it what you
+#      already had (~/vzbot_ai_config.json, ~/vzbot-notifier/..., ~/printer_data/vzbot). The old files stay: nothing is deleted
+#   3. installs the services "klippeye" (backend + dashboard) and "klippeye-notifier" (notifications), started at every boot;
+#      the services with the old names ("vzbot", "vzbot-notifier") are stopped and removed (a copy is kept);
+#      if the new backend does not answer, everything is put back as it was
+#   4. puts the commands "klippeye" and "klippeye-notifiche" in /usr/local/bin
+#   5. connects the program to Moonraker's UPDATE MANAGER (moonraker.conf and moonraker.asvc): that is what makes the
+#      "Update" button of the dashboard and of Mainsail/Fluidd work
 #
-# Il codice sta in una cartella sola (questa), le tue cose in un'altra: gli aggiornamenti toccano solo la prima.
+# The code lives in one folder (this one), your things in another: updates only touch the first one.
 
 set -u
 
@@ -32,7 +33,7 @@ PRINTER_DATA="${KLIPPEYE_PRINTER_DATA:-$HOME/printer_data}"
 MOONRAKER_URL="${KLIPPEYE_MOONRAKER_URL:-http://127.0.0.1:7125}"
 BRAIN_URL="${KLIPPEYE_BRAIN_URL:-http://127.0.0.1:8085}"
 MOONRAKER_SERVICE="${KLIPPEYE_MOONRAKER_SERVICE:-moonraker}"
-OLD_NOTIFIER_DIR="${KLIPPEYE_OLD_NOTIFIER_DIR:-$HOME/vzbot-notifier}"   # prima di KlippEye (VzBot 1.0.x)
+OLD_NOTIFIER_DIR="${KLIPPEYE_OLD_NOTIFIER_DIR:-$HOME/vzbot-notifier}"   # before KlippEye (VzBot 1.0.x)
 if [ -n "${KLIPPEYE_DATA:-}" ]; then DATA="$KLIPPEYE_DATA"
 elif [ -d "$PRINTER_DATA" ]; then DATA="$PRINTER_DATA/klippeye"
 else DATA="$HOME/klippeye_data"; fi
@@ -41,84 +42,84 @@ say()  { printf '%s\n' "$*"; }
 step() { printf '\n== %s\n' "$*"; }
 good() { printf '   OK      %s\n' "$*"; }
 note() { printf '           %s\n' "$*"; }
-warn() { printf '   AVVISO  %s\n' "$*"; }
-stop() { printf '\n   ERRORE  %s\n\n' "$*"; exit 1; }
+warn() { printf '   WARNING %s\n' "$*"; }
+stop() { printf '\n   ERROR   %s\n\n' "$*"; exit 1; }
 
-usage() { sed -n '2,7p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; }
+usage() { sed -n '2,8p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; }
 
 MODE=install
 WITH_MOONRAKER=1
 for arg in "$@"; do
   case "$arg" in
-    --annulla) MODE=undo ;;
-    --senza-moonraker) WITH_MOONRAKER=0 ;;
-    -h|--aiuto|--help) usage; exit 0 ;;
-    *) stop "Opzione sconosciuta: $arg   (prova:  bash $0 --aiuto)" ;;
+    --undo|--annulla) MODE=undo ;;
+    --no-moonraker|--senza-moonraker) WITH_MOONRAKER=0 ;;
+    -h|--help|--aiuto) usage; exit 0 ;;
+    *) stop "Unknown option: $arg   (try:  bash $0 --help)" ;;
   esac
 done
 
 sudo_run() { if [ -n "$SUDO" ]; then $SUDO "$@"; else "$@"; fi; }
 
 RELEASE="$(tr -d '[:space:]' < "$REPO/VERSION" 2>/dev/null || true)"
-RELEASE="${RELEASE:-sconosciuta}"
-say "KlippEye $RELEASE - installazione sul Raspberry"
+RELEASE="${RELEASE:-unknown}"
+say "KlippEye $RELEASE - installation on the Raspberry"
 
-# --- 1. controlli -----------------------------------------------------------------------------------------------------
-step "1/6  Controllo il Raspberry"
+# --- 1. checks --------------------------------------------------------------------------------------------------------
+step "1/6  Checking the Raspberry"
 if [ "$(id -u)" = "0" ] && [ -z "${KLIPPEYE_ALLOW_ROOT:-}" ]; then
-  stop "Non lanciarmi con sudo e non come utente root: devo girare come l'utente normale (di solito 'pi').
-          Riprova cosi':   bash $REPO/scripts/install.sh
-          (se serve la password di amministratore te la chiedo io al momento giusto)"
+  stop "Do not run me with sudo or as root: I must run as the normal user (usually 'pi').
+          Try again like this:   bash $REPO/scripts/install.sh
+          (when the administrator password is needed I ask for it at the right moment)"
 fi
 PYTHON="${KLIPPEYE_PYTHON:-$(command -v python3 || true)}"
-[ -n "$PYTHON" ] || stop "Python 3 non e' installato. Installalo con:  sudo apt install -y python3"
-"$PYTHON" -c 'import sys; sys.exit(0 if sys.version_info >= (3, 7) else 1)' || stop "Serve Python 3.7 o piu' recente (qui c'e' $("$PYTHON" --version 2>&1))."
+[ -n "$PYTHON" ] || stop "Python 3 is not installed. Install it with:  sudo apt install -y python3"
+"$PYTHON" -c 'import sys; sys.exit(0 if sys.version_info >= (3, 7) else 1)' || stop "Python 3.7 or newer is needed (here there is $("$PYTHON" --version 2>&1))."
 good "$("$PYTHON" --version 2>&1) ($PYTHON)"
-case "$REPO$DATA" in *" "*) stop "Le cartelle non devono avere spazi nel nome ($REPO, $DATA)." ;; esac
-[ -f "$REPO/backend/klippeye_backend.py" ] || stop "Non trovo $REPO/backend/klippeye_backend.py: questa non sembra la cartella di KlippEye."
-command -v git >/dev/null 2>&1 || warn "git non c'e': senza non funzionano gli aggiornamenti. Installalo con:  sudo apt install -y git"
+case "$REPO$DATA" in *" "*) stop "Folder names must not contain spaces ($REPO, $DATA)." ;; esac
+[ -f "$REPO/backend/klippeye_backend.py" ] || stop "$REPO/backend/klippeye_backend.py not found: this does not look like the KlippEye folder."
+command -v git >/dev/null 2>&1 || warn "git is missing: without it updates do not work. Install it with:  sudo apt install -y git"
 
 MISSING=""
 for module in flask flask_cors requests; do
   "$PYTHON" -c "import $module" 2>/dev/null || MISSING="$MISSING $module"
 done
 if [ -n "$MISSING" ]; then
-  warn "Al backend mancano questi moduli Python:$MISSING"
-  note "Installali con:   sudo apt install -y python3-flask python3-flask-cors python3-requests"
-  note "poi rilancia questo comando."
-  if [ -z "${KLIPPEYE_IGNORE_MISSING:-}" ]; then stop "Senza quei moduli il backend non parte."; fi
+  warn "The backend is missing these Python modules:$MISSING"
+  note "Install them with:   sudo apt install -y python3-flask python3-flask-cors python3-requests"
+  note "then run this command again."
+  if [ -z "${KLIPPEYE_IGNORE_MISSING:-}" ]; then stop "Without those modules the backend does not start."; fi
 else
-  good "Moduli del backend: flask, flask_cors, requests"
+  good "Backend modules: flask, flask_cors, requests"
 fi
 if "$PYTHON" -c 'import cv2, numpy' 2>/dev/null; then
-  good "OpenCV e numpy (servono al monitor IA)"
+  good "OpenCV and numpy (for the AI monitor)"
 else
-  warn "OpenCV/numpy non ci sono: il backend parte lo stesso, ma il monitor IA non potra' analizzare la camera."
-  note "Se lo vuoi:   sudo apt install -y python3-opencv python3-numpy"
+  warn "OpenCV/numpy are missing: the backend starts anyway, but the AI monitor cannot look at the camera."
+  note "If you want it:   sudo apt install -y python3-opencv python3-numpy"
 fi
-[ -f "$REPO/frontend/klippeye_frontend.html" ] || warn "Manca $REPO/frontend/klippeye_frontend.html: il backend parte, ma la pagina della dashboard non si apre."
+[ -f "$REPO/frontend/klippeye_frontend.html" ] || warn "$REPO/frontend/klippeye_frontend.html is missing: the backend starts, but the dashboard page does not open."
 
-WORK="$(mktemp -d "${TMPDIR:-/tmp}/klippeye-install.XXXXXX")" || stop "Non riesco a creare una cartella temporanea."
+WORK="$(mktemp -d "${TMPDIR:-/tmp}/klippeye-install.XXXXXX")" || stop "Cannot create a temporary folder."
 trap 'rm -rf "$WORK"' EXIT
 
-# --- funzioni comuni ----------------------------------------------------------------------------------------------------
+# --- shared functions --------------------------------------------------------------------------------------------------
 BK=""
 bk_dir() {
   if [ -z "$BK" ]; then BK="$DATA/backup/$(date +%Y%m%d-%H%M%S)"; mkdir -p "$BK"; fi
 }
-backup_file() {  # file_da_salvare nome_nel_backup
+backup_file() {  # file_to_save name_in_the_backup
   bk_dir
   mkdir -p "$(dirname "$BK/$2")"
   cp -p "$1" "$BK/$2" 2>/dev/null || sudo_run cp -p "$1" "$BK/$2"
 }
-oldest_backup_of() {  # nome_nel_backup -> percorso del backup piu' vecchio che lo contiene
+oldest_backup_of() {  # name_in_the_backup -> path of the oldest backup that has it
   local d
   for d in $(ls -1d "$DATA"/backup/*/ 2>/dev/null | sort); do
     if [ -f "${d}$1" ]; then printf '%s\n' "${d}$1"; return 0; fi
   done
   return 1
 }
-brain_release() {  # secondi_massimi -> stampa la release se il backend risponde entro quel tempo
+brain_release() {  # max_seconds -> prints the release when the backend answers within that time
   "$PYTHON" - "$BRAIN_URL/api/version" "$1" <<'PY'
 import json, sys, time, urllib.request
 end = time.time() + float(sys.argv[2])
@@ -134,7 +135,7 @@ while True:
     time.sleep(1)
 PY
 }
-is_printing() {  # 0 se Moonraker dice che sta stampando (o e' in pausa)
+is_printing() {  # 0 when Moonraker says it is printing (or paused)
   "$PYTHON" - "$MOONRAKER_URL/printer/objects/query?print_stats=state" <<'PY'
 import json, sys, urllib.request
 try:
@@ -147,37 +148,40 @@ PY
 }
 unit_active() { sudo_run "$SYSTEMCTL" is-active "$1" >/dev/null 2>&1; }
 
-render_unit() {  # modello destinazione
-  sed -e "s|@UTENTE@|$RUN_USER|g" -e "s|@CODICE@|$REPO|g" -e "s|@DATI@|$DATA|g" -e "s|@PYTHON@|$PYTHON|g" "$1" > "$2"
+render_unit() {  # template destination (@UTENTE@, @CODICE@, @DATI@: the placeholders of the templates before 1.8.0)
+  sed -e "s|@USER@|$RUN_USER|g" -e "s|@CODE@|$REPO|g" -e "s|@DATA@|$DATA|g" -e "s|@PYTHON@|$PYTHON|g" \
+      -e "s|@UTENTE@|$RUN_USER|g" -e "s|@CODICE@|$REPO|g" -e "s|@DATI@|$DATA|g" "$1" > "$2"
 }
-install_unit() {  # nome (senza .service): 0 = installato o cambiato, 1 = gia' uguale
+# the first line of the service files this script writes ("GESTITO-DA-KLIPPEYE" before 1.8.0)
+OURS='MANAGED-BY-KLIPPEYE\|GESTITO-DA-KLIPPEYE'
+install_unit() {  # name (without .service): 0 = installed or changed, 1 = already the same
   local name="$1" dest="$UNIT_DIR/$1.service" tmp="$WORK/$1.service"
   render_unit "$REPO/systemd/$name.service" "$tmp"
   if [ -f "$dest" ] && cmp -s "$tmp" "$dest"; then return 1; fi
-  if [ -f "$dest" ] && ! grep -q 'GESTITO-DA-KLIPPEYE' "$dest"; then backup_file "$dest" "units/$name.service"; fi
-  sudo_run install -m 644 "$tmp" "$dest" || stop "Non riesco a scrivere $dest (serve la password di amministratore?)."
+  if [ -f "$dest" ] && ! grep -q "$OURS" "$dest"; then backup_file "$dest" "units/$name.service"; fi
+  sudo_run install -m 644 "$tmp" "$dest" || stop "Cannot write $dest (is the administrator password needed?)."
   return 0
 }
-OLD_UNIT_NAMES="vzbot vzbot-notifier"   # i servizi di prima di KlippEye
+OLD_UNIT_NAMES="vzbot vzbot-notifier"   # the services before KlippEye
 RETIRED=""
-retire_old_units() {  # ferma e toglie i servizi vecchi (con copia nel backup); $1 = "tutti" oppure "senza-notifiche"
+retire_old_units() {  # stops and removes the old services (with a copy in the backup); $1 = "all" or "keep-notifier"
   local name f
   for name in $OLD_UNIT_NAMES; do
     f="$UNIT_DIR/$name.service"
     [ -f "$f" ] || continue
-    if [ "$name" = "vzbot-notifier" ] && [ "${1:-tutti}" = "senza-notifiche" ]; then
-      warn "Lascio acceso il vecchio servizio $name: le notifiche nuove non sono ancora configurate."
+    if [ "$name" = "vzbot-notifier" ] && [ "${1:-all}" = "keep-notifier" ]; then
+      warn "Leaving the old service $name on: the new notifications are not set up yet."
       continue
     fi
     backup_file "$f" "units/$name.service"
     sudo_run "$SYSTEMCTL" disable --now "$name" >/dev/null 2>&1
     sudo_run rm -f "$f"
     RETIRED="$RETIRED $name"
-    good "Servizio vecchio $name fermato e tolto (copia nel backup)"
+    good "Old service $name stopped and removed (copy in the backup)"
   done
   [ -n "$RETIRED" ] && sudo_run "$SYSTEMCTL" daemon-reload
 }
-bring_back_old_units() {  # rimette i servizi vecchi dalle copie del backup e li accende; 0 se ne ha rimesso almeno uno
+bring_back_old_units() {  # puts the old services back from the backup copies and starts them; 0 when at least one was put back
   local name old back=1
   for name in $OLD_UNIT_NAMES; do
     [ -f "$UNIT_DIR/$name.service" ] && continue
@@ -196,7 +200,7 @@ bring_back_old_units() {  # rimette i servizi vecchi dalle copie del backup e li
 stop_new_units() {
   local name
   for name in klippeye klippeye-notifier; do
-    if [ -f "$UNIT_DIR/$name.service" ] && grep -q 'GESTITO-DA-KLIPPEYE' "$UNIT_DIR/$name.service"; then
+    if [ -f "$UNIT_DIR/$name.service" ] && grep -q "$OURS" "$UNIT_DIR/$name.service"; then
       sudo_run "$SYSTEMCTL" disable --now "$name" >/dev/null 2>&1
       sudo_run rm -f "$UNIT_DIR/$name.service"
     fi
@@ -204,13 +208,13 @@ stop_new_units() {
   sudo_run "$SYSTEMCTL" daemon-reload
 }
 
-install_command() {  # nome: scrive /usr/local/bin/<nome>, che lancia lo script dentro la cartella del programma
+install_command() {  # name: writes /usr/local/bin/<name>, which runs the script inside the program folder
   local name="$1" tmp="$WORK/cmd-$1"
-  printf '#!/bin/sh\n# scritto da %s/scripts/install.sh\nexec bash "%s/scripts/%s" "$@"\n' "$REPO" "$REPO" "$name" > "$tmp"
+  printf '#!/bin/sh\n# written by %s/scripts/install.sh\nexec bash "%s/scripts/%s" "$@"\n' "$REPO" "$REPO" "$name" > "$tmp"
   if [ -f "$BIN_DIR/$name" ] && cmp -s "$tmp" "$BIN_DIR/$name"; then return 0; fi
-  sudo_run install -m 755 "$tmp" "$BIN_DIR/$name" || { warn "Non riesco a scrivere $BIN_DIR/$name"; return 1; }
+  sudo_run install -m 755 "$tmp" "$BIN_DIR/$name" || { warn "Cannot write $BIN_DIR/$name"; return 1; }
 }
-notifier_ready() {  # 0 se c'e' notifier.json e la chiave Firebase a cui punta
+notifier_ready() {  # 0 when notifier.json and the Firebase key it points to are there
   [ -f "$DATA/notifier.json" ] || return 1
   "$PYTHON" - "$DATA" <<'PY'
 import json, os, sys
@@ -227,21 +231,21 @@ PY
 }
 
 # ====================================================================================================================
-#  --annulla
+#  --undo
 # ====================================================================================================================
 if [ "$MODE" = "undo" ]; then
-  step "Annullo KlippEye $RELEASE: torno ai servizi di prima"
+  step "Undoing KlippEye $RELEASE: back to the services of before"
   stop_new_units
-  good "Servizi klippeye e klippeye-notifier fermati e tolti"
+  good "Services klippeye and klippeye-notifier stopped and removed"
   if bring_back_old_units; then
-    good "Servizi di prima (vzbot, vzbot-notifier) rimessi com'erano e riaccesi"
+    good "Services of before (vzbot, vzbot-notifier) put back as they were and started"
   else
-    note "Non c'erano servizi di prima da rimettere (KlippEye e' stato installato da zero)."
+    note "There were no services of before to put back (KlippEye was installed from scratch)."
   fi
   for name in klippeye klippeye-notifiche; do
     if [ -f "$BIN_DIR/$name" ] && grep -q "$REPO/scripts" "$BIN_DIR/$name" 2>/dev/null; then sudo_run rm -f "$BIN_DIR/$name"; fi
   done
-  good "Comandi $BIN_DIR/klippeye e klippeye-notifiche tolti"
+  good "Commands $BIN_DIR/klippeye and klippeye-notifiche removed"
   if [ "$WITH_MOONRAKER" = 1 ]; then
     conf="$PRINTER_DATA/config/moonraker.conf"; asvc="$PRINTER_DATA/moonraker.asvc"
     if [ -f "$conf" ] && grep -Eq '^\[update_manager[[:space:]]+klippeye\]' "$conf"; then
@@ -257,68 +261,68 @@ for line in lines:
     if not skip:
         out.append(line)
 text = "\n".join(out).rstrip("\n") + "\n"
-text = re.sub(r"\n\n+# KlippEye: aggiornamenti dalla dashboard[^\n]*\n*$", "\n", text)
+text = re.sub(r"\n\n+# KlippEye: (updates from the dashboard|aggiornamenti dalla dashboard)[^\n]*\n*$", "\n", text)
 open(p, "w", encoding="utf-8").write(text)
 PY
-      good "Voce [update_manager klippeye] tolta da moonraker.conf"
+      good "Entry [update_manager klippeye] removed from moonraker.conf"
     fi
     if [ -f "$asvc" ]; then
       backup_file "$asvc" moonraker.asvc
       grep -vx -e klippeye -e klippeye-notifier "$asvc" > "$WORK/asvc" ; cat "$WORK/asvc" > "$asvc"
-      good "klippeye e klippeye-notifier tolti da moonraker.asvc"
+      good "klippeye and klippeye-notifier removed from moonraker.asvc"
     fi
     if is_printing; then
-      warn "Sta stampando: non riavvio Moonraker. Riavvialo tu a fine stampa (menu Riavvia della dashboard) per far sparire la voce."
+      warn "Printing: Moonraker is not restarted. Restart it when the print ends (Restart menu of the dashboard) to make the entry disappear."
     else
-      sudo_run "$SYSTEMCTL" restart "$MOONRAKER_SERVICE" && good "Moonraker riavviato"
+      sudo_run "$SYSTEMCTL" restart "$MOONRAKER_SERVICE" && good "Moonraker restarted"
     fi
   fi
   say ""
-  say "Fatto. La cartella del programma ($REPO) e quella dei dati ($DATA) sono rimaste dove sono:"
-  say "se non ti servono piu' le cancelli tu a mano."
+  say "Done. The program folder ($REPO) and the data folder ($DATA) stayed where they are:"
+  say "delete them by hand if you no longer need them."
   exit 0
 fi
 
 # ====================================================================================================================
-#  installazione
+#  installation
 # ====================================================================================================================
 
-# --- 2. dati e impostazioni --------------------------------------------------------------------------------------------
-step "2/6  Cartella dei dati: $DATA"
-mkdir -p "$DATA" || stop "Non riesco a creare $DATA"
+# --- 2. data and settings ----------------------------------------------------------------------------------------------
+step "2/6  Data folder: $DATA"
+mkdir -p "$DATA" || stop "Cannot create $DATA"
 chmod 700 "$DATA"
-# Se prima c'era VzBot 1.0.x, la sua cartella dati (stesso contenuto) viene COPIATA qui senza sovrascrivere nulla.
+# If VzBot 1.0.x was there before, its data folder (same content) is COPIED here without overwriting anything.
 if [ -n "${KLIPPEYE_OLD_DATA:-}" ]; then OLD_DATA="$KLIPPEYE_OLD_DATA"
 elif [ -d "$PRINTER_DATA/vzbot" ]; then OLD_DATA="$PRINTER_DATA/vzbot"
 else OLD_DATA="$HOME/vzbot_data"; fi
 if [ -d "$OLD_DATA" ] && [ "$OLD_DATA" != "$DATA" ] && [ -n "$(ls -A "$OLD_DATA" 2>/dev/null)" ] && [ ! -f "$DATA/.copiato-da-vzbot" ]; then
   if cp -an "$OLD_DATA"/. "$DATA"/ 2>/dev/null; then
     : > "$DATA/.copiato-da-vzbot"
-    good "Impostazioni e dati di VzBot copiati da $OLD_DATA (gli originali restano li')"
+    good "VzBot settings and data copied from $OLD_DATA (the originals stay there)"
   else
-    warn "Non sono riuscito a copiare i dati da $OLD_DATA"
+    warn "Could not copy the data from $OLD_DATA"
   fi
 fi
-good "Qui restano impostazioni, chiave dell'IA e notifiche. Gli aggiornamenti non la toccano."
+good "Settings, AI key and notifications stay here. Updates do not touch this folder."
 
 if [ -d "$REPO/.git" ]; then
-  # I file caricati dal sito di GitHub non hanno il permesso "eseguibile": senza questa riga git li vedrebbe "modificati"
-  # appena li rendi eseguibili e l'update manager di Moonraker si rifiuterebbe di aggiornare.
+  # Files uploaded through the GitHub website have no "executable" permission: without this line git would see them as
+  # "changed" as soon as they are made executable, and Moonraker's update manager would refuse to update.
   git -C "$REPO" config core.fileMode false 2>/dev/null
 fi
 
-AI_OLD="${KLIPPEYE_OLD_AI_CONFIG:-$HOME/vzbot_ai_config.json}"   # prima di KlippEye (VzBot 1.0.x)
+AI_OLD="${KLIPPEYE_OLD_AI_CONFIG:-$HOME/vzbot_ai_config.json}"   # before KlippEye (VzBot 1.0.x)
 if [ -f "$DATA/ai.json" ]; then
   chmod 600 "$DATA/ai.json"
-  good "Chiave dell'IA: gia' nella cartella dati"
+  good "AI key: already in the data folder"
 elif [ -f "$AI_OLD" ]; then
-  cp "$AI_OLD" "$DATA/ai.json" && chmod 600 "$DATA/ai.json" && good "Chiave dell'IA copiata da $AI_OLD (l'originale resta li')"
+  cp "$AI_OLD" "$DATA/ai.json" && chmod 600 "$DATA/ai.json" && good "AI key copied from $AI_OLD (the original stays there)"
 else
-  note "Chiave dell'IA: non ce n'e' ancora una (si inserisce dalla dashboard)"
+  note "AI key: none yet (it is entered from the dashboard)"
 fi
 
 if [ -f "$DATA/notifier.json" ]; then
-  good "Notifiche: configurazione gia' nella cartella dati"
+  good "Notifications: configuration already in the data folder"
 elif [ -f "$OLD_NOTIFIER_DIR/notifier.json" ]; then
   if "$PYTHON" - "$OLD_NOTIFIER_DIR" "$DATA" <<'PY'
 import json, os, shutil, sys, tempfile
@@ -339,23 +343,23 @@ with os.fdopen(fd, "w", encoding="utf-8") as f:
 os.chmod(tmp, 0o600)
 os.replace(tmp, os.path.join(new, "notifier.json"))
 PY
-  then good "Notifiche: configurazione e chiave Firebase copiate da $OLD_NOTIFIER_DIR (gli originali restano li')"
-  else warn "Non sono riuscito a copiare la configurazione delle notifiche da $OLD_NOTIFIER_DIR"; fi
+  then good "Notifications: configuration and Firebase key copied from $OLD_NOTIFIER_DIR (the originals stay there)"
+  else warn "Could not copy the notification configuration from $OLD_NOTIFIER_DIR"; fi
 else
-  note "Notifiche: non configurate (si fa una volta sola con la guida; vedi docs/GUIDA.md)"
+  note "Notifications: not set up (done once with the guide; see docs/GUIDA.md)"
 fi
 
-# --- 3. servizi --------------------------------------------------------------------------------------------------------
-step "3/6  Servizi (partono da soli a ogni accensione)"
+# --- 3. services -------------------------------------------------------------------------------------------------------
+step "3/6  Services (started by themselves at every boot)"
 for need in "$REPO/systemd/klippeye.service" "$REPO/systemd/klippeye-notifier.service"; do
-  [ -f "$need" ] || stop "Manca il modello $need"
+  [ -f "$need" ] || stop "The template $need is missing"
 done
-[ -d "$UNIT_DIR" ] || stop "Non trovo la cartella dei servizi di sistema ($UNIT_DIR)."
+[ -d "$UNIT_DIR" ] || stop "The system services folder ($UNIT_DIR) was not found."
 
 NOTIFIER_ON=0
 if notifier_ready; then NOTIFIER_ON=1; fi
-# I servizi di prima usano la stessa porta e gli stessi dati: vanno fermati prima di accendere quelli nuovi.
-if [ "$NOTIFIER_ON" = 1 ]; then retire_old_units tutti; else retire_old_units senza-notifiche; fi
+# The services of before use the same port and the same data: they are stopped before the new ones start.
+if [ "$NOTIFIER_ON" = 1 ]; then retire_old_units all; else retire_old_units keep-notifier; fi
 BRAIN_CHANGED=0
 if install_unit klippeye; then BRAIN_CHANGED=1; fi
 # the self-repair drop-in (klippeye.service.d/repair.conf, ripara.conf before 1.3.0, added by the backend) is no longer needed:
@@ -367,55 +371,55 @@ NOTIFIER_CHANGED=0
 if [ "$NOTIFIER_ON" = 1 ]; then
   if install_unit klippeye-notifier; then NOTIFIER_CHANGED=1; fi
 fi
-sudo_run "$SYSTEMCTL" daemon-reload || stop "systemctl daemon-reload non e' riuscito."
+sudo_run "$SYSTEMCTL" daemon-reload || stop "systemctl daemon-reload failed."
 sudo_run "$SYSTEMCTL" enable klippeye >/dev/null 2>&1
 [ "$NOTIFIER_ON" = 1 ] && sudo_run "$SYSTEMCTL" enable klippeye-notifier >/dev/null 2>&1
 
 if [ "$BRAIN_CHANGED" = 1 ] || ! unit_active klippeye; then
-  sudo_run "$SYSTEMCTL" restart klippeye || warn "systemctl restart klippeye ha dato errore"
-  printf '   ...     aspetto che il backend risponda (fino a 40 secondi)\n'
+  sudo_run "$SYSTEMCTL" restart klippeye || warn "systemctl restart klippeye gave an error"
+  printf '   ...     waiting for the backend to answer (up to 40 seconds)\n'
   if NEWREL="$(brain_release 40)"; then
-    good "Il backend risponde: release $NEWREL"
+    good "The backend answers: release $NEWREL"
   else
-    printf '\n   ERRORE  Il backend nuovo non risponde su %s.\n' "$BRAIN_URL"
-    note "Ultime righe del suo registro:"
+    printf '\n   ERROR   The new backend does not answer at %s.\n' "$BRAIN_URL"
+    note "Last lines of its log:"
     (journalctl -u klippeye -n 12 --no-pager 2>/dev/null || sudo_run journalctl -u klippeye -n 12 --no-pager 2>/dev/null) | sed 's/^/           /'
     stop_new_units
     if bring_back_old_units; then
-      note "Ho rimesso i servizi com'erano: il backend di prima dovrebbe essere di nuovo acceso."
+      note "The services were put back as they were: the backend of before should be on again."
     fi
-    stop "Installazione interrotta. Se la porta 8085 e' occupata da un altro programma, fermalo e rilancia. Se manca un modulo Python, vedi sopra."
+    stop "Installation stopped. If port 8085 is taken by another program, stop it and run this again. If a Python module is missing, see above."
   fi
 else
-  good "Servizio klippeye gia' a posto"
+  good "Service klippeye already in order"
 fi
 
 if [ "$NOTIFIER_ON" = 1 ]; then
   if [ "$NOTIFIER_CHANGED" = 1 ] || ! unit_active klippeye-notifier; then
-    sudo_run "$SYSTEMCTL" restart klippeye-notifier || warn "systemctl restart klippeye-notifier ha dato errore"
+    sudo_run "$SYSTEMCTL" restart klippeye-notifier || warn "systemctl restart klippeye-notifier gave an error"
   fi
-  good "Servizio klippeye-notifier acceso"
+  good "Service klippeye-notifier on"
   if "$PYTHON" "$REPO/notifier/klippeye_notifier.py" --config "$DATA/notifier.json" --check >"$WORK/check.out" 2>&1; then
-    good "Controllo delle notifiche superato"
+    good "Notification check passed"
   else
-    warn "Il controllo delle notifiche segnala qualcosa (vedi sotto). Il backend e la dashboard funzionano lo stesso."
+    warn "The notification check reports something (see below). The backend and the dashboard work anyway."
     sed 's/^/           /' "$WORK/check.out" | tail -n 8
   fi
 else
-  note "Notifiche: il servizio si accende solo dopo aver messo la chiave di Firebase in $DATA (guida: docs/GUIDA.md)"
+  note "Notifications: the service starts only after the Firebase key is put in $DATA (guide: docs/GUIDA.md)"
 fi
 
-# --- 4. comandi --------------------------------------------------------------------------------------------------------
-step "4/6  Comandi da terminale"
+# --- 4. commands -------------------------------------------------------------------------------------------------------
+step "4/6  Terminal commands"
 if install_command klippeye && install_command klippeye-notifiche; then
-  good "Scritti $BIN_DIR/klippeye e $BIN_DIR/klippeye-notifiche   (prova:  klippeye stato)"
+  good "Written $BIN_DIR/klippeye and $BIN_DIR/klippeye-notifiche   (try:  klippeye status)"
 fi
 
 # --- 5. Moonraker --------------------------------------------------------------------------------------------------------
-step "5/6  Aggiornamenti dalla dashboard (update manager di Moonraker)"
+step "5/6  Updates from the dashboard (Moonraker's update manager)"
 MR_RESTART=0
 if [ "$WITH_MOONRAKER" = 0 ]; then
-  note "Saltato (--senza-moonraker)."
+  note "Skipped (--no-moonraker)."
 else
   CONF="$PRINTER_DATA/config/moonraker.conf"
   ASVC="$PRINTER_DATA/moonraker.asvc"
@@ -425,17 +429,17 @@ else
     BRANCH="$(git -C "$REPO" symbolic-ref --short HEAD 2>/dev/null || true)"
   fi
   if [ ! -d "$REPO/.git" ]; then
-    warn "$REPO non e' un repository git (l'hai scaricato come zip?). Senza, il tasto Aggiorna non puo' funzionare."
-    note "Rifai l'installazione con:   git clone <indirizzo del tuo repository GitHub> ~/klippeye"
+    warn "$REPO is not a git repository (downloaded as a zip?). Without it the Update button cannot work."
+    note "Install again with:   git clone https://github.com/BotuPotto/KlippEye.git ~/klippeye"
   elif [ -z "$ORIGIN" ]; then
-    warn "Il repository non ha un 'origin' (un indirizzo GitHub da cui aggiornarsi): salto la configurazione di Moonraker."
+    warn "The repository has no 'origin' (a GitHub address to update from): Moonraker's configuration is skipped."
   else
-    [ -n "$BRANCH" ] || { BRANCH=main; warn "Non riconosco il ramo corrente, uso 'main'."; }
+    [ -n "$BRANCH" ] || { BRANCH=main; warn "The current branch is not recognised: using 'main'."; }
     if [ ! -f "$CONF" ]; then
-      warn "Non trovo $CONF: salto la configurazione di Moonraker (se il tuo e' altrove: KLIPPEYE_PRINTER_DATA=... bash $0)."
+      warn "$CONF not found: Moonraker's configuration is skipped (if yours is elsewhere: KLIPPEYE_PRINTER_DATA=... bash $0)."
     else
       if grep -Eq '^\[update_manager[[:space:]]+klippeye\][[:space:]]*$' "$CONF"; then
-        good "moonraker.conf ha gia' la voce [update_manager klippeye]"
+        good "moonraker.conf already has the entry [update_manager klippeye]"
       else
         backup_file "$CONF" moonraker.conf
         {
@@ -443,15 +447,15 @@ else
           if ! grep -Eq '^\[update_manager[[:space:]]*\][[:space:]]*$' "$CONF"; then
             printf '[update_manager]\n\n'
           fi
-          printf '# KlippEye: aggiornamenti dalla dashboard (Impostazioni -> Sistema KlippEye) e da Mainsail/Fluidd. Scritto da scripts/install.sh.\n'
-          printf '[update_manager klippeye]\ntype: git_repo\npath: %s\norigin: %s\nprimary_branch: %s\nchannel: dev\nmanaged_services: klippeye\ninfo_tags:\n  desc=KlippEye: backend, dashboard e notifiche\n' "$REPO" "$ORIGIN" "$BRANCH"
+          printf '# KlippEye: updates from the dashboard (Settings -> Updates) and from Mainsail/Fluidd. Written by scripts/install.sh.\n'
+          printf '[update_manager klippeye]\ntype: git_repo\npath: %s\norigin: %s\nprimary_branch: %s\nchannel: dev\nmanaged_services: klippeye\ninfo_tags:\n  desc=KlippEye: backend, dashboard and notifications\n' "$REPO" "$ORIGIN" "$BRANCH"
         } >> "$CONF"
-        good "Aggiunta a moonraker.conf la voce [update_manager klippeye]"
+        good "Entry [update_manager klippeye] added to moonraker.conf"
         MR_RESTART=1
       fi
     fi
     if [ ! -f "$ASVC" ]; then
-      warn "Non trovo $ASVC (l'elenco dei servizi che Moonraker puo' riavviare): senza, Moonraker non riavvia 'klippeye' dopo un aggiornamento."
+      warn "$ASVC not found (the list of services Moonraker may restart): without it Moonraker does not restart 'klippeye' after an update."
     else
       WANT="klippeye"; [ "$NOTIFIER_ON" = 1 ] && WANT="klippeye klippeye-notifier"
       ADDED=""
@@ -462,18 +466,18 @@ else
           printf '%s\n' "$s" >> "$ASVC"; ADDED="$ADDED $s"
         fi
       done
-      if [ -n "$ADDED" ]; then good "Aggiunti a moonraker.asvc:$ADDED"; MR_RESTART=1; else good "moonraker.asvc a posto"; fi
+      if [ -n "$ADDED" ]; then good "Added to moonraker.asvc:$ADDED"; MR_RESTART=1; else good "moonraker.asvc in order"; fi
     fi
   fi
 
   if [ "$MR_RESTART" = 1 ]; then
     if is_printing; then
-      warn "Sta stampando: non riavvio Moonraker adesso. A fine stampa riavvialo dal menu Riavvia della dashboard (o Mainsail)"
-      note "e solo allora il tasto Aggiorna sara' attivo."
+      warn "Printing: Moonraker is not restarted now. When the print ends restart it from the Restart menu of the dashboard (or Mainsail)"
+      note "and only then will the Update button work."
     else
-      sudo_run "$SYSTEMCTL" restart "$MOONRAKER_SERVICE" || warn "Non sono riuscito a riavviare Moonraker: riavvialo dal menu Riavvia."
-      printf '   ...     aspetto Moonraker\n'
-      "$PYTHON" - "$MOONRAKER_URL/server/info" <<'PY' || warn "Moonraker non ha ancora risposto: potrebbe volerci un minuto."
+      sudo_run "$SYSTEMCTL" restart "$MOONRAKER_SERVICE" || warn "Could not restart Moonraker: restart it from the Restart menu."
+      printf '   ...     waiting for Moonraker\n'
+      "$PYTHON" - "$MOONRAKER_URL/server/info" <<'PY' || warn "Moonraker has not answered yet: it may take a minute."
 import sys, time, urllib.request
 end = time.time() + 60
 while time.time() < end:
@@ -484,33 +488,33 @@ while time.time() < end:
         time.sleep(1)
 sys.exit(1)
 PY
-      good "Moonraker riavviato"
+      good "Moonraker restarted"
     fi
   fi
 
-  # Moonraker riconosce KlippEye?
+  # does Moonraker see KlippEye?
   "$PYTHON" - "$MOONRAKER_URL/machine/update/status?refresh=false" <<'PY'
 import json, sys, urllib.request
 try:
     d = json.loads(urllib.request.urlopen(sys.argv[1], timeout=20).read().decode("utf-8", "replace"))
     info = d["result"]["version_info"].get("klippeye")
 except Exception as e:
-    print("   AVVISO  Non riesco a chiedere a Moonraker se vede KlippEye (%s)." % e); sys.exit(0)
+    print("   WARNING Cannot ask Moonraker whether it sees KlippEye (%s)." % e); sys.exit(0)
 if not info:
-    print("   AVVISO  Moonraker non mostra ancora KlippEye tra i programmi aggiornabili: riavvialo (menu Riavvia) e riguarda tra poco.")
+    print("   WARNING Moonraker does not list KlippEye among the programs it updates yet: restart it (Restart menu) and look again shortly.")
 elif info.get("is_valid") is False or info.get("is_dirty"):
-    print("   AVVISO  Moonraker vede KlippEye ma lo segna come non aggiornabile: %s" % "; ".join(info.get("warnings") or ["file modificati a mano"]))
+    print("   WARNING Moonraker sees KlippEye but marks it as not updatable: %s" % "; ".join(info.get("warnings") or ["files changed by hand"]))
 else:
-    print("   OK      Moonraker vede KlippEye (versione %s): il tasto Aggiorna e' attivo" % info.get("version", "?"))
+    print("   OK      Moonraker sees KlippEye (version %s): the Update button works" % info.get("version", "?"))
 PY
 fi
 
-# --- 6. fine -------------------------------------------------------------------------------------------------------------
-step "6/6  Fatto"
+# --- 6. end --------------------------------------------------------------------------------------------------------------
+step "6/6  Done"
 IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
-say "   KlippEye $RELEASE e' installato."
-say "   Dashboard:   http://${IP:-<indirizzo del Raspberry>}:8085"
-say "   Per aggiornare in futuro: carica i file nuovi su GitHub, poi nella dashboard apri"
-say "   Impostazioni -> Sistema KlippEye -> Controlla -> Aggiorna. Dal terminale basta  klippeye stato."
-[ -n "$BK" ] && say "   Copie di sicurezza di quello che ho cambiato: $BK"
+say "   KlippEye $RELEASE is installed."
+say "   Dashboard:   http://${IP:-<address of the Raspberry>}:8085"
+say "   Updates: in the dashboard open Settings -> Updates -> Check -> Update KlippEye."
+say "   From the terminal:  klippeye status"
+[ -n "$BK" ] && say "   Backup copies of what was changed: $BK"
 exit 0

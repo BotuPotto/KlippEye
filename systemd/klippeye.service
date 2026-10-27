@@ -1,21 +1,21 @@
-# GESTITO-DA-KLIPPEYE: questo file e' riscritto da scripts/install.sh; le modifiche a mano si perdono al prossimo giro.
-# KlippEye - backend: serve la dashboard, fa da ponte verso Moonraker e controlla la stampa con la camera (monitor IA).
-# Modello: scripts/install.sh sostituisce @UTENTE@, @CODICE@, @DATI@ e @PYTHON@ e lo mette in /etc/systemd/system/klippeye.service.
-# Il nome del servizio DEVE restare "klippeye": e' quello che l'update manager di Moonraker riavvia dopo un aggiornamento.
+# MANAGED-BY-KLIPPEYE: this file is rewritten by scripts/install.sh; changes made by hand are lost the next time.
+# KlippEye - backend: serves the dashboard, bridges to Moonraker and watches the print through the camera (AI monitor).
+# Template: scripts/install.sh replaces @USER@, @CODE@, @DATA@ and @PYTHON@ and puts it in /etc/systemd/system/klippeye.service.
+# The service name MUST stay "klippeye": it is the one Moonraker's update manager restarts after an update.
 [Unit]
-Description=KlippEye - backend (dashboard e monitor IA)
+Description=KlippEye - backend (dashboard and AI monitor)
 After=network.target moonraker.service
 
 [Service]
 Type=simple
-User=@UTENTE@
-WorkingDirectory=@CODICE@
+User=@USER@
+WorkingDirectory=@CODE@
 Environment=PYTHONUNBUFFERED=1
 Environment=PYTHONDONTWRITEBYTECODE=1
-Environment=KLIPPEYE_DATA=@DATI@
+Environment=KLIPPEYE_DATA=@DATA@
 # Before every start: check the program files and restore those damaged by a power loss ("-" = start anyway if it fails).
-ExecStartPre=-/bin/bash @CODICE@/scripts/repair.sh --quiet
-ExecStart=@PYTHON@ @CODICE@/backend/klippeye_backend.py
+ExecStartPre=-/bin/bash @CODE@/scripts/repair.sh --quiet
+ExecStart=@PYTHON@ @CODE@/backend/klippeye_backend.py
 Restart=always
 RestartSec=5
 

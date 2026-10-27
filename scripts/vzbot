@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
-# Compatibilita': il comando "vzbot" ora si chiama "klippeye" (stessi comandi). Dopo il passaggio al nuovo nome questo file non serve piu'.
-echo "(il comando 'vzbot' ora si chiama 'klippeye': uso quello)" >&2
+# Compatibility: the command "vzbot" is now called "klippeye" (same commands). After the move to the new name this file is no longer needed.
+echo "(the command 'vzbot' is now called 'klippeye': using it)" >&2
 exec bash "$(dirname "$(readlink -f "$0")")/klippeye" "$@"
