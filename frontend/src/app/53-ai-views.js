@@ -15,8 +15,20 @@ function LogAnalysis({ text }) {
 /* ---------------------------------------------------------------------------
    Print analysis (spaghetti / empty bed / layer shift / warping)
    ------------------------------------------------------------------------- */
-const ACTION_TONES = { CANCELLA: "danger", PAUSA: "warn", CONTINUA: "ok" };
-const actionTone = (action) => (action.includes("CANCELLA") ? ACTION_TONES.CANCELLA : action.includes("PAUSA") ? ACTION_TONES.PAUSA : ACTION_TONES.CONTINUA);
+/**
+ * The AI's advice as "CONTINUE" | "PAUSE" | "CANCEL" ("" when there is none), also when written the Italian way
+ * (CONTINUA / PAUSA / CANCELLA: the backend before 1.6.0, and old alerts).
+ */
+function aiAction(value) {
+  const text = String(value || "").toUpperCase();
+  if (text.includes("CANCEL")) return "CANCEL";
+  if (text.includes("PAUS")) return "PAUSE";
+  return text.trim() ? "CONTINUE" : "";
+}
+const AI_ACTION_LABELS = { CONTINUE: txc("verdict", "CONTINUE"), PAUSE: txc("verdict", "PAUSE"), CANCEL: txc("verdict", "CANCEL") };
+const aiActionLabel = (value) => AI_ACTION_LABELS[aiAction(value)] || "";
+const ACTION_TONES = { CANCEL: "danger", PAUSE: "warn", CONTINUE: "ok" };
+const actionTone = (action) => ACTION_TONES[aiAction(action)] || "ok";
 
 /** Verdict JSON inside the AI text, or null when the answer is plain prose. */
 function parsePrintVerdict(text) {
@@ -68,7 +80,7 @@ function PrintAnalysis({ text, progress, detector }) {
   const emptyBed = verdict.empty_bed || {};
   const layerShift = verdict.layer_shift || {};
   const warping = verdict.warping || {};
-  const action = (verdict.action || "CONTINUA").toUpperCase();
+  const action = aiAction(verdict.action) || "CONTINUE";
 
   return h(
     "div",
@@ -77,7 +89,7 @@ function PrintAnalysis({ text, progress, detector }) {
       "div",
       { className: "flex items-center justify-between gap-2" },
       h("div", { className: "flex items-center gap-2" }, h(StatusDot, { alert: spaghetti.detected || emptyBed.detected || layerShift.detected }), h("span", { className: "oui-label" }, tx("AI analysis completed"))),
-      h("span", { className: "oui-badge oui-badge--" + actionTone(action) }, action),
+      h("span", { className: "oui-badge oui-badge--" + actionTone(action) }, aiActionLabel(action)),
     ),
     h("div", { className: "ai-summary" }, h("div", { className: "oui-caption mb-1" }, tx("Summary")), h("div", { className: "ai-summary__text" }, verdict.summary || tx("No summary"))),
     h(

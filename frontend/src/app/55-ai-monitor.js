@@ -32,10 +32,10 @@ const verdictCache = {
   },
 };
 
-/** The action ("CONTINUA" | "PAUSA" | "CANCELLA") a verdict recommends, or "". */
+/** The action ("CONTINUE" | "PAUSE" | "CANCEL") a verdict recommends, or "". */
 function recommendedAction(verdict) {
   if (!verdict) return "";
-  return verdict.analysis && verdict.analysis.action ? verdict.analysis.action : verdict.action || "";
+  return aiAction(verdict.analysis && verdict.analysis.action ? verdict.analysis.action : verdict.action);
 }
 
 /* ---------------------------------------------------------------------------
@@ -50,10 +50,10 @@ function headerBadgeFor(stats, action) {
   const idle = includesAny(lower, ["idle", "complete", "cancelled", "error"]) || status === "" || (lower === "" && stats.frames_checked === 0);
   if (idle) return null;
   const printingNow = includesAny(lower, ["scanning", "triggered"]) || (stats.frames_checked > 0 && !lower.includes("idle"));
-  const recommended = (action || "").toUpperCase();
+  const recommended = aiAction(action);
   if (!recommended) return printingNow ? AI_BADGES.monitoring : undefined;
-  if (recommended.includes("CANCELLA")) return AI_BADGES.critical;
-  if (recommended.includes("PAUSA")) return AI_BADGES.pause;
+  if (recommended === "CANCEL") return AI_BADGES.critical;
+  if (recommended === "PAUSE") return AI_BADGES.pause;
   return AI_BADGES.ok;
 }
 
@@ -174,12 +174,12 @@ function MonitorTile({ label, children }) {
 
 /** Banner for a verdict that recommends stopping or pausing. */
 function VerdictAlert({ latest }) {
-  const action = latest.verdict.action;
-  if (!action || action === "CONTINUA") return h("div", { className: "ai-alert hidden" });
+  const action = aiAction(latest.verdict.action);
+  if (!action || action === "CONTINUE") return h("div", { className: "ai-alert hidden" });
   return h(
     "div",
-    { className: cx("ai-alert", action.includes("CANCELLA") ? "ai-alert--danger" : "ai-alert--warn") },
-    h("div", { className: "flex items-center justify-between gap-2" }, h("span", { className: "ai-alert__title" }, tx("Suggested action: ") + action), h("span", { className: "oui-caption" }, latest.timestamp || "")),
+    { className: cx("ai-alert", action === "CANCEL" ? "ai-alert--danger" : "ai-alert--warn") },
+    h("div", { className: "flex items-center justify-between gap-2" }, h("span", { className: "ai-alert__title" }, tx("Suggested action: ") + aiActionLabel(action)), h("span", { className: "oui-caption" }, latest.timestamp || "")),
     h("div", { className: "ai-alert__text" }, latest.verdict.summary || ""),
   );
 }

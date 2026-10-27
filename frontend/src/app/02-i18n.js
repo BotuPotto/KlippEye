@@ -58,6 +58,8 @@ const LOCALE = (() => {
 })();
 try {
   document.documentElement.lang = LANG;
+  // the backend writes its answers for this device (AI analyses, messages) in the same language
+  document.cookie = "klippeye_lang=" + LANG + "; path=/; max-age=31536000; SameSite=Lax";
 } catch (e) {}
 
 /** Saves the choice ("auto", "en", "it"...) and reloads the page in that language. */

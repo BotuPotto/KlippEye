@@ -168,11 +168,63 @@ ACCESS_TEXT = {
 }
 
 
+LANGUAGES = ("en", "it")
+LANGUAGE_NAMES = {"en": "English", "it": "Italian"}
+LANG_COOKIE = "klippeye_lang"  # set by the dashboard: the language it is shown in on that device
+
+
 def _lang():
+    """The language of the person making this request: the dashboard's choice (cookie), else the browser's."""
     try:
+        chosen = request.cookies.get(LANG_COOKIE)
+        if chosen in LANGUAGES:
+            return chosen
         return "it" if (request.accept_languages.best_match(["en", "it"]) or "en") == "it" else "en"
     except Exception:
         return "en"
+
+
+# Texts for people come in English and are translated with the dashboard's own dictionaries
+# (frontend/src/i18n/<lang>.json): one translation for both. frontend/tools/i18n.py check requires every bt() text.
+I18N_DIR = os.path.join(REPO_DIR, "frontend", "src", "i18n")
+_I18N = {}
+
+
+def _dictionary(lang):
+    if lang not in _I18N:
+        try:
+            with open(os.path.join(I18N_DIR, lang + ".json"), encoding="utf-8") as handle:
+                _I18N[lang] = json.load(handle)
+        except (OSError, ValueError):
+            _I18N[lang] = {}
+    return _I18N[lang]
+
+
+def bt(text, lang="en", **values):
+    """`text` (English) in `lang`, with {placeholders} filled in."""
+    translated = _dictionary(lang).get(text, text) if lang != "en" else text
+    for name, value in values.items():
+        translated = translated.replace("{" + name + "}", str(value))
+    return translated
+
+
+_SHARED_LANGUAGE = {"value": "en", "at": float("-inf")}
+
+
+def shared_language():
+    """The language chosen for the notifications in the dashboard (shared by every phone): what the AI monitor writes in.
+    Read from Moonraker's database at most once a minute; English until a dashboard has saved one."""
+    now = time.time()
+    if now - _SHARED_LANGUAGE["at"] >= 60:
+        _SHARED_LANGUAGE["at"] = now
+        try:
+            answer = requests.get(MOONRAKER_URL + "/server/database/item?namespace=klippeye&key=settings", timeout=2).json()
+            value = ((answer.get("result") or {}).get("value") or {}).get("language")
+            if value in LANGUAGES:
+                _SHARED_LANGUAGE["value"] = value
+        except Exception:
+            pass
+    return _SHARED_LANGUAGE["value"]
 
 
 def _text(key, **values):
@@ -1535,39 +1587,41 @@ def api_logs_analyze():
             if not combined:
                 return jsonify({"error":"nessun log trovato"}),404
 
+        language = _lang()
         if is_single:
-            prompt = f"""Sei un esperto di Klipper/Moonraker/VzBot 235.
-Analizza SOLO questo singolo file log: {used_files[0]}
+            prompt = f"""You are an expert in Klipper and Moonraker.
+Analyse ONLY this single log file: {used_files[0]}
 
-Contenuto (ultime righe):
+Content (last lines):
 {combined}
 
-Task per singolo file:
-1) Tipo di log e cosa registra
-2) Stato generale di questo servizio
-3) Errori critici SOLO in questo file
-4) Per ogni errore: causa + fix immediato
-5) Se nessun errore, dillo chiaramente
+Task for a single file:
+1) Kind of log and what it records
+2) General state of this service
+3) Critical errors in THIS file only
+4) For each error: cause + immediate fix
+5) If there are no errors, say so clearly
 
-Rispondi in italiano, markdown breve, focalizzato solo su questo file.
+Answer in {LANGUAGE_NAMES.get(language, "English")}, short markdown, about this file only.
 """
         else:
-            prompt = f"""Sei un esperto di Klipper, Moonraker, Crowsnest per VzBot 235.
-Analizza questi log di sistema presi da /home/pi/printer_data/logs (tutti i file, non solo klippy.log).
+            prompt = f"""You are an expert in Klipper, Moonraker and Crowsnest.
+Analyse these system logs taken from printer_data/logs (all the files, not only klippy.log).
 
-File inclusi: {', '.join(used_files)}
+Files included: {', '.join(used_files)}
 
-Contenuti (ultime righe):
+Content (last lines):
 {combined}
 
 Task:
-1) Trova errori, warning, stacktrace rilevanti (TMC, heater, probe, MCU, move out of range, crowsnest, moonraker, ecc)
-2) Spiega causa probabile per ogni errore
-3) Suggerisci fix concreti: comandi gcode, file da controllare (printer.cfg, ecc), cablaggi, PID, corrente TMC, ecc per VzBot 235
-4) Indica se serve FIRMWARE_RESTART, KLIPPER RESTART o controllo hardware
-5) Dai priorità: cosa risolvere prima
+1) Find relevant errors, warnings and stack traces (TMC, heater, probe, MCU, move out of range, crowsnest, moonraker, etc.)
+2) Explain the likely cause of each error
+3) Suggest concrete fixes: G-code commands, files to check (printer.cfg, etc.), wiring, PID, TMC current, etc.
+4) Say whether FIRMWARE_RESTART, a Klipper restart or a hardware check is needed
+5) Give priorities: what to fix first
+6) End with a short "Conclusion" section
 
-Rispondi in italiano, tecnico ma chiaro, con bullet point e comandi pronti da copiare. Se non vedi errori critici, dillo esplicitamente.
+Answer in {LANGUAGE_NAMES.get(language, "English")}, technical but clear, with bullet points and commands ready to copy. If you see no critical errors, say so explicitly.
 """
 
         provider=cfg.get("provider","openai").lower()
@@ -1620,7 +1674,7 @@ Rispondi in italiano, tecnico ma chiaro, con bullet point e comandi pronti da co
                 json={
                     "model": final_model,
                     "messages":[
-                        {"role":"system","content":"Sei un esperto di Klipper, Moonraker, Crowsnest per VzBot 235."},
+                        {"role":"system","content":"You are an expert in Klipper, Moonraker and Crowsnest."},
                         {"role":"user","content":prompt}
                     ],
                     "temperature":0.3,
@@ -1762,58 +1816,78 @@ def prune_alert_images(keep=10, pattern="/tmp/klippeye_alert_*.jpg"):
 AI_DEFECT_KEYS = ("spaghetti", "empty_bed", "layer_shift", "warping")
 
 
-def build_ai_prompt(score, state, filename, progress, hotend, ref_age=None):
-    """Il testo per l'IA: neutro (non dice "e' spaghetti"), spiega cosa vede la camera, cosa e' un difetto e cosa no, e chiede di descrivere prima di decidere."""
-    foto = ("Ti mando DUE foto: la prima e' PRIMA (circa %d secondi fa), la seconda e' ADESSO. Confrontale: conta cio' che e' cambiato e resta." % (ref_age or 0)
-            if ref_age is not None else "Ti mando UNA foto (adesso).")
-    return f"""Sorvegli una stampa 3D (stampante Klipper). La camera e' fissa, molto vicina e sopra il piatto, in un angolo: la testina di stampa, i cavi e parti del portale compaiono spesso nell'immagine.
+AI_ACTIONS = ("CONTINUE", "PAUSE", "CANCEL")
 
-Il controllo locale ha notato un cambiamento che resta nell'immagine (punteggio {score}%), ma di solito e' innocuo: testina, pezzo che cresce, ombre, riflessi. NON sappiamo se c'e' un problema.
 
-{foto}
+def normalize_action(value):
+    """The AI's advice as CONTINUE / PAUSE / CANCEL, also when written the Italian way (CONTINUA / PAUSA / CANCELLA,
+    releases before 1.6.0 and answers in Italian); "" when there is none."""
+    text = str(value or "").upper()
+    if "CANCEL" in text:
+        return "CANCEL"
+    if "PAUS" in text:
+        return "PAUSE"
+    if "CONTIN" in text or text.strip():
+        return "CONTINUE"
+    return ""
 
-TELEMETRIA: stato {state}; file {filename}; avanzamento {progress:.1f}%; ugello {hotend:.0f} C.
 
-PROBLEMI VERI (solo se li vedi con chiarezza):
-- spaghetti: filamento aggrovigliato o staccato dal pezzo, filo in aria, matassa sul piatto o attorno all'ugello;
-- pezzo staccato dal piatto, spostato o caduto;
-- sfasamento di strato (il pezzo ha un gradino laterale netto);
-- warping evidente (angoli sollevati dal piatto);
-- piatto vuoto SOLO se l'avanzamento e' oltre il 5% e non si vede alcun pezzo.
+def build_ai_prompt(score, state, filename, progress, hotend, ref_age=None, language="en"):
+    """The text for the AI: neutral (it does not say "it is spaghetti"), it explains what the camera sees, what a defect is
+    and what is not, and asks to describe before deciding. The free texts come back in `language`."""
+    pictures = ("I am sending TWO pictures: the first is BEFORE (about %d seconds ago), the second is NOW. Compare them: what counts is what changed and stays." % (ref_age or 0)
+                if ref_age is not None else "I am sending ONE picture (now).")
+    return f"""You are watching a 3D print (a Klipper printer). The camera is fixed, very close and above the bed, in a corner: the print head, its cables and parts of the gantry often appear in the picture.
 
-NON SONO PROBLEMI: la testina e il suo cablaggio, il portale, gonna, brim e linea di spurgo, supporti, riempimento visibile, il pezzo che sale strato dopo strato, riflessi, ombre, peluria sottile (stringing).
+The local check noticed a change that stays in the picture (score {score}%), but it is usually harmless: print head, the part growing, shadows, reflections. We do NOT know whether there is a problem.
 
-Come procedere: 1) descrivi in una frase cosa vedi; 2) segnala un difetto solo se e' evidente; nel dubbio la risposta e' CONTINUA. La confidenza e' la probabilita' in % che il difetto sia reale: sotto 50 se non sei sicuro.
+{pictures}
 
-Rispondi SOLO con JSON valido:
+TELEMETRY: state {state}; file {filename}; progress {progress:.1f}%; nozzle {hotend:.0f} C.
+
+REAL PROBLEMS (only if you see them clearly):
+- spaghetti: tangled filament or filament detached from the part, strands in the air, a nest on the bed or around the nozzle;
+- part detached from the bed, moved or fallen;
+- layer shift (the part has a sharp sideways step);
+- obvious warping (corners lifted from the bed);
+- empty bed ONLY if progress is above 5% and no part can be seen.
+
+NOT PROBLEMS: the print head and its wiring, the gantry, skirt, brim and purge line, supports, visible infill, the part rising layer after layer, reflections, shadows, thin hairs (stringing).
+
+How to proceed: 1) describe in one sentence what you see; 2) report a defect only if it is obvious; when in doubt the answer is CONTINUE. Confidence is the probability in % that the defect is real: below 50 if you are not sure.
+
+Write "observation", "note" and "summary" in {LANGUAGE_NAMES.get(language, "English")}; keep the keys and the action words in English.
+
+Answer ONLY with valid JSON:
 {{
-  "osservazione": "cosa vedi, una frase",
-  "spaghetti": {{"detected": true/false, "confidence": 0-100, "note": "dettaglio"}},
+  "observation": "what you see, one sentence",
+  "spaghetti": {{"detected": true/false, "confidence": 0-100, "note": "detail"}},
   "empty_bed": {{"detected": true/false, "confidence": 0-100}},
   "layer_shift": {{"detected": true/false, "confidence": 0-100}},
   "warping": {{"detected": true/false, "confidence": 0-100}},
-  "action": "CONTINUA|PAUSA|CANCELLA",
-  "summary": "frase breve in italiano, max 20 parole"
+  "action": "CONTINUE|PAUSE|CANCEL",
+  "summary": "short sentence, at most 20 words"
 }}
 """
 
 
-def apply_min_confidence(parsed, minimum):
-    """Se l'IA consiglia PAUSA/CANCELLA ma nessun difetto ha la fiducia minima, il verdetto diventa CONTINUA (l'originale resta scritto). -> (verdetto, declassato)"""
-    action = str(parsed.get("action", "")).upper()
-    if minimum <= 0 or action not in ("PAUSA", "CANCELLA"):
+def apply_min_confidence(parsed, minimum, language="en"):
+    """If the AI suggests PAUSE/CANCEL but no defect has the minimum confidence, the verdict becomes CONTINUE (the original
+    stays written in "original_action"). -> (verdict, downgraded)"""
+    action = normalize_action(parsed.get("action"))
+    if minimum <= 0 or action not in ("PAUSE", "CANCEL"):
         return parsed, False
     defects = [v for k, v in parsed.items() if k in AI_DEFECT_KEYS and isinstance(v, dict)]
     if not defects:
-        return parsed, False  # una risposta senza dettagli non si puo' filtrare
+        return parsed, False  # an answer without details cannot be filtered
     for d in defects:
         confidence = d.get("confidence")
         if d.get("detected") is True and isinstance(confidence, (int, float)) and not isinstance(confidence, bool) and confidence >= minimum:
             return parsed, False
     out = dict(parsed)
-    out["action_originale"] = action
-    out["action"] = "CONTINUA"
-    out["summary"] = ("Nessun difetto abbastanza sicuro (soglia %d%%). " % minimum) + str(parsed.get("summary", ""))
+    out["original_action"] = action
+    out["action"] = "CONTINUE"
+    out["summary"] = bt("No defect is sure enough (threshold {threshold}%).", language, threshold=minimum) + " " + str(parsed.get("summary", ""))
     return out, True
 
 
@@ -2273,15 +2347,17 @@ class LightDetector:
 
             headers = {"Authorization": f"Bearer {api_key}", "Content-Type":"application/json"}
 
+            language = shared_language()
+
             def ask(with_reference):
-                prompt = build_ai_prompt(score, state, filename, progress, temp_h, ref_age if with_reference else None)
+                prompt = build_ai_prompt(score, state, filename, progress, temp_h, ref_age if with_reference else None, language)
                 content = [{"type": "text", "text": prompt}]
                 for b64 in ([ref_b64, img_b64] if with_reference else [img_b64]):
                     content.append({"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}})
                 payload = {
                     "model": final_model,
                     "messages": [
-                        {"role": "system", "content": "Sei un esperto stampa 3D prudente: segnali un difetto solo se lo vedi con chiarezza. Rispondi SOLO con JSON valido come richiesto."},
+                        {"role": "system", "content": "You are a careful 3D printing expert: you report a defect only when you see it clearly. Answer ONLY with valid JSON as asked."},
                         {"role": "user", "content": content},
                     ],
                     "temperature": 0.1,
@@ -2323,7 +2399,10 @@ class LightDetector:
                     parsed = None
 
             if isinstance(parsed, dict):
-                parsed, downgraded = apply_min_confidence(parsed, self.ai_min_confidence)
+                parsed = dict(parsed, action=normalize_action(parsed.get("action")) or "CONTINUE")
+                if "observation" not in parsed and "osservazione" in parsed:  # an answer the old way
+                    parsed["observation"] = parsed.pop("osservazione")
+                parsed, downgraded = apply_min_confidence(parsed, self.ai_min_confidence, language)
                 self.last_analysis = {
                     "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
                     "model": final_model,
@@ -2340,9 +2419,9 @@ class LightDetector:
                 record_alert({
                     "outcome": "analysed" + (" (downgraded: confidence below the minimum)" if downgraded else ""),
                     "score": score, "progress": round(progress, 1), "filename": filename, "model": final_model,
-                    "action": parsed.get("action"), "original_action": parsed.get("action_originale"),
+                    "action": parsed.get("action"), "original_action": parsed.get("original_action"),
                     "confidence": max([c for c in confidences if isinstance(c, (int, float))] or [0]),
-                    "summary": parsed.get("summary"), "observation": parsed.get("osservazione"),
+                    "summary": parsed.get("summary"), "observation": parsed.get("observation"),
                     "with_reference": used_reference, "filter": self.persistent_filter,
                 }, img_path, ref_path if used_reference else None)
             else:
@@ -2350,7 +2429,7 @@ class LightDetector:
                     "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
                     "model": final_model,
                     "progress": progress,
-                    "analysis": {"action":"PAUSA","summary":answer[:200],"raw":True},
+                    "analysis": {"action": "PAUSE", "summary": answer[:200], "raw": True},
                     "raw": answer
                 }
                 record_alert({"outcome": "AI answer not readable", "score": score, "model": final_model, "summary": answer[:200]}, img_path, ref_path)
@@ -2890,69 +2969,69 @@ def api_print_analyze():
             # Stessi criteri del detector
             checks = []
             if progress_frac < detector.min_progress/100 and file_progress < detector.min_progress/200:
-                checks.append(f"progress {progress_frac*100:.1f}% basso")
+                checks.append(f"progress {progress_frac*100:.1f}% low")
             else:
                 real_print_started = True
             if abs(temp_h - target_h) > detector.hotend_tol and target_h>0:
                 real_print_started = False
-                checks.append(f"hotend non a temp {temp_h:.0f}/{target_h:.0f}")
+                checks.append(f"hotend not at temperature {temp_h:.0f}/{target_h:.0f}")
             if total_dur < detector.warmup:
                 real_print_started = False
-                checks.append(f"durata {total_dur:.0f}s <{detector.warmup}s")
+                checks.append(f"duration {total_dur:.0f}s <{detector.warmup}s")
             if progress_frac >= detector.min_progress/100 and abs(temp_h - target_h) <= detector.hotend_tol:
                 real_print_started = True
-                checks = ["ok - stampa reale iniziata"]
+                checks = ["ok - real print started"]
             real_reason = "; ".join(checks)
         except Exception as e:
-            real_reason = f"errore calcolo real_print: {e}"
+            real_reason = f"real_print check failed: {e}"
 
-        prompt_text = f"""Sei un esperto di stampa 3D VzBot 235, specializzato in failure detection.
+        language = _lang()
+        prompt_text = f"""You are a 3D printing expert, specialised in detecting failed prints.
 
-Analizza questa immagine della stampa in corso.
+Analyse this picture of the print in progress.
 
-TELEMETRIA:
-- Stato: {state}
+TELEMETRY:
+- State: {state}
 - File: {filename}
-- Progresso: {progress:.1f}%
+- Progress: {progress:.1f}%
 - Hotend: {temp_h:.1f}°C / target {target_h:.1f}°C
 - Bed: {temp_b:.1f}°C
 - Print stats: {print_stats}
 - REAL_PRINT_STARTED: {real_print_started} ({real_reason})
 - File position: {file_pos}/{file_size} ({file_progress*100:.1f}%)
 
-REGOLA CRITICA ANTI-FALSO PIATTO VUOTO - V17 MIGLIORATA:
-- Se REAL_PRINT_STARTED è False (riscaldamento, mesh, homing, calibrazione, purge non ancora iniziata):
-  - NON segnalare MAI "piatto vuoto" come errore
-  - CONTINUA con nota "riscaldamento/calibrazione in corso, piatto vuoto normale"
-- Se REAL_PRINT_STARTED è True MA progress < 3% o file_position < 5%:
-  - Piatto vuoto è NORMALE se non vedi pezzo - potrebbe essere primo layer ancora sottile o trasparente
-  - Richiedi confidence >= 85% per segnalare piatto vuoto nei primi layer
-  - Se vedi ombra, riflesso, o contorno leggero sul piatto, è ancora stampa valida = CONTINUA
-- SOLO quando REAL_PRINT_STARTED True E progress > 5% E file_position > 10% puoi segnalare piatto vuoto con confidence >= 70%
-- GUARDA ATTENTAMENTE: se vedi anche solo un puntino, linea, o bordo sul piatto, NON è vuoto
-- Immagine ora è 1080x720 alta risoluzione - usa dettaglio per distinguere piatto pulito vs primo layer sottile
+CRITICAL RULE AGAINST A FALSE EMPTY BED:
+- If REAL_PRINT_STARTED is False (heating, mesh, homing, calibration, purge not started yet):
+  - NEVER report "empty bed" as an error
+  - CONTINUE with the note "heating/calibration in progress, an empty bed is normal"
+- If REAL_PRINT_STARTED is True BUT progress < 3% or file position < 5%:
+  - An empty bed is NORMAL if you see no part: the first layer may still be thin or transparent
+  - Ask for confidence >= 85% to report an empty bed in the first layers
+  - If you see a shadow, a reflection or a faint outline on the bed, it is still a valid print = CONTINUE
+- ONLY when REAL_PRINT_STARTED is True AND progress > 5% AND file position > 10% may you report an empty bed, with confidence >= 70%
+- LOOK CAREFULLY: if you see even a dot, a line or an edge on the bed, it is NOT empty
+- The picture is high resolution: use the detail to tell a clean bed from a thin first layer
 
 TASK:
+1) Detect SPAGHETTI (tangled filament, extrusion in the air)
+2) Detect an EMPTY BED (part detached, empty bed while printing)
+3) Detect a LAYER SHIFT
+4) Detect WARPING / failed adhesion
+5) Detect a CLOGGED NOZZLE / under-extrusion
+6) Give a confidence % for each one
+7) Suggest an action: CONTINUE / PAUSE / CANCEL
 
-TASK:
-1) Rileva SPAGHETTI (filamenti aggrovigliati, estrusione in aria)
-2) Rileva PIATTO VUOTO (oggetto staccato, letto vuoto ma stampa in corso)
-3) Rileva LAYER SHIFT (spostamento strati)
-4) Rileva WARPING / ADESIONE fallita
-5) Rileva UGELLO OSTRUITO / UNDER-EXTRUSION
-6) Dai confidenza % per ogni rilevamento
-7) Suggerisci azione: CONTINUA / PAUSA / CANCELLA
-
-Rispondi in italiano, JSON strutturato + breve spiegazione:
+Write the texts in {LANGUAGE_NAMES.get(language, "English")}; keep the JSON keys and the action words in English.
+Structured JSON + a short explanation:
 {{
   "spaghetti": {{"detected": true/false, "confidence": 0-100, "note": "..."}},
   "empty_bed": {{"detected": true/false, "confidence": 0-100}},
   "layer_shift": {{"detected": true/false, "confidence": 0-100}},
   "warping": {{"detected": true/false}},
-  "action": "CONTINUA|PAUSA|CANCELLA",
-  "summary": "frase breve"
+  "action": "CONTINUE|PAUSE|CANCEL",
+  "summary": "short sentence"
 }}
-Poi aggiungi sezione markdown con spiegazione dettagliata.
+Then add a markdown section with a detailed explanation.
 """
 
         provider = cfg.get("provider","openai").lower()
@@ -2981,7 +3060,7 @@ Poi aggiungi sezione markdown con spiegazione dettagliata.
         payload = {
             "model": final_model,
             "messages":[
-                {"role":"system","content":"Sei un esperto di rilevamento fallimenti stampa 3D. Rispondi sempre in JSON + markdown."},
+                {"role":"system","content":"You are an expert in detecting failed 3D prints. Always answer with JSON + markdown."},
                 {"role":"user","content":[
                     {"type":"text","text":prompt_text},
                     {"type":"image_url","image_url":{"url": f"data:image/jpeg;base64,{img_b64}"}}
@@ -3001,8 +3080,8 @@ Poi aggiungi sezione markdown con spiegazione dettagliata.
                 payload_fallback = {
                     "model": final_model,
                     "messages":[
-                        {"role":"system","content":"Esperto stampa 3D"},
-                        {"role":"user","content": f"{prompt_text}\n\n[NOTA: immagine non disponibile per questo provider, analizza solo telemetria e suggerisci di usare OpenAI gpt-4o-mini per vision]"}
+                        {"role":"system","content":"3D printing expert"},
+                        {"role":"user","content": f"{prompt_text}\n\n[NOTE: the picture is not available with this provider: analyse the telemetry only and suggest using OpenAI gpt-4o-mini for vision]"}
                     ],
                     "temperature":0.3,
                     "max_tokens":1200

@@ -34,8 +34,8 @@ function AiChip({ label, value, minor }) {
 /** One line with what the AI monitor sees; a click opens its full card (on the System page). */
 function AiStrip({ monitor, onOpen }) {
   const { detector, latest } = monitor;
-  const action = latest && latest.verdict ? latest.verdict.action : "";
-  const advice = action && action !== "CONTINUA" ? action : "";
+  const action = aiAction(latest && latest.verdict ? latest.verdict.action : "");
+  const advice = action && action !== "CONTINUE" ? action : "";
   return h(
     "button",
     { className: "desk-ai", onClick: onOpen, title: tx("Open the AI monitoring details") },
@@ -47,7 +47,7 @@ function AiStrip({ monitor, onOpen }) {
       detector.pill.text,
     ),
     h("span", { className: "desk-ai__spacer" }),
-    advice && h("span", { className: cx("oui-badge", advice.includes("CANCELLA") ? "oui-badge--danger" : "oui-badge--warn") }, tx("Suggested action: ") + advice),
+    advice && h("span", { className: cx("oui-badge", advice === "CANCEL" ? "oui-badge--danger" : "oui-badge--warn") }, tx("Suggested action: ") + aiActionLabel(advice)),
     h(AiChip, { label: tx("Status"), value: detector.state }),
     h(AiChip, { label: "OpenCV", value: detector.score, minor: true }),
     h(AiChip, { label: "Checks", value: detector.checks, minor: true }),

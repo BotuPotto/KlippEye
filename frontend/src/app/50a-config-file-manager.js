@@ -147,7 +147,7 @@ function useConfigFileManager(folder, openItem) {
       toast.notice(doneMessage);
       done = true;
     } catch (error) {
-      toast.action(failedMessage + ": " + (error.message || "errore"));
+      toast.action(failedMessage + ": " + (error.message || tx("error")));
     }
     working.current = false;
     setBusy(false);
@@ -221,7 +221,7 @@ function useConfigFileManager(folder, openItem) {
           try {
             await configFilesApi.upload(file, folder.currentPath);
           } catch (error) {
-            failed.push(file.name + " (" + (error.message || "errore") + ")");
+            failed.push(file.name + " (" + (error.message || tx("error")) + ")");
           }
         }
         if (failed.length) throw new Error(failed.join(", "));

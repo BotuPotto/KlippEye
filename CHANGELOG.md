@@ -1,5 +1,18 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.6.0
+
+**The AI speaks your language.**
+
+* The AI monitor's request is written in English and asks the AI to write what it sees (observation, notes, summary)
+  in the language of the notifications (*Settings → Notifications*). The analyses started from the dashboard (print
+  picture, logs) answer in the language of the dashboard on that device.
+* The AI's advice is now `CONTINUE` / `PAUSE` / `CANCEL`; the dashboard shows it in its own language (`CONTINUA` /
+  `PAUSA` / `CANCELLA` in Italian). Answers and alerts written the Italian way by older releases are still understood,
+  also by the notification service (1.4).
+* The prompts no longer name a specific printer: they work for any Klipper printer.
+* The backend translates its own messages with the dashboard's dictionaries (`bt()`, checked by `frontend/tools/i18n.py check`).
+
 ## 1.5.0
 
 **Notifications in your language.**

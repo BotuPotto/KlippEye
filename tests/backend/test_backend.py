@@ -588,20 +588,22 @@ for provider, expected_default in (("groq", "qwen/qwen3.8-27b"), ("openai", "gpt
     mm.detector.last_ai_call = 0
     mm.detector.call_ai_analysis(img)
     check("IA %s: con ai_model scelto usa quello" % provider, cap.get("model") == "mio/modello-nuovo", cap)
-    check("IA %s: l'analisi viene salvata" % provider, mm.detector.last_analysis and mm.detector.last_analysis["analysis"]["action"] == "CONTINUA")
+    check("IA %s: l'analisi viene salvata (CONTINUA della risposta diventa CONTINUE)" % provider, mm.detector.last_analysis and mm.detector.last_analysis["analysis"]["action"] == "CONTINUE")
 
 # ---------------------------------------------------------------------------------------------------------------------
 print("== IA: richiesta con foto di prima, testo neutro, fiducia minima, storico degli allarmi")
 prompt1 = mm.build_ai_prompt(3.1, "printing", "x.gcode", 12.0, 210.0, None)
-prompt2 = mm.build_ai_prompt(3.1, "printing", "x.gcode", 12.0, 210.0, 55)
-check("il testo non dice piu' 'sospetto spaghetti' ne' 'VzBot' e dice cosa NON e' un problema", "sospetto spaghetti" not in prompt1 and "VzBot" not in prompt1 and "NON SONO PROBLEMI" in prompt1 and "testina" in prompt1 and "nel dubbio" in prompt1, prompt1[:300])
-check("con la foto di prima il testo spiega 'prima'/'adesso' (circa 55 s), senza dice 'UNA foto'", "DUE foto" in prompt2 and "55 secondi" in prompt2 and "UNA foto" in prompt1)
-check("il formato della risposta e' quello di sempre (+ 'osservazione')", all(k in prompt1 for k in ('"spaghetti"', '"empty_bed"', '"layer_shift"', '"warping"', '"action"', '"summary"', '"osservazione"')))
+prompt2 = mm.build_ai_prompt(3.1, "printing", "x.gcode", 12.0, 210.0, 55, "it")
+check("il testo (in inglese) non dice 'spaghetti suspected' ne' 'VzBot' e dice cosa NON e' un problema", "suspect" not in prompt1 and "VzBot" not in prompt1 and "NOT PROBLEMS" in prompt1 and "print head" in prompt1 and "when in doubt" in prompt1, prompt1[:300])
+check("con la foto di prima il testo spiega 'before'/'now' (circa 55 s), senza dice 'ONE picture'", "TWO pictures" in prompt2 and "55 seconds" in prompt2 and "ONE picture" in prompt1)
+check("il formato della risposta: chiavi e parole del verdetto in inglese (+ 'observation')", all(k in prompt1 for k in ('"spaghetti"', '"empty_bed"', '"layer_shift"', '"warping"', '"action"', '"summary"', '"observation"', "CONTINUE|PAUSE|CANCEL")))
+check("i testi liberi nella lingua scelta: inglese di serie, italiano se richiesto", 'in English;' in prompt1 and 'in Italian;' in prompt2)
+check("normalize_action: parole inglesi e italiane, maiuscole o no", [mm.normalize_action(v) for v in ("PAUSA", "pause", "Cancella la stampa", "CANCEL", "CONTINUA", "continue", "", None)] == ["PAUSE", "PAUSE", "CANCEL", "CANCEL", "CONTINUE", "CONTINUE", "", ""])
 
 seen_calls = []
 
 
-def ai_reply(defect_confidence=40, action="PAUSA", fail_two=False):
+def ai_reply(defect_confidence=40, action="PAUSA", fail_two=False, english=False):
     def _post(url, headers=None, json=None, timeout=None):
         images = [c for c in json["messages"][1]["content"] if c.get("type") == "image_url"]
         seen_calls.append(len(images))
@@ -612,7 +614,7 @@ def ai_reply(defect_confidence=40, action="PAUSA", fail_two=False):
             text = "rifiutato"
 
             def json(self_inner):
-                return {"choices": [{"message": {"content": __import__("json").dumps({"osservazione": "la testina", "spaghetti": {"detected": True, "confidence": defect_confidence},
+                return {"choices": [{"message": {"content": __import__("json").dumps({("observation" if english else "osservazione"): ("the head" if english else "la testina"), "spaghetti": {"detected": True, "confidence": defect_confidence},
                                                                                         "empty_bed": {"detected": False, "confidence": 0}, "action": action, "summary": "forse un problema"})}}]}
         r = R()
         if fail_two and len(images) == 2:
@@ -638,12 +640,12 @@ del seen_calls[:]
 b_ai, cur, prev = fresh_ai(ai_reply(defect_confidence=40))
 b_ai.detector.call_ai_analysis(cur, prev, 60)
 check("con la foto di prima: l'IA riceve DUE foto", seen_calls == [2], seen_calls)
-check("... difetto con fiducia 40% sotto la soglia 70%: PAUSA diventa CONTINUA e resta scritto l'originale",
-      b_ai.detector.last_analysis["analysis"]["action"] == "CONTINUA" and b_ai.detector.last_analysis["analysis"]["action_originale"] == "PAUSA" and "soglia 70%" in b_ai.detector.last_analysis["analysis"]["summary"], b_ai.detector.last_analysis)
+check("... difetto con fiducia 40% sotto la soglia 70%: PAUSA diventa CONTINUE e resta scritto l'originale (PAUSE)",
+      b_ai.detector.last_analysis["analysis"]["action"] == "CONTINUE" and b_ai.detector.last_analysis["analysis"]["original_action"] == "PAUSE" and "threshold 70%" in b_ai.detector.last_analysis["analysis"]["summary"], b_ai.detector.last_analysis)
 check("... e /api/print/last_analysis lo mostra cosi' (e dice 'forse un problema' nel riassunto)", "forse un problema" in b_ai.app.test_client().get("/api/print/last_analysis").get_json()["analysis"]["summary"])
 hist = b_ai.read_alert_history()
 check("storico: un evento con esito 'declassato', verdetto, osservazione e le due foto copiate",
-      len(hist) == 1 and "downgraded" in hist[0]["outcome"] and hist[0]["action"] == "CONTINUA" and hist[0]["original_action"] == "PAUSA" and hist[0]["observation"] == "la testina"
+      len(hist) == 1 and "downgraded" in hist[0]["outcome"] and hist[0]["action"] == "CONTINUE" and hist[0]["original_action"] == "PAUSE" and hist[0]["observation"] == "la testina"
       and os.path.isfile(os.path.join(b_ai.ALERT_HISTORY_DIR, hist[0]["image"])) and os.path.isfile(os.path.join(b_ai.ALERT_HISTORY_DIR, hist[0]["reference"])), hist)
 cl_ai = b_ai.app.test_client()
 j = cl_ai.get("/api/print/alerts/history").get_json()
@@ -655,11 +657,17 @@ check("... e rifiuta nomi strani (niente percorsi): 404", all(cl_ai.get("/api/pr
 
 b_ai, cur, prev = fresh_ai(ai_reply(defect_confidence=85))
 b_ai.detector.call_ai_analysis(cur, prev, 60)
-check("difetto con fiducia 85% sopra la soglia: PAUSA resta PAUSA", b_ai.detector.last_analysis["analysis"]["action"] == "PAUSA" and "action_originale" not in b_ai.detector.last_analysis["analysis"])
+check("difetto con fiducia 85% sopra la soglia: resta PAUSE", b_ai.detector.last_analysis["analysis"]["action"] == "PAUSE" and "original_action" not in b_ai.detector.last_analysis["analysis"])
 b_ai, cur, prev = fresh_ai(ai_reply(defect_confidence=40))
 b_ai.set_brain_config({"ai_min_confidence": 0})
 b_ai.detector.call_ai_analysis(cur, prev, 60)
-check("ai_min_confidence=0: si fida sempre (PAUSA resta PAUSA)", b_ai.detector.last_analysis["analysis"]["action"] == "PAUSA")
+check("ai_min_confidence=0: si fida sempre (resta PAUSE)", b_ai.detector.last_analysis["analysis"]["action"] == "PAUSE")
+b_ai, cur, prev = fresh_ai(ai_reply(defect_confidence=40, action="PAUSE", english=True))
+b_ai._SHARED_LANGUAGE.update(value="it", at=time.time())
+b_ai.detector.call_ai_analysis(cur, prev, 60)
+check("1.6: risposta all'inglese (PAUSE, observation) e lingua delle notifiche italiana: il motivo del declassamento e' in italiano",
+      b_ai.detector.last_analysis["analysis"]["action"] == "CONTINUE" and b_ai.detector.last_analysis["analysis"]["original_action"] == "PAUSE"
+      and "soglia 70%" in b_ai.detector.last_analysis["analysis"]["summary"] and b_ai.read_alert_history()[0]["observation"] == "the head", b_ai.detector.last_analysis)
 b_ai, cur, prev = fresh_ai(ai_reply(defect_confidence=40))
 b_ai.set_brain_config({"ai_send_reference": False})
 del seen_calls[:]
@@ -668,7 +676,7 @@ check("senza foto di prima (o con l'opzione spenta): una foto sola", seen_calls 
 b_ai, cur, prev = fresh_ai(ai_reply(defect_confidence=85, fail_two=True))
 del seen_calls[:]
 b_ai.detector.call_ai_analysis(cur, prev, 60)
-check("il servizio rifiuta due foto (400): riprova da solo con una e l'analisi arriva comunque", seen_calls == [2, 1] and b_ai.detector.last_analysis["analysis"]["action"] == "PAUSA" and b_ai.detector.last_analysis["with_reference"] is False, (seen_calls, b_ai.detector.last_analysis))
+check("il servizio rifiuta due foto (400): riprova da solo con una e l'analisi arriva comunque", seen_calls == [2, 1] and b_ai.detector.last_analysis["analysis"]["action"] == "PAUSE" and b_ai.detector.last_analysis["with_reference"] is False, (seen_calls, b_ai.detector.last_analysis))
 check("... e lo storico lo segna ('senza foto di prima', senza copiare quella)", b_ai.read_alert_history()[0]["with_reference"] is False and "reference" not in b_ai.read_alert_history()[0])
 
 b_ai, cur, prev = fresh_ai(ai_reply())
