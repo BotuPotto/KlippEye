@@ -1,4 +1,0 @@
-#!/usr/bin/env bash
-# Compatibility: the command "vzbot-notifiche" is now called "klippeye-notifiche".
-echo "(the command 'vzbot-notifiche' is now called 'klippeye-notifiche': using it)" >&2
-exec bash "$(dirname "$(readlink -f "$0")")/klippeye-notifiche" "$@"

@@ -6,7 +6,7 @@ from urllib.parse import parse_qs
 from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.primitives import hashes
 
-ISSUER = "firebase-adminsdk@vzbot-test.iam.gserviceaccount.com"
+ISSUER = "firebase-adminsdk@klippeye-test.iam.gserviceaccount.com"
 
 
 class Google:

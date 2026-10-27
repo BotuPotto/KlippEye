@@ -9,13 +9,9 @@
    key live in another folder and are never touched. The update dialog itself is app/56-system.js.
    ========================================================================== */
 
-// The names of the program's service and of its entry in Moonraker's update manager. An install that has not moved yet
-// (still in ~/vzbot, see scripts/passa-a-klippeye.sh) has the old ones, "vzbot" and "vzbot-notifier": they are taken
-// from what Moonraker reports (programEntry) and from the services it lists (notifierService), so both work.
-let PROGRAM_COMPONENT = "klippeye";
-let NOTIFIER_SERVICE = "klippeye-notifier";
-const LEGACY_PROGRAM_COMPONENT = "vzbot";
-const LEGACY_NOTIFIER_SERVICE = "vzbot-notifier";
+// The names of the program's service and of its entry in Moonraker's update manager.
+const PROGRAM_COMPONENT = "klippeye";
+const NOTIFIER_SERVICE = "klippeye-notifier";
 const UPDATE_STATUS_POLL_MS = 30000;
 const CHECK_SETTLE_MS = 700;
 const RELEASE_TEXT = /^[0-9A-Za-z.+_-]{1,32}$/;
@@ -23,17 +19,14 @@ const REMOTE_RELEASE_TIMEOUT_MS = 6000;
 const COMMITS_SHOWN = 6;
 const INSTALL_COMMAND = "bash ~/klippeye/scripts/install.sh";
 
-/** Moonraker's entry of the program in `versionInfo` (its own name, else the old one), and PROGRAM_COMPONENT follows; null when there is none. */
+/** Moonraker's entry of the program in `versionInfo`; null when there is none. */
 function programEntry(versionInfo) {
   const info = isPlainObject(versionInfo) ? versionInfo : {};
-  const key = info[PROGRAM_COMPONENT] ? PROGRAM_COMPONENT : info["klippeye"] ? "klippeye" : info[LEGACY_PROGRAM_COMPONENT] ? LEGACY_PROGRAM_COMPONENT : PROGRAM_COMPONENT;
-  PROGRAM_COMPONENT = key;
-  NOTIFIER_SERVICE = key === LEGACY_PROGRAM_COMPONENT ? LEGACY_NOTIFIER_SERVICE : "klippeye-notifier";
-  return info[key] && typeof info[key] === "object" ? info[key] : null;
+  return info[PROGRAM_COMPONENT] && typeof info[PROGRAM_COMPONENT] === "object" ? info[PROGRAM_COMPONENT] : null;
 }
 
 /** The name of the notification service among the services Moonraker manages ("" when there is none). */
-const notifierService = (services) => (Array.isArray(services) ? ["klippeye-notifier", LEGACY_NOTIFIER_SERVICE].find((name) => services.includes(name)) || "" : "");
+const notifierService = (services) => (Array.isArray(services) ? (services.includes(NOTIFIER_SERVICE) ? NOTIFIER_SERVICE : "") : "");
 
 /** "3 min", "2 h 10 min", "1 g 4 h": how long the backend has been running. */
 function formatUptime(seconds) {
@@ -290,7 +283,6 @@ function SoftwarePage({ active, menu, updates, printing, actions }) {
 
   const info = version.info;
   const differs = releasesDiffer(info.release);
-  const legacy = info.legacy === true;
   const git = info.git;
   const notifier = notifierService(services);
   return h(
@@ -317,7 +309,6 @@ function SoftwarePage({ active, menu, updates, printing, actions }) {
           h("button", { type: "button", className: "oui-btn oui-btn--sm", onClick: () => location.reload() }, tx("Reload")),
         ),
     ),
-    legacy && h(MigrationBlock, { printing }),
     h(
       SettingsGroup,
       { title: txc("noun", "Update") },
@@ -378,149 +369,11 @@ function SoftwarePage({ active, menu, updates, printing, actions }) {
   );
 }
 
-/* ---------------------------------------------------------------------------
-   The move from VzBot to KlippEye
-   An install made by VzBot 1.0.x still lives in ~/vzbot with the services "vzbot" and "vzbot-notifier"; the backend says so
-   (/api/version: legacy). The button runs scripts/passa-a-klippeye.sh through the backend (/api/migrate/start), which copies
-   the data, moves the program to ~/klippeye and installs the new services, and the block follows its steps
-   (/api/migrate/status). The backend is away while the services change, then comes back as KlippEye.
-   ------------------------------------------------------------------------- */
-const MIGRATION_POLL_MS = 2000;
-const MIGRATION_LIMIT_MS = 600000;
-const MIGRATION_RELOAD_MS = 2500;
-
-async function readMigrationStatus() {
-  try {
-    const response = await fetchFresh("/api/migrate/status", { timeout: BRAIN_READ_TIMEOUT_MS });
-    if (!response.ok) return null;
-    const data = await response.json();
-    return isPlainObject(data) ? data : null;
-  } catch (error) {
-    return null;
-  }
-}
-
-function MigrationBlock({ printing }) {
-  // stage: "idle" | "confirm" | "starting" | "running" | "done" | "error" | "nosudo"
-  const [stage, setStage] = useState("idle");
-  const [status, setStatus] = useState({ step: 0, steps: 6, message: "" });
-  const [problem, setProblem] = useState({ message: "", command: "" });
-  const [lost, setLost] = useState(false); // the backend does not answer (it is being replaced)
-  const alive = useRef(true);
-  useEffect(() => {
-    alive.current = true;
-    readMigrationStatus().then((data) => {
-      if (!alive.current || !data) return;
-      if (data.state === "running") {
-        setStatus({ step: Number(data.step) || 0, steps: Number(data.steps) || 6, message: String(data.message || "") });
-        setStage("running");
-      } else if (data.state === "error") setProblem({ message: tx("The last attempt failed: ") + String(data.message || ""), command: String(data.command || "") });
-    });
-    return () => {
-      alive.current = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (stage !== "running") return undefined;
-    const began = Date.now();
-    let timer = 0;
-    const tick = async () => {
-      const data = await readMigrationStatus();
-      if (!alive.current) return;
-      setLost(!data);
-      if (data) {
-        setStatus({ step: Number(data.step) || 0, steps: Number(data.steps) || 6, message: String(data.message || "") });
-        if (data.state === "done") {
-          // the backend is the new one now, and so is its page. Not tied to this block: once the new backend answers, the
-          // block is gone (it is no longer "legacy") and a timer of its own would be cancelled with it.
-          setTimeout(() => location.reload(), MIGRATION_RELOAD_MS);
-          return setStage("done");
-        }
-        if (data.state === "error") {
-          setProblem({ message: String(data.message || tx("unknown error")), command: String(data.command || "") });
-          setStage("error");
-          return;
-        }
-      }
-      if (Date.now() - began > MIGRATION_LIMIT_MS) {
-        setProblem({ message: tx("The backend has not answered for ten minutes. Check from the terminal with: klippeye status"), command: "" });
-        setStage("error");
-        return;
-      }
-      timer = setTimeout(tick, MIGRATION_POLL_MS);
-    };
-    timer = setTimeout(tick, MIGRATION_POLL_MS);
-    return () => clearTimeout(timer);
-  }, [stage]);
-
-  const start = async () => {
-    setStage("starting");
-    const reply = await brainPost("/api/migrate/start", {});
-    if (!alive.current) return;
-    if (reply.ok) {
-      setStatus({ step: 0, steps: 6, message: tx("Starting…") });
-      setProblem({ message: "", command: "" });
-      return setStage("running");
-    }
-    const command = reply.data && reply.data.command ? String(reply.data.command) : "";
-    if (reply.data && reply.data.error === "no_sudo") {
-      setProblem({ message: "", command });
-      return setStage("nosudo");
-    }
-    setProblem({ message: reply.message || tx("the backend does not answer"), command });
-    setStage("error");
-  };
-
-  const note = (text) => h("p", { className: "set-group__note" }, text);
-  const command = (text) => h("div", { className: "oui-well set-command" }, h("code", null, text));
-  let body;
-  if (stage === "running" || stage === "done") {
-    const percent = stage === "done" ? 100 : Math.round((Math.min(status.step, status.steps) / status.steps) * 100);
-    body = h(
-      React.Fragment,
-      null,
-      h("div", { className: "set-status set-status--update", role: "status" }, h("span", { className: "set-status__dot" }), h("span", null, stage === "done" ? status.message || tx("Done: you are now on KlippEye.") : tx("Step {step} of {steps}", { step: Math.max(1, status.step), steps: status.steps }) + (status.message ? ": " + status.message : ""))),
-      h("div", { className: "oui-progress set-progress", role: "progressbar", "aria-valuemin": 0, "aria-valuemax": 100, "aria-valuenow": percent }, h("div", { className: "oui-progress__bar", style: { width: percent + "%" } })),
-      note(stage === "done" ? tx("The page reloads by itself.") : lost ? tx("The backend is restarting with the new name: the page reconnects by itself. Do not turn off the Raspberry.") : tx("Do not close the menu and do not turn off the Raspberry: it takes about a minute.")),
-    );
-  } else if (stage === "nosudo") {
-    body = h(React.Fragment, null, h("div", { className: "set-status set-status--warn", role: "alert" }, h("span", { className: "set-status__dot" }), h("span", null, tx("It cannot be done from here (it needs the administrator password). Connect to the Raspberry (SSH) and run this command:"))), command(problem.command || "bash ~/vzbot/scripts/passa-a-klippeye.sh"));
-  } else if (stage === "error") {
-    body = h(
-      React.Fragment,
-      null,
-      h("div", { className: "set-status set-status--warn", role: "alert" }, h("span", { className: "set-status__dot" }), h("span", null, problem.message || tx("The move did not succeed."))),
-      problem.command && note(tx("If that is not enough, from the terminal:")),
-      problem.command && command(problem.command),
-      h("button", { type: "button", className: "oui-btn oui-btn--block", onClick: () => setStage("idle") }, h(Icons.RotateCw, { size: 18 }), tx("Retry")),
-    );
-  } else if (stage === "confirm") {
-    body = h(
-      React.Fragment,
-      null,
-      note(tx("The program moves from ~/vzbot to ~/klippeye and the services vzbot and vzbot-notifier become klippeye and klippeye-notifier. Settings, AI key and notifications are copied (the originals stay where they are). The backend restarts for a moment; a running print does not stop, but it is better to do it with the printer idle.")),
-      h("div", { className: "oui-btn-row" }, h("button", { type: "button", className: "oui-btn", onClick: () => setStage("idle") }, tx("Cancel")), h("button", { type: "button", className: "oui-btn oui-btn--primary", "data-migrate": "confirm", onClick: start }, tx("Move to KlippEye"))),
-    );
-  } else {
-    body = h(
-      React.Fragment,
-      null,
-      problem.message && h("div", { className: "set-status set-status--warn", role: "alert" }, h("span", { className: "set-status__dot" }), h("span", null, problem.message)),
-      h("div", { className: "set-status set-status--update" }, h("span", { className: "set-status__dot" }), h("span", null, tx("This Raspberry still uses the VzBot names (folder ~/vzbot, service vzbot)."))),
-      h("button", { type: "button", className: "oui-btn oui-btn--primary oui-btn--block", "data-migrate": "start", disabled: printing || stage === "starting", onClick: () => setStage("confirm") }, h(Icons.Rocket, { size: 18 }), stage === "starting" ? tx("Starting…") : tx("Move to KlippEye")),
-      printing ? h("p", { className: "set-group__note set-group__note--warn" }, tx("A print is running: do it when it finishes.")) : note(tx("One step only, about a minute. After it, updates and commands use the new names (klippeye).")),
-    );
-  }
-  return h(SettingsGroup, { title: tx("Move to KlippEye") }, body);
-}
-
 /** One line for the menu list: the release, and a sign when a newer one is waiting (KlippEye first, else the Android app). */
 function softwareSummary(version, update, appWaiting) {
   if (version.state === "old") return tx("Backend to update");
   if (version.state === "down") return tx("Backend not reachable");
   if (version.state !== "ok") return tx("Release and updates");
-  if (version.info.legacy === true) return tx("Move to KlippEye available");
   const waiting = update.phase === "ok" && Number(update.raw.commits_behind_count) > 0;
   return "Release " + version.info.release + (waiting ? tx(" • update available") : appWaiting ? tx(" • app to update") : "");
 }

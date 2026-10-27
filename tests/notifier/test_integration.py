@@ -33,8 +33,8 @@ mock = Mock(html, port)
 import atexit; atexit.register(mock.stop)
 TMP = tempfile.mkdtemp(prefix="vzn-")
 KEYFILE = os.path.join(TMP, "service-account.json")
-json.dump({"type": "service_account", "project_id": "vzbot-test", "private_key_id": "abc", "private_key": PEM, "client_email": "firebase-adminsdk@vzbot-test.iam.gserviceaccount.com", "token_uri": "http://127.0.0.1:%d/token" % GPORT}, open(KEYFILE, "w"))
-CONFIG = {"moonraker_url": mock.base, "brain_url": mock.base, "service_account_file": KEYFILE, "topic": "vzbot-test-topic",
+json.dump({"type": "service_account", "project_id": "klippeye-test", "private_key_id": "abc", "private_key": PEM, "client_email": "firebase-adminsdk@klippeye-test.iam.gserviceaccount.com", "token_uri": "http://127.0.0.1:%d/token" % GPORT}, open(KEYFILE, "w"))
+CONFIG = {"moonraker_url": mock.base, "brain_url": mock.base, "service_account_file": KEYFILE, "topic": "klippeye-test-topic",
           "poll_seconds": 0.15, "ai_poll_seconds": 0.2, "pause_grace_seconds": 0.8, "retry_seconds": 0.3, "settings_poll_seconds": 0.3, "heartbeat_seconds": 1.0,
           "fcm_url": "http://127.0.0.1:%d/v1/projects/{project}/messages:send" % GPORT,
           "cooldown_seconds": {"error": 2, "runout": 2, "ai_pause": 1, "ai_cancel": 1, "paused": 0.2, "cancelled": 0.2, "complete": 0.2}}
@@ -63,7 +63,7 @@ ok("a print starting says nothing", google.kinds() == [])
 mset(print_state="complete")
 ok("COMPLETE: the push goes out with the asked text", wait_for(lambda: google.kinds() == ["complete"]) and google.bodies() == ["Print completed!"], (google.kinds(), google.bodies()))
 m = google.messages[0]["payload"]["message"]
-ok("... to the right topic, title, channel and project, signed in with a verified token", m["topic"] == "vzbot-test-topic" and m["notification"]["title"] == "KlippEye" and m["android"]["notification"]["channel_id"] == "stampa" and google.messages[0]["project"] == "vzbot-test" and google.messages[0]["token"].startswith("tok-") and not google.sign_errors, (m, google.sign_errors))
+ok("... to the right topic, title, channel and project, signed in with a verified token", m["topic"] == "klippeye-test-topic" and m["notification"]["title"] == "KlippEye" and m["android"]["notification"]["channel_id"] == "stampa" and google.messages[0]["project"] == "klippeye-test" and google.messages[0]["token"].startswith("tok-") and not google.sign_errors, (m, google.sign_errors))
 ok("... and Google was asked for ONE token", google.token_requests == 1, google.token_requests)
 
 mset(print_state="printing"); quiet(0.5); mset(print_state="cancelled")

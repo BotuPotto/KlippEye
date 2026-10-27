@@ -4,9 +4,8 @@ A dashboard, a backend (the program that serves it and watches the print through
 Android app for 3D printers running **Klipper + Moonraker** on a Raspberry Pi. This repository is what runs on the
 Raspberry: Moonraker's update manager installs and updates it from here.
 
-> Until release 1.0.x the project was called **VzBot**. Existing VzBot installs move to KlippEye with one button of the
-> dashboard (*Settings → Updates → Move to KlippEye*; *Impostazioni → Aggiornamenti → Passa a KlippEye* on a release before 1.4.0);
-> see appendix **B** of the guide.
+> Until release 1.0.x the project was called **VzBot**. The move of those installs to KlippEye was part of releases 1.1.0 to
+> 1.10.0 (tag `v1.10.0`): an install still on VzBot moves with that release first.
 
 **Step-by-step guide: [docs/GUIDE.md](docs/GUIDE.md)** (in Italian: [docs/GUIDA.md](docs/GUIDA.md)).
 Security: [SECURITY.md](SECURITY.md) · Contributing: [CONTRIBUTING.md](CONTRIBUTING.md) · Changes: [CHANGELOG.md](CHANGELOG.md)
@@ -62,7 +61,7 @@ key, after the user confirms. Setup (once) and steps: guide, part C. Technical d
 | `backend/klippeye_backend.py`, `backend/access.py` | the backend: serves the dashboard, bridges Moonraker, AI monitor, password and network checks | updates |
 | `frontend/` | the dashboard: sources in `frontend/src`, built into `frontend/klippeye_frontend.html` ([frontend/README.md](frontend/README.md)) | updates |
 | `notifier/klippeye_notifier.py` | the push-notification service | updates |
-| `scripts/` | `install.sh` (run once), `repair.sh` (self-repair, runs by itself), `passa-a-klippeye.sh` (move from VzBot), `klippeye` and `klippeye-notifiche` (rescue commands) | updates |
+| `scripts/` | `install.sh` (run once), `repair.sh` (self-repair, runs by itself), `diagnose.py` (report for bug reports), `klippeye` and `klippeye-notifiche` (rescue commands) | updates |
 | `systemd/` | templates of the `klippeye` and `klippeye-notifier` services | updates |
 | `android/` | the Android app sources (`android/VERSION` = app version) | new app releases |
 | `apk/` | `KlippEye.apk` and `version.json`: the latest app built by GitHub | GitHub (`.github/workflows/app.yml`) |

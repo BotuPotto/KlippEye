@@ -24,3 +24,4 @@ tests/**/rg_*/
 tests/**/*.log
 /tmp/
 *.damaged-*
+tests/e2e/.work/

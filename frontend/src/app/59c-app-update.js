@@ -13,7 +13,6 @@
    ========================================================================== */
 
 const APP_APK_URL = "/app/KlippEye.apk";
-const APP_APK_URL_LEGACY = "/app/VzBot.apk";
 const APP_POLL_MS = 15000;
 const APP_START_TIMEOUT_MS = 10000;
 const APP_SHA256 = /^[0-9a-f]{64}$/;
@@ -72,7 +71,7 @@ function readInstalledApp() {
 /** A newer app is on the Raspberry than the one installed here (only an app of release 5 can tell). */
 const appUpdateWaiting = (app, installed) => Boolean(installed) && app.state === "ok" && app.info.available && installed.code < Number(app.info.code);
 
-/** What the app says about the update it is running (window.vzAppUpdate), as a { phase, ... } of this page; null if it is not understood. */
+/** What the app says about the update it is running (window.klippeyeAppUpdate), as a { phase, ... } of this page; null if it is not understood. */
 function appEventToProgress(event) {
   const phase = isPlainObject(event) ? APP_EVENT_PHASES[event.stato] : null;
   if (!phase) return null;
@@ -92,10 +91,9 @@ function useAppUpdater() {
       const next = appEventToProgress(event);
       if (next) setProgress(next);
     };
-    // klippeyeAppUpdate: called by the KlippEye app; vzAppUpdate: by the app of VzBot 1.0.x
-    window.klippeyeAppUpdate = window.vzAppUpdate = listener;
+    window.klippeyeAppUpdate = listener; // called by the KlippEye app
     return () => {
-      if (window.vzAppUpdate === listener) window.klippeyeAppUpdate = window.vzAppUpdate = undefined;
+      if (window.klippeyeAppUpdate === listener) window.klippeyeAppUpdate = undefined;
     };
   }, []);
   useEffect(() => {
@@ -106,8 +104,7 @@ function useAppUpdater() {
   const start = (offer) => {
     setProgress({ phase: "starting" });
     try {
-      // the app of VzBot 1.0.x only accepts the address it knew: the backend serves the same file there too
-      nativeBridge().updateApp(isLegacyApp() ? APP_APK_URL_LEGACY : APP_APK_URL, offer.version, offer.sha256, String(offer.size));
+      nativeBridge().updateApp(APP_APK_URL, offer.version, offer.sha256, String(offer.size));
     } catch (error) {
       setProgress({ phase: "error", message: tx("the app did not accept the request") });
     }
@@ -185,20 +182,7 @@ function AppBlock({ app, installed }) {
   let body;
   if (installed) {
     if (busy) body = h(AppUpdateProgress, { progress: updater.progress, offer: info, onRetry: () => updater.start(info) });
-    else if (isLegacyApp()) {
-      // the app of VzBot 1.0.x: the new one is another package, so Android installs it beside this one
-      body = h(
-        React.Fragment,
-        null,
-        h(AppStatus, { tone: "update" }, tx("The new KlippEye app {version} is ready (this is the VzBot app {installed})", { version: info.version, installed: installed.version })),
-        h("button", { type: "button", className: "oui-btn oui-btn--primary oui-btn--block", onClick: () => updater.start(info) }, h(Icons.Download, { size: 18 }), tx("Install the new KlippEye app")),
-        h(
-          "p",
-          { className: "set-group__note" },
-          tx("This is not an update of this app but a new app, with another icon: Android installs it next to this one. Once installed, open KlippEye from its icon and check that it connects, then uninstall this VzBot app (hold its icon → Uninstall). Settings and notifications are on the Raspberry and are not lost. While you have both apps, notifications reach both."),
-        ),
-      );
-    } else if (waiting) {
+    else if (waiting) {
       body = h(
         React.Fragment,
         null,

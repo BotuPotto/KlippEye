@@ -13,7 +13,6 @@
    ========================================================================== */
 
 const SETTINGS_NAMESPACE = "klippeye";
-const SETTINGS_NAMESPACE_LEGACY = "vzbot_dashboard"; // where VzBot 1.0.x kept them: read once when the new place is still empty
 const SETTINGS_DB_KEY = "settings";
 const NOTIFIER_DB_KEY = "notifier"; // written by the notification service: version, last sign of life, last automatic action
 const SETTINGS_SAVE_DELAY_MS = 700; // changes closer than this are written as one
@@ -186,8 +185,8 @@ const cloneJson = (value) => JSON.parse(JSON.stringify(value));
  * What is stored under `key`: the whole namespace is asked for (a missing key then simply is not in it, instead of
  * being an error). { ok: true, value } | { ok: true, missing: true } (nothing stored yet) | { ok: false, detail }.
  */
-async function readSettingsDb(key, namespace = SETTINGS_NAMESPACE) {
-  const response = await fetchFresh("/server/database/item?namespace=" + namespace, { timeout: SETTINGS_DB_TIMEOUT_MS });
+async function readSettingsDb(key) {
+  const response = await fetchFresh("/server/database/item?namespace=" + SETTINGS_NAMESPACE, { timeout: SETTINGS_DB_TIMEOUT_MS });
   let json = null;
   try {
     json = await response.json();
@@ -198,17 +197,6 @@ async function readSettingsDb(key, namespace = SETTINGS_NAMESPACE) {
   }
   if (response.status === 404 && isPlainObject(json) && json.error) return { ok: true, missing: true }; // Moonraker's own "namespace not found": nothing stored yet
   return { ok: false, detail: "HTTP " + response.status };
-}
-
-/** Like readSettingsDb, but when the KlippEye namespace has nothing the VzBot one is looked at (the settings made before the rename). */
-async function readSettingsDbOrLegacy(key) {
-  const answer = await readSettingsDb(key);
-  if (!answer.ok || !answer.missing) return answer;
-  try {
-    const old = await readSettingsDb(key, SETTINGS_NAMESPACE_LEGACY);
-    if (old.ok && !old.missing) return old;
-  } catch (e) {}
-  return answer;
 }
 
 async function writeSettingsDb(key, value) {
@@ -300,7 +288,7 @@ function createSettingsStore() {
 
   async function readFromRaspberry() {
     try {
-      const answer = await readSettingsDbOrLegacy(SETTINGS_DB_KEY);
+      const answer = await readSettingsDb(SETTINGS_DB_KEY);
       if (!answer.ok) return setSync("local", answer.detail);
       if (answer.missing || !isPlainObject(answer.value)) {
         known = true; // nothing there yet: this device's settings are the first
@@ -408,7 +396,7 @@ function useNotifierStatus(active) {
     let cancelled = false;
     const read = async () => {
       try {
-        const answer = await readSettingsDbOrLegacy(NOTIFIER_DB_KEY);
+        const answer = await readSettingsDb(NOTIFIER_DB_KEY);
         if (cancelled) return;
         setStatus(answer.ok && isPlainObject(answer.value) ? answer.value : answer.ok ? null : undefined);
       } catch (e) {}
@@ -494,8 +482,8 @@ function appAddressesState(settings) {
 }
 
 if (APP_KNOWS_ADDRESSES) {
-  // klippeyeSetAddresses: the KlippEye app; vzSetAddresses: the app of VzBot 1.0.x
-  window.klippeyeSetAddresses = window.vzSetAddresses = async (local, external) => {
+  // called by the KlippEye app
+  window.klippeyeSetAddresses = async (local, external) => {
     const cleanLocal = cleanHost(local);
     const cleanExternal = cleanHost(external);
     if (!cleanLocal || !cleanExternal) return;

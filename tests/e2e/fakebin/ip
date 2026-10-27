@@ -1,0 +1,3 @@
+#!/bin/sh
+# Fake ip: no network interfaces to report (Moonraker asks for them).
+echo "[]"

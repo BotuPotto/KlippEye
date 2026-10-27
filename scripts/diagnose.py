@@ -159,11 +159,9 @@ def system(data):
 
 def services():
     section("Services")
-    for name in ("klippeye", "klippeye-notifier", "moonraker", "klipper", "crowsnest", "vzbot", "vzbot-notifier"):
+    for name in ("klippeye", "klippeye-notifier", "moonraker", "klipper", "crowsnest"):
         state = run(["systemctl", "is-active", name], timeout=5).strip().splitlines()
         state = (state[0] if state else "?")[:60]
-        if name.startswith("vzbot") and state in ("inactive", "unknown"):
-            continue  # the services of before the move to KlippEye: only shown while they still run
         line("  %-18s %s" % (name, state))
 
 
@@ -212,7 +210,7 @@ def moonraker(url):
             line("klipper says:   %s" % message.splitlines()[0][:200])
     status, _ = get_json(url + "/machine/update/status?refresh=false", timeout=15)
     entry = (((status or {}).get("result") or {}).get("version_info") or {})
-    ours = entry.get("klippeye") or entry.get("vzbot")
+    ours = entry.get("klippeye")
     if ours is None:
         line("update manager: KlippEye is NOT listed (run scripts/install.sh again)")
     else:

@@ -272,15 +272,22 @@ check("salvare la chiave dell'IA: va in ai.json con permessi 600", r.status_code
 g = ck.get("/api/ai/config").get_json()
 check("... e la chiave non esce intera", g["configured"] and "k" * 30 not in json.dumps(g) and g["provider"] == "groq", g)
 check("... load_ai_config la legge", bk.load_ai_config()["api_key"] == "k" * 30)
-legacy = os.path.join(tmp(), "old_ai.json")
-json.dump({"api_key": "L" * 30, "provider": "openai"}, open(legacy, "w"))
+# files of before release 1.0 in the home folder: copied once into the data folder
+old_home = tmp()
+os.makedirs(os.path.join(old_home, "printer_data", "config"))
+json.dump({"api_key": "L" * 30, "provider": "openai"}, open(os.path.join(old_home, "vzbot_ai_config.json"), "w"))
+json.dump({"selected": ["a", "b"]}, open(os.path.join(old_home, "printer_data", "config", "vzbot_calibration_selected.json"), "w"))
+saved_home = os.environ["HOME"]
+os.environ["HOME"] = old_home
 dk2 = tmp()
 bk2 = load_brain(NEW_BRAIN, dk2, brain_json={"values": {"enabled": False}})
-bk2.AI_CONFIG_PATH_LEGACY = legacy
-check("la chiave nel vecchio posto si legge ancora", bk2.load_ai_config() and bk2.load_ai_config()["api_key"] == "L" * 30)
+check("old files: the AI key of before 1.0 is copied into the data folder (mode 600) and read", bk2.load_ai_config()["api_key"] == "L" * 30 and stat.S_IMODE(os.stat(os.path.join(dk2, "ai.json")).st_mode) == 0o600)
+check("... and the chosen calibrations too", bk2.load_calibration_selected() == ["a", "b"])
 bk2.app.test_client().post("/api/ai/config", json={"api_key": "N" * 30})
-check("... e una chiave nuova (nuovo posto) vince su quella vecchia", bk2.load_ai_config()["api_key"] == "N" * 30)
-check("... il vecchio file non viene toccato", json.load(open(legacy))["api_key"] == "L" * 30)
+bk3 = load_brain(NEW_BRAIN, dk2, brain_json={"values": {"enabled": False}})
+check("... only once: a new key is not overwritten by the old file at the next start", bk3.load_ai_config()["api_key"] == "N" * 30)
+check("... the old file is not touched", json.load(open(os.path.join(old_home, "vzbot_ai_config.json")))["api_key"] == "L" * 30)
+os.environ["HOME"] = saved_home
 
 # ponte verso Moonraker: attesa lunga solo per update/servizi
 seen = {}
@@ -790,29 +797,15 @@ check("manca l'APK: non si offre", offre()["available"] is False)
 check("il codice della versione e' quello di Gradle e di Kotlin", [ba._apk_code(v) for v in ("1.0.0", "1.2.3", "0.0.1", "99.99.99", "1.0", "1.0.100", "mk218", None)] == [10000, 10203, 1, 999999, None, None, None, None])
 
 # ---------------------------------------------------------------------------------------------------------------------
-print("== KlippEye: nome vecchio (VZBOT_DATA, /app/VzBot.apk), loghi, passaggio da VzBot")
-# l'app con il vecchio nome cerca l'aggiornamento su /app/VzBot.apk: e' lo stesso file
-open(ba.APK_PATH, "wb").write(apk2)
-json.dump(dict(info, sha256=hashlib.sha256(apk2).hexdigest()), open(ba.APK_INFO_PATH, "w"))
-r1, r2 = cl.get("/app/KlippEye.apk"), cl.get("/app/VzBot.apk")
-check("/app/VzBot.apk e' lo stesso file di /app/KlippEye.apk (per l'app con il vecchio nome)", r1.status_code == 200 and r2.status_code == 200 and r1.data == r2.data == apk2 and r2.mimetype == "application/vnd.android.package-archive")
-os.remove(ba.APK_PATH)
-
-# la variabile d'ambiente del vecchio servizio funziona ancora
-dleg = tmp()
+print("== KlippEye: printer logos, no names of the VzBot days")
+r = cl.get("/app/VzBot.apk")
+check("/app/VzBot.apk (the app of the VzBot days) is gone", r.status_code == 404, r.status_code)
 saved_env = {k: os.environ.pop(k, None) for k in ("KLIPPEYE_DATA", "VZBOT_DATA")}
-os.makedirs(dleg, exist_ok=True)
-os.environ["VZBOT_DATA"] = dleg
-spec = importlib.util.spec_from_file_location("brain_legacyenv", NEW_BRAIN)
-mod = importlib.util.module_from_spec(spec); sys.modules["brain_legacyenv"] = mod; spec.loader.exec_module(mod); _modules.append(mod)
-check("un servizio con VZBOT_DATA (vecchia unita') usa quella cartella dati", mod.DATA_DIR == dleg, mod.DATA_DIR)
-os.environ.pop("VZBOT_DATA")
-os.environ["KLIPPEYE_DATA"] = dleg + "_nuova"
-os.makedirs(dleg + "_nuova", exist_ok=True)
-os.environ["VZBOT_DATA"] = dleg
-spec = importlib.util.spec_from_file_location("brain_bothenv", NEW_BRAIN)
-mod = importlib.util.module_from_spec(spec); sys.modules["brain_bothenv"] = mod; spec.loader.exec_module(mod); _modules.append(mod)
-check("con tutte e due vince KLIPPEYE_DATA", mod.DATA_DIR == dleg + "_nuova", mod.DATA_DIR)
+os.environ["VZBOT_DATA"] = tmp()
+spec = importlib.util.spec_from_file_location("brain_oldenv", NEW_BRAIN)
+mod = importlib.util.module_from_spec(spec); sys.modules["brain_oldenv"] = mod; spec.loader.exec_module(mod); _modules.append(mod)
+check("VZBOT_DATA is no longer read", mod.DATA_DIR != os.environ["VZBOT_DATA"], mod.DATA_DIR)
+check("/api/version has no 'legacy' and /api/migrate/... is gone", "legacy" not in mod.app.test_client().get("/api/version").get_json() and mod.app.test_client().get("/api/migrate/status").status_code == 404)
 for k, v in saved_env.items():
     if v is None: os.environ.pop(k, None)
     else: os.environ[k] = v
@@ -842,77 +835,6 @@ for nome in ("evil.svg", "voron.gif", "README.md", "Voron.SVG", "voron.png", "ra
 bl.LOGOS_DIR = os.path.join(tmp(), "nessuna")
 check("senza cartella logos/: elenco vuoto, nessun errore", cl2.get("/api/logos").get_json() == {"ok": True, "files": []})
 check("... e nessun file", cl2.get("/logos/voron.svg").status_code == 404)
-
-# ---- passaggio da VzBot
-print("   (passaggio: /api/migrate/...)")
-import time as _time  # noqa: E402
-
-
-def backend_in(dirname):
-    """The Brain copied under <tmp>/<dirname>/backend/, as the repository would be named; with a fake script that only writes the status."""
-    root = os.path.join(tmp(), dirname)
-    os.makedirs(os.path.join(root, "backend")); os.makedirs(os.path.join(root, "scripts"))
-    shutil.copy(NEW_BRAIN, os.path.join(root, "backend", "klippeye_backend.py"))
-    return root
-
-
-status_file = os.path.join(tmp(), "migrazione.json")
-script_body = """#!/usr/bin/env bash
-echo "$@" > "$KLIPPEYE_TEST_ARGS"
-printf '{"state":"done","step":6,"steps":6,"message":"fatto","time":%s}' "$(date +%s)" > "$KLIPPEYE_MIGRATION_STATUS"
-"""
-os.environ["KLIPPEYE_MIGRATION_STATUS"] = status_file
-os.environ["KLIPPEYE_SUDO"] = ""
-os.environ["KLIPPEYE_MIGRATION_LAUNCHER"] = "env"
-args_file = os.path.join(tmp(), "args.txt")
-os.environ["KLIPPEYE_TEST_ARGS"] = args_file
-
-root_new = backend_in("klippeye")
-bn = load_brain(os.path.join(root_new, "backend", "klippeye_backend.py"), tmp(), brain_json={"values": {"enabled": False}})
-cn = bn.app.test_client()
-check("in ~/klippeye: /api/version dice legacy=false", cn.get("/api/version").get_json()["legacy"] is False)
-r = cn.post("/api/migrate/start")
-check("... e /api/migrate/start risponde 400 (niente da spostare)", r.status_code == 400 and r.get_json()["ok"] is False, r.get_json())
-check("... /api/migrate/status: stato 'none', non legacy, con il comando da terminale", cn.get("/api/migrate/status").get_json()["state"] == "none" and cn.get("/api/migrate/status").get_json()["legacy"] is False)
-
-root_old = backend_in("vzbot")
-open(os.path.join(root_old, "scripts", "passa-a-klippeye.sh"), "w").write(script_body)
-bo = load_brain(os.path.join(root_old, "backend", "klippeye_backend.py"), tmp(), fake=fake, brain_json={"values": {"enabled": False}})
-co = bo.app.test_client()
-check("in ~/vzbot: /api/version dice legacy=true", co.get("/api/version").get_json()["legacy"] is True)
-j = co.get("/api/migrate/status").get_json()
-check("... /api/migrate/status: legacy, nessuno stato, comando 'bash ~/vzbot/scripts/passa-a-klippeye.sh'", j["legacy"] is True and j["state"] == "none" and j["command"] == "bash ~/vzbot/scripts/passa-a-klippeye.sh", j)
-fake.state["print_state"] = "printing"
-r = co.post("/api/migrate/start")
-check("mentre stampa non parte (409)", r.status_code == 409 and not os.path.exists(args_file), (r.status_code, r.get_json()))
-fake.state["print_state"] = "standby"
-bo.MIGRATION_SUDO = "false"
-bo.MIGRATION_LAUNCHER = ""
-r = co.post("/api/migrate/start")
-j = r.get_json()
-check("senza sudo senza password: 501 'no_sudo' e il comando da lanciare a mano", r.status_code == 501 and j["error"] == "no_sudo" and "passa-a-klippeye.sh" in j["command"] and not os.path.exists(args_file), j)
-bo.MIGRATION_SUDO = ""
-bo.MIGRATION_LAUNCHER = "env"
-r = co.post("/api/migrate/start")
-check("a stampante ferma e con il permesso: parte", r.status_code == 200 and r.get_json() == {"ok": True, "started": True}, r.get_json())
-for _ in range(40):
-    if os.path.exists(args_file) and co.get("/api/migrate/status").get_json()["state"] == "done": break
-    _time.sleep(0.1)
-check("lo script e' lanciato con --dal-backend", os.path.exists(args_file) and open(args_file).read().strip() == "--dal-backend", open(args_file).read() if os.path.exists(args_file) else None)
-check("lo stato scritto dallo script si legge: done, passo 6 di 6", co.get("/api/migrate/status").get_json()["state"] == "done" and co.get("/api/migrate/status").get_json()["step"] == 6)
-json.dump({"state": "running", "step": 2, "steps": 6, "message": "x", "time": _time.time()}, open(status_file, "w"))
-r = co.post("/api/migrate/start")
-check("se e' gia' in corso: 409", r.status_code == 409, r.get_json())
-json.dump({"state": "running", "step": 2, "steps": 6, "message": "x", "time": _time.time() - 2000}, open(status_file, "w"))
-j = co.get("/api/migrate/status").get_json()
-check("uno stato 'in corso' fermo da 15 minuti diventa errore (script morto)", j["state"] == "error" and "15 minutes" in j["message"], j)
-open(status_file, "w").write("{rotto")
-check("un file di stato rovinato non rompe niente: 'none'", co.get("/api/migrate/status").get_json()["state"] == "none")
-os.remove(os.path.join(root_old, "scripts", "passa-a-klippeye.sh"))
-r = co.post("/api/migrate/start")
-check("senza lo script: 500 con il comando da terminale", r.status_code == 500 and "passa-a-klippeye.sh" in r.get_json()["command"], r.get_json())
-for k in ("KLIPPEYE_MIGRATION_STATUS", "KLIPPEYE_SUDO", "KLIPPEYE_MIGRATION_LAUNCHER", "KLIPPEYE_TEST_ARGS"):
-    os.environ.pop(k, None)
 
 print("== Accesso (1.2.0): password facoltativa, gettoni, controlli di rete, permessi")
 import subprocess as _sp
@@ -981,7 +903,7 @@ r = cb.get("/login")
 check("... che e' una pagina con il modulo della password", r.status_code == 200 and b'name="password"' in r.data and b"klippeye password remove" in r.data and r.headers.get("X-Frame-Options") == "DENY")
 blocked = {p: cb.get(p).status_code for p in ("/webcam/?action=snapshot", "/printer/info", "/server/files/list", "/api/print/snapshot", "/api/logs/list")}
 check("... camera, Moonraker, file e log chiusi (401)", set(blocked.values()) == {401}, blocked)
-check("... anche i comandi: /api/gcode e /api/migrate/start", cb.post("/api/gcode", json={"script": "M112"}).status_code == 401 and cb.post("/api/migrate/start").status_code == 401)
+check("... anche i comandi: /api/gcode e /api/update/channel", cb.post("/api/gcode", json={"script": "M112"}).status_code == 401 and cb.post("/api/update/channel", json={"channel": "dev"}).status_code == 401)
 check("... restano aperti: stato dell'accesso e aggiornamento dell'app", cb.get("/api/auth/status").status_code == 200 and cb.get("/api/app/version").status_code == 200)
 check("... lo stato dice: attiva, non sei dentro", cb.get("/api/auth/status").get_json()["enabled"] is True and cb.get("/api/auth/status").get_json()["logged_in"] is False)
 

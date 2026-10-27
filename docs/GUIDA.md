@@ -8,7 +8,7 @@ all'uso di tutti i giorni. *English version: [GUIDE.md](GUIDE.md) (è quella di 
 4. [Aggiornamenti](#4-aggiornamenti) · 5. [Monitor IA](#5-monitor-ia) · 6. [App Android e notifiche](#6-app-android-e-notifiche) ·
 7. [Password e sicurezza](#7-password-e-sicurezza) · 8. [Dopo un blackout](#8-dopo-un-blackout) ·
 9. [Dove stanno le cose](#9-dove-stanno-le-cose) · 10. [Se qualcosa non va](#10-se-qualcosa-non-va) ·
-A. [Costruire la propria app Android](#a-costruire-la-propria-app-android) · B. [Passaggio da VzBot 1.0.x](#b-passaggio-da-vzbot-10x)
+A. [Costruire la propria app Android](#a-costruire-la-propria-app-android)
 
 ---
 
@@ -16,7 +16,7 @@ A. [Costruire la propria app Android](#a-costruire-la-propria-app-android) · B.
 
 * Una stampante con **Klipper e Moonraker** (installati con KIAUH, MainsailOS, FluiddPi o a mano). Mainsail o Fluidd possono
   restare: KlippEye lavora accanto a loro.
-* **Python 3.7+**, **git** e i moduli Python `flask`, `flask-cors` e `requests` (l'installazione dice come installare quello che
+* **Python 3.7+**, **git** e i moduli Python `flask` e `requests` (l'installazione dice come installare quello che
   manca). **OpenCV** (`python3-opencv`) serve solo al monitor IA.
 * L'accesso SSH al Raspberry, **una volta**, per l'installazione. Tutto il resto si fa dalla dashboard.
 * Facoltativi: una camera (crowsnest / camera-streamer, come per Mainsail), la chiave di un servizio IA (Groq è gratis, OpenAI a
@@ -233,12 +233,3 @@ Serve solo per avere le proprie notifiche (sezione 6) o per modificare l'app. Gi
 
 Quando il workflow si ferma spiega a parole cosa non va (segreto mancante, password corta, chiave diversa da quella dell'app
 pubblicata…). Dettagli tecnici: [android/README.md](../android/README.md).
-
-## B. Passaggio da VzBot 1.0.x
-
-KlippEye si chiamava **VzBot** fino alla release 1.0.x. Un'installazione di VzBot passa al nuovo nome con un tasto: aggiornala
-(compare ancora come `vzbot`), poi **Impostazioni → Aggiornamenti → Passa a KlippEye**. La dashboard mostra i 6 passi: copia i tuoi
-dati in `~/printer_data/klippeye`, sposta il programma da `~/vzbot` a `~/klippeye`, installa i servizi nuovi e toglie i vecchi, e
-rimette tutto com'era se un passo non riesce. Se serve la password di amministratore, da SSH:
-`bash ~/vzbot/scripts/passa-a-klippeye.sh`. La vecchia app (`com.vzbot.dashboard`) propone la nuova app KlippEye, che si installa
-accanto: disinstalla la vecchia quando la nuova funziona.

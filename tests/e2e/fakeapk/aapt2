@@ -1,0 +1,3 @@
+#!/bin/bash
+# Fake aapt2: reports the package and version the test asks for (FAKE_APK_VERSION / FAKE_APK_CODE).
+echo "package: name='com.klippeye.app' versionCode='${FAKE_APK_CODE}' versionName='${FAKE_APK_VERSION}' platformBuildVersionName='14' platformBuildVersionCode='34' compileSdkVersion='34'"

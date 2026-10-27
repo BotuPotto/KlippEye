@@ -9,16 +9,12 @@ Groq's 404 and 413) with what release 1.0 and later added:
     settings: read and changed through /api/backend/config (the dashboard has the menu) and saved in
     <data folder>/monitor.json. A missing or damaged file means "default values": it never stops the start;
   * /api/version tells the release, the interface level (API_LEVEL) and the commit; the release comes from VERSION;
-  * the data folder (default ~/printer_data/klippeye, changed with KLIPPEYE_DATA; the old name VZBOT_DATA still works)
+  * the data folder (default ~/printer_data/klippeye, changed with KLIPPEYE_DATA)
     keeps what belongs to the Raspberry and not to the code: settings, AI key (mode 600), notifications. Code updates
     (Moonraker's update manager) never touch it;
   * the bridge to Moonraker waits up to 10 minutes for long operations (/machine/update/...) instead of 10 seconds;
   * the Android app: the APK built by GitHub reaches the repository's apk/ folder with the KlippEye update and the backend
-    offers it to the phone (/api/app/version says which version, /app/KlippEye.apk is the file; /app/VzBot.apk is the same
-    file, for the app with the old name that looks for its update there);
-  * the data folder and the old places (/home/pi/vzbot_ai_config.json...) are both read: no data is lost;
-  * from the old name: an install still in ~/vzbot (service "vzbot") moves to ~/klippeye by itself
-    (/api/migrate/..., scripts/passa-a-klippeye.sh), see the section MOVE TO KLIPPEYE.
+    offers it to the phone (/api/app/version says which version, /app/KlippEye.apk is the file);
   * texts for people are in English and translated with the dashboard's dictionaries (bt()).
 """
 from flask import Flask, request, Response, jsonify, send_file
@@ -71,13 +67,12 @@ RELEASE = _read_release()
 
 
 def _default_data_dir():
-    chosen = (os.environ.get("KLIPPEYE_DATA") or os.environ.get("VZBOT_DATA") or "").strip()  # VZBOT_DATA: the service with the old name
+    chosen = (os.environ.get("KLIPPEYE_DATA") or "").strip()
     if chosen:
         return os.path.abspath(os.path.expanduser(chosen))
     home = os.path.expanduser("~")
     if os.path.isdir(os.path.join(home, "printer_data")):
-        new, old = os.path.join(home, "printer_data", "klippeye"), os.path.join(home, "printer_data", "vzbot")
-        return old if os.path.isdir(old) and not os.path.isdir(new) else new  # before the move to the new name the data is still in the old folder
+        return os.path.join(home, "printer_data", "klippeye")
     return os.path.join(home, "klippeye_data")
 
 
@@ -98,6 +93,27 @@ def _migrate_data_names():
 
 
 _migrate_data_names()
+
+
+def _adopt_old_files():
+    """Before release 1.0 the AI key and the chosen calibrations lived in the home folder: copied once into the data folder."""
+    home = os.path.expanduser("~")
+    for olds, new in ((["vzbot_ai_config.json"], "ai.json"),
+                      ([os.path.join("printer_data", "config", "vzbot_calibration_selected.json"), "vzbot_calibration_selected.json"], "calibration_selected.json")):
+        new_path = os.path.join(DATA_DIR, new)
+        for old in olds:
+            old_path = os.path.join(home, old)
+            try:
+                if os.path.isfile(old_path) and not os.path.exists(new_path):
+                    os.makedirs(DATA_DIR, exist_ok=True)
+                    shutil.copy2(old_path, new_path)
+                    os.chmod(new_path, 0o600)
+                    print("[DATA] copied %s -> %s" % (old_path, new_path))
+            except OSError as error:
+                print("[DATA] cannot copy %s: %s" % (old_path, error))
+
+
+_adopt_old_files()
 MONITOR_CONFIG_PATH = os.path.join(DATA_DIR, "monitor.json")   # the AI monitor thresholds (brain.json before 1.3.0)
 BRAIN_CONFIG_PATH = MONITOR_CONFIG_PATH   # old name of the variable, kept for code that still uses it
 
@@ -138,7 +154,7 @@ from flask import redirect as _redirect  # noqa: E402
 
 ACCESS = access.Store(DATA_DIR)
 ACCESS_THROTTLE = access.Throttle()
-ACCESS_PUBLIC = {"/login", "/api/auth/status", "/api/auth/login", "/api/app/version", "/app/KlippEye.apk", "/app/VzBot.apk"}
+ACCESS_PUBLIC = {"/login", "/api/auth/status", "/api/auth/login", "/api/app/version", "/app/KlippEye.apk"}
 ACCESS_CROSS_SITE_OK = ("/app/",)   # the APK may be downloaded from an outside link
 _CORS_ORIGINS = [o.strip() for o in (os.environ.get("KLIPPEYE_CORS") or "").split(",") if o.strip()]  # development only
 if _CORS_ORIGINS and CORS is not None:
@@ -704,26 +720,13 @@ OPENCV_HEIGHT = 720
 
 
 FRONTEND_CANDIDATES = [
-    os.path.join(REPO_DIR, "frontend", "klippeye_frontend.html"),  # the usual place (~/klippeye/frontend/)
-    # before the KlippEye name (release 1.0.x) and before the repository: still looked for, just in case
-    os.path.join(REPO_DIR, "dashboard", "vzbot_dashboard.html"),
-    os.path.join(os.path.dirname(__file__), "vzbot_frontend_original.html"),
-    "/home/pi/vzbot_frontend_original.html",
-    "./vzbot_frontend_original.html",
-    "/home/pi/vzbot_frontend_REAL_FINAL.html"
+    os.path.join(REPO_DIR, "frontend", "klippeye_frontend.html"),  # ~/klippeye/frontend/
 ]
 
 def find_frontend():
     for p in FRONTEND_CANDIDATES:
         if os.path.exists(p):
             return p
-    # also check any html in /home/pi/
-    try:
-        for f in os.listdir("/home/pi"):
-            if f.endswith(".html") and ("klippeye" in f.lower() or "vzbot" in f.lower()):
-                return os.path.join("/home/pi", f)
-    except:
-        pass
     return None
 
 # === SELF-REPAIR: after a power loss a program file can be left empty or half written ============================
@@ -1284,13 +1287,11 @@ def api_macros_run():
 # === CALIBRATION SELECTED SYNC - cross-device ===
 import json
 
-# It used to be printer_data/config/vzbot_calibration_selected.json (no macro uses it): now it is in the data folder.
-# The two old places are still read (nothing is lost); only this one is written.
+# In the data folder (before release 1.0 it was elsewhere: _adopt_old_files() copies it here once).
 CALIBRATION_SELECTED_FILE = os.path.join(DATA_DIR, "calibration_selected.json")
-CALIBRATION_SELECTED_LEGACY = ["/home/pi/printer_data/config/vzbot_calibration_selected.json", "/home/pi/vzbot_calibration_selected.json"]
 
 def load_calibration_selected():
-    for fp in [CALIBRATION_SELECTED_FILE] + CALIBRATION_SELECTED_LEGACY:
+    for fp in [CALIBRATION_SELECTED_FILE]:
         try:
             if os.path.exists(fp):
                 with open(fp, 'r', encoding='utf-8') as f:
@@ -1436,30 +1437,19 @@ def api_logs_download():
 import json
 
 AI_CONFIG_PATH = os.path.join(DATA_DIR, "ai.json")  # release 1.0: in the data folder, mode 600 (it is a password)
-AI_CONFIG_PATH_LEGACY = "/home/pi/vzbot_ai_config.json"  # where it used to be: still read, no longer written
-AI_CONFIG_PATH_ALT = os.path.join(os.path.dirname(__file__), "vzbot_ai_config.json")
 
 def load_ai_config():
-    for p in [AI_CONFIG_PATH, AI_CONFIG_PATH_LEGACY, AI_CONFIG_PATH_ALT, "/home/pi/vzbot_ai_key.txt"]:
-        try:
-            if os.path.exists(p):
-                if p.endswith('.txt'):
-                    # a text file with only the key
-                    with open(p,'r') as f:
-                        key=f.read().strip()
-                        if key:
-                            return {"provider":"openai","api_key":key,"model":"gpt-4o-mini"}
-                else:
-                    with open(p,'r') as f:
-                        j=json.load(f)
-                        if "api_key" in j or "key" in j:
-                            # normalizza
-                            j["api_key"] = j.get("api_key") or j.get("key")
-                            j["provider"] = j.get("provider","openai")
-                            j["model"] = j.get("model","gpt-4o-mini")
-                            return j
-        except Exception as e:
-            continue
+    """The AI provider and key ({"provider", "api_key", "model"}), or None when none was entered."""
+    try:
+        with open(AI_CONFIG_PATH, "r") as f:
+            j = json.load(f)
+        if "api_key" in j or "key" in j:
+            j["api_key"] = j.get("api_key") or j.get("key")
+            j["provider"] = j.get("provider", "openai")
+            j["model"] = j.get("model", "gpt-4o-mini")
+            return j
+    except Exception:
+        pass
     return None
 
 def get_logs_combined(max_files=25, lines_per_file=400, max_chars=12000):
@@ -2500,7 +2490,7 @@ def set_brain_config(changes):
 # section of moonraker.conf, read and written through Moonraker's own file API (the same Mainsail uses to edit it), after
 # which Moonraker restarts to read it again.
 UPDATE_CHANNELS = ("stable", "dev")
-_UM_SECTION = re.compile(r"^\[update_manager\s+(klippeye|vzbot)\s*\]\s*$")
+_UM_SECTION = re.compile(r"^\[update_manager\s+klippeye\s*\]\s*$")
 
 
 def _update_section(lines):
@@ -2628,83 +2618,7 @@ def api_version():
         "data_dir": DATA_DIR,
         "frontend": find_frontend(),
         "repair": read_repair_mark(),  # the last self-repair of the files (after a power loss), if any
-        "legacy": LEGACY_INSTALL,  # True: still in ~/vzbot (service "vzbot"): the dashboard offers the move to KlippEye
     })
-
-
-# === PASSAGGIO A KLIPPEYE: dal vecchio nome (~/vzbot, servizio "vzbot") al nuovo ===================================
-# Whoever installed 1.0.x has a folder, data and services called "vzbot". The normal update brings the new code here without
-# moving anything (the old service still starts, thanks to brain/vzbot_brain.py, which launches this file). The real move
-# is done by scripts/passa-a-klippeye.sh: the dashboard starts it with the "Move to KlippEye" button (/api/migrate/start)
-# and follows its steps (/api/migrate/status); from the terminal: bash ~/vzbot/scripts/passa-a-klippeye.sh.
-LEGACY_INSTALL = os.path.basename(REPO_DIR).lower() == "vzbot"
-MIGRATION_SCRIPT = os.path.join(REPO_DIR, "scripts", "passa-a-klippeye.sh")
-MIGRATION_STATUS_PATH = os.environ.get("KLIPPEYE_MIGRATION_STATUS") or os.path.join(tempfile.gettempdir(), "klippeye-migrazione.json")
-MIGRATION_SUDO = os.environ.get("KLIPPEYE_SUDO", "sudo")  # "" = no sudo (tests, or a service already running as administrator)
-MIGRATION_LAUNCHER = os.environ.get("KLIPPEYE_MIGRATION_LAUNCHER", "")  # tests only: instead of "sudo systemd-run ..."
-MIGRATION_COMMAND = "bash ~/%s/scripts/passa-a-klippeye.sh" % os.path.basename(REPO_DIR)
-
-
-def read_migration_status():
-    """The state written by the script: {"state": "none" | "running" | "done" | "error", "step", "steps", "message"}."""
-    try:
-        with open(MIGRATION_STATUS_PATH, encoding="utf-8") as f:
-            data = json.load(f)
-        if isinstance(data, dict) and data.get("state") in ("running", "done", "error"):
-            if data["state"] == "running" and time.time() - float(data.get("time") or 0) > 900:
-                return {"state": "error", "step": data.get("step", 0), "steps": data.get("steps", 6), "message": bt("The script has not reported anything for 15 minutes.", _lang())}
-            return data
-    except (OSError, ValueError, TypeError):
-        pass
-    return {"state": "none"}
-
-
-def _is_printing_now():
-    try:
-        r = requests.get(f"{MOONRAKER_URL}/printer/objects/query?print_stats=state", timeout=4).json()
-        return r["result"]["status"]["print_stats"]["state"] in ("printing", "paused")
-    except Exception:
-        return False
-
-
-@app.route("/api/migrate/status", methods=["GET"])
-def api_migrate_status():
-    response = jsonify(dict(read_migration_status(), ok=True, legacy=LEGACY_INSTALL, command=MIGRATION_COMMAND))
-    response.headers["Cache-Control"] = "no-store"
-    return response
-
-
-@app.route("/api/migrate/start", methods=["POST"])
-def api_migrate_start():
-    """Starts the move script, detached from the service (which the script itself stops and recreates with the new name)."""
-    if not LEGACY_INSTALL:
-        return jsonify({"ok": False, "error": bt("You are already in ~/klippeye: there is nothing to move.", _lang())}), 400
-    if not os.path.isfile(MIGRATION_SCRIPT):
-        return jsonify({"ok": False, "error": bt("scripts/passa-a-klippeye.sh is missing: update KlippEye first.", _lang()), "command": MIGRATION_COMMAND}), 500
-    if read_migration_status()["state"] == "running":
-        return jsonify({"ok": False, "error": bt("The move is already running.", _lang())}), 409
-    if _is_printing_now():
-        return jsonify({"ok": False, "error": bt("The printer is printing: the move restarts the backend and Moonraker. Wait for the print to end.", _lang())}), 409
-    sudo = [MIGRATION_SUDO] if MIGRATION_SUDO else []
-    if MIGRATION_LAUNCHER:
-        command = MIGRATION_LAUNCHER.split() + ["bash", MIGRATION_SCRIPT, "--dal-backend"]
-    else:
-        if sudo and subprocess.run(sudo + ["-n", "true"], capture_output=True).returncode != 0:
-            return jsonify({"ok": False, "error": "no_sudo", "command": MIGRATION_COMMAND,
-                            "message": bt("It cannot be done from here (it needs the administrator password). From the terminal: {command}", _lang(), command=MIGRATION_COMMAND)}), 501
-        user = __import__("pwd").getpwuid(os.getuid()).pw_name
-        env = ["--setenv=HOME=" + os.path.expanduser("~"), "--setenv=PATH=" + os.environ.get("PATH", "/usr/bin:/bin")]
-        env += ["--setenv=%s=%s" % (k, v) for k, v in os.environ.items() if k.startswith("KLIPPEYE_") or k.startswith("VZBOT_")]
-        command = sudo + ["systemd-run", "--unit=klippeye-passaggio", "--collect", "--uid=" + user, "--working-directory=/tmp"] + env + \
-                  ["bash", MIGRATION_SCRIPT, "--dal-backend"]
-    try:
-        with open(MIGRATION_STATUS_PATH, "w", encoding="utf-8") as f:
-            json.dump({"state": "running", "step": 0, "steps": 6, "message": "Parto...", "time": time.time()}, f)
-        subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True, cwd="/tmp")
-    except Exception as e:
-        return jsonify({"ok": False, "error": bt("Cannot start the script: {error}", _lang(), error=e), "command": MIGRATION_COMMAND}), 500
-    return jsonify({"ok": True, "started": True})
-# === fine PASSAGGIO A KLIPPEYE ============================================================================
 
 
 # === ANDROID APP: the APK GitHub builds (apk/KlippEye.apk + apk/version.json) ===============================
@@ -2795,7 +2709,6 @@ def api_app_version():
 
 
 @app.route("/app/KlippEye.apk", methods=["GET"])
-@app.route("/app/VzBot.apk", methods=["GET"])  # the same file: the app with the old name (VzBot 1.0.x) looks for its update there
 def app_apk():
     """The app file. Given only when it matches version.json (size and fingerprint), else 404 with the reason."""
     info = read_apk_info()

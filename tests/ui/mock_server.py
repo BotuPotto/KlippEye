@@ -80,11 +80,6 @@ def default_state():
         "app_apk_status": 200,      # HTTP status of /api/app/version (404: a backend that does not know apps; 500: broken)
         "app_apk_hits": 0, "app_apk_downloads": 0,
         "logos": [],                # files of the logos/ folder the backend lists in /api/logos (e.g. ["voron.svg"])
-        "program_key": "klippeye",   # the name of the program in Moonraker's update manager ("vzbot": an install that has not moved yet)
-        "migrate": {"state": "none"},   # the state scripts/passa-a-klippeye.sh writes (and /api/migrate/status reports)
-        "migrate_mode": "ok",       # ok | no_sudo (501) | fail (the script stops at step 4) | slow (1.5 s per step)
-        "migrate_starts": 0,
-        "brain_legacy": False,      # /api/version says this install still lives in ~/vzbot (KlippEye offers the move)
         "klippeye_info": klippeye_default_info(),   # Moonraker's entry for the update manager component "klippeye" (None: Moonraker does not know it)
         "klippeye_incoming": [],       # commits that appear in "commits_behind" once "Controlla" (refresh) is pressed
         "klippeye_new_release": "1.0.1", "klippeye_old_release": "1.0.0",
@@ -217,7 +212,7 @@ def mock_reset():
     S.clear(); S.update(default_state()); return jsonify(ok=True)
 @app.route("/__mock/state")
 def mock_state():
-    return jsonify({k: v for k, v in S.items() if k in ("light", "light_cmds", "light_reads", "actions", "webhooks", "webhooks_msg", "disconnected", "moonraker_down", "host_off", "services", "update_log", "brain_cfg_log", "brain_release", "brain_started", "klippeye_info", "pending_release", "logos", "migrate", "migrate_starts", "brain_legacy", "app_apk_hits", "app_apk_downloads", "update_channel", "channel_posts")})
+    return jsonify({k: v for k, v in S.items() if k in ("light", "light_cmds", "light_reads", "actions", "webhooks", "webhooks_msg", "disconnected", "moonraker_down", "host_off", "services", "update_log", "brain_cfg_log", "brain_release", "brain_started", "klippeye_info", "pending_release", "logos", "app_apk_hits", "app_apk_downloads", "update_channel", "channel_posts")})
 @app.route("/__mock/print_actions")
 def mock_print_actions():
     return jsonify(S.get("print_actions", []))
@@ -424,7 +419,7 @@ def machine_service(action):
     else:
         S["services"][name] = ["active", "running"]
         if name == "klipper": klippy_restart()
-        if name in ("klippeye", "vzbot"):
+        if name == "klippeye":
             brain_restart(S.pop("pending_release", None))
             return cut_response()
         if name == "moonraker":
@@ -661,7 +656,7 @@ def upd_status():
         "moonraker": {"name": "moonraker", "version": "v0.9.0-10", "remote_version": "v0.9.0-10", "commits_behind": [], "is_valid": True},
         "system": {"name": "system", "configured_type": "system", "package_count": 3, "package_list": ["libc6", "openssl", "curl"]}}
     if S.get("klippeye_info") is not None:
-        info[S["program_key"]] = copy.deepcopy(S["klippeye_info"])
+        info["klippeye"] = copy.deepcopy(S["klippeye_info"])
     return jsonify(result={"busy": False, "version_info": info})
 
 def brain_restart(release=None):
@@ -695,7 +690,7 @@ def machine_update(action):
         time.sleep(S["update_delay"])
     if S["update_error"]:
         return jsonify(error={"code": 500, "message": S["update_error"]}), 500
-    if name != S["program_key"] or info is None:
+    if name != "klippeye" or info is None:
         return jsonify(result="ok")
     if action == "upgrade":
         if info["is_dirty"] or not info["is_valid"]:
@@ -746,7 +741,7 @@ def brain_cfg_reply(ok=True, status=200, **extra):
 def api_version():
     if S["brain"] == "old":
         return Response("<!doctype html><title>404 Not Found</title>", status=404, mimetype="text/html")
-    return jsonify(ok=True, release=S["brain_release"], api=2, git={"commit": "a1b2c3d", "branch": "main"}, started=S["brain_started"], legacy=S["brain_legacy"], uptime=int(time.time()) % 5000 + 600,
+    return jsonify(ok=True, release=S["brain_release"], api=2, git={"commit": "a1b2c3d", "branch": "main"}, started=S["brain_started"], uptime=int(time.time()) % 5000 + 600,
                    python="3.11.2", has_cv2=S["brain_has_cv2"], data_dir="/home/pi/printer_data/klippeye", frontend="/home/pi/klippeye/frontend/klippeye_frontend.html")
 
 @app.route("/api/auth/status")
@@ -765,42 +760,6 @@ def api_app_version():
     offer = S["app_apk"] or {"available": False, "reason": "nessuna app pubblicata"}
     return jsonify(dict(offer, ok=True))
 
-MIGRATE_STEPS = ["Controllo che si possa fare", "Copio le tue impostazioni", "Fermo VzBot e sposto il programma", "Installo i servizi KlippEye", "Tolgo i vecchi servizi e comandi", "Controllo che KlippEye risponda"]
-
-@app.route("/api/migrate/status")
-def api_migrate_status():
-    if S["brain"] == "old":
-        return Response("<!doctype html><title>404 Not Found</title>", status=404, mimetype="text/html")
-    return jsonify(dict(S["migrate"], ok=True, legacy=S["brain_legacy"], command="bash ~/vzbot/scripts/passa-a-klippeye.sh"))
-
-@app.route("/api/migrate/start", methods=["POST"])
-def api_migrate_start():
-    if not S["brain_legacy"]:
-        return jsonify(ok=False, error="Sei gia' in ~/klippeye: non c'e' niente da spostare."), 400
-    if S["migrate_mode"] == "no_sudo":
-        return jsonify(ok=False, error="no_sudo", command="bash ~/vzbot/scripts/passa-a-klippeye.sh", message="serve sudo"), 501
-    if S["migrate"].get("state") == "running":
-        return jsonify(ok=False, error="Il passaggio e' gia' in corso."), 409
-    S["migrate_starts"] += 1
-    S["migrate"] = {"state": "running", "step": 0, "steps": 6, "message": "Parto..."}
-    mode, epoch = S["migrate_mode"], EPOCH[0]
-    def run():
-        gap = 1.5 if mode == "slow" else 0.6
-        for step, text in enumerate(MIGRATE_STEPS, 1):
-            if EPOCH[0] != epoch: return
-            S["migrate"] = {"state": "running", "step": step, "steps": 6, "message": text}
-            if step == 3: S["brain_down"] = True
-            time.sleep(gap)
-            if mode == "fail" and step == 4:
-                S["brain_down"] = False
-                S["migrate"] = {"state": "error", "step": 4, "steps": 6, "message": "L'installazione di KlippEye non e' riuscita (dettagli in /tmp/x.log).", "command": "bash ~/vzbot/scripts/passa-a-klippeye.sh"}
-                return
-            if step == 4: S["brain_down"] = False
-        S["brain_legacy"] = False; S["brain_started"] = int(S["brain_started"]) + 77
-        S["migrate"] = {"state": "done", "step": 6, "steps": 6, "message": "Fatto: ora sei su KlippEye 1.1.0. Ricarica la pagina."}
-    threading.Thread(target=run, daemon=True).start()
-    return jsonify(ok=True, started=True)
-
 @app.route("/api/logos")
 def api_logos():
     if S["brain"] == "old":
@@ -815,7 +774,6 @@ def logo_file(name):
     return Response(svg, mimetype="image/svg+xml")
 
 @app.route("/app/KlippEye.apk")
-@app.route("/app/VzBot.apk")
 def app_apk_file():
     S["app_apk_downloads"] += 1
     return Response(b"PK\x03\x04" + b"\0" * 2000, mimetype="application/vnd.android.package-archive", headers={"Content-Disposition": "attachment; filename=KlippEye-1.0.1.apk"})

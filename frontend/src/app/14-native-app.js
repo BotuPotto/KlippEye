@@ -9,15 +9,11 @@
      4  using the addresses of the settings menu (window.KlippEyeApp.setAddresses / getAddresses, see app/16-settings.js)
      5  updating itself with the APK the backend offers (window.KlippEyeApp.appInfo / updateApp, see app/59c-app-update.js)
    A WebView without that marker still shows "; wv)" in its user agent.
-   The app of VzBot 1.0.x (package com.vzbot.dashboard) is the same thing under the old names: "VzBotApp/<n>" and window.VzBotApp.
-   It keeps working with this page; it is replaced by the KlippEye app (another package) through its own updater, see app/59c-app-update.js.
    ========================================================================== */
 
-const APP_VERSION = Number((/(?:KlippEye|VzBot)App\/(\d+)/.exec(navigator.userAgent) || [])[1]) || 0;
+const APP_VERSION = Number((/KlippEyeApp\/(\d+)/.exec(navigator.userAgent) || [])[1]) || 0;
 /** The object the app puts in the page (null in a browser). */
-const nativeBridge = () => window.KlippEyeApp || window.VzBotApp || null;
-/** True in the app of VzBot 1.0.x: the new app is another package, installed beside it. */
-const isLegacyApp = () => !window.KlippEyeApp && Boolean(window.VzBotApp);
+const nativeBridge = () => window.KlippEyeApp || null;
 const IN_APP_WEBVIEW = /; wv\)/.test(navigator.userAgent) || APP_VERSION > 0;
 const APP_CAN_PICK_FILES = !IN_APP_WEBVIEW || APP_VERSION >= 2;
 const APP_CAN_SAVE_FILES = !IN_APP_WEBVIEW || APP_VERSION >= 3;

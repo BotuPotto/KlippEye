@@ -1,5 +1,27 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.11.0
+
+**The VzBot leftovers are gone.** Until release 1.0.x the project was called VzBot; releases 1.1.0 to 1.10.0 carried what
+those installs needed to move to KlippEye. That move is done, so this release removes it:
+
+* the folders `brain/` and `dashboard/`, `notifier/vzbot_notifier.py`, the `vzbot` and `vzbot-notifier` services and
+  commands, and `scripts/passa-a-klippeye.sh` with the *Move to KlippEye* block of the dashboard (`/api/migrate/...`);
+* the old names in the backend (`VZBOT_DATA`, `~/printer_data/vzbot`, `/app/VzBot.apk`, the `vzbot` update manager entry),
+  in the dashboard (the `VzBotApp` bridge of the old Android app, the `vzbot_dashboard` settings namespace) and in the
+  notifier (notifier 1.5);
+* `scripts/install.sh` no longer looks for VzBot services, data or notification files; `--undo` now simply takes KlippEye
+  off (services, commands, update manager entry).
+
+* `scripts/install.sh` no longer asks for `flask-cors`: the backend has not needed it since 1.2.0 (found by the new
+  end-to-end test).
+* **End-to-end test published**: `tests/e2e/` installs and updates KlippEye on a simulated Raspberry with a real Moonraker
+  and a local "GitHub" (install, update, rollback, recover, update channel, undo, power cuts, the Android app, the real
+  dashboard in Chromium). It runs on GitHub too (*End-to-end* workflow); see [tests/e2e/README.md](tests/e2e/README.md).
+
+An AI key or a calibration choice still in the home folder from before release 1.0 is copied once into the data folder.
+The **VzBot** printer logo stays: it is the printer's brand. An install still on VzBot moves with release 1.10.0 first.
+
 ## 1.10.0
 
 **Stable releases.**

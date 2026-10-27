@@ -89,7 +89,7 @@ I file di `src/app/` e `src/css/` condividono la numerazione, così l'area "vent
 | 30-34 | stato di Klipper e riavvii (`30-klipper-state`: il pannello degli errori come in Mainsail), intestazione, menu alimentazione e servizi (`31a-power-menu`), SAVE_CONFIG, barra inferiore, pull-to-refresh |
 | 40-49 | pagine Home, Controllo e Files: camera (`41-camera`: WebRTC, MJPEG, MJPEG adaptive, pagina web) e pulsante della luce, ventole, riscaldatori, movimento (`44-movement`; `44a-bed-tools`: menu Calibra; `44b-z-offset`: card Z-offset), avanzamento stampa, console, file, estrusore, menu azioni dei file (`49-file-actions`) |
 | 50-58 | pagine Config e Sistema: file di configurazione (`50` dati e API, `50a` operazioni su file e cartelle, `50b` scheda; `50c-text-history`: la cronologia di Annulla/Ripristina dell'editor), editor, visualizzatore immagini, viste AI (`53-ai-views`: verdetto di stampa; `53-ai-markdown`: rapporto dell'analisi log), log, monitor AI, aggiornamenti, calibrazione (`57-calibration`; `57a-endstops`: endstop e probe), bed mesh |
-| 59 | menù impostazioni: `59-settings` (il pannello laterale e le sue sette pagine), `59a-detector-settings` (le soglie del monitor), `59b-software-settings` (aggiornamenti KlippEye e passaggio da VzBot), `59c-app-update` (il blocco «App Android» della pagina Aggiornamenti) |
+| 59 | menù impostazioni: `59-settings` (il pannello laterale e le sue sette pagine), `59a-detector-settings` (le soglie del monitor), `59b-software-settings` (aggiornamenti KlippEye), `59c-app-update` (il blocco «App Android» della pagina Aggiornamenti) |
 | 70-71 | layout per schermi larghi (PC): `70-desktop-shell` (soglia, schede in alto, barra console), `71-desktop-pages` (le cinque pagine larghe) |
 | 99 | `99-main.js`: componente radice e avvio |
 
@@ -569,7 +569,7 @@ Mobileraker. Ha sette pagine (`src/app/59-settings.js`, stili `src/css/65-settin
 | Aggiornamenti | release installata, controllo e installazione degli aggiornamenti, ritorno alla versione precedente, riavvio del Brain e delle notifiche; vedi la sezione dopo |
 | Monitor IA | pausa e cancellazione automatiche (spente all'inizio; la cancellazione chiede conferma), quanti controlli di fila (1–3), sicurezza minima (qualsiasi, 50, 70, 85 %), quali difetti contano (spaghetti, piatto vuoto, layer shift, warping) |
 
-**Dove sono conservate.** Un solo documento JSON, nel database di Moonraker (namespace `klippeye`, chiave `settings`; fino alla 1.0.x `vzbot_dashboard`, che si legge ancora la prima volta), raggiunto
+**Dove sono conservate.** Un solo documento JSON, nel database di Moonraker (namespace `klippeye`, chiave `settings`), raggiunto
 tramite il Brain come il resto di Moonraker (`GET/POST /server/database/item`, che il Brain inoltra senza cambiarlo). Così telefono, tablet e PC
 vedono le stesse impostazioni e il servizio delle notifiche (`notifier/`) legge lo stesso documento. Una copia sta anche in `localStorage`
 (`vz_settings`: `{t, dirty, settings}`): la pagina parte subito con le sue impostazioni e continua a funzionare se il Raspberry non le
@@ -694,10 +694,3 @@ al massimo 24 caratteri (`PRINTER_NAME_MAX`, pulito da `cleanPrinterName`). La p
 
 `usePrinterIdentity()` (chiamato da `99-main.js`) scrive `document.title` e ridisegna le icone della scheda (`<link rel="icon">`, `apple-touch-icon`) su un canvas, con lo stesso riquadro viola scuro del logo
 KlippEye; se il logo non si può disegnare resta l'icona della pagina. Prova: `tests/ui/printer_test.py`.
-
-## Passaggio da VzBot a KlippEye (pagina Aggiornamenti)
-
-`59b-software-settings.js` riconosce l'installazione vecchia da `/api/version` → `legacy: true` (il backend gira da `~/vzbot`). In quel caso la voce «Aggiornamenti» del menu ha il badge «Nuovo» e la scritta
-«Passaggio a KlippEye disponibile», e la pagina ha il blocco `MigrationBlock` (conferma → `POST /api/migrate/start` → segue `/api/migrate/status`, un passo su 6 alla volta; mentre il backend è
-fermo dice che «si sta riavviando con il nuovo nome»; a lavoro finito ricarica la pagina). Senza `sudo` senza password il backend risponde `501 no_sudo` e la pagina mostra il comando da
-lanciare da terminale. Durante il passaggio Moonraker conosce ancora la voce `vzbot`: `programEntry()` sceglie `klippeye` oppure `vzbot`. Prova: `tests/ui/migrate_test.py`; lo script vero lo prova `e2e/e2e_test.py -k passaggio`.

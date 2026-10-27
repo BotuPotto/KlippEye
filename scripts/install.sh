@@ -3,17 +3,15 @@
 #
 #   bash ~/klippeye/scripts/install.sh                  install or repair
 #   bash ~/klippeye/scripts/install.sh --no-moonraker   do not touch Moonraker's configuration
-#   bash ~/klippeye/scripts/install.sh --undo           go back to how it was (old services, no update manager entry)
+#   bash ~/klippeye/scripts/install.sh --undo           take KlippEye off (services, commands, update manager entry)
 #   bash ~/klippeye/scripts/install.sh --channel=dev    updates: every change (dev) instead of the tested releases (stable, default)
 #   (the Italian options of older releases still work: --senza-moonraker, --annulla, --aiuto)
 #
 # What it does, in this order:
 #   1. checks Python, git and the modules the backend needs
-#   2. creates the DATA folder (~/printer_data/klippeye: settings, AI key, notifications) and COPIES into it what you
-#      already had (~/vzbot_ai_config.json, ~/vzbot-notifier/..., ~/printer_data/vzbot). The old files stay: nothing is deleted
+#   2. creates the DATA folder (~/printer_data/klippeye: settings, AI key, notifications)
 #   3. installs the services "klippeye" (backend + dashboard) and "klippeye-notifier" (notifications), started at every boot;
-#      the services with the old names ("vzbot", "vzbot-notifier") are stopped and removed (a copy is kept);
-#      if the new backend does not answer, everything is put back as it was
+#      if the new backend does not answer, they are taken off again
 #   4. puts the commands "klippeye" and "klippeye-notifiche" in /usr/local/bin
 #   5. connects the program to Moonraker's UPDATE MANAGER (moonraker.conf and moonraker.asvc): that is what makes the
 #      "Update" button of the dashboard and of Mainsail/Fluidd work
@@ -34,7 +32,6 @@ PRINTER_DATA="${KLIPPEYE_PRINTER_DATA:-$HOME/printer_data}"
 MOONRAKER_URL="${KLIPPEYE_MOONRAKER_URL:-http://127.0.0.1:7125}"
 BRAIN_URL="${KLIPPEYE_BRAIN_URL:-http://127.0.0.1:8085}"
 MOONRAKER_SERVICE="${KLIPPEYE_MOONRAKER_SERVICE:-moonraker}"
-OLD_NOTIFIER_DIR="${KLIPPEYE_OLD_NOTIFIER_DIR:-$HOME/vzbot-notifier}"   # before KlippEye (VzBot 1.0.x)
 if [ -n "${KLIPPEYE_DATA:-}" ]; then DATA="$KLIPPEYE_DATA"
 elif [ -d "$PRINTER_DATA" ]; then DATA="$PRINTER_DATA/klippeye"
 else DATA="$HOME/klippeye_data"; fi
@@ -84,16 +81,16 @@ case "$REPO$DATA" in *" "*) stop "Folder names must not contain spaces ($REPO, $
 command -v git >/dev/null 2>&1 || warn "git is missing: without it updates do not work. Install it with:  sudo apt install -y git"
 
 MISSING=""
-for module in flask flask_cors requests; do
+for module in flask requests; do   # flask_cors is optional since 1.2.0 (development only)
   "$PYTHON" -c "import $module" 2>/dev/null || MISSING="$MISSING $module"
 done
 if [ -n "$MISSING" ]; then
   warn "The backend is missing these Python modules:$MISSING"
-  note "Install them with:   sudo apt install -y python3-flask python3-flask-cors python3-requests"
+  note "Install them with:   sudo apt install -y python3-flask python3-requests"
   note "then run this command again."
   if [ -z "${KLIPPEYE_IGNORE_MISSING:-}" ]; then stop "Without those modules the backend does not start."; fi
 else
-  good "Backend modules: flask, flask_cors, requests"
+  good "Backend modules: flask, requests"
 fi
 if "$PYTHON" -c 'import cv2, numpy' 2>/dev/null; then
   good "OpenCV and numpy (for the AI monitor)"
@@ -115,13 +112,6 @@ backup_file() {  # file_to_save name_in_the_backup
   bk_dir
   mkdir -p "$(dirname "$BK/$2")"
   cp -p "$1" "$BK/$2" 2>/dev/null || sudo_run cp -p "$1" "$BK/$2"
-}
-oldest_backup_of() {  # name_in_the_backup -> path of the oldest backup that has it
-  local d
-  for d in $(ls -1d "$DATA"/backup/*/ 2>/dev/null | sort); do
-    if [ -f "${d}$1" ]; then printf '%s\n' "${d}$1"; return 0; fi
-  done
-  return 1
 }
 brain_release() {  # max_seconds -> prints the release when the backend answers within that time
   "$PYTHON" - "$BRAIN_URL/api/version" "$1" <<'PY'
@@ -166,41 +156,6 @@ install_unit() {  # name (without .service): 0 = installed or changed, 1 = alrea
   sudo_run install -m 644 "$tmp" "$dest" || stop "Cannot write $dest (is the administrator password needed?)."
   return 0
 }
-OLD_UNIT_NAMES="vzbot vzbot-notifier"   # the services before KlippEye
-RETIRED=""
-retire_old_units() {  # stops and removes the old services (with a copy in the backup); $1 = "all" or "keep-notifier"
-  local name f
-  for name in $OLD_UNIT_NAMES; do
-    f="$UNIT_DIR/$name.service"
-    [ -f "$f" ] || continue
-    if [ "$name" = "vzbot-notifier" ] && [ "${1:-all}" = "keep-notifier" ]; then
-      warn "Leaving the old service $name on: the new notifications are not set up yet."
-      continue
-    fi
-    backup_file "$f" "units/$name.service"
-    sudo_run "$SYSTEMCTL" disable --now "$name" >/dev/null 2>&1
-    sudo_run rm -f "$f"
-    RETIRED="$RETIRED $name"
-    good "Old service $name stopped and removed (copy in the backup)"
-  done
-  [ -n "$RETIRED" ] && sudo_run "$SYSTEMCTL" daemon-reload
-}
-bring_back_old_units() {  # puts the old services back from the backup copies and starts them; 0 when at least one was put back
-  local name old back=1
-  for name in $OLD_UNIT_NAMES; do
-    [ -f "$UNIT_DIR/$name.service" ] && continue
-    old="$(oldest_backup_of "units/$name.service")" || continue
-    sudo_run install -m 644 "$old" "$UNIT_DIR/$name.service" && back=0
-  done
-  [ "$back" = 0 ] && sudo_run "$SYSTEMCTL" daemon-reload
-  for name in $OLD_UNIT_NAMES; do
-    if [ -f "$UNIT_DIR/$name.service" ]; then
-      sudo_run "$SYSTEMCTL" enable "$name" >/dev/null 2>&1
-      sudo_run "$SYSTEMCTL" restart "$name" >/dev/null 2>&1
-    fi
-  done
-  return $back
-}
 stop_new_units() {
   local name
   for name in klippeye klippeye-notifier; do
@@ -238,14 +193,9 @@ PY
 #  --undo
 # ====================================================================================================================
 if [ "$MODE" = "undo" ]; then
-  step "Undoing KlippEye $RELEASE: back to the services of before"
+  step "Undoing KlippEye $RELEASE"
   stop_new_units
   good "Services klippeye and klippeye-notifier stopped and removed"
-  if bring_back_old_units; then
-    good "Services of before (vzbot, vzbot-notifier) put back as they were and started"
-  else
-    note "There were no services of before to put back (KlippEye was installed from scratch)."
-  fi
   for name in klippeye klippeye-notifiche; do
     if [ -f "$BIN_DIR/$name" ] && grep -q "$REPO/scripts" "$BIN_DIR/$name" 2>/dev/null; then sudo_run rm -f "$BIN_DIR/$name"; fi
   done
@@ -295,18 +245,6 @@ fi
 step "2/6  Data folder: $DATA"
 mkdir -p "$DATA" || stop "Cannot create $DATA"
 chmod 700 "$DATA"
-# If VzBot 1.0.x was there before, its data folder (same content) is COPIED here without overwriting anything.
-if [ -n "${KLIPPEYE_OLD_DATA:-}" ]; then OLD_DATA="$KLIPPEYE_OLD_DATA"
-elif [ -d "$PRINTER_DATA/vzbot" ]; then OLD_DATA="$PRINTER_DATA/vzbot"
-else OLD_DATA="$HOME/vzbot_data"; fi
-if [ -d "$OLD_DATA" ] && [ "$OLD_DATA" != "$DATA" ] && [ -n "$(ls -A "$OLD_DATA" 2>/dev/null)" ] && [ ! -f "$DATA/.copiato-da-vzbot" ]; then
-  if cp -an "$OLD_DATA"/. "$DATA"/ 2>/dev/null; then
-    : > "$DATA/.copiato-da-vzbot"
-    good "VzBot settings and data copied from $OLD_DATA (the originals stay there)"
-  else
-    warn "Could not copy the data from $OLD_DATA"
-  fi
-fi
 good "Settings, AI key and notifications stay here. Updates do not touch this folder."
 
 if [ -d "$REPO/.git" ]; then
@@ -315,40 +253,15 @@ if [ -d "$REPO/.git" ]; then
   git -C "$REPO" config core.fileMode false 2>/dev/null
 fi
 
-AI_OLD="${KLIPPEYE_OLD_AI_CONFIG:-$HOME/vzbot_ai_config.json}"   # before KlippEye (VzBot 1.0.x)
 if [ -f "$DATA/ai.json" ]; then
   chmod 600 "$DATA/ai.json"
   good "AI key: already in the data folder"
-elif [ -f "$AI_OLD" ]; then
-  cp "$AI_OLD" "$DATA/ai.json" && chmod 600 "$DATA/ai.json" && good "AI key copied from $AI_OLD (the original stays there)"
 else
   note "AI key: none yet (it is entered from the dashboard)"
 fi
 
 if [ -f "$DATA/notifier.json" ]; then
   good "Notifications: configuration already in the data folder"
-elif [ -f "$OLD_NOTIFIER_DIR/notifier.json" ]; then
-  if "$PYTHON" - "$OLD_NOTIFIER_DIR" "$DATA" <<'PY'
-import json, os, shutil, sys, tempfile
-old, new = sys.argv[1], sys.argv[2]
-conf = json.load(open(os.path.join(old, "notifier.json"), encoding="utf-8"))
-key = conf.get("service_account_file") or "service-account.json"
-if not os.path.isabs(key):
-    key = os.path.join(old, key)
-if os.path.isfile(key):
-    target = os.path.join(new, "service-account.json")
-    shutil.copyfile(key, target)
-    os.chmod(target, 0o600)
-    conf["service_account_file"] = "service-account.json"
-fd, tmp = tempfile.mkstemp(prefix=".tmp-", dir=new)
-with os.fdopen(fd, "w", encoding="utf-8") as f:
-    json.dump(conf, f, indent=2, ensure_ascii=False)
-    f.write("\n")
-os.chmod(tmp, 0o600)
-os.replace(tmp, os.path.join(new, "notifier.json"))
-PY
-  then good "Notifications: configuration and Firebase key copied from $OLD_NOTIFIER_DIR (the originals stay there)"
-  else warn "Could not copy the notification configuration from $OLD_NOTIFIER_DIR"; fi
 else
   note "Notifications: not set up (done once with the guide; see docs/GUIDE.md)"
 fi
@@ -362,8 +275,6 @@ done
 
 NOTIFIER_ON=0
 if notifier_ready; then NOTIFIER_ON=1; fi
-# The services of before use the same port and the same data: they are stopped before the new ones start.
-if [ "$NOTIFIER_ON" = 1 ]; then retire_old_units all; else retire_old_units keep-notifier; fi
 BRAIN_CHANGED=0
 if install_unit klippeye; then BRAIN_CHANGED=1; fi
 # the self-repair drop-in (klippeye.service.d/repair.conf, ripara.conf before 1.3.0, added by the backend) is no longer needed:
@@ -389,9 +300,6 @@ if [ "$BRAIN_CHANGED" = 1 ] || ! unit_active klippeye; then
     note "Last lines of its log:"
     (journalctl -u klippeye -n 12 --no-pager 2>/dev/null || sudo_run journalctl -u klippeye -n 12 --no-pager 2>/dev/null) | sed 's/^/           /'
     stop_new_units
-    if bring_back_old_units; then
-      note "The services were put back as they were: the backend of before should be on again."
-    fi
     stop "Installation stopped. If port 8085 is taken by another program, stop it and run this again. If a Python module is missing, see above."
   fi
 else
