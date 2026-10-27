@@ -1077,7 +1077,37 @@ _spec = _iu.spec_from_file_location("diagnose", os.path.join(ROOT, "scripts", "d
 check("diagnose.redact nasconde chiavi, password, token, cookie e credenziali negli indirizzi",
       all("SECRET" not in _dm.redact(t) for t in ("gsk_SECRETSECRETSECRET", '"api_key": "sk-SECRETSECRET1"', "password=SECRETpw", "Bearer SECRETSECRETxx", "klippeye_session=SECRET", "https://u:SECRET@github.com", "-----BEGIN PRIVATE KEY-----\nSECRET\n-----END PRIVATE KEY-----")))
 
+# ---------------------------------------------------------------------------------------------------------------------
+print("== 1.10.0: canale degli aggiornamenti")
+CONF = "[server]\nhost: 0.0.0.0\n\n# KlippEye: updates\n[update_manager klippeye]\ntype: git_repo\npath: ~/klippeye\nchannel: dev\nmanaged_services: klippeye\n\n[update_manager mainsail]\ntype: web\nchannel: stable\n"
+check("update_channel_of: legge il canale della sola voce klippeye", bg.update_channel_of(CONF) == "dev" and bg.update_channel_of(CONF.replace("channel: dev\n", "")) == "dev" and bg.update_channel_of("[server]\n") is None)
+c2 = bg.with_update_channel(CONF, "stable")
+check("with_update_channel: cambia solo la riga della voce klippeye", bg.update_channel_of(c2) == "stable" and c2.count("channel: stable") == 2 and "[update_manager mainsail]\ntype: web\nchannel: stable" in c2, c2)
+c3 = bg.with_update_channel(CONF.replace("channel: dev\n", ""), "stable")
+check("... e la aggiunge dopo 'type:' se manca", "type: git_repo\nchannel: stable\npath:" in c3, c3)
 __import__("requests").post = real_post
+bg.requests.post = real_post
+fake.state["moonraker_conf"] = CONF
+fake.state["print_state"] = "standby"
+j = cg.get("/api/update/channel").get_json()
+check("GET /api/update/channel: dev, elencato", j["ok"] and j["channel"] == "dev" and j["listed"] is True, j)
+del fake.posts[:]
+r = cg.post("/api/update/channel", json={"channel": "stable"})
+check("POST stable: moonraker.conf riscritto tramite Moonraker e Moonraker riavviato", r.status_code == 200 and r.get_json()["changed"] is True and bg.update_channel_of(fake.state["moonraker_conf"]) == "stable"
+      and "/server/files/upload" in fake.posts and "/server/restart" in fake.posts and "[server]\nhost: 0.0.0.0" in fake.state["moonraker_conf"], (r.get_json(), fake.posts, fake.state["moonraker_conf"]))
+check("... con una copia del file di prima nella cartella dati", any(n.startswith("moonraker.conf-") for n in os.listdir(os.path.join(dg, "backup"))))
+del fake.posts[:]
+r = cg.post("/api/update/channel", json={"channel": "stable"})
+check("stesso canale: niente da cambiare, Moonraker non si riavvia", r.status_code == 200 and r.get_json()["changed"] is False and "/server/restart" not in fake.posts)
+check("canale sconosciuto: 400", cg.post("/api/update/channel", json={"channel": "beta"}).status_code == 400)
+fake.state["print_state"] = "printing"
+r = cg.post("/api/update/channel", json={"channel": "dev"})
+check("durante una stampa: 409 e niente cambia", r.status_code == 409 and bg.update_channel_of(fake.state["moonraker_conf"]) == "stable", r.get_json())
+fake.state["print_state"] = "standby"
+fake.state["moonraker_conf"] = "[server]\n"
+check("senza voce klippeye in moonraker.conf: GET dice non elencato, POST 409", cg.get("/api/update/channel").get_json()["listed"] is False and cg.post("/api/update/channel", json={"channel": "dev"}).status_code == 409)
+fake.state["moonraker_conf"] = None
+
 stop_all()
 fake.close()
 print("\n%d PASS, %d FAIL" % (passed, failed))

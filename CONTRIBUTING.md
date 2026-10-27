@@ -28,6 +28,9 @@ Thank you for helping! KlippEye is a dashboard, a notifier and an Android app fo
   some older parts (notifications, AI texts, guide) are still in Italian.
 * Versions: `MAJOR.MINOR.PATCH` in `VERSION` (backend, dashboard, notifier) and `android/VERSION` (the app). A change to `android/`
   with a higher `android/VERSION` makes GitHub build and publish the APK.
+* Releases: raise `VERSION` and add its section to `CHANGELOG.md` in the pull request. Once it is merged and the tests pass,
+  GitHub tags it `vX.Y.Z` by itself (`.github/workflows/release.yml`): that is what the printers on the stable channel install.
+  Never move or delete a published tag.
 * Never commit secrets: no API keys, no `google-services.json`, no Firebase service-account keys, no keystore passwords.
 
 ## License

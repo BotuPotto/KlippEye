@@ -19,6 +19,7 @@ step "backend" python3 "$HERE/backend/test_backend.py" $QUICK
 step "notifier: logic" python3 "$HERE/notifier/test_watcher.py"
 step "notifier: integration" python3 "$HERE/notifier/test_integration.py" "$ROOT/frontend/klippeye_frontend.html" 9701
 step "app CI" python3 "$HERE/app/app_ci_test.py"
+step "release tags" python3 "$HERE/app/release_test.py"
 [ "$UI" = 1 ] && step "ui" bash "$HERE/ui/run_all.sh"
 echo; echo "$failed group(s) failed"
 exit $((failed > 0))

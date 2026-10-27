@@ -56,7 +56,9 @@ function remoteVersionUrl(info) {
   const url = String((info && (info.remote_url || info.recovery_url)) || "");
   const match = /github\.com[:/]([^/]+)\/([^/]+?)(?:\.git)?\/?$/.exec(url);
   if (!match) return "";
-  const branch = String((info && info.branch) || "main").replace(/[^A-Za-z0-9._/-]/g, "");
+  // on the stable channel the update goes to the newest release tag (vX.Y.Z), not to the tip of the branch
+  const tag = info && info.channel && info.channel !== "dev" && /^v\d+\.\d+\.\d+$/.test(String(info.remote_version || "")) ? String(info.remote_version) : "";
+  const branch = tag || String((info && info.branch) || "main").replace(/[^A-Za-z0-9._/-]/g, "");
   return "https://raw.githubusercontent.com/" + match[1] + "/" + match[2] + "/" + branch + "/VERSION";
 }
 
@@ -124,6 +126,60 @@ function useProgramUpdate(active) {
     setChecking(false);
   };
   return { ...state, checking, checkedAt, check, reload: () => readRef.current() };
+}
+
+/**
+ * The update channel of KlippEye in Moonraker's update manager (/api/update/channel): { channel: "stable" | "dev" | null
+ * (not listed) | undefined (not known yet), busy, set(channel) }. Changing it restarts Moonraker.
+ */
+const CHANNEL_SETTLE_MS = 6000;
+function useUpdateChannel(active, onChanged) {
+  const [state, setState] = useState({ channel: undefined, busy: false });
+  const load = async () => {
+    try {
+      const answer = await fetchJson("/api/update/channel");
+      setState({ channel: answer && answer.ok ? answer.channel : undefined, busy: false });
+    } catch (e) {
+      setState({ channel: undefined, busy: false });
+    }
+  };
+  useEffect(() => {
+    if (active) load();
+  }, [active]);
+  const set = async (channel) => {
+    setState((previous) => ({ ...previous, busy: true }));
+    try {
+      const response = await fetchFresh("/api/update/channel", { method: "POST", headers: JSON_HEADERS, body: JSON.stringify({ channel }), timeout: 30000 });
+      const answer = await response.json().catch(() => ({}));
+      if (!response.ok || !answer.ok) {
+        toast.action(answer.error || tx("Error {status}", { status: response.status }));
+        return load();
+      }
+      if (answer.changed) toast.notice(tx("Update channel changed: Moonraker restarts"), 3000);
+      setState({ channel: answer.channel, busy: true });
+      await sleep(CHANNEL_SETTLE_MS);
+      setState({ channel: answer.channel, busy: false });
+      onChanged();
+    } catch (e) {
+      toast.action(tx("Moonraker does not answer: try again shortly."));
+      load();
+    }
+  };
+  return { ...state, set };
+}
+
+function ChannelBlock({ channel, printing }) {
+  if (channel.channel === undefined || channel.channel === null) return null;
+  const options = [
+    { id: "stable", label: tx("Stable releases"), detail: tx("Only the releases that passed all the tests (recommended)") },
+    { id: "dev", label: tx("Every change"), detail: tx("Every change as soon as it is on GitHub: for testing new things") },
+  ];
+  const value = channel.channel === "dev" ? "dev" : "stable";
+  return h(
+    SettingsGroup,
+    { title: tx("Update channel"), note: printing ? tx("A print is running: change it when the print ends (Moonraker restarts).") : tx("Moonraker restarts for a few seconds when the channel changes.") },
+    h(ChoiceRows, { label: tx("Update channel"), options, value, onChange: (id) => !channel.busy && !printing && id !== value && channel.set(id) }),
+  );
 }
 
 /* ---------------------------------------------------------------------------
@@ -200,6 +256,7 @@ function UpdateBlock({ update, remoteRelease, brainRelease, printing, menu, upda
 function SoftwarePage({ active, menu, updates, printing, actions }) {
   const version = useBrainVersion(active);
   const update = useProgramUpdate(active);
+  const channel = useUpdateChannel(active, () => update.check());
   const remoteRelease = useRemoteRelease(update.raw);
   const app = useAppRelease(active);
   const [services, setServices] = useState(null);
@@ -288,6 +345,7 @@ function SoftwarePage({ active, menu, updates, printing, actions }) {
           tx("Go back to the previous release"),
         ),
     ),
+    h(ChannelBlock, { channel, printing }),
     h(
       SettingsGroup,
       { title: tx("Android app"), note: tx("GitHub builds the app when you upload the android/ folder; it reaches the Raspberry with «Update KlippEye» and from here you install it on the phone.") },

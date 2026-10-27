@@ -1,0 +1,50 @@
+name: Release
+
+# Tags a release once its tests passed on main: the tag vX.Y.Z (from VERSION) is what the "stable" update channel of
+# Moonraker installs on the printers, and a GitHub release with the CHANGELOG section goes with it.
+# It runs after the "Tests" workflow and after the "App Android" one (which commits the new app after a merge); the
+# rules are in ci/release.py (tested by tests/app/release_test.py).
+
+on:
+  workflow_run:
+    workflows: [Tests, App Android]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  tag:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Which commit passed the tests
+        id: tested
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_WORKFLOW: ${{ github.event.workflow_run.name }}
+          EVENT_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          if [ "$EVENT_WORKFLOW" = "Tests" ]; then
+            echo "sha=$EVENT_SHA" >> "$GITHUB_OUTPUT"
+          else
+            echo "sha=$(gh run list --workflow tests.yml --branch main --status success --limit 1 --json headSha -q '.[0].headSha')" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Tag the release
+        if: steps.tested.outputs.sha != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git fetch --tags --force origin
+          python3 ci/release.py --tested-sha "${{ steps.tested.outputs.sha }}"

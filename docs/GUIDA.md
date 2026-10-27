@@ -45,7 +45,8 @@ Cosa fa l'installazione:
   `moonraker.asvc`, con copie di sicurezza) e riavvia Moonraker, a meno che stia stampando.
 
 Si può rilanciare quando si vuole: ripara senza rompere niente. Opzioni: `--no-moonraker` (non tocca la configurazione di
-Moonraker), `--undo` (toglie servizi, comandi e voce di Moonraker; le cartelle restano), `--help`.
+Moonraker), `--channel=dev` (ogni modifica invece delle release provate, vedi 4), `--undo` (toglie servizi, comandi e voce di
+Moonraker; le cartelle restano), `--help`.
 
 Apri la dashboard: **`http://<indirizzo del Raspberry>:8085`** (lo stesso indirizzo di Mainsail, con la porta 8085).
 
@@ -72,6 +73,10 @@ Tutto sta nel menu **☰ (Impostazioni)**. Le impostazioni restano sul Raspberry
 secondo e la pagina si ricarica da sola. Impostazioni, chiave dell'IA e notifiche restano. Durante una stampa il tasto è spento.
 
 Lo stesso aggiornamento si vede in **Mainsail / Fluidd → Update Manager** (voce `klippeye`), che offre anche *Rollback* e *Recover*.
+
+**Canale degli aggiornamenti** (stessa pagina): **Release stabili** (di serie) installa solo le release che hanno superato tutti
+i test automatici su GitHub, con l'etichetta `v1.10.0`, `v1.11.0`…; **Ogni modifica** installa ogni modifica appena arriva su
+GitHub, per provare le novità. Quando lo cambi, Moonraker si riavvia per qualche secondo.
 
 | Se… | allora |
 |---|---|
@@ -177,11 +182,11 @@ type: git_repo
 path: ~/klippeye
 origin: https://github.com/BotuPotto/KlippEye.git
 primary_branch: main
-channel: dev
+channel: stable
 managed_services: klippeye
 ```
 
-Con **Aggiorna**, Moonraker scarica da GitHub le modifiche in `~/klippeye` e riavvia il servizio `klippeye`; il servizio delle
+Con **Aggiorna**, Moonraker scarica da GitHub l'ultima release etichettata (o, sul canale `dev`, l'ultima modifica) in `~/klippeye` e riavvia il servizio `klippeye`; il servizio delle
 notifiche si accorge che il suo file è cambiato e riparte da solo. L'app Android arriva per la stessa strada: la cartella `apk/`
 del repository contiene l'ultima app costruita da GitHub, e il backend la offre al telefono solo se grandezza e SHA-256
 corrispondono ad `apk/version.json`.

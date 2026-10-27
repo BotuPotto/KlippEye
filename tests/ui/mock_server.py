@@ -30,6 +30,8 @@ def default_state():
         "detector_status": "scanning",
         "has_analysis": True,
         "analysis_action": "CONTINUA",
+        "update_channel": "dev",   # the channel of [update_manager klippeye] (None: not listed)
+        "channel_posts": [],
         "mesh": True,
         # --- printer capabilities / tools (new features)
         "has_screws": True, "has_twist_section": True, "z_pin": "probe:z_virtual_endstop", "z_apply": "probe",
@@ -215,7 +217,7 @@ def mock_reset():
     S.clear(); S.update(default_state()); return jsonify(ok=True)
 @app.route("/__mock/state")
 def mock_state():
-    return jsonify({k: v for k, v in S.items() if k in ("light", "light_cmds", "light_reads", "actions", "webhooks", "webhooks_msg", "disconnected", "moonraker_down", "host_off", "services", "update_log", "brain_cfg_log", "brain_release", "brain_started", "klippeye_info", "pending_release", "logos", "migrate", "migrate_starts", "brain_legacy", "app_apk_hits", "app_apk_downloads")})
+    return jsonify({k: v for k, v in S.items() if k in ("light", "light_cmds", "light_reads", "actions", "webhooks", "webhooks_msg", "disconnected", "moonraker_down", "host_off", "services", "update_log", "brain_cfg_log", "brain_release", "brain_started", "klippeye_info", "pending_release", "logos", "migrate", "migrate_starts", "brain_legacy", "app_apk_hits", "app_apk_downloads", "update_channel", "channel_posts")})
 @app.route("/__mock/print_actions")
 def mock_print_actions():
     return jsonify(S.get("print_actions", []))
@@ -883,6 +885,19 @@ def logs_list():
 @app.route("/api/logs/content")
 def logs_content():
     return jsonify(file=request.args.get("file"), content="line1\nline2 error here\nline3\n", lines=3)
+@app.route("/api/update/channel", methods=["GET", "POST"])
+def api_update_channel():
+    if request.method == "POST":
+        channel = (request.get_json(silent=True) or {}).get("channel")
+        S["channel_posts"].append(channel)
+        if channel not in ("stable", "dev"):
+            return jsonify(ok=False, error="Unknown update channel."), 400
+        changed = channel != S["update_channel"]
+        S["update_channel"] = channel
+        return jsonify(ok=True, channel=channel, changed=changed)
+    return jsonify(ok=True, channel=S["update_channel"], listed=S["update_channel"] is not None, channels=["stable", "dev"])
+
+
 @app.route("/api/diagnose")
 def api_diagnose():
     return Response("KlippEye diagnostic report\n== KlippEye\nrelease: 1.0.0\n", mimetype="text/plain", headers={"Content-Disposition": 'attachment; filename="klippeye-diagnose-20261027-1200.txt"'})
