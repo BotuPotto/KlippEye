@@ -501,7 +501,7 @@ m, _ = run_scenario(NEW_BRAIN, fake, half, 30, interval=1, brain_json=FILTER)
 o = outcome(m)
 check("meta' immagine cambia di colpo: il controllo viene ignorato (cambio di luce)", not o["triggered"] and o["anomalies"] == 0 and m.detector.stats.get("ignored_global", 0) > 3, (o, m.detector.stats))
 half_stay = [empty_j] * 14 + [fakes.jpeg(fakes.frame((0, 0, 540, 720)))] * 60
-m, _ = run_scenario(NEW_BRAIN, fake, half_stay, 38, interval=1, brain_json=FILTER, extra=lambda mm: setattr(mm, "GLOBAL_STREAK_MAX", 4))
+m, _ = run_scenario(NEW_BRAIN, fake, half_stay, 38, interval=1, brain_json=FILTER, extra=lambda mm: setattr(mm.detector, "global_streak_max", 4))
 o = outcome(m)
 check("... ma se il grande cambiamento resta (non e' un lampo) dopo qualche controllo conta come cambiamento vero", o["triggered"], (o, m.detector.stats))
 
@@ -1029,6 +1029,164 @@ fake.state["print_state"] = "standby"
 fake.state["moonraker_conf"] = "[server]\n"
 check("senza voce klippeye in moonraker.conf: GET dice non elencato, POST 409", cg.get("/api/update/channel").get_json()["listed"] is False and cg.post("/api/update/channel", json={"channel": "dev"}).status_code == 409)
 fake.state["moonraker_conf"] = None
+
+print("== 1.12.0: recorder, labels, replay (phase 3: measuring the monitor)")
+import subprocess as _sub2  # noqa: E402
+import re  # noqa: E402
+sys.path.insert(0, os.path.join(ROOT, "backend"))
+import recorder as _rec  # noqa: E402
+import monitor_core as _core  # noqa: E402
+
+# --- the recorder alone
+rroot = os.path.join(tmp(), "recordings")
+rr = _rec.Recorder(rroot, _core.cv2, "9.9.9")
+rr.observe("printing", "a.gcode", 1000.0)
+check("recorder off: nothing is opened", rr.session is None and not os.path.exists(rroot))
+rr.configure(True, 500)
+rr.observe("printing", "../../etc/a b.gcode", 1000.0, {"sensitivity": 35})
+sid1 = rr.session["id"]
+check("printing: a recording opens, its id is safe (time + cleaned file name)", re.fullmatch(r"\d{8}-\d{6}-a_b", sid1) is not None and os.path.isfile(os.path.join(rroot, sid1, "session.json")), sid1)
+img = fakes.frame(EDGE)
+for i in range(5):
+    rr.add_frame(img, 1000.0 + i * 3, {"layer": i, "score": 0.5, "trig": False})
+p1 = rr.frame_path(sid1, 1)
+check("pictures: 540x360 JPEG, one line each in frames.jsonl", p1 and _core.cv2.imread(p1).shape[:2] == (360, 540) and len(rr.frames(sid1)) == 5 and rr.frames(sid1)[4]["layer"] == 4, rr.frames(sid1)[:1])
+rr.note_trigger(1010.0)
+ev = {"id": "20990101-000000", "outcome": "analysed", "action": "PAUSE", "summary": "x"}
+rr.attach_alert(ev)
+check("an AI verdict right after a live alarm is linked to the recording", ev.get("session") == sid1 and ev.get("frame") == 5 and len(rr.session["alerts"]) == 1, ev)
+rr.observe("paused", "../../etc/a b.gcode", 1020.0)
+check("paused: the same recording goes on", rr.session and rr.session["id"] == sid1)
+rr.observe("complete", "", 1030.0)
+s1 = rr.load(sid1)
+check("print ended: closed with its end state and time", rr.session is None and s1["end_state"] == "complete" and s1["ended"] == 1030.0 and s1["frames"] == 5 and len(s1["live_triggers"]) == 1, s1)
+try:
+    rr.set_label(sid1, "failed", 5.0)
+    bad = False
+except ValueError:
+    bad = True
+check("label: a failure time outside the recording is refused", bad)
+check("label: failed from a moment of the recording", rr.set_label(sid1, "failed", 1006.0)["failed_at"] == 1006.0 and rr.load(sid1)["label"]["outcome"] == "failed")
+try:
+    rr.set_label(sid1, "maybe")
+    bad = False
+except ValueError:
+    bad = True
+check("label: an unknown outcome is refused", bad)
+for evil in ("../x", "20990101-000000/../../", "x", ""):
+    check("a bad id is refused (%r)" % evil, rr.load(evil) is None and rr.frame_path(evil, 1) is None and rr.delete(evil) is False)
+rr.observe("printing", "b.gcode", 2000.0)
+sid2 = rr.session["id"]
+for i in range(40):
+    rr.add_frame(fakes.frame((i * 20, 100, 60, 60)), 2000.0 + i * 3, {"score": None, "trig": False})
+used = rr.summary()["used_bytes"]
+rr.max_bytes = used - 1000   # less than what is there: the oldest goes
+rr.observe("complete", "", 2200.0)
+check("over the space limit: the oldest recording is deleted, the newest stays", not os.path.exists(os.path.join(rroot, sid1)) and os.path.exists(os.path.join(rroot, sid2)), os.listdir(rroot))
+rr.max_bytes = 10
+rr.observe("printing", "c.gcode", 3000.0)
+for i in range(_rec.SAVE_EVERY):
+    rr.add_frame(img, 3000.0 + i, {})
+check("a print that alone fills the space: it stops growing (truncated), the others are deleted", rr.session["truncated"] is True and rr.add_frame(img, 3100.0, {}) is None and "stopped" in rr.status, rr.status)
+rr.observe("complete", "", 3200.0)
+real_usage = _rec.shutil.disk_usage
+_rec.shutil.disk_usage = lambda path: type("U", (), {"free": 10 * 1024 ** 2, "total": 1, "used": 1})()
+rr.max_bytes = 10 ** 9
+rr.observe("printing", "d.gcode", 4000.0)
+check("less than 1 GB free: nothing is written, the status says so", rr.add_frame(img, 4000.0, {}) is None and "1 GB" in rr.status, rr.status)
+_rec.shutil.disk_usage = real_usage
+rr.observe("complete", "", 4010.0)
+last_id = rr.ids()[-1]
+check("delete: the folder goes", rr.delete(last_id) and not os.path.exists(os.path.join(rroot, last_id)))
+rr.configure(False, 500)
+check("switched off: status off", rr.status == "off")
+
+# --- the backend: live recording during a (fake) print
+fake.snapshots = 0
+fake.state.update({"print_state": "printing", "progress": 0.5, "file_position": 5000, "file_size": 10000, "total_duration": 500.0,
+                   "hotend": 210.0, "hotend_target": 210.0, "layer": 7, "filename": "benchy.gcode", "frames": blink(EDGE, 60)})
+drec = tmp()
+mr = load_brain(NEW_BRAIN, drec, fake, brain_json={"values": {"enabled": False, "persistent_filter": False, "record": True, "check_interval": 1, "cooldown": 10}})
+mr.detector.last_ai_call = time.time() + 99999
+mr.detector.enabled = True
+mr.detector.start()
+ok_trigger = wait_for(lambda: mr.recorder.session is not None and len(mr.recorder.session["live_triggers"]) >= 1, 25)
+check("live: recording on + print running -> a recording with the pictures and the live alarm", ok_trigger, mr.recorder.status)
+time.sleep(4)   # a few pictures during the monitor's pause after the alarm
+sid = mr.recorder.session["id"] if mr.recorder.session else None
+fake.state["print_state"] = "complete"
+wait_for(lambda: mr.recorder.session is None, 12)
+mr.detector.stop()
+cr = mr.app.test_client()
+j = cr.get("/api/recordings").get_json()
+check("/api/recordings: the print, ended 'complete', with pictures and its alarm", j["ok"] and j["enabled"] is True and len(j["sessions"]) == 1 and j["sessions"][0]["id"] == sid
+      and j["sessions"][0]["end_state"] == "complete" and j["sessions"][0]["frames"] >= 5 and j["sessions"][0]["live_triggers"] >= 1 and j["used_bytes"] > 0, j)
+check("... and it is not cached", cr.get("/api/recordings").headers.get("Cache-Control") == "no-store")
+d = cr.get("/api/recordings/" + sid).get_json()
+fr = d["frames"]
+check("/api/recordings/<id>: session (file, settings in use) and pictures with layer and progress", d["session"]["file"] == "benchy.gcode" and d["session"]["config"].get("check_interval") == 1
+      and fr[0]["layer"] == 7 and fr[0]["layers"] == 40 and fr[0]["progress"] == 50.0 and any(f["trig"] for f in fr), (d["session"].get("file"), fr[:2]))
+check("... pictures taken during the pause after the alarm are marked", any(f.get("cool") for f in fr), [f.get("cool") for f in fr])
+full = mr.recorder.frames(sid)
+check("... the toolhead position is kept with each picture", full[0].get("pos") == [120.5, 80.2, 5.0] or full[0].get("pos") == [120.5, 80.3, 5.0], full[0])
+r = cr.get("/api/recordings/%s/frames/1.jpg" % sid)
+check("a picture: 200 JPEG", r.status_code == 200 and r.mimetype == "image/jpeg" and r.data[:2] == b"\xff\xd8")
+check("a picture that is not there, or a bad id: 404", cr.get("/api/recordings/%s/frames/99999.jpg" % sid).status_code == 404 and cr.get("/api/recordings/..%2Fx/frames/1.jpg").status_code == 404)
+check("label: 400 for an unknown outcome, 404 for an unknown recording", cr.post("/api/recordings/%s/label" % sid, json={"outcome": "maybe"}).status_code == 400
+      and cr.post("/api/recordings/20990101-000000/label", json={"outcome": "ok"}).status_code == 404)
+r = cr.post("/api/recordings/%s/label" % sid, json={"outcome": "ok"})
+check("label 'ok' saved in session.json", r.status_code == 200 and mr.recorder.load(sid)["label"]["outcome"] == "ok", r.get_json())
+# an AI verdict linked to the recording, then marked by the person
+mr.recorder.last_trigger = (sid, time.time(), 3, time.time())
+mr.record_alert({"outcome": "analysed", "action": "PAUSE", "summary": "strings"})
+hist = mr.read_alert_history(5)
+aid = hist[0]["id"]
+check("the alert history entry knows its recording and picture", hist[0].get("session") == sid and hist[0].get("frame") == 3, hist[0])
+r = cr.post("/api/print/alerts/%s/label" % aid, json={"label": "false"})
+check("alert label 'false': in the history and in the recording", r.status_code == 200 and mr.read_alert_history(5)[0]["label"] == "false"
+      and mr.recorder.load(sid)["alerts"][-1]["label"] == "false", (r.get_json(), mr.recorder.load(sid)["alerts"]))
+check("alert label: 400 for a bad label, 404 for an unknown alarm", cr.post("/api/print/alerts/%s/label" % aid, json={"label": "maybe"}).status_code == 400
+      and cr.post("/api/print/alerts/20990101-000000/label", json={"label": "false"}).status_code == 404)
+r = cr.post("/api/print/alerts/%s/label" % aid, json={"label": None})
+check("alert label null: the label goes away", r.status_code == 200 and "label" not in mr.read_alert_history(5)[0])
+
+# --- the replay (scripts/replay.py) on that recording
+REPLAY = os.path.join(ROOT, "scripts", "replay.py")
+out_json = os.path.join(tmp(), "m.json")
+rp = _sub2.run([sys.executable, REPLAY, "--data", drec, "--json", out_json], capture_output=True, text=True, timeout=120)
+res = json.load(open(out_json))
+check("replay: a table with the print, its alarms and the label", rp.returncode == 0 and "TOTAL" in rp.stdout and "benchy" in rp.stdout and "went fine" in rp.stdout, rp.stdout + rp.stderr)
+row = res["sessions"][0]
+check("replay: with the thresholds of the recording it raises alarms like the live monitor did; all false (the print went fine)", row["alarms"] >= 1 and row["false"] == row["alarms"]
+      and res["total"]["false_per_hour"] is not None and row["ms_per_check"] is not None, row)
+rp2 = _sub2.run([sys.executable, REPLAY, "--data", drec, "--json", out_json, "--set", "score_threshold=30", "--set", "persist_checks=4"], capture_output=True, text=True, timeout=120)
+res2 = json.load(open(out_json))
+check("replay --set: other thresholds, other count (30% of the band must move: no alarm)", rp2.returncode == 0 and res2["sessions"][0]["alarms"] == 0 < row["alarms"] and res2["overrides"] == {"score_threshold": 30, "persist_checks": 4}, (res2["sessions"][0]["alarms"], row["alarms"]))
+mr.recorder.set_label(sid, "failed", fr[0]["t"])
+rp3 = _sub2.run([sys.executable, REPLAY, "--data", drec, "--json", out_json], capture_output=True, text=True, timeout=120)
+res3 = json.load(open(out_json))
+check("replay: a print failed from the start, its first alarm caught it (with the delay)", res3["sessions"][0]["seen"] is True and res3["sessions"][0]["false"] == 0
+      and res3["total"]["failures"] == 1 and res3["total"]["seen"] == 1 and res3["sessions"][0]["delay_s"] >= 0, res3["sessions"][0])
+mr.recorder.set_label(sid, None)
+_sub2.run([sys.executable, REPLAY, "--data", drec, "--json", out_json], capture_output=True, timeout=120)
+row4 = json.load(open(out_json))["sessions"][0]
+check("replay: not marked: false alarms unknown", row4["false"] is None and row4["outcome"] is None, row4)
+empty = tmp()
+rp4 = _sub2.run([sys.executable, REPLAY, "--data", empty], capture_output=True, text=True, timeout=60)
+check("replay without recordings: says how to start, exit 0", rp4.returncode == 0 and "No recordings" in rp4.stdout, rp4.stdout + rp4.stderr)
+
+# --- measuring from the dashboard
+r = cr.post("/api/recordings/measure")
+check("POST /api/recordings/measure starts the replay", r.status_code == 200 and r.get_json()["state"] == "running", r.get_json())
+wait_for(lambda: cr.get("/api/recordings/measure").get_json()["state"] != "running", 90)
+j = cr.get("/api/recordings/measure").get_json()
+check("GET: done, with the result (one print, the thresholds in use now)", j["state"] == "done" and j["result"]["settings"] == "current" and j["result"]["total"]["recordings"] == 1, j)
+r = cr.delete("/api/recordings/" + sid)
+check("DELETE: the recording goes, then 404", r.status_code == 200 and cr.get("/api/recordings/" + sid).status_code == 404 and cr.delete("/api/recordings/" + sid).status_code == 404)
+check("CPU of the monitor: time of a check in the status", isinstance(mr.detector.stats.get("check_ms"), float), mr.detector.stats)
+check("the recording settings are in the menu's list (group 'recording')", [s["key"] for s in cr.get("/api/backend/config").get_json()["spec"] if s["group"] == "recording"] == ["record", "record_max_mb"])
+check("turning recording off from the menu reaches the recorder", cr.post("/api/backend/config", json={"values": {"record": False}}).status_code == 200 and mr.recorder.enabled is False and mr.recorder.status == "off")
+fake.state["filename"] = "test.gcode"
 
 stop_all()
 fake.close()

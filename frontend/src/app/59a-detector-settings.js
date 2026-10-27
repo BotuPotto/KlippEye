@@ -247,7 +247,8 @@ function DetectorPage({ active }) {
   const [askReset, setAskReset] = useState(false);
   const data = useMemo(() => (config.data ? localizeBrainSchema(config.data) : null), [config.data]);
   if (config.phase !== "ok" || !data) return h(BrainNotice, { phase: config.phase });
-  const changed = data.spec.some((spec) => JSON.stringify(config.values[spec.key]) !== JSON.stringify(data.defaults ? data.defaults[spec.key] : spec.default));
+  const thresholds = data.spec.filter((spec) => spec.group !== "recording"); // recording has its own page (59e-recordings.js)
+  const changed = thresholds.some((spec) => JSON.stringify(config.values[spec.key]) !== JSON.stringify(data.defaults ? data.defaults[spec.key] : spec.default));
   const watching = data.running && config.values.enabled !== false;
   return h(
     React.Fragment,
@@ -262,7 +263,7 @@ function DetectorPage({ active }) {
     config.problem && h("div", { className: "set-status set-status--warn", role: "alert" }, h("span", { className: "set-status__dot" }), config.problem),
     data.saved === false && !changed && h("p", { className: "set-group__note" }, tx("These are the default values: until you change something the backend writes no file.")),
     data.groups.map((group) => {
-      const specs = data.spec.filter((spec) => spec.group === group.id);
+      const specs = thresholds.filter((spec) => spec.group === group.id);
       if (!specs.length) return null;
       const switches = specs.filter((spec) => spec.type === "bool");
       const others = specs.filter((spec) => spec.type !== "bool");
@@ -292,7 +293,7 @@ function DetectorPage({ active }) {
                   className: "oui-btn oui-btn--danger",
                   onClick: () => {
                     setAskReset(false);
-                    config.reset();
+                    config.reset(thresholds.map((spec) => spec.key));
                   },
                 },
                 tx("Yes, restore"),

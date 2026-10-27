@@ -1,5 +1,25 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.12.0
+
+**Measuring the AI monitor (phase 3 of the roadmap).** Until now nobody knew how many of the monitor's alarms are false:
+this release records the prints and counts.
+
+* **Recordings**: *Settings → Recordings → Record the prints* (off by default). During every print the backend keeps the
+  pictures the monitor looked at (540x360, about 150 MB for four hours) with time, layer, toolhead position, progress, score
+  and alarms, one folder per print in `~/printer_data/klippeye/recordings/`, plus the live alarms, the AI verdicts and the
+  thresholds in use. A space limit (2 GB by default) deletes the oldest prints; with less than 1 GB free nothing is recorded.
+* **Marking**: each alarm of the monitor can be marked *False alarm* or *Real problem*; each recorded print *It went fine*
+  or *It failed from here* (on the picture where the problem starts), in a picture viewer that jumps from alarm to alarm.
+* **Replay**: `klippeye replay` (and *Measure now* in the dashboard) runs the monitor again on the recordings and prints a
+  table: alarms per hour, how many were false, which failures were caught and after how long. `--current` uses the
+  thresholds in use now, `--set key=value` tries others. The AI is never called by the replay.
+* **Monitor load**: the time of one check and the backend's CPU over the last minute, in the page, the recording and
+  `klippeye diagnose`.
+* The judging part of the monitor moved to `backend/monitor_core.py`, shared by the backend and the replay so that they
+  always decide the same way (no change in behaviour: the tests that compare it with the original VzBot detector pass).
+* `/api/recordings` (list, one recording, its pictures, label, delete, measure) and `/api/print/alerts/<id>/label`.
+
 ## 1.11.0
 
 **The VzBot leftovers are gone.** Until release 1.0.x the project was called VzBot; releases 1.1.0 to 1.10.0 carried what

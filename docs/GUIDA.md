@@ -109,6 +109,21 @@ L'IA scrive le sue osservazioni nella lingua delle notifiche; ogni allarme resta
 | l'IA segnala problemi dubbi | alzare «Fiducia minima dell'IA» (70 → 80) |
 | non si accorge di un guasto vero | abbassare «Movimento ai bordi» o allargare l'area controllata |
 
+### Misurare il monitor (registrazioni)
+
+Invece di indovinare se una soglia diversa aiuta, misuralo:
+
+1. **Impostazioni → Registrazioni → Registra le stampe**. Durante ogni stampa il backend conserva le foto guardate dal monitor
+   (piccole, circa 150 MB per una stampa di quattro ore) con strato, posizione e punteggio, in `~/printer_data/klippeye/recordings/`.
+   Quando lo spazio scelto è pieno si cancellano le stampe più vecchie, e con meno di 1 GB libero sul disco non si registra niente.
+2. Dopo ogni stampa, nella stessa pagina: segna ogni **allarme** come *Falso allarme* o *Problema vero*, e apri la stampa per
+   dire **È andata bene** oppure, se è fallita, vai alla prima foto in cui si vede il problema e premi **È fallita da qui**.
+3. **Misura adesso** rifà girare il monitor su ogni stampa registrata, con le soglie in uso adesso, e mostra gli allarmi
+   all'ora, quanti erano falsi e se ogni guasto è stato visto (e dopo quanto). Da terminale, per confrontare altre soglie:
+   `klippeye replay --set sensitivity=45 --set persist_checks=4` (opzioni: `scripts/replay.py`).
+
+La pagina mostra anche il **carico del monitor**: il tempo di un controllo e la CPU usata dal backend nell'ultimo minuto.
+
 ## 6. App Android e notifiche
 
 L'app Android è una finestra a tutto schermo sulla dashboard, con notifiche push, download dei file e aggiornamenti da sola.

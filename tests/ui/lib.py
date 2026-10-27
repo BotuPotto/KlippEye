@@ -7,7 +7,7 @@ POLL_PATHS = ("/printer/objects/query", "/api/printer", "/server/gcode_store", "
               "/api/print/detector/status", "/api/print/last_analysis", "/server/files/list",
               "/machine/proc_stats", "/machine/system_info", "/machine/update/status", "/printer/info",
               "/api/logs/list", "/server/files/gcodes/", "/api/status", "/server/files/directory",
-              "/api/version", "/api/backend/config", "/api/print/snapshot", "/api/app/version", "/api/logos", "/logos/", "/api/auth/status")
+              "/api/version", "/api/backend/config", "/api/print/snapshot", "/api/app/version", "/api/logos", "/logos/", "/api/auth/status", "/api/recordings", "/api/print/alerts/history")
 
 class Mock:
     def __init__(self, html, port):

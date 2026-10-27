@@ -74,6 +74,14 @@ def default_state():
         "brain_release": "1.0.0", "brain_started": 1760000000,
         "brain_restart_s": 2.5,     # seconds the backend is away when it restarts
         "brain_cfg": None,          # {key: value} of the thresholds (None: the usual ones)
+        "recordings": [],           # session.json of the recorded prints (backend/recorder.py), oldest first
+        "rec_frames": {},           # {id: [frame lines]}
+        "rec_status": "waiting for a print",
+        "rec_posts": [],            # [(what, id, body)] labels and deletions the page sent
+        "alerts": [],               # the alert history (/api/print/alerts/history), newest first
+        "measure": {"state": "idle"},
+        "measure_starts": 0,
+        "detector_extra": {},       # more stats of /api/print/detector/status (check_ms, cpu_percent)
         "brain_cfg_saved": False, "brain_cfg_log": [], "brain_cfg_fail": 0,  # brain_cfg_fail: HTTP status the next POSTs answer with (0: they work)
         "brain_running": True, "brain_has_cv2": True,
         "app_apk": None,            # what /api/app/version offers: None (nothing published) or {"available": ..., version, code, size, sha256, built, url} / {"available": False, "reason": ...}
@@ -212,7 +220,7 @@ def mock_reset():
     S.clear(); S.update(default_state()); return jsonify(ok=True)
 @app.route("/__mock/state")
 def mock_state():
-    return jsonify({k: v for k, v in S.items() if k in ("light", "light_cmds", "light_reads", "actions", "webhooks", "webhooks_msg", "disconnected", "moonraker_down", "host_off", "services", "update_log", "brain_cfg_log", "brain_release", "brain_started", "klippeye_info", "pending_release", "logos", "app_apk_hits", "app_apk_downloads", "update_channel", "channel_posts")})
+    return jsonify({k: v for k, v in S.items() if k in ("light", "light_cmds", "light_reads", "actions", "webhooks", "webhooks_msg", "disconnected", "moonraker_down", "host_off", "services", "update_log", "brain_cfg_log", "brain_release", "brain_started", "klippeye_info", "pending_release", "logos", "app_apk_hits", "app_apk_downloads", "update_channel", "channel_posts", "rec_posts", "measure_starts", "recordings", "alerts")})
 @app.route("/__mock/print_actions")
 def mock_print_actions():
     return jsonify(S.get("print_actions", []))
@@ -760,6 +768,95 @@ def api_app_version():
     offer = S["app_apk"] or {"available": False, "reason": "nessuna app pubblicata"}
     return jsonify(dict(offer, ok=True))
 
+# ---- recordings (backend/recorder.py, scripts/replay.py): the same answers as the real backend
+REC_ID = re.compile(r"^\d{8}-\d{6}(-[A-Za-z0-9._-]{1,40})?$")
+
+
+def rec_find(sid):
+    return next((r for r in S["recordings"] if r["id"] == sid), None)
+
+
+@app.route("/api/recordings")
+def mock_recordings():
+    if S["brain"] == "old":
+        return Response("<!doctype html><title>404 Not Found</title>", status=404, mimetype="text/html")
+    values = brain_values()
+    rows = []
+    for r in sorted(S["recordings"], key=lambda x: x["id"], reverse=True):  # newest first, as the backend lists them
+        row = {k: r.get(k) for k in ("id", "file", "started", "ended", "end_state", "frames", "label", "truncated", "cpu")}
+        row.update(bytes=r.get("bytes", 0), live_triggers=len(r.get("live_triggers") or []), alerts=len(r.get("alerts") or []), recording=r.get("ended") is None)
+        rows.append(row)
+    return jsonify(ok=True, enabled=bool(values.get("record")), max_bytes=int(values.get("record_max_mb", 2000)) * 1024 ** 2,
+                   used_bytes=sum(r.get("bytes", 0) for r in S["recordings"]), free_bytes=12 * 1024 ** 3,
+                   status=S["rec_status"] if values.get("record") else "off", current=None, sessions=rows)
+
+
+@app.route("/api/recordings/measure", methods=["GET", "POST"])
+def mock_measure():
+    if request.method == "POST":
+        S["measure_starts"] += 1
+        S["measure"] = {"state": "running", "started": int(time.time())}
+        result = S.get("measure_result")
+        def finish():
+            S["measure"] = {"state": "done", "started": int(time.time()), "result": result}
+        later(1.5, finish)
+        return jsonify(ok=True, state="running")
+    return jsonify(dict(S["measure"], ok=True))
+
+
+@app.route("/api/recordings/<sid>", methods=["GET", "DELETE"])
+def mock_recording(sid):
+    r = rec_find(sid)
+    if r is None or not REC_ID.match(sid):
+        return jsonify(ok=False, error="no such recording"), 404
+    if request.method == "DELETE":
+        S["recordings"] = [x for x in S["recordings"] if x["id"] != sid]
+        S["rec_posts"].append(["delete", sid, None])
+        return jsonify(ok=True)
+    return jsonify(ok=True, session=r, frames=S["rec_frames"].get(sid, []))
+
+
+@app.route("/api/recordings/<sid>/frames/<int:n>.jpg")
+def mock_recording_frame(sid, n):
+    shade = 40 + (n * 13) % 180
+    svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 540 360"><rect width="540" height="360" fill="rgb(%d,%d,%d)"/><text x="20" y="60" font-size="48" fill="white">%d</text></svg>' % (shade, shade, shade, n)
+    return Response(svg, mimetype="image/svg+xml")
+
+
+@app.route("/api/recordings/<sid>/label", methods=["POST"])
+def mock_recording_label(sid):
+    r = rec_find(sid)
+    body = request.get_json(silent=True) or {}
+    if r is None:
+        return jsonify(ok=False, error="no such recording"), 404
+    if body.get("outcome") not in ("ok", "failed", None):
+        return jsonify(ok=False, error="outcome must be ok, failed or null"), 400
+    r["label"] = {"outcome": body.get("outcome"), "failed_at": body.get("failed_at") if body.get("outcome") == "failed" else None}
+    S["rec_posts"].append(["label", sid, body])
+    return jsonify(ok=True, label=r["label"])
+
+
+@app.route("/api/print/alerts/image/<name>")
+def mock_alert_image(name):
+    return Response('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 90 60"><rect width="90" height="60" fill="#555"/></svg>', mimetype="image/svg+xml")
+
+
+@app.route("/api/print/alerts/history")
+def mock_alert_history():
+    return jsonify(ok=True, alerts=S["alerts"][: int(request.args.get("limit", 20))])
+
+
+@app.route("/api/print/alerts/<aid>/label", methods=["POST"])
+def mock_alert_label(aid):
+    body = request.get_json(silent=True) or {}
+    for alert in S["alerts"]:
+        if alert["id"] == aid:
+            alert["label"] = body.get("label")
+            S["rec_posts"].append(["alert", aid, body])
+            return jsonify(ok=True, alert=alert)
+    return jsonify(ok=False, error="no such alarm"), 404
+
+
 @app.route("/api/logos")
 def api_logos():
     if S["brain"] == "old":
@@ -956,7 +1053,7 @@ def ai_config():
     return jsonify(ok=True)
 @app.route("/api/print/detector/status")
 def det_status():
-    return jsonify(ok=True, enabled=True, running=True, stats={"status": S["detector_status"], "last_score": 12, "frames_checked": 34},
+    return jsonify(ok=True, enabled=True, running=True, stats=dict({"status": S["detector_status"], "last_score": 12, "frames_checked": 34}, **S["detector_extra"]),
                    real_print_started=True, progress=42)
 @app.route("/api/print/last_analysis")
 def last_analysis():

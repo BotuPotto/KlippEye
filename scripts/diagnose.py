@@ -172,7 +172,7 @@ def backend(url, token):
     if error:
         line("does NOT answer: %s" % error)
         return
-    for key in ("release", "api", "uptime", "data_dir", "legacy", "repair"):
+    for key in ("release", "api", "uptime", "data_dir", "repair"):
         if key in version:
             line("%-15s %s" % (key + ":", json.dumps(version[key], ensure_ascii=False)))
     auth, _ = get_json(url + "/api/auth/status", headers)
@@ -184,6 +184,15 @@ def backend(url, token):
         stats = detector.get("stats") or {}
         line("AI monitor:     %s; status: %s; checks: %s; last score: %s%%" % (
             "on" if detector.get("enabled", stats.get("enabled")) else "off", stats.get("status", "?"), stats.get("frames_checked", "?"), stats.get("last_score", "?")))
+        if "check_ms" in stats or "cpu_percent" in stats:
+            line("monitor load:   %s ms per check; backend CPU %s%% of one core (last minute)" % (stats.get("check_ms", "?"), stats.get("cpu_percent", "?")))
+    recordings, _ = get_json(url + "/api/recordings", headers)
+    if isinstance(recordings, dict) and "sessions" in recordings:
+        sessions = recordings.get("sessions") or []
+        marked = sum(1 for s in sessions if (s.get("label") or {}).get("outcome"))
+        line("recordings:     %s; %d print(s), %d marked, %d MB of %d MB; %s" % (
+            "on" if recordings.get("enabled") else "off", len(sessions), marked, (recordings.get("used_bytes") or 0) // 1024 ** 2,
+            (recordings.get("max_bytes") or 0) // 1024 ** 2, recordings.get("status", "?")))
     ai, _ = get_json(url + "/api/ai/config", headers)
     if isinstance(ai, dict):
         line("AI service:     %s" % ("%s, model %s" % (ai.get("provider", "?"), ai.get("model") or "default") if ai.get("configured") else "no key"))

@@ -134,6 +134,10 @@ PY
       exec python3 "$REPO/scripts/diagnose.py" --repo "$REPO" --data "$DATA" --backend "$BACKEND_URL"
     fi
     ;;
+  replay)
+    # measures the AI monitor on the recorded prints (Settings > Recordings); options: see the top of scripts/replay.py
+    exec nice -n 10 python3 "$REPO/scripts/replay.py" --data "$DATA" "${@:2}"
+    ;;
   undo-install)
     exec bash "$REPO/scripts/install.sh" --undo
     ;;
@@ -149,7 +153,8 @@ klippeye notify test         send a test notification to the phone   (also: chec
 klippeye password [set|remove|status|logout-all]   optional dashboard password ("klippeye password" sets it)
 klippeye access host-add NAME   allow one more host name (e.g. printer.example.com)   (also: host-remove NAME, network-checks on|off, status)
 klippeye diagnose [--save]   a report to share when asking for help (nothing secret in it; --save writes it to a file)
-klippeye undo-install        go back to the file layout used before the container installation (release 1.0)
+klippeye replay [--current] [--set KEY=VALUE]   measure the AI monitor on the recorded prints: alarms per hour, how many false
+klippeye undo-install        take KlippEye off (services, commands, update manager entry)
 The Italian names of older releases still work (stato, riavvia, aggiorna...).
 HELP
     ;;

@@ -107,6 +107,21 @@ and `~/printer_data/klippeye/alerts/`).
 | the AI reports doubtful problems | raise "Minimum AI confidence" (70 → 80) |
 | a real failure goes unnoticed | lower "Movement at the edges" or make the watched area larger |
 
+### Measuring the monitor (recordings)
+
+Instead of guessing whether a change of the thresholds helps, measure it:
+
+1. **Settings → Recordings → Record the prints**. During every print the backend keeps the pictures the monitor looked at
+   (small, about 150 MB for a four-hour print) with layer, position and score, in `~/printer_data/klippeye/recordings/`. The
+   oldest prints are deleted when the chosen space is full, and nothing is recorded with less than 1 GB free on the disk.
+2. After each print, in the same page: mark each **alarm** as *False alarm* or *Real problem*, and open the print to say
+   **It went fine**, or, if it failed, move to the first picture where the problem shows and press **It failed from here**.
+3. **Measure now** runs the monitor again on every recorded print, with the thresholds in use now, and shows the alarms per
+   hour, how many were false and whether each failure was caught (and how long it took). From the terminal, to compare other
+   thresholds: `klippeye replay --set sensitivity=45 --set persist_checks=4` (options: `scripts/replay.py`).
+
+The page also shows the **monitor load**: the time of one check and the CPU the backend used in the last minute.
+
 ## 6. Android app and notifications
 
 The Android app is a full-screen window on the dashboard, with push notifications, file downloads and its own updates.
