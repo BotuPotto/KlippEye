@@ -9,11 +9,12 @@
      Notifiche        which notifications the phone gets (done by the service on the Raspberry, see notifier/)
      Monitor IA       automatic pause / cancel, and how sure the AI must be before anything happens
      Soglie monitor   the limits the backend's camera watcher uses (kept by the backend, see 59a-detector-settings.js)
+     Registrazioni    the recorded prints, the alarms to mark and the measurement of the monitor (see 59e-recordings.js)
      Aggiornamenti    release installed, update / rollback / restart of KlippEye (see 59b-software-settings.js)
    What is stored and how is app/16-settings.js. Every change counts at once and is saved a moment later.
    ========================================================================== */
 
-const SETTINGS_PAGES = ["printer", "camera", "network", "zoffset", "notifications", "ai", "detector", "software"];
+const SETTINGS_PAGES = ["printer", "camera", "network", "zoffset", "notifications", "ai", "detector", "recordings", "software"];
 const SETTINGS_TYPING_MS = 800; // a typed value is taken when the typing stops (and when the field is left or the menu closed)
 const SWIPE_CLOSE_PX = 70; // a swipe to the left at least this long closes the menu
 /** The notification service writes its sign of life this often; one not seen for longer than this is not running. */
@@ -641,6 +642,8 @@ function settingsSummary(page, settings, brain) {
   switch (page) {
     case "detector":
       return detectorSummary(brain.version);
+    case "recordings":
+      return recordingsSummary(brain.recordings);
     case "access":
       return accessSummary(brain.access);
     case "software":
@@ -670,6 +673,7 @@ const SETTINGS_ENTRIES = [
   { id: "notifications", title: tx("Notifications"), icon: Icons.Bell },
   { id: "ai", title: tx("AI monitor"), icon: Icons.Sparkle },
   { id: "detector", title: tx("Monitor thresholds"), icon: Icons.Sliders },
+  { id: "recordings", title: tx("Recordings"), icon: Icons.Image },
   { id: "access", title: tx("Access"), icon: Icons.Lock },
   { id: "software", title: tx("Updates"), icon: Icons.Download },
   { id: "language", title: tx("Language"), icon: Icons.Language },
@@ -678,7 +682,7 @@ const PAGE_TITLES = Object.fromEntries(SETTINGS_ENTRIES.map((entry) => [entry.id
 
 function SettingsHome({ menu }) {
   const { settings, sync } = useSettings();
-  const brain = { version: useBrainVersion(true), update: useProgramUpdate(true), app: useAppRelease(true), access: useAccessStatus(true)[0] };
+  const brain = { version: useBrainVersion(true), update: useProgramUpdate(true), app: useAppRelease(true), access: useAccessStatus(true)[0], recordings: useBackendJson("/api/recordings", true, BRAIN_POLL_MS) };
   return h(
     React.Fragment,
     null,
@@ -726,6 +730,7 @@ function SettingsDrawer({ menu, updates, printing, actions }) {
   else if (page === "notifications") body = h(NotificationsPage, { active: true });
   else if (page === "ai") body = h(AiPage, { active: true, menu });
   else if (page === "detector") body = h(DetectorPage, { active: true });
+  else if (page === "recordings") body = h(RecordingsPage, { active: true });
   else if (page === "access") body = h(AccessPage, { active: true });
   else if (page === "language") body = h(LanguagePage);
   else if (page === "software") body = h(SoftwarePage, { active: true, menu, updates, printing, actions });

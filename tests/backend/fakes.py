@@ -54,12 +54,13 @@ class Fake:
                 if self.path.startswith("/printer/objects/query"):
                     fake.status_calls += 1
                     doc = {"result": {"status": {
-                        "print_stats": {"state": s["print_state"], "total_duration": s["total_duration"], "filename": "test.gcode"},
+                        "print_stats": {"state": s["print_state"], "total_duration": s["total_duration"], "filename": s.get("filename", "test.gcode"),
+                                        "info": {"current_layer": s.get("layer", 3), "total_layer": 40}},
                         "extruder": {"temperature": s["hotend"], "target": s["hotend_target"]},
                         "heater_bed": {"temperature": s["bed"], "target": s["bed_target"]},
                         "display_status": {"progress": s["progress"]},
                         "virtual_sdcard": {"file_position": s["file_position"], "file_size": s["file_size"]},
-                        "toolhead": {"position": [0, 0, s["z"], 0]},
+                        "toolhead": {"position": [120.5, 80.25, s["z"], 0]},
                     }}}
                     return self._send(200, json.dumps(doc).encode())
                 if self.path.startswith("/printer/info"):

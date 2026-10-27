@@ -496,6 +496,8 @@ CONFIG_GROUPS = [
     {"id": "avvio", "title": "When it starts checking",
      "note": "During heating, mesh or purge the real print has not started yet: the monitor waits."},
     {"id": "ia", "title": "AI model", "note": ""},
+    {"id": "recording", "title": "Recording",
+     "note": "While a print runs the backend keeps the pictures the monitor looked at (small, about 30 KB each) with layer, position and score, so that the monitor can be measured afterwards. The oldest prints are deleted when the space is full."},
 ]
 
 CONFIG_SPEC = [
@@ -549,6 +551,11 @@ CONFIG_SPEC = [
     {"key": "hotend_tolerance", "type": "int", "default": 8, "min": 2, "max": 50, "step": 1, "unit": "°C", "group": "avvio",
      "label": "Maximum nozzle deviation",
      "help": "If the nozzle is further than this from its target temperature, the real print has not started yet."},
+    {"key": "record", "type": "bool", "default": False, "group": "recording", "label": "Record the prints",
+     "help": "Keeps the monitor's pictures of every print in the data folder: with them you mark the alarms and measure how many are false (Settings → Recordings)."},
+    {"key": "record_max_mb", "type": "int", "default": 2000, "min": 200, "max": 50000, "step": 100, "unit": "MB", "group": "recording",
+     "label": "Space for the recordings",
+     "help": "A four-hour print takes about 150 MB. Over this limit the oldest prints are deleted; with less than 1 GB free on the disk nothing is recorded."},
     {"key": "ai_model", "type": "text", "default": "", "maxlen": 80, "pattern": r"[A-Za-z0-9._:/@+-]*", "group": "ia",
      "label": "AI model (optional)",
      "help": "Empty = the default of the chosen service. Write it only if the service retires the model (error 404 or 'model not found')."},
@@ -714,8 +721,7 @@ def _git_info(_cache={"at": 0.0, "value": None}):
 AI_IMAGE_WIDTH = 1080
 AI_IMAGE_HEIGHT = 720
 AI_IMAGE_QUALITY = 85  # jpeg quality
-OPENCV_WIDTH = 1080
-OPENCV_HEIGHT = 720
+from monitor_core import OPENCV_WIDTH, OPENCV_HEIGHT, REFERENCE_SAMPLES, FrameJudge  # noqa: E402  (the judging part of the monitor)
 # V18: everything at 1080x720 - more CPU but the most detail
 
 
@@ -1740,22 +1746,14 @@ Answer in {LANGUAGE_NAMES.get(language, "English")}, technical but clear, with b
 import threading
 import time
 from collections import deque
-try:
-    import cv2
-    import numpy as np
-    HAS_CV2 = True
-except ImportError as e:
-    cv2 = None
-    np = None
-    HAS_CV2 = False
-    print(f"[OPENCV] cv2/numpy not installed, detector off: {e} - install with: sudo apt install python3-opencv")
+from monitor_core import HAS_CV2, cv2, np  # noqa: E402
+from recorder import Recorder  # noqa: E402  (the pictures of the prints, to measure the monitor)
+if not HAS_CV2:
+    print("[OPENCV] cv2/numpy not installed, detector off - install with: sudo apt install python3-opencv")
 
 # --- alert history: what the monitor saw and what the AI said, with the pictures (to see how many were real) ---
 ALERT_HISTORY_DIR = os.path.join(DATA_DIR, "alerts")
 ALERT_HISTORY_KEEP = 40  # events with pictures
-REFERENCE_SAMPLES = 7  # background pictures (median)
-REFERENCE_MIN = 5  # below this number the comparison is not ready
-GLOBAL_STREAK_MAX = 10  # checks in a row with a "global" change before it counts as real
 _history_lock = threading.Lock()
 
 
@@ -1766,6 +1764,10 @@ def record_alert(event, image_path=None, reference_path=None):
             os.makedirs(ALERT_HISTORY_DIR, exist_ok=True)
             stamp = time.strftime("%Y%m%d-%H%M%S")
             event = dict(event, time=time.strftime("%Y-%m-%d %H:%M:%S"), id=stamp)
+            try:
+                recorder.attach_alert(event)  # the recording of the print this alarm belongs to, if it is being recorded
+            except Exception as error:
+                print(f"[RECORDER] alert not linked: {error}")
             for key, path, suffix in (("image", image_path, "now"), ("reference", reference_path, "before")):
                 if path and os.path.isfile(path):
                     name = "%s-%s.jpg" % (stamp, suffix)
@@ -1918,77 +1920,54 @@ def apply_min_confidence(parsed, minimum, language="en"):
     return out, True
 
 
-class LightDetector:
+class LightDetector(FrameJudge):
+    """The live monitor: a thread that, while a real print runs, takes a camera picture every few seconds, has it judged
+    (FrameJudge, monitor_core.py) and on a trigger saves the picture and asks the AI."""
+
     def __init__(self):
+        FrameJudge.__init__(self)
         self.enabled = True  # AUTO-ENABLED
         self.running = False
         self.thread = None
         self.generation = 0  # every start() opens a new one: an old loop still asleep understands by itself that it must end
-        self.last_frames = deque(maxlen=5)
-        self.roi = None
-        # The thresholds below are the defaults; right after creation apply_config() puts the saved ones
-        # (monitor.json) and from then on the dashboard changes them: /api/backend/config.
-        self.sensitivity = 35  # V18: raised from 25 to 35 for fewer false positives
-        self.trigger_count = 0
-        self.trigger_threshold = 3
-        self.cooldown_until = 0
-        self.cooldown_sec = 90  # longer cooldown, not to flood the AI service
         self.last_ai_call = 0
-        self.ai_cooldown = 120  # 120 s between AI calls
-        self.score_threshold = 2.5  # % of the outer band that must move (V18: from 1.5 to 2.5)
-        self.check_interval = 3  # secondi tra due controlli
-        self.border = 0.25  # width of the outer band, fraction of the watched area
-        self.warmup = 90  # seconds of printing before checking starts
-        self.min_progress = 2  # % of progress before checking starts
-        self.hotend_tol = 8  # scarto massimo dell'ugello dalla temperatura impostata
-        self.ai_model = ""  # empty: the service's default model
-        self.persistent_filter = True  # filtro anti falsi allarmi (vedi _persistent_score)
-        self.persist_checks = 3
-        self.reference_seconds = 60
-        self.global_change = 30.0
-        self.ai_min_confidence = 70
-        self.ai_send_reference = True
-        self.recent_masks = deque(maxlen=3)
-        self.ref_small = deque(maxlen=REFERENCE_SAMPLES)  # (time, small grey picture) for the background
-        self.ref_jpegs = deque(maxlen=REFERENCE_SAMPLES)  # (time, picture as the camera sent it) to show the AI "how it was before"
-        self.bg = None
-        self.global_streak = 0
-        self.stats = {
-            "frames_checked": 0,
-            "anomalies": 0,
-            "last_trigger": None,
-            "last_score": 0,
-            "status": "idle - waiting for a print"
-        }
         self.last_alert_img_path = None
         self.last_analysis = None  # last AI result, formatted
+        self.meta = {}  # what the printer was doing at the last round (layer, position, progress): goes with the recorded picture
+        self.next_cool_frame = 0.0
+        self.cpu_mark = None  # (wall time, process CPU time) at the start of the current measuring window
+        self.check_ms = None
+
+    def _measure(self, judge_seconds):
+        """How heavy the monitor is: the time of one check (decoding + judging, averaged) and the CPU the whole backend used
+        over the last minute, in % of one core. Both go to the status (/api/print/detector/status) and to the recording."""
+        ms = judge_seconds * 1000.0
+        self.check_ms = ms if self.check_ms is None else self.check_ms * 0.9 + ms * 0.1
+        self.stats["check_ms"] = round(self.check_ms, 1)
+        now, cpu = time.time(), sum(os.times()[:2])
+        if self.cpu_mark is None:
+            self.cpu_mark = (now, cpu)
+        elif now - self.cpu_mark[0] >= 60:
+            self.stats["cpu_percent"] = round(100.0 * (cpu - self.cpu_mark[1]) / (now - self.cpu_mark[0]), 1)
+            self.cpu_mark = (now, cpu)
+            recorder.note_cpu(self.check_ms, self.stats["cpu_percent"])
+
+    def _record_during_cooldown(self):
+        """After an alarm the monitor rests, but the recording goes on (a replay with a shorter pause needs those pictures)."""
+        now = time.time()
+        if now < self.next_cool_frame or recorder.session is None:
+            return
+        self.next_cool_frame = now + self.check_interval
+        try:
+            r = requests.get(f"{CAMERA_NGINX_URL}/snapshot", timeout=4)
+            frame = cv2.imdecode(np.frombuffer(r.content, np.uint8), cv2.IMREAD_COLOR) if r.ok and len(r.content) >= 1000 else None
+            if frame is not None:
+                recorder.add_frame(frame, now, dict(self.meta, score=None, trig=False, cool=True))
+        except Exception as error:
+            print(f"[RECORDER] picture during the pause not taken: {error}")
 
     def set_roi(self, x, y, w, h):
         self.roi = (x,y,w,h)
-
-    def apply_config(self, values):
-        """Puts the thresholds in use (a backendConfig dict). They apply from the next check, nothing is restarted."""
-        self.sensitivity = values["sensitivity"]
-        self.score_threshold = values["score_threshold"]
-        self.trigger_threshold = values["trigger_count"]
-        self.check_interval = values["check_interval"]
-        self.border = values["border"] / 100.0
-        self.cooldown_sec = values["cooldown"]
-        self.ai_cooldown = values["ai_cooldown"]
-        self.warmup = values["warmup_seconds"]
-        self.min_progress = values["min_progress"]
-        self.hotend_tol = values["hotend_tolerance"]
-        self.ai_model = values["ai_model"]
-        self.persistent_filter = values["persistent_filter"]
-        if values["persist_checks"] != self.persist_checks or self.recent_masks.maxlen != values["persist_checks"]:
-            self.recent_masks = deque(maxlen=values["persist_checks"])
-        self.persist_checks = values["persist_checks"]
-        self.reference_seconds = values["reference_seconds"]
-        self.global_change = values["global_change"]
-        self.ai_min_confidence = values["ai_min_confidence"]
-        self.ai_send_reference = values["ai_send_reference"]
-        x, y, w, h = values["roi"]  # in % dell'immagine -> pixel dell'immagine ridimensionata (1080x720)
-        self.roi = (int(OPENCV_WIDTH * x / 100), int(OPENCV_HEIGHT * y / 100), int(OPENCV_WIDTH * w / 100), int(OPENCV_HEIGHT * h / 100))
 
     def start(self):
         if not HAS_CV2:
@@ -2031,6 +2010,7 @@ class LightDetector:
                 # Cooldown check
                 if time.time() < self.cooldown_until:
                     self.stats["status"] = f"cooldown {int(self.cooldown_until - time.time())}s"
+                    self._record_during_cooldown()
                     self._nap(generation, 1)
                     continue
                 # Check if printing
@@ -2045,6 +2025,7 @@ class LightDetector:
                     tool = status.get("toolhead",{})
                     bed = status.get("heater_bed",{})
                     state = ps.get("state","")
+                    recorder.observe(state, ps.get("filename", ""), time.time(), brain_config.snapshot())
 
                     if state != "printing":
                         self._reset_reference()  # a new print starts with a new background
@@ -2094,6 +2075,11 @@ class LightDetector:
                         pass
 
                     self.stats["real_print_started"] = real_started
+                    info = ps.get("info") or {}
+                    position = tool.get("position") or []
+                    self.meta = {"layer": info.get("current_layer"), "layers": info.get("total_layer"),
+                                 "pos": [round(float(v), 1) for v in position[:3]] if len(position) >= 3 else None,
+                                 "progress": round(float(progress) * 100, 1)}
                     self.stats["real_print_reason"] = "; ".join(reasons) if reasons else "ok - real print"
                     self.stats["progress"] = progress
                     self.stats["file_progress"] = file_progress
@@ -2115,8 +2101,10 @@ class LightDetector:
                     if not r.ok or len(r.content) < 1000:
                         self._nap(generation, 2)
                         continue
+                    decode_started = time.time()
                     img_arr = np.frombuffer(r.content, np.uint8)
                     frame = cv2.imdecode(img_arr, cv2.IMREAD_COLOR)
+                    decode_seconds = time.time() - decode_started
                     if frame is None:
                         self._nap(generation, 2)
                         continue
@@ -2125,27 +2113,16 @@ class LightDetector:
                     self._nap(generation, 3)
                     continue
 
-                score = self._persistent_score(frame, r.content) if self.persistent_filter else self._motion_score(frame)
+                now = time.time()
+                score, triggered = self.judge(frame, r.content, now)
+                recorder.add_frame(frame, now, dict(self.meta, score=None if score is None else round(score, 2), trig=triggered))
+                self._measure(time.time() - now + decode_seconds)  # decoding, judging and (when on) recording
                 if score is None:  # the comparison is not ready yet, or this check is to be ignored (light change)
                     self._nap(generation, self.check_interval)
                     continue
-                self.stats["last_score"] = round(score, 2)
 
-                # threshold: more than 2.5% (default) of the outer pixels moving = suspicious
-                if score > self.score_threshold:  # V18: from 1.5% to 2.5% for fewer false positives
-                    self.trigger_count += 1
-                    self.stats["anomalies"] += 1
-                    print(f"[OPENCV] Anomalia {self.trigger_count}/{self.trigger_threshold} score={score:.2f}%")
-                else:
-                    self.trigger_count = max(0, self.trigger_count-1)
-
-                if self.trigger_count >= self.trigger_threshold:
-                    # TRIGGER!
-                    print(f"[OPENCV] TRIGGER spaghetti! score={score:.2f}%")
-                    self.stats["last_trigger"] = time.strftime("%Y-%m-%d %H:%M:%S")
-                    self.stats["status"] = f"TRIGGERED score={score:.2f}%"
-                    self.cooldown_until = time.time() + self.cooldown_sec
-                    self.trigger_count = 0
+                if triggered:
+                    recorder.note_trigger(now)
                     # save a full-resolution picture for the AI
                     try:
                         prune_alert_images(keep=20)  # old alert pictures do not pile up for ever (now + before)
@@ -2180,54 +2157,6 @@ class LightDetector:
                 print(f"[OPENCV] loop error: {e}")
                 self._nap(generation, 3)
 
-    def _motion_score(self, frame):
-        """The older detection (filter off): how much the outer band moves between two pictures in a row, in % of the area."""
-        # resize to 1080x720 for detail - V18 FULL HD (6-11% CPU)
-        small = cv2.resize(frame, (OPENCV_WIDTH, OPENCV_HEIGHT))
-        gray = cv2.cvtColor(small, cv2.COLOR_BGR2GRAY)
-        gray = cv2.GaussianBlur(gray, (21, 21), 0)
-
-        self.last_frames.append(gray)
-        self.stats["frames_checked"] += 1
-        self.stats["status"] = "scanning"
-
-        if len(self.last_frames) < 3:
-            return None
-
-        # compare with the previous frame (simple background subtraction)
-        prev = self.last_frames[-2]
-        diff = cv2.absdiff(prev, gray)
-        thresh = cv2.threshold(diff, self.sensitivity, 255, cv2.THRESH_BINARY)[1]
-        thresh = cv2.dilate(thresh, None, iterations=2)
-        return self._periphery_score(thresh, 1.0)
-
-    def _roi_rect(self, shape, scale):
-        """The watched area (pixels of the 1080x720 picture) at the scale of the picture being looked at."""
-        h, w = shape[:2]
-        if self.roi is None:
-            return int(w * 0.2), int(h * 0.2), int(w * 0.6), int(h * 0.6)
-        x, y, rw, rh = self.roi
-        return int(x * scale), int(y * scale), int(rw * scale), int(rh * scale)
-
-    def _periphery_mask(self, h, w):
-        border = self.border  # outer band: 25% by default (0.25 / 0.75)
-        mask = np.zeros((h, w), np.uint8)
-        mask[:int(h * border), :] = 255  # alto
-        mask[int(h * (1 - border)):, :] = 255  # basso
-        mask[:, :int(w * border)] = 255  # sinistra
-        mask[:, int(w * (1 - border)):] = 255  # destra
-        return mask
-
-    def _periphery_score(self, thresh, scale):
-        """% of the watched area covered by "changed" points in the outer band."""
-        x, y, rw, rh = self._roi_rect(thresh.shape, scale)
-        roi_thresh = thresh[y:y + rh, x:x + rw]
-        h_roi, w_roi = roi_thresh.shape
-        if h_roi == 0 or w_roi == 0:
-            return 0.0
-        moved = cv2.bitwise_and(roi_thresh, roi_thresh, mask=self._periphery_mask(h_roi, w_roi))
-        return (cv2.countNonZero(moved) / (w_roi * h_roi)) * 100
-
     def _save_reference(self, adesso_path):
         """The "before" picture for the AI: the oldest of the background ones (~reference_seconds ago). -> (path, age in seconds) or (None, None)."""
         if not (self.ai_send_reference and self.persistent_filter and self.ref_jpegs):
@@ -2244,78 +2173,6 @@ class LightDetector:
         except Exception as error:
             print(f"[OPENCV] earlier picture not saved: {error}")
             return None, None
-
-    def _reset_reference(self):
-        self.ref_small.clear()
-        self.ref_jpegs.clear()
-        self.recent_masks.clear()
-        self.bg = None
-        self.global_streak = 0
-
-    def _persistent_score(self, frame, raw):
-        """
-        The filter against false alarms. Instead of comparing two pictures in a row (the passing print head is enough to trigger):
-          1. the BACKGROUND is the median of 7 pictures spread over the last `reference_seconds`: what stays in a place only
-             for a moment (print head, hand, reflection) is not part of it;
-          2. the average brightness is aligned to the background's (the camera adjusting its exposure is not movement);
-          3. if more than `global_change`% of the whole picture changes at once (light, camera moved) the check is ignored, but
-             if it lasts more than GLOBAL_STREAK_MAX checks in a row it is a real change;
-          4. only what changed against the background, in the outer band of the area, in ALL the last `persist_checks` checks counts.
-        It works at half resolution: 4 times fewer points to look at. -> % of the area, or None (nothing to count now).
-        """
-        now = time.time()
-        small = cv2.resize(frame, (OPENCV_WIDTH // 2, OPENCV_HEIGHT // 2), interpolation=cv2.INTER_AREA)
-        gray = cv2.GaussianBlur(cv2.cvtColor(small, cv2.COLOR_BGR2GRAY), (11, 11), 0)
-        self.stats["frames_checked"] += 1
-        if self.ref_small and now - self.ref_small[-1][0] > 2 * self.reference_seconds:
-            self._reset_reference()  # a long pause: the old background is no longer valid
-        result = None
-        if self.bg is not None and self.bg.shape == gray.shape:
-            result = self._compare_with_background(gray)
-        else:
-            self.stats["status"] = "preparing the comparison (%d/%d pictures)" % (len(self.ref_small), REFERENCE_MIN)
-        step = max(self.check_interval, self.reference_seconds / REFERENCE_SAMPLES)
-        if not self.ref_small or now - self.ref_small[-1][0] >= step:
-            self.ref_small.append((now, gray))
-            self.ref_jpegs.append((now, raw))
-            if len(self.ref_small) >= REFERENCE_MIN:
-                self.bg = np.median(np.stack([g for _, g in self.ref_small]), axis=0).astype(np.uint8)
-        return result
-
-    def _compare_with_background(self, gray):
-        shift = float(gray.mean()) - float(self.bg.mean())
-        if abs(shift) > 1:
-            gray = cv2.convertScaleAbs(gray, alpha=1.0, beta=-shift)
-        thresh = cv2.threshold(cv2.absdiff(self.bg, gray), self.sensitivity, 255, cv2.THRESH_BINARY)[1]
-        changed = cv2.countNonZero(thresh) * 100.0 / thresh.size
-        self.stats["global_change"] = round(changed, 1)
-        if changed > self.global_change:
-            self.global_streak += 1
-            self.recent_masks.clear()
-            if self.global_streak < GLOBAL_STREAK_MAX:
-                self.stats["ignored_global"] = self.stats.get("ignored_global", 0) + 1
-                self.stats["status"] = f"light change or camera moved ({changed:.0f}% of the picture): ignored"
-                return None
-            self.stats["status"] = "scanning (large lasting change)"
-            return changed  # it lasted many checks: not a flash of light
-        self.global_streak = 0
-        thresh = cv2.dilate(thresh, None, iterations=1)
-        x, y, rw, rh = self._roi_rect(thresh.shape, 0.5)
-        roi = thresh[y:y + rh, x:x + rw]
-        if roi.size == 0:
-            return 0.0
-        if self.recent_masks and self.recent_masks[-1].shape != roi.shape:
-            self.recent_masks.clear()  # l'area e' stata cambiata dal menu
-        self.recent_masks.append(roi)
-        self.stats["status"] = "scanning"
-        if len(self.recent_masks) < self.recent_masks.maxlen:
-            return 0.0
-        persistent = self.recent_masks[0]
-        for other in list(self.recent_masks)[1:]:
-            persistent = cv2.bitwise_and(persistent, other)
-        h_roi, w_roi = persistent.shape
-        stays = cv2.bitwise_and(persistent, persistent, mask=self._periphery_mask(h_roi, w_roi))
-        return (cv2.countNonZero(stays) / (w_roi * h_roi)) * 100
 
     def call_ai_analysis(self, img_path, ref_path=None, ref_age=None):
         """Asks the AI to look at the picture (and, if there is one, at how it was before) when the monitor triggers, with nobody involved."""
@@ -2465,8 +2322,11 @@ class LightDetector:
             print(f"[OPENCV] AI call fail: {e}")
             import traceback; traceback.print_exc()
 
+RECORDINGS_DIR = os.path.join(DATA_DIR, "recordings")
+recorder = Recorder(RECORDINGS_DIR, cv2 if HAS_CV2 else None, RELEASE)
 detector = LightDetector()
 detector.apply_config(brain_config.snapshot())  # the saved thresholds (or the defaults) apply from the first check
+recorder.configure(brain_config.snapshot()["record"], brain_config.snapshot()["record_max_mb"])
 
 
 def set_brain_config(changes):
@@ -2476,6 +2336,7 @@ def set_brain_config(changes):
         return errors, changed
     values = brain_config.snapshot()
     detector.apply_config(values)
+    recorder.configure(values["record"], values["record_max_mb"])
     if "enabled" in changed:
         if values["enabled"]:
             detector.start()
@@ -2944,6 +2805,157 @@ def api_print_last_analysis():
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+ALERT_LABELS = ("false", "right")
+
+
+def label_alert(alert_id, label):
+    """The person's verdict on an alarm: "false" (false alarm), "right" (there was a problem) or None (not said).
+    Written in the alert history and in the recording of that print. -> the entry, or None when there is no such alarm."""
+    with _history_lock:
+        log = os.path.join(ALERT_HISTORY_DIR, "history.jsonl")
+        try:
+            with open(log, encoding="utf-8") as fh:
+                lines = [l for l in fh.read().splitlines() if l.strip()]
+        except OSError:
+            return None
+        found = None
+        for index, line in enumerate(lines):
+            try:
+                entry = _english_alert(json.loads(line))
+            except ValueError:
+                continue
+            if entry.get("id") == alert_id:
+                if label is None:
+                    entry.pop("label", None)
+                else:
+                    entry["label"] = label
+                lines[index] = json.dumps(entry, ensure_ascii=False)
+                found = entry
+        if found is None:
+            return None
+        with open(log + ".tmp", "w", encoding="utf-8") as fh:
+            fh.write("\n".join(lines) + "\n")
+        os.replace(log + ".tmp", log)
+    if found.get("session"):
+        recorder.label_alert(found["session"], alert_id, label)
+    return found
+
+
+@app.route("/api/print/alerts/<alert_id>/label", methods=["POST"])
+def api_alert_label(alert_id):
+    """{"label": "false" | "right" | null}: was this alarm a false alarm or a real problem?"""
+    body = request.get_json(silent=True)
+    label = body.get("label") if isinstance(body, dict) else "?"
+    if label not in ALERT_LABELS + (None,) or not re.fullmatch(r"\d{8}-\d{6}", alert_id):
+        return jsonify({"ok": False, "error": "label must be false, right or null"}), 400
+    entry = label_alert(alert_id, label)
+    if entry is None:
+        return jsonify({"ok": False, "error": "no such alarm"}), 404
+    return jsonify({"ok": True, "alert": entry})
+
+
+# === RECORDINGS: the pictures of the prints, to measure the monitor (recorder.py, scripts/replay.py) ================
+REPLAY_SCRIPT = os.path.join(REPO_DIR, "scripts", "replay.py")
+MEASURE_PATH = os.path.join(RECORDINGS_DIR, "measure.json")
+_measure = {"process": None, "started": None}
+_measure_lock = threading.Lock()
+
+
+def _no_store(response):
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+@app.route("/api/recordings", methods=["GET"])
+def api_recordings():
+    """The recordings (newest first), the space they take and what the recorder is doing."""
+    return _no_store(jsonify(dict(recorder.summary(), ok=True)))
+
+
+@app.route("/api/recordings/<sid>", methods=["GET"])
+def api_recording(sid):
+    """One recording: its session.json and the list of its pictures (number, time, score, alarm, layer, progress)."""
+    session = recorder.load(sid)
+    if session is None:
+        return jsonify({"ok": False, "error": "no such recording"}), 404
+    frames = [{k: f.get(k) for k in ("n", "t", "score", "trig", "cool", "layer", "layers", "progress")} for f in recorder.frames(sid)]
+    return _no_store(jsonify({"ok": True, "session": session, "frames": frames}))
+
+
+@app.route("/api/recordings/<sid>/frames/<int:n>.jpg", methods=["GET"])
+def api_recording_frame(sid, n):
+    path = recorder.frame_path(sid, n)
+    if path is None:
+        return jsonify({"ok": False, "error": "no such picture"}), 404
+    return send_file(path, mimetype="image/jpeg", max_age=3600)
+
+
+@app.route("/api/recordings/<sid>/label", methods=["POST"])
+def api_recording_label(sid):
+    """{"outcome": "ok" | "failed" | null, "failed_at": time (seconds, only with "failed")}: how the print really went."""
+    body = request.get_json(silent=True)
+    if not isinstance(body, dict):
+        return jsonify({"ok": False, "error": "a JSON object is needed"}), 400
+    try:
+        label = recorder.set_label(sid, body.get("outcome"), body.get("failed_at"))
+    except KeyError:
+        return jsonify({"ok": False, "error": "no such recording"}), 404
+    except ValueError as error:
+        return jsonify({"ok": False, "error": str(error)}), 400
+    return jsonify({"ok": True, "label": label})
+
+
+@app.route("/api/recordings/<sid>", methods=["DELETE"])
+def api_recording_delete(sid):
+    if not recorder.delete(sid):
+        return jsonify({"ok": False, "error": "no such recording"}), 404
+    return jsonify({"ok": True})
+
+
+def _measure_state():
+    process = _measure["process"]
+    if process is not None and process.poll() is None:
+        return {"state": "running", "started": _measure["started"]}
+    try:
+        with open(MEASURE_PATH, encoding="utf-8") as f:
+            result = json.load(f)
+        return {"state": "done" if result.get("ok") else "error", "started": _measure["started"], "result": result}
+    except (OSError, ValueError):
+        return {"state": "error" if process is not None else "idle", "started": _measure["started"]}
+
+
+@app.route("/api/recordings/measure", methods=["GET"])
+def api_measure_get():
+    """The last measurement of the monitor on the recordings (scripts/replay.py --json)."""
+    return _no_store(jsonify(dict(_measure_state(), ok=True)))
+
+
+@app.route("/api/recordings/measure", methods=["POST"])
+def api_measure_start():
+    """Runs the monitor again on every recording with the thresholds in use, at low priority (it takes a minute or two).
+    The answer comes with GET."""
+    with _measure_lock:
+        if _measure_state()["state"] == "running":
+            return jsonify({"ok": True, "state": "running"})
+        if not os.path.isfile(REPLAY_SCRIPT):
+            return jsonify({"ok": False, "error": "scripts/replay.py is missing"}), 500
+        try:
+            os.makedirs(RECORDINGS_DIR, exist_ok=True)
+            try:
+                os.remove(MEASURE_PATH)
+            except OSError:
+                pass
+            command = [sys.executable, REPLAY_SCRIPT, "--data", DATA_DIR, "--current", "--json", MEASURE_PATH]
+            if shutil.which("nice"):
+                command = ["nice", "-n", "15"] + command
+            _measure["process"] = subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            _measure["started"] = int(time.time())
+        except OSError as error:
+            return jsonify({"ok": False, "error": str(error)}), 500
+    return jsonify({"ok": True, "state": "running"})
+# === end RECORDINGS ===================================================================================================
+
 
 # === END OPENCV DETECTOR V10 ===
 

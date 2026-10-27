@@ -25,7 +25,7 @@ def ok(name, cond, extra=""):
 root = tempfile.mkdtemp(prefix="ke-access-")
 repo, data = os.path.join(root, "klippeye"), os.path.join(root, "data")
 os.makedirs(os.path.join(repo, "backend")); os.makedirs(os.path.join(repo, "frontend"))
-for name in ("klippeye_backend.py", "access.py"):
+for name in ("klippeye_backend.py", "access.py", "monitor_core.py", "recorder.py"):
     shutil.copy(os.path.join(ROOT, "backend", name), os.path.join(repo, "backend", name))
 shutil.copy(html, os.path.join(repo, "frontend", "klippeye_frontend.html"))
 open(os.path.join(repo, "VERSION"), "w").write("1.2.0\n")
