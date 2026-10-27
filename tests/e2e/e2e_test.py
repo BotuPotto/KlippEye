@@ -52,10 +52,29 @@ FAILS = []
 SKIPPED = []
 
 
+ON_GITHUB = bool(os.environ.get("GITHUB_ACTIONS"))
+
+
+def annotate(title, text):
+    """On GitHub, an error annotation (shown on the workflow run page, readable without the logs)."""
+    if ON_GITHUB:
+        print("::error title=%s::%s" % (title.replace(":", " ")[:200], str(text).replace("%", "%25").replace("\r", "").replace("\n", "%0A")[-3000:]), flush=True)
+
+
 def ok(name, cond, extra=""):
     if not cond:
         FAILS.append(name)
+        annotate(name, extra if extra != "" else "failed")
     print(("PASS " if cond else "FAIL ") + name + ((" :: " + str(extra)[-900:]) if (extra != "" and not cond) else ""), flush=True)
+
+
+def _on_crash(kind, value, tb):
+    import traceback
+    annotate("e2e test crashed", "".join(traceback.format_exception(kind, value, tb)))
+    sys.__excepthook__(kind, value, tb)
+
+
+sys.excepthook = _on_crash
 
 
 def scenario(name):
