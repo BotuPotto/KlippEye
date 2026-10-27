@@ -224,7 +224,7 @@ function SoftwarePage({ active, menu, updates, printing, actions }) {
         { className: "set-status set-status--warn" },
         h("span", { className: "set-status__dot" }),
         version.state === "old"
-          ? h("span", null, tx("The backend on the Raspberry is older than 1.0: it cannot update itself from the dashboard. Install KlippEye 1.0 once with"), " ", h("code", null, INSTALL_COMMAND), " (", tx("guide:"), " ", h("code", null, "docs/GUIDA.md"), ").")
+          ? h("span", null, tx("The backend on the Raspberry is older than 1.0: it cannot update itself from the dashboard. Install KlippEye 1.0 once with"), " ", h("code", null, INSTALL_COMMAND), " (", tx("guide:"), " ", h("code", null, tx("docs/GUIDE.md")), ").")
           : tx("The backend does not answer: if the printer works, restart it from Mainsail (Services → klippeye)."),
       ),
       h(InfoLine, { label: tx("Dashboard (this page)"), value: dashboardRelease() }),

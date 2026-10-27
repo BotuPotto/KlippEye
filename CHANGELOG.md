@@ -1,5 +1,12 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.8.1
+
+* **English guide**: [docs/GUIDE.md](docs/GUIDE.md), written for anyone installing KlippEye on their own printer (install,
+  first settings, updates, AI monitor, Android app and notifications, password, power cuts, troubleshooting, building your
+  own app, moving from VzBot). [docs/GUIDA.md](docs/GUIDA.md) is now its Italian translation.
+* The dashboard points to the guide of its own language; `logos/README.md` in English.
+
 ## 1.8.0
 
 **Installer and terminal commands in English.**

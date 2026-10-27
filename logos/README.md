@@ -1,20 +1,20 @@
-# Loghi della stampante
+# Printer logos
 
-In **Impostazioni → Stampante** la dashboard può mostrare nella barra in alto, e come icona della scheda del browser,
-il logo di **KlippEye** (predefinito), **VzBot**, **Voron** o **RatRig**.
+In **Settings → Printer** the dashboard can show, in its top bar and as the browser tab icon, the logo of **KlippEye**
+(default), **VzBot**, **Voron** or **RatRig**.
 
-Il logo di KlippEye e quello di VzBot sono già dentro la dashboard. Per **Voron** e **RatRig** (e per cambiare quello di VzBot)
-metti qui, in questa cartella, il file del logo **ufficiale**, con uno di questi nomi esatti (tutto minuscolo):
+The KlippEye and VzBot logos are already inside the dashboard. For **Voron** and **RatRig** (and to replace the VzBot one)
+put the **official** logo file here, in this folder, with one of these exact names (all lower case):
 
-| Marca  | Nomi accettati                          |
+| Brand  | Accepted names                          |
 |--------|-----------------------------------------|
 | VzBot  | `vzbot.svg`  `vzbot.png`  `vzbot.webp`  |
 | Voron  | `voron.svg`  `voron.png`  `voron.webp`  |
 | RatRig | `ratrig.svg` `ratrig.png` `ratrig.webp` |
 
-* Il formato migliore è **SVG**; con un PNG o un WebP usa un file con sfondo trasparente e almeno 256 pixel di larghezza.
-* Al massimo 2 MB per file. Se per una marca ci sono più formati vince nell'ordine svg, png, webp.
-* I file si prendono dalle pagine ufficiali di ciascun progetto (sito o repository del progetto) e vanno usati come sono,
-  senza ridisegnarli.
-* Dopo aver caricato il file su GitHub: dashboard → Impostazioni → Aggiornamenti → Controlla → Aggiorna. Il logo compare subito
-  nella pagina Stampante (non serve ricostruire niente). Finché un file manca, per quella marca la barra mostra solo il nome.
+* **SVG** is the best format; for PNG or WebP use a transparent background and at least 256 pixels of width.
+* At most 2 MB per file. When a brand has several formats, svg wins over png, png over webp.
+* Take the files from each project's official pages (website or repository) and use them as they are, without redrawing them:
+  the logos are their owners' trademarks.
+* Once the file is in the repository: dashboard → Settings → Updates → Check → Update KlippEye. The logo appears at once in
+  the Printer page (nothing is rebuilt). Until a file is there, the bar shows only the name for that brand.

@@ -346,7 +346,7 @@ PY
   then good "Notifications: configuration and Firebase key copied from $OLD_NOTIFIER_DIR (the originals stay there)"
   else warn "Could not copy the notification configuration from $OLD_NOTIFIER_DIR"; fi
 else
-  note "Notifications: not set up (done once with the guide; see docs/GUIDA.md)"
+  note "Notifications: not set up (done once with the guide; see docs/GUIDE.md)"
 fi
 
 # --- 3. services -------------------------------------------------------------------------------------------------------
@@ -406,7 +406,7 @@ if [ "$NOTIFIER_ON" = 1 ]; then
     sed 's/^/           /' "$WORK/check.out" | tail -n 8
   fi
 else
-  note "Notifications: the service starts only after the Firebase key is put in $DATA (guide: docs/GUIDA.md)"
+  note "Notifications: the service starts only after the Firebase key is put in $DATA (guide: docs/GUIDE.md)"
 fi
 
 # --- 4. commands -------------------------------------------------------------------------------------------------------

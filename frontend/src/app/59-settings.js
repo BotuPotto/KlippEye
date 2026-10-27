@@ -185,7 +185,7 @@ function ServiceLine({ status }) {
       "div",
       { className: "set-status set-status--warn" },
       h("span", { className: "set-status__dot" }),
-      h("span", null, tx("The notification service has not shown up yet. If you installed it, check with"), " ", h("code", null, "klippeye status"), " ", tx("and restart it from Settings → Updates; if you have not set it up yet, follow the guide"), " (", h("code", null, "docs/GUIDA.md"), "). ", tx("Without it these choices have no effect.")),
+      h("span", null, tx("The notification service has not shown up yet. If you installed it, check with"), " ", h("code", null, "klippeye status"), " ", tx("and restart it from Settings → Updates; if you have not set it up yet, follow the guide"), " (", h("code", null, tx("docs/GUIDE.md")), "). ", tx("Without it these choices have no effect.")),
     );
   }
   const age = Math.max(0, now - (Number(status.seen) || 0));

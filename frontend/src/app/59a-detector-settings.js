@@ -226,7 +226,7 @@ function BrainNotice({ phase }) {
       "div",
       { className: "set-status set-status--warn" },
       h("span", { className: "set-status__dot" }),
-      h("span", null, tx("The backend on the Raspberry is older than 1.0: it has no thresholds to change. Install KlippEye 1.0 (guide: "), h("code", null, "docs/GUIDA.md"), tx(") and the thresholds appear here.")),
+      h("span", null, tx("The backend on the Raspberry is older than 1.0: it has no thresholds to change. Install KlippEye 1.0 (guide: "), h("code", null, tx("docs/GUIDE.md")), tx(") and the thresholds appear here.")),
     );
   }
   return h("div", { className: "set-status set-status--warn" }, h("span", { className: "set-status__dot" }), tx("The backend does not answer: the thresholds cannot be read or changed now."));
