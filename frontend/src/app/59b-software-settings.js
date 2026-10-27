@@ -303,6 +303,20 @@ function SoftwarePage({ active, menu, updates, printing, actions }) {
         notifier && h(FileActionRow, { icon: h(Icons.Bell), title: tx("Restart the notifications"), subtitle: tx("The service that sends the alerts to the phone"), onClick: () => actions.restartService(notifier) }),
       ),
     ),
+    h(
+      SettingsGroup,
+      { title: tx("Diagnostics"), note: tx("Release, services, Moonraker, settings and the last lines of the logs in one text file, to share when asking for help. Keys, password and tokens are never included.") },
+      h(
+        "div",
+        { className: "oui-list" },
+        h(FileActionRow, {
+          icon: h(Icons.Download),
+          title: tx("Download a diagnostic report"),
+          subtitle: tx("The same as  klippeye diagnose  on the Raspberry"),
+          onClick: () => downloadFile("/api/diagnose", "klippeye-diagnose.txt"),
+        }),
+      ),
+    ),
   );
 }
 

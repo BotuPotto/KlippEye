@@ -188,6 +188,9 @@ corrispondono ad `apk/version.json`.
 
 ## 10. Se qualcosa non va
 
+**Chiedi aiuto?** Allega il rapporto di diagnostica: *Impostazioni → Aggiornamenti → Diagnostica → Scarica il rapporto di
+diagnostica*, oppure `klippeye diagnose --save` sul Raspberry. Non contiene chiavi, password o token.
+
 | Cosa vedi | Cosa fare |
 |---|---|
 | La dashboard non risponde | `klippeye status`; `klippeye restart`; `klippeye log` mostra le ultime righe del registro del backend |
@@ -199,7 +202,8 @@ corrispondono ad `apk/version.json`.
 | L'app non riesce a installare un aggiornamento | consenti «Installa app sconosciute» per KlippEye; l'Auto Blocker di Samsung dev'essere spento |
 
 Comandi da terminale: `klippeye status`, `version`, `log [notifier]`, `restart [backend|notifier|all]`, `repair [log]`,
-`update [--force]`, `notify test|check`, `password [set|remove|status|logout-all]`, `access ...`, `undo-install`, `help`.
+`update [--force]`, `notify test|check`, `password [set|remove|status|logout-all]`, `access ...`, `diagnose [--save]`,
+`undo-install`, `help`.
 I nomi italiani delle release precedenti (`stato`, `riavvia`, `aggiorna`…) funzionano ancora.
 
 ---

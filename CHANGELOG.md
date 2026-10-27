@@ -1,5 +1,15 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.9.0
+
+* **Diagnostic report**: `klippeye diagnose` (add `--save` to write it to a file) and *Settings → Updates → Diagnostics →
+  Download a diagnostic report* collect release, git state, system, services, backend, Moonraker and its update manager,
+  dashboard settings, the data folder (names and sizes only), self-repair and the last log lines, in one text to share when
+  asking for help. Keys, password and tokens are never read or are hidden.
+* **The dashboard opens faster**: the backend sends the page compressed (gzip, about a quarter of the size) with an ETag,
+  so an unchanged page is not downloaded again.
+* A leftover Italian message of the AI key form is translated.
+
 ## 1.8.1
 
 * **English guide**: [docs/GUIDE.md](docs/GUIDE.md), written for anyone installing KlippEye on their own printer (install,

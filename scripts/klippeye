@@ -128,6 +128,15 @@ PY
     # extra host names and network checks:  klippeye access host-add printer.example.com | host-remove NAME | network-checks on|off
     KLIPPEYE_DATA="$DATA" exec python3 "$REPO/backend/access.py" "${2:-status}" "${@:3}"
     ;;
+  diagnose)
+    # a report to share when asking for help (no keys, password or tokens in it); --save also writes it to a file
+    if [ "$ARG2" = "--save" ]; then
+      out="$HOME/klippeye-diagnose-$(date +%Y%m%d-%H%M).txt"
+      python3 "$REPO/scripts/diagnose.py" --repo "$REPO" --data "$DATA" --backend "$BACKEND_URL" > "$out" && echo "Saved: $out"
+    else
+      exec python3 "$REPO/scripts/diagnose.py" --repo "$REPO" --data "$DATA" --backend "$BACKEND_URL"
+    fi
+    ;;
   undo-install)
     exec bash "$REPO/scripts/install.sh" --undo
     ;;
@@ -142,6 +151,7 @@ klippeye update [--force]    download the latest release and restart (like the d
 klippeye notify test         send a test notification to the phone   (also: check)
 klippeye password [set|remove|status|logout-all]   optional dashboard password ("klippeye password" sets it)
 klippeye access host-add NAME   allow one more host name (e.g. printer.example.com)   (also: host-remove NAME, network-checks on|off, status)
+klippeye diagnose [--save]   a report to share when asking for help (nothing secret in it; --save writes it to a file)
 klippeye undo-install        go back to the file layout used before the container installation (release 1.0)
 The Italian names of older releases still work (stato, riavvia, aggiorna...).
 HELP

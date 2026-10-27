@@ -1049,6 +1049,34 @@ open(os.path.join(da, "access.json"), "w").write("{rotto")
 time.sleep(0.05)
 check("access.json rovinato (blackout): si riparte senza password invece di chiudere fuori", ba.app.test_client().get("/api/version").status_code == 200 and json.load(open(os.path.join(da, "access.json")))["enabled"] is False)
 
+# ---------------------------------------------------------------------------------------------------------------------
+print("== 1.9.0: pagina compressa, rapporto di diagnostica")
+import gzip as _gz
+dg = tmp()
+bg = load_brain(NEW_BRAIN, dg, fake, brain_json={"values": {"enabled": False}})
+cg = bg.app.test_client()
+page = open(bg.find_frontend(), "rb").read()
+r = cg.get("/", headers={"Accept-Encoding": "gzip, deflate"})
+check("la dashboard arriva compressa (gzip) a chi la accetta, e decompressa e' identica",
+      r.status_code == 200 and r.headers.get("Content-Encoding") == "gzip" and _gz.decompress(r.data) == page and len(r.data) < len(page) / 2, (r.status_code, r.headers.get("Content-Encoding"), len(r.data), len(page)))
+check("... con Vary e un ETag", r.headers.get("Vary") == "Accept-Encoding" and r.headers.get("ETag"))
+etag = r.headers.get("ETag")
+r2 = cg.get("/")
+check("senza Accept-Encoding: la pagina normale, stesso ETag", r2.status_code == 200 and r2.headers.get("Content-Encoding") is None and r2.data == page and r2.headers.get("ETag") == etag)
+r3 = cg.get("/", headers={"If-None-Match": etag, "Accept-Encoding": "gzip"})
+check("pagina non cambiata: 304 senza contenuto", r3.status_code == 304 and r3.data == b"")
+open(os.path.join(dg, "ai.json"), "w").write(json.dumps({"api_key": "gsk_SEGRETISSIMA1234567890", "provider": "groq"}))
+open(os.path.join(dg, "internal.token"), "w").write("tokeninterno-segreto-xyz")
+r = cg.get("/api/diagnose")
+report = r.get_data(as_text=True)
+check("/api/diagnose: un file di testo da scaricare con release, sistema, Moonraker e cartella dati",
+      r.status_code == 200 and r.mimetype == "text/plain" and "attachment" in r.headers.get("Content-Disposition", "") and "== KlippEye" in report and "== System" in report and "== Moonraker" in report and "ai.json" in report, report[:600])
+check("... senza segreti: ne' la chiave dell'IA ne' il token interno", "SEGRETISSIMA" not in report and "tokeninterno" not in report)
+import importlib.util as _iu
+_spec = _iu.spec_from_file_location("diagnose", os.path.join(ROOT, "scripts", "diagnose.py")); _dm = _iu.module_from_spec(_spec); _spec.loader.exec_module(_dm)
+check("diagnose.redact nasconde chiavi, password, token, cookie e credenziali negli indirizzi",
+      all("SECRET" not in _dm.redact(t) for t in ("gsk_SECRETSECRETSECRET", '"api_key": "sk-SECRETSECRET1"', "password=SECRETpw", "Bearer SECRETSECRETxx", "klippeye_session=SECRET", "https://u:SECRET@github.com", "-----BEGIN PRIVATE KEY-----\nSECRET\n-----END PRIVATE KEY-----")))
+
 __import__("requests").post = real_post
 stop_all()
 fake.close()
