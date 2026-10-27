@@ -1,5 +1,15 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.8.0
+
+**Installer and terminal commands in English.**
+
+* `scripts/install.sh` speaks English; its options are `--undo`, `--no-moonraker` and `--help` (the Italian
+  `--annulla`, `--senza-moonraker` and `--aiuto` still work). `klippeye undo-install` uses `--undo`.
+* The service templates in `systemd/` are in English (placeholders `@USER@`, `@CODE@`, `@DATA@`); services written by
+  older releases are recognised and rewritten the next time the installer runs.
+* The move from VzBot (`scripts/passa-a-klippeye.sh`, kept under its old name) and the old `vzbot` commands speak English.
+
 ## 1.7.0
 
 **The backend speaks English** (and Italian where people read it).

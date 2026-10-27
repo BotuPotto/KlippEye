@@ -129,7 +129,7 @@ PY
     KLIPPEYE_DATA="$DATA" exec python3 "$REPO/backend/access.py" "${2:-status}" "${@:3}"
     ;;
   undo-install)
-    exec bash "$REPO/scripts/install.sh" --annulla
+    exec bash "$REPO/scripts/install.sh" --undo
     ;;
   *)
     cat <<'HELP'
