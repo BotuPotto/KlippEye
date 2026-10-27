@@ -2494,6 +2494,106 @@ def set_brain_config(changes):
     return errors, changed
 
 
+# === UPDATE CHANNEL: which commits Moonraker's update manager installs ===========================================
+# "stable": only the releases tagged vX.Y.Z on GitHub (the release workflow tags a release once all its tests passed);
+# "dev": every change of the branch as soon as it is on GitHub. It is the "channel:" line of the [update_manager klippeye]
+# section of moonraker.conf, read and written through Moonraker's own file API (the same Mainsail uses to edit it), after
+# which Moonraker restarts to read it again.
+UPDATE_CHANNELS = ("stable", "dev")
+_UM_SECTION = re.compile(r"^\[update_manager\s+(klippeye|vzbot)\s*\]\s*$")
+
+
+def _update_section(lines):
+    """(start, end) line indexes of KlippEye's update manager section (end excluded), or None."""
+    start = None
+    for i, line in enumerate(lines):
+        if start is None:
+            if _UM_SECTION.match(line):
+                start = i
+        elif re.match(r"^\s*\[", line):
+            return start, i
+    return (start, len(lines)) if start is not None else None
+
+
+def update_channel_of(conf):
+    """The channel written for KlippEye in moonraker.conf ("dev" when there is no channel line, Moonraker's own default), or None."""
+    lines = conf.split("\n")
+    where = _update_section(lines)
+    if where is None:
+        return None
+    for line in lines[where[0] + 1:where[1]]:
+        m = re.match(r"^\s*channel\s*[:=]\s*(\S+)", line)
+        if m:
+            return m.group(1).strip().lower()
+    return "dev"
+
+
+def with_update_channel(conf, channel):
+    """moonraker.conf with KlippEye's channel set to `channel` (the line is replaced, or added after "type:")."""
+    lines = conf.split("\n")
+    where = _update_section(lines)
+    if where is None:
+        raise ValueError("no [update_manager klippeye] section")
+    start, end = where
+    for i in range(start + 1, end):
+        if re.match(r"^\s*channel\s*[:=]", lines[i]):
+            lines[i] = "channel: " + channel
+            return "\n".join(lines)
+    at = next((i + 1 for i in range(start + 1, end) if re.match(r"^\s*type\s*[:=]", lines[i])), start + 1)
+    lines.insert(at, "channel: " + channel)
+    return "\n".join(lines)
+
+
+def _read_moonraker_conf():
+    r = requests.get(MOONRAKER_URL + "/server/files/config/moonraker.conf", timeout=8)
+    r.raise_for_status()
+    return r.text
+
+
+@app.route("/api/update/channel", methods=["GET"])
+def api_update_channel():
+    try:
+        channel = update_channel_of(_read_moonraker_conf())
+    except Exception as e:  # noqa: BLE001
+        return jsonify({"ok": False, "error": bt("Cannot read moonraker.conf: {error}", _lang(), error=e)}), 502
+    return jsonify({"ok": True, "channel": channel, "listed": channel is not None, "channels": list(UPDATE_CHANNELS)})
+
+
+@app.route("/api/update/channel", methods=["POST"])
+def api_update_channel_set():
+    lang = _lang()
+    channel = str((request.get_json(silent=True) or {}).get("channel", "")).lower()
+    if channel not in UPDATE_CHANNELS:
+        return jsonify({"ok": False, "error": bt("Unknown update channel.", lang)}), 400
+    try:
+        state = requests.get(MOONRAKER_URL + "/printer/objects/query?print_stats=state", timeout=4).json()
+        if state["result"]["status"]["print_stats"]["state"] in ("printing", "paused"):
+            return jsonify({"ok": False, "error": bt("The printer is printing: change the update channel when the print ends (Moonraker restarts).", lang)}), 409
+    except Exception:  # noqa: BLE001 - Klipper not ready: nothing is printing
+        pass
+    try:
+        conf = _read_moonraker_conf()
+        if update_channel_of(conf) is None:
+            return jsonify({"ok": False, "error": bt("moonraker.conf has no [update_manager klippeye] section: run scripts/install.sh again.", lang)}), 409
+        if update_channel_of(conf) == channel:
+            return jsonify({"ok": True, "channel": channel, "changed": False})
+        try:  # a copy of the file as it was, next to the installer's backups
+            backup = os.path.join(DATA_DIR, "backup", "moonraker.conf-%s" % time.strftime("%Y%m%d-%H%M%S"))
+            os.makedirs(os.path.dirname(backup), exist_ok=True)
+            with open(backup, "w", encoding="utf-8") as fh:
+                fh.write(conf)
+        except OSError:
+            pass
+        r = requests.post(MOONRAKER_URL + "/server/files/upload", data={"root": "config"},
+                          files={"file": ("moonraker.conf", with_update_channel(conf, channel).encode("utf-8"), "text/plain")}, timeout=15)
+        r.raise_for_status()
+        requests.post(MOONRAKER_URL + "/server/restart", timeout=10)
+    except Exception as e:  # noqa: BLE001
+        return jsonify({"ok": False, "error": bt("Cannot change moonraker.conf: {error}", lang, error=e)}), 502
+    print(f"[UPDATE] channel set to {channel}; Moonraker restarts")
+    return jsonify({"ok": True, "channel": channel, "changed": True})
+
+
 DIAGNOSE_SCRIPT = os.path.join(REPO_DIR, "scripts", "diagnose.py")
 
 

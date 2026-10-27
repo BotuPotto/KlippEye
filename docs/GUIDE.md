@@ -44,7 +44,8 @@ What the installer does:
   `moonraker.asvc`, with backup copies) and restarts Moonraker, unless the printer is printing.
 
 It can be run again at any time: it repairs without breaking anything. Options: `--no-moonraker` (do not touch Moonraker's
-configuration), `--undo` (remove the services, the commands and the Moonraker entry; your folders stay), `--help`.
+configuration), `--channel=dev` (every change instead of the tested releases, see 4), `--undo` (remove the services, the
+commands and the Moonraker entry; your folders stay), `--help`.
 
 Open the dashboard: **`http://<address of the Raspberry>:8085`**. Use the address that works for Mainsail, with port 8085.
 
@@ -71,6 +72,10 @@ Everything is in the menu **☰ (Settings)**. The settings are saved on the Rasp
 by itself. Your settings, the AI key and the notifications stay. The button is off while printing.
 
 The same update is visible in **Mainsail / Fluidd → Update Manager** (entry `klippeye`), which also offers *Rollback* and *Recover*.
+
+**Update channel** (same page): **Stable releases** (the default) installs only the releases that passed all the automatic
+tests on GitHub, tagged `v1.10.0`, `v1.11.0`…; **Every change** installs every change as soon as it is on GitHub, for
+testing new things. Moonraker restarts for a few seconds when you switch.
 
 | If… | then |
 |---|---|
@@ -175,11 +180,11 @@ type: git_repo
 path: ~/klippeye
 origin: https://github.com/BotuPotto/KlippEye.git
 primary_branch: main
-channel: dev
+channel: stable
 managed_services: klippeye
 ```
 
-On **Update**, Moonraker fetches the changes from GitHub into `~/klippeye` and restarts the `klippeye` service; the notifier
+On **Update**, Moonraker fetches from GitHub the newest release tag (or, on the `dev` channel, the newest commit) into `~/klippeye` and restarts the `klippeye` service; the notifier
 notices its file changed and restarts by itself. The Android app comes the same way: the `apk/` folder of the repository holds
 the latest app built by GitHub, and the backend offers it to the phone only if its size and SHA-256 match `apk/version.json`.
 

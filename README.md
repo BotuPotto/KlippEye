@@ -25,9 +25,9 @@ Security: [SECURITY.md](SECURITY.md) · Contributing: [CONTRIBUTING.md](CONTRIBU
 ## How updates work
 
 ```
-  your PC                     GitHub (this repository)                Raspberry
-  ───────                     ────────────────────────                ─────────
-  push new files        ───►  new release (VERSION 1.2.0)     ◄───┐
+  pull request                GitHub (this repository)                Raspberry
+  ────────────                ────────────────────────                ─────────
+  merged, tests pass    ───►  release tagged v1.10.0          ◄───┐
                                                                   │ Moonraker (update manager) checks it
   dashboard ► Settings ► Updates ► "Update KlippEye" ─────────────┘  and fetches only the differences into ~/klippeye,
                                                                      then restarts the "klippeye" service.
@@ -82,6 +82,11 @@ The services are **`klippeye`** (backend + dashboard, port 8085) and **`klippeye
 `MAJOR.MINOR.PATCH`, one release for backend, dashboard and notifier, in `VERSION`; the dashboard shows it ("Release 1.2.0
 available"). Every release is described in [CHANGELOG.md](CHANGELOG.md). The **Android app** has its own number in
 `android/VERSION`, raised only for a new app.
+
+When a pull request that raises `VERSION` is merged and its tests pass on `main`, the *Release* workflow
+(`.github/workflows/release.yml`, rules in `ci/release.py`) tags the commit `vX.Y.Z` and publishes a GitHub release with
+its CHANGELOG section. Printers on the **stable** update channel (the default) install only these tagged releases; the
+**dev** channel installs every commit of `main`. A release with a new Android app is tagged after GitHub has built the app.
 
 ## Never commit secrets
 

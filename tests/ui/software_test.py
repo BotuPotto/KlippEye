@@ -262,6 +262,10 @@ with sync_playwright() as p:
     with pg.expect_download(timeout=8000) as info:
         row.click()
     ok("... a click downloads it from /api/diagnose", "KlippEye diagnostic report" in open(info.value.path(), encoding="utf-8").read(), info.value.suggested_filename)
+    choices = lambda: pg.locator(".set-choice", has_text="Release stabili").count() + pg.locator(".set-choice", has_text="Ogni modifica").count()
+    ok("1.10.0: the 'Canale degli aggiornamenti' block shows the two channels, 'Ogni modifica' chosen (dev)", wait_until(lambda: choices() == 2, 4.0) and pg.locator('.set-choice[aria-checked="true"]', has_text="Ogni modifica").count() == 1, pg.locator(".drawer__body").inner_text()[-800:])
+    pg.locator(".set-choice", has_text="Release stabili").click()
+    ok("... choosing 'Release stabili' asks the backend to switch to stable", wait_until(lambda: state()["channel_posts"] == ["stable"], 4.0) and wait_until(lambda: pg.locator('.set-choice[aria-checked="true"]', has_text="Release stabili").count() == 1, 4.0), state()["channel_posts"])
     # check: a new commit appears
     mock.set(klippeye_incoming=[{"sha": "f1", "author": "t", "date": "1760000000", "subject": "Release 1.0.1", "message": ""}, {"sha": "f2", "author": "t", "date": "1759990000", "subject": "Soglie nuove", "message": ""}])
     pg.locator("button", has_text="Controlla se c'è una versione nuova").click()

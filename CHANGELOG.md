@@ -1,5 +1,19 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.10.0
+
+**Stable releases.**
+
+* **Update channel**: *Settings → Updates → Update channel*. **Stable releases** (the default for new installs) installs only the
+  releases tagged on GitHub once all their tests passed; **Every change** (`dev`, what every install used so far) installs
+  each change as soon as it is on GitHub. The dashboard changes the `channel:` line of `[update_manager klippeye]` in
+  `moonraker.conf` through Moonraker (with a backup copy in the data folder) and restarts Moonraker; refused while printing.
+* `scripts/install.sh` writes `channel: stable` for a new entry; `--channel=dev` / `--channel=stable` changes an existing one.
+* **Release workflow** (`.github/workflows/release.yml`, `ci/release.py`): when the tests pass on `main` it tags `vX.Y.Z`
+  from `VERSION` and publishes a GitHub release with the CHANGELOG section. A release with a new Android app waits for the
+  app to be built.
+* The dashboard's "Release X available" reads the version of the release tag on the stable channel.
+
 ## 1.9.0
 
 * **Diagnostic report**: `klippeye diagnose` (add `--save` to write it to a file) and *Settings → Updates → Diagnostics →

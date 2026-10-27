@@ -10,7 +10,7 @@ bash tests/run_all.sh --quick    # skips the two slow detector runs at the real 
 |---|---|---|
 | `backend/` | settings, endpoints, access/password, self-repair, AI monitor detector with real OpenCV on synthetic pictures, against a fake Moonraker and camera (`fakes.py`) | flask, requests, numpy, opencv |
 | `notifier/` | notification logic (`test_watcher.py`) and the whole service against a fake Moonraker and a fake Google that verifies the RS256 sign-in (`test_integration.py`) | cryptography, playwright (for the stand-in) |
-| `app/` | the steps of the Android build workflow (`ci/app_ci.py`) with fake Android tools | Java (`keytool`), git |
+| `app/` | the steps of the Android build workflow (`ci/app_ci.py`) with fake Android tools; when a release gets its tag (`ci/release.py`, `release_test.py`) | Java (`keytool`), git |
 | `ui/` | the dashboard in Chromium: every page, settings, editor, motion, offline/resume, access with the real backend | playwright + Chromium, pillow |
 
 The tests also run on GitHub for every pull request (`.github/workflows/tests.yml`).

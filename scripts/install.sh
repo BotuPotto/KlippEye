@@ -4,6 +4,7 @@
 #   bash ~/klippeye/scripts/install.sh                  install or repair
 #   bash ~/klippeye/scripts/install.sh --no-moonraker   do not touch Moonraker's configuration
 #   bash ~/klippeye/scripts/install.sh --undo           go back to how it was (old services, no update manager entry)
+#   bash ~/klippeye/scripts/install.sh --channel=dev    updates: every change (dev) instead of the tested releases (stable, default)
 #   (the Italian options of older releases still work: --senza-moonraker, --annulla, --aiuto)
 #
 # What it does, in this order:
@@ -45,12 +46,15 @@ note() { printf '           %s\n' "$*"; }
 warn() { printf '   WARNING %s\n' "$*"; }
 stop() { printf '\n   ERROR   %s\n\n' "$*"; exit 1; }
 
-usage() { sed -n '2,8p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; }
+usage() { sed -n '2,9p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; }
 
 MODE=install
 WITH_MOONRAKER=1
+CHANNEL=stable   # update channel of a new [update_manager klippeye] entry: tagged releases only
+CHANNEL_GIVEN=0
 for arg in "$@"; do
   case "$arg" in
+    --channel=stable|--channel=dev) CHANNEL="${arg#--channel=}"; CHANNEL_GIVEN=1 ;;
     --undo|--annulla) MODE=undo ;;
     --no-moonraker|--senza-moonraker) WITH_MOONRAKER=0 ;;
     -h|--help|--aiuto) usage; exit 0 ;;
@@ -440,6 +444,29 @@ else
     else
       if grep -Eq '^\[update_manager[[:space:]]+klippeye\][[:space:]]*$' "$CONF"; then
         good "moonraker.conf already has the entry [update_manager klippeye]"
+        if [ "$CHANNEL_GIVEN" = 1 ]; then
+          backup_file "$CONF" moonraker.conf
+          if "$PYTHON" - "$CONF" "$CHANNEL" <<'PY'
+import re, sys
+path, channel = sys.argv[1], sys.argv[2]
+lines = open(path, encoding="utf-8").read().split("\n")
+start = next(i for i, l in enumerate(lines) if re.match(r"^\[update_manager\s+klippeye\]\s*$", l))
+end = next((i for i in range(start + 1, len(lines)) if re.match(r"^\s*\[", lines[i])), len(lines))
+for i in range(start + 1, end):
+    if re.match(r"^\s*channel\s*[:=]", lines[i]):
+        changed = lines[i].split(":", 1)[-1].strip() != channel
+        lines[i] = "channel: " + channel
+        break
+else:
+    at = next((i + 1 for i in range(start + 1, end) if re.match(r"^\s*type\s*[:=]", lines[i])), start + 1)
+    lines.insert(at, "channel: " + channel)
+    changed = True
+open(path, "w", encoding="utf-8").write("\n".join(lines))
+sys.exit(0 if changed else 3)
+PY
+          then good "Update channel set to '$CHANNEL'"; MR_RESTART=1
+          else good "Update channel already '$CHANNEL'"; fi
+        fi
       else
         backup_file "$CONF" moonraker.conf
         {
@@ -448,7 +475,7 @@ else
             printf '[update_manager]\n\n'
           fi
           printf '# KlippEye: updates from the dashboard (Settings -> Updates) and from Mainsail/Fluidd. Written by scripts/install.sh.\n'
-          printf '[update_manager klippeye]\ntype: git_repo\npath: %s\norigin: %s\nprimary_branch: %s\nchannel: dev\nmanaged_services: klippeye\ninfo_tags:\n  desc=KlippEye: backend, dashboard and notifications\n' "$REPO" "$ORIGIN" "$BRANCH"
+          printf '[update_manager klippeye]\ntype: git_repo\npath: %s\norigin: %s\nprimary_branch: %s\nchannel: %s\nmanaged_services: klippeye\ninfo_tags:\n  desc=KlippEye: backend, dashboard and notifications\n' "$REPO" "$ORIGIN" "$BRANCH" "$CHANNEL"
         } >> "$CONF"
         good "Entry [update_manager klippeye] added to moonraker.conf"
         MR_RESTART=1

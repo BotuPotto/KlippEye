@@ -27,6 +27,7 @@ class Fake:
             "hotend": 210.0, "hotend_target": 210.0, "bed": 60.0, "bed_target": 60.0, "z": 5.0,
             "frames": [jpeg(frame())],  # served in turn, then the last one forever
         }
+        self.posts = []
         self.snapshots = 0
         self.status_calls = 0
         self.lock = threading.Lock()
@@ -63,11 +64,20 @@ class Fake:
                     return self._send(200, json.dumps(doc).encode())
                 if self.path.startswith("/printer/info"):
                     return self._send(200, json.dumps({"result": {"state": "ready"}}).encode())
+                if self.path == "/server/files/config/moonraker.conf" and s.get("moonraker_conf") is not None:
+                    return self._send(200, s["moonraker_conf"].encode(), "text/plain")
                 self._send(404, b"{}")
 
             def do_POST(self):
                 n = int(self.headers.get("Content-Length") or 0)
-                self.rfile.read(n)
+                body = self.rfile.read(n)
+                fake.posts.append(self.path)
+                if self.path == "/server/files/upload":   # Moonraker's file upload (multipart): keep the file's text
+                    marker = b'filename="moonraker.conf"'
+                    if marker in body:
+                        part = body.split(marker, 1)[1].split(b"\r\n\r\n", 1)[1]
+                        boundary = body.split(b"\r\n", 1)[0]
+                        fake.state["moonraker_conf"] = part.split(b"\r\n" + boundary, 1)[0].decode()
                 self._send(200, b'{"result":"ok"}')
 
         self.server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
