@@ -153,7 +153,7 @@ function useBedTools({ capabilities, homedAxes, lockReason, onSaveConfig }) {
     runRef.current = current;
     setRun(current);
     setScrews(null);
-    toast.action(tool.title + " avviato");
+    toast.action(tx("{tool} started", { tool: tool.title }));
     const sent = await sendLongGcode(tool.script);
     if (!sent.ok) fail(current, sent.message);
     // Answered before the proxy's 10 s: the script is over, whatever its result looks like next to the old one.

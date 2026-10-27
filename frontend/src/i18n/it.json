@@ -432,6 +432,7 @@
  "No components": "Nessun componente",
  "No content": "Nessun contenuto",
  "No correction active": "Nessuna correzione attiva",
+ "No defect is sure enough (threshold {threshold}%).": "Nessun difetto abbastanza sicuro (soglia {threshold}%).",
  "No fan found - waiting for Klipper data...": "Nessuna ventola rilevata - in attesa dati Klipper...",
  "No files": "Nessun file",
  "No files in /config": "Nessun file in /config",
@@ -896,6 +897,9 @@
  "up to date": "aggiornato",
  "verb|Open": "Apri",
  "verb|Print": "Stampa",
+ "verdict|CANCEL": "CANCELLA",
+ "verdict|CONTINUE": "CONTINUA",
+ "verdict|PAUSE": "PAUSA",
  "yes": "sì",
  "{api} ({needed} needed)": "{api} (serve la {needed})",
  "{brand} logo and name": "Logo e nome {brand}",
@@ -915,5 +919,6 @@
  "{service}: restart requested": "Riavvio di {service} richiesto",
  "{service}: start requested": "Avvio di {service} richiesto",
  "{service}: stop requested": "Arresto di {service} richiesto",
+ "{tool} started": "{tool} avviato",
  "«{name}» already exists in {folder}": "In {folder} esiste già «{name}»"
 }

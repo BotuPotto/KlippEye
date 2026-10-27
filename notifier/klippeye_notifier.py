@@ -10,8 +10,8 @@ Cloud Messaging, the service every Android app uses for push) when something hap
     cancelled  print cancelled
     paused     print paused
     runout     filament runout (the macro filament_change_state1 writes "Printer paused due to filament runout!")
-    ai_pause   the AI print monitor recommends a pause (verdict PAUSA)
-    ai_cancel  the AI print monitor recommends cancelling (verdict CANCELLA)
+    ai_pause   the AI print monitor recommends a pause (verdict PAUSE)
+    ai_cancel  the AI print monitor recommends cancelling (verdict CANCEL)
 
 It READS from Moonraker and from the backend (the Flask backend is not touched) and it needs nothing but Python 3:
 no pip packages. The Google sign-in (OAuth2 with the service account key) is done here with the standard library only.
@@ -54,7 +54,7 @@ import urllib.request
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-__version__ = "1.3"
+__version__ = "1.4"
 
 LOG = logging.getLogger("klippeye-notifier")
 
@@ -200,7 +200,7 @@ class Notice:
 @dataclass
 class AiVerdict:
     key: str  # changes with every new analysis
-    action: str  # "CONTINUA" | "PAUSA" | "CANCELLA" | ""
+    action: str  # "CONTINUE" | "PAUSE" | "CANCEL" | "" (or CONTINUA / PAUSA / CANCELLA from an older backend)
     defects: Optional[Dict[str, Tuple[bool, float]]] = None  # {"spaghetti": (detected, confidence %), ...}; None: the verdict has no details
 
 
@@ -228,7 +228,6 @@ DASH_EVENTS = ("error", "complete", "cancelled", "paused", "runout", "ai_pause",
 DASH_DEFECTS = ("spaghetti", "empty_bed", "layer_shift", "warping")
 AI_CONFIRMATIONS = (1, 2, 3)
 AI_CONFIDENCES = (0, 50, 70, 85)
-AI_LEVEL = {"PAUSA": 1, "CANCELLA": 2}
 
 
 def _dict(value: Any) -> Dict[str, Any]:
@@ -431,7 +430,7 @@ class Watcher:
     def _level(self, verdict: AiVerdict) -> int:
         """0 nothing, 1 pause, 2 cancel: what the verdict recommends once the dashboard's filters have been applied."""
         action = verdict.action.upper()
-        level = 2 if "CANCELLA" in action else 1 if "PAUSA" in action else 0
+        level = 2 if "CANCEL" in action else 1 if "PAUS" in action else 0  # CANCEL / PAUSE, also CANCELLA / PAUSA (before 1.6.0)
         ai = self.dash["ai"]
         filtering = ai["min_confidence"] > 0 or not all(ai["defects"].values())
         if level and filtering and verdict.defects:  # without details (a verdict in plain words) there is nothing to filter on
@@ -468,7 +467,7 @@ class Watcher:
         if level == 2 and ai["auto_cancel"] and not self.auto_done["cancel"] and self.print_state in ("printing", "paused"):
             act = "cancel"
         elif ai["auto_pause"] and not self.auto_done["pause"] and self.print_state == "printing" and not (level == 2 and ai["auto_cancel"]):
-            act = "pause"  # also for a CANCELLA verdict while the automatic cancel is off: pausing is the careful half
+            act = "pause"  # also for a CANCEL verdict while the automatic cancel is off: pausing is the careful half
         if act is None:
             self._emit(kind, now, out)
             return
@@ -510,7 +509,7 @@ def http_json(url: str, method: str = "GET", body: Any = None, headers: Optional
 
 
 def ai_action(response: Dict[str, Any]) -> str:
-    """The action ("CONTINUA" | "PAUSA" | "CANCELLA") of a /api/print/last_analysis answer, as the dashboard reads it."""
+    """The action ("CONTINUE" | "PAUSE" | "CANCEL", or the Italian words of releases before 1.6.0) of a /api/print/last_analysis answer, as the dashboard reads it."""
     analysis = response.get("analysis")
     candidates: List[Any] = []
     if isinstance(analysis, dict):

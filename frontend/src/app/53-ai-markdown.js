@@ -358,8 +358,8 @@ function MarkdownBody({ text }) {
 /* ---------------------------------------------------------------------------
    The report: summary + sections
    ------------------------------------------------------------------------- */
-const CONCLUSION_TITLE = /conclusion|sintesi|riassunt|in breve|sommario|riepilogo|verdetto/i;
-const CONCLUSION_LINE = /^\W*(conclusion\w*|sintesi|riassunto|in breve)\b/i;
+const CONCLUSION_TITLE = /conclusion|sintesi|riassunt|in breve|in short|sommario|riepilogo|verdetto|verdict|bottom line/i;
+const CONCLUSION_LINE = /^\W*(conclusion\w*|sintesi|riassunto|in breve|in short|bottom line)\b/i;
 const CONCLUSION_MAX_CHARS = 900;
 const SUMMARY_FALLBACK_PARAGRAPHS = 2;
 
