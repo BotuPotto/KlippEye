@@ -10,8 +10,8 @@ Cloud Messaging, the service every Android app uses for push) when something hap
     cancelled  print cancelled
     paused     print paused
     runout     filament runout (the macro filament_change_state1 writes "Printer paused due to filament runout!")
-    ai_pause   the AI print monitor recommends PAUSA
-    ai_cancel  the AI print monitor recommends CANCELLA
+    ai_pause   the AI print monitor recommends a pause (verdict PAUSA)
+    ai_cancel  the AI print monitor recommends cancelling (verdict CANCELLA)
 
 It READS from Moonraker and from the backend (the Flask backend is not touched) and it needs nothing but Python 3:
 no pip packages. The Google sign-in (OAuth2 with the service account key) is done here with the standard library only.
@@ -20,7 +20,8 @@ From version 1.1 it also follows the dashboard's settings menu. The dashboard ke
 (namespace "klippeye", key "settings") and this service reads them every few seconds:
     · which notifications are on (they win over the "events" of notifier.json),
     · how the AI verdict is filtered (verdicts in a row, minimum confidence, which defects count),
-    · whether it may pause / cancel the print by itself when the AI says so (both OFF unless the person switches them on).
+    · whether it may pause / cancel the print by itself when the AI says so (both OFF unless the person switches them on),
+    · from version 1.3, the language of the notifications ("language": English or Italian, see MESSAGES).
 Pausing and cancelling are the only things it ever WRITES to the printer (Moonraker's /printer/print/pause and /cancel, which run
 the PAUSE and CANCEL_PRINT macros like the dashboard buttons do), and it tells the dashboard it is alive by writing its own
 key "notifier" (version, last sign of life, last automatic action) into the same namespace.
@@ -53,7 +54,7 @@ import urllib.request
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-__version__ = "1.2"
+__version__ = "1.3"
 
 LOG = logging.getLogger("klippeye-notifier")
 
@@ -61,19 +62,49 @@ LOG = logging.getLogger("klippeye-notifier")
 # Configuration
 # ---------------------------------------------------------------------------------------------------------------------
 
-DEFAULT_MESSAGES = {
-    "error": "Stampante in errore! Effettuare riavvio.",
-    "complete": "Stampa completata!",
-    "cancelled": "Stampa interrotta!",
-    "paused": "Stampante in pausa!",
-    "runout": "Filamento esaurito, effettuare cambio bobina!",
-    "ai_pause": "Difetti di stampa rilevati, verificare e mettere in pausa la stampa!",
-    "ai_cancel": "Difetti gravi di stampa rilevati, verificare e interrompere la stampa",
-    # when the service paused / cancelled the print by itself (dashboard: Monitor IA)
-    "ai_pause_auto": "Difetti di stampa rilevati: stampa messa in pausa automaticamente.",
-    "ai_cancel_auto": "Difetti gravi di stampa rilevati: stampa interrotta automaticamente.",
-    "test": "Notifica di prova: tutto funziona!",
+# The texts of the notifications, in each language the dashboard offers. The language is the one chosen in the dashboard
+# (Settings -> Notifications, shared by every phone), else "language" in notifier.json, else English. A text written in
+# notifier.json ("messages") always wins.
+MESSAGES = {
+    "en": {
+        "error": "Printer error! Restart it.",
+        "complete": "Print completed!",
+        "cancelled": "Print cancelled!",
+        "paused": "Printer paused!",
+        "runout": "Filament run out, change the spool!",
+        "ai_pause": "Print defects found, check and pause the print!",
+        "ai_cancel": "Serious print defects found, check and cancel the print",
+        # when the service paused / cancelled the print by itself (dashboard: AI monitor)
+        "ai_pause_auto": "Print defects found: print paused automatically.",
+        "ai_cancel_auto": "Serious print defects found: print cancelled automatically.",
+        "test": "Test notification: everything works!",
+    },
+    "it": {
+        "error": "Stampante in errore! Effettuare riavvio.",
+        "complete": "Stampa completata!",
+        "cancelled": "Stampa interrotta!",
+        "paused": "Stampante in pausa!",
+        "runout": "Filamento esaurito, effettuare cambio bobina!",
+        "ai_pause": "Difetti di stampa rilevati, verificare e mettere in pausa la stampa!",
+        "ai_cancel": "Difetti gravi di stampa rilevati, verificare e interrompere la stampa",
+        "ai_pause_auto": "Difetti di stampa rilevati: stampa messa in pausa automaticamente.",
+        "ai_cancel_auto": "Difetti gravi di stampa rilevati: stampa interrotta automaticamente.",
+        "test": "Notifica di prova: tutto funziona!",
+    },
 }
+LANGUAGES = tuple(MESSAGES)
+DEFAULT_MESSAGES = MESSAGES["en"]
+
+
+def message_text(config: Dict[str, Any], language: Optional[str], key: str) -> str:
+    """The text of a notification: the one written in notifier.json, else the one of `language` (else of the file's, else English)."""
+    custom = (config.get("messages") or {}).get(key)
+    if isinstance(custom, str) and custom.strip():
+        return custom
+    for lang in (language, config.get("language"), "en"):
+        if lang in MESSAGES:
+            return MESSAGES[lang][key]
+    return DEFAULT_MESSAGES[key]
 
 DEFAULT_CONFIG: Dict[str, Any] = {
     # where to read from (the Raspberry itself)
@@ -86,7 +117,8 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "title": "KlippEye",
     # which notifications are on
     "events": {key: True for key in ("error", "complete", "cancelled", "paused", "runout", "ai_pause", "ai_cancel")},
-    "messages": dict(DEFAULT_MESSAGES),
+    "messages": {},  # your own texts, e.g. {"complete": "Done!"}: they win over the language's
+    "language": "",  # "en", "it": used until the dashboard's choice is known
     # timing (seconds)
     "poll_seconds": 2,
     "ai_poll_seconds": 5,
@@ -103,7 +135,8 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "fcm_url": "https://fcm.googleapis.com/v1/projects/{project}/messages:send",
 }
 
-# the Android notification channel (created by the app) and the importance of each kind of notification
+# the Android notification channel (created by the app) and the importance of each kind of notification; the ids are
+# the app's (alarms, warnings, print) and stay Italian until an app release renames them
 KIND_CHANNEL = {
     "error": "allarmi",
     "runout": "allarmi",
@@ -132,7 +165,7 @@ def load_config(path: str) -> Dict[str, Any]:
         given = json.load(handle)
     unknown = [key for key in given if key not in DEFAULT_CONFIG and not key.startswith("_")]
     if unknown:
-        LOG.warning("Voci sconosciute in %s (ignorate): %s", path, ", ".join(unknown))
+        LOG.warning("Unknown entries in %s (ignored): %s", path, ", ".join(unknown))
     config = merge(DEFAULT_CONFIG, given)
     base = os.path.dirname(os.path.abspath(path))
     if not os.path.isabs(config["service_account_file"]):
@@ -224,6 +257,7 @@ def dash_settings(raw: Any) -> Dict[str, Any]:
             "min_confidence": _number_in(ai.get("minConfidence"), AI_CONFIDENCES, 0),
             "defects": {name: defects.get(name) is not False for name in DASH_DEFECTS},
         },
+        "language": given.get("language") if given.get("language") in LANGUAGES else None,
         "stamp": given.get("_t") if isinstance(given.get("_t"), (int, float)) and not isinstance(given.get("_t"), bool) else 0,
     }
 
@@ -268,11 +302,11 @@ class Watcher:
             return False
         cooldown = float(self.config["cooldown_seconds"].get(kind, 0))
         if now - self.sent_at.get(kind, float("-inf")) < cooldown:
-            LOG.info("Avviso '%s' non ripetuto (uno uguale è appena partito)", kind)
+            LOG.info("Notice '%s' not repeated (the same one just went out)", kind)
             return False
         self.sent_at[kind] = now
         key = text_key or kind
-        out.append(Notice(kind, self.config["messages"].get(key) or DEFAULT_MESSAGES[key]))
+        out.append(Notice(kind, message_text(self.config, self.dash["language"], key)))
         return True
 
     def _recent_auto(self, action: str, now: float) -> bool:
@@ -307,9 +341,10 @@ class Watcher:
             return  # not known right now: what was last read stays
         fresh = dash_settings(snap.settings)
         if fresh != self.dash:
-            LOG.info("Impostazioni della dashboard aggiornate: notifiche %s, pausa automatica %s, cancellazione automatica %s, %d verdetti di fila, confidenza minima %d%%",
-                     ", ".join("%s=%s" % (k, "sì" if v else "no") for k, v in sorted(fresh["events"].items())) or "come da notifier.json",
-                     "SÌ" if fresh["ai"]["auto_pause"] else "no", "SÌ" if fresh["ai"]["auto_cancel"] else "no",
+            LOG.info("Dashboard settings updated: notifications %s, language %s, automatic pause %s, automatic cancel %s, %d verdicts in a row, minimum confidence %d%%",
+                     ", ".join("%s=%s" % (k, "yes" if v else "no") for k, v in sorted(fresh["events"].items())) or "as in notifier.json",
+                     fresh["language"] or "not chosen yet",
+                     "YES" if fresh["ai"]["auto_pause"] else "no", "YES" if fresh["ai"]["auto_cancel"] else "no",
                      fresh["ai"]["confirmations"], fresh["ai"]["min_confidence"])
         self.dash = fresh
 
@@ -324,7 +359,7 @@ class Watcher:
             if ok:
                 self._emit("ai_cancel" if kind == "cancel" else "ai_pause", now, out, "ai_cancel_auto" if kind == "cancel" else "ai_pause_auto")
             else:
-                LOG.error("L'azione automatica '%s' non è riuscita: tocca a te", kind)
+                LOG.error("The automatic action '%s' failed: over to you", kind)
                 self.auto_done[kind] = False  # a later verdict may try again
                 self._emit("ai_cancel" if kind == "cancel" else "ai_pause", now, out)  # the ordinary notice: "verify and ..."
 
@@ -403,7 +438,7 @@ class Watcher:
             counts = [name for name, (detected, confidence) in verdict.defects.items()
                       if detected and ai["defects"].get(name, True) and confidence >= ai["min_confidence"]]
             if not counts:
-                LOG.info("Verdetto IA '%s' ignorato: nessun difetto supera i filtri della dashboard", action)
+                LOG.info("AI verdict '%s' ignored: no defect passes the dashboard's filters", action)
                 return 0
         return level
 
@@ -437,7 +472,7 @@ class Watcher:
         if act is None:
             self._emit(kind, now, out)
             return
-        LOG.info("Verdetto IA '%s' confermato (%d di fila): faccio '%s' da solo", "CANCELLA" if level == 2 else "PAUSA", need, act)
+        LOG.info("AI verdict '%s' confirmed (%d in a row): doing '%s' by myself", "CANCEL" if level == 2 else "PAUSE", need, act)
         self.auto_done[act] = True
         self.auto_at[act] = now
         with self._lock:
@@ -565,9 +600,9 @@ class PrinterReader:
         before = self._reachable.get(name)  # None: the first time
         if before != ok and not (before is None and ok):
             if ok:
-                LOG.info("%s di nuovo raggiungibile", what)
+                LOG.info("%s reachable again", what)
             else:
-                LOG.warning("%s non raggiungibile", what)
+                LOG.warning("%s not reachable", what)
         self._reachable[name] = ok
 
     def snapshot(self, now: float) -> Snapshot:
@@ -631,10 +666,10 @@ class PrinterReader:
         try:
             status, answer = http_json("%s/printer/print/%s" % (self.moonraker, kind), "POST", timeout=self.action_timeout)
         except OSError as error:
-            LOG.error("Azione '%s': Moonraker non raggiungibile (%s)", kind, error)
+            LOG.error("Action '%s': Moonraker not reachable (%s)", kind, error)
             return False
         if status != 200:
-            LOG.error("Azione '%s': Moonraker ha risposto %s: %s", kind, status, answer)
+            LOG.error("Action '%s': Moonraker answered %s: %s", kind, status, answer)
         return status == 200
 
     def write_status(self, payload: Dict[str, Any]) -> bool:
@@ -649,10 +684,10 @@ class PrinterReader:
         try:
             status, response = http_json(self.brain + "/api/print/last_analysis", headers=brain_headers(self.config))
         except OSError:
-            self._note("brain", False, "Il backend (analisi IA)")
+            self._note("brain", False, "The backend (AI analysis)")
             return None
         ok = status == 200 and isinstance(response, dict)
-        self._note("brain", ok, "Il backend (analisi IA)")
+        self._note("brain", ok, "The backend (AI analysis)")
         if not ok:
             return None
         if not (response.get("ok", True) and response.get("has_analysis")):
@@ -690,21 +725,21 @@ def rsa_private_numbers(pem: str) -> Tuple[int, int]:
     """(modulus, private exponent) of an RSA private key in PEM ("BEGIN PRIVATE KEY" or "BEGIN RSA PRIVATE KEY")."""
     match = re.search(r"-----BEGIN (RSA )?PRIVATE KEY-----([A-Za-z0-9+/=\s]+)-----END (RSA )?PRIVATE KEY-----", pem)
     if not match:
-        raise ValueError("la chiave privata non è nel formato atteso")
+        raise ValueError("the private key is not in the expected format")
     der = base64.b64decode("".join(match.group(2).split()))
     outer = der_items(der)
     if not outer or outer[0][0] != 0x30:
-        raise ValueError("chiave privata illeggibile")
+        raise ValueError("unreadable private key")
     fields = der_items(outer[0][1])
     if match.group(1) is None:
         # PKCS#8: version, algorithm, OCTET STRING holding the RSA key
         octets = [content for tag, content in fields if tag == 0x04]
         if not octets:
-            raise ValueError("chiave privata illeggibile")
+            raise ValueError("unreadable private key")
         fields = der_items(der_items(octets[0])[0][1])
     integers = [int.from_bytes(content, "big") for tag, content in fields if tag == 0x02]
     if len(integers) < 4:
-        raise ValueError("chiave privata illeggibile")
+        raise ValueError("unreadable private key")
     return integers[1], integers[3]  # version, n, e, d, ...
 
 
@@ -729,7 +764,7 @@ class GoogleToken:
             account = json.load(handle)
         for needed in ("client_email", "private_key"):
             if not account.get(needed):
-                raise ValueError("nel file della chiave manca '%s': è il file giusto?" % needed)
+                raise ValueError("the key file has no '%s': is it the right file?" % needed)
         self.email = account["client_email"]
         self.project_id = account.get("project_id", "")
         self.token_uri = account.get("token_uri") or "https://oauth2.googleapis.com/token"
@@ -752,7 +787,7 @@ class GoogleToken:
                 status, answer = http_json(self.token_uri, "POST", body, timeout=15, form=True)
                 if status != 200 or not isinstance(answer, dict) or not answer.get("access_token"):
                     detail = answer.get("error_description") or answer.get("error") if isinstance(answer, dict) else answer
-                    raise SendError("Google non ha accettato la chiave (%s: %s)" % (status, detail), retry=status >= 500 or status == 429)
+                    raise SendError("Google did not accept the key (%s: %s)" % (status, detail), retry=status >= 500 or status == 429)
                 self._token = answer["access_token"]
                 self._expires = now + float(answer.get("expires_in") or 3000)
             return self._token
@@ -797,9 +832,9 @@ class FcmSender:
         self.token = GoogleToken(config["service_account_file"])
         self.project = config["project_id"] or self.token.project_id
         if not self.project:
-            raise ValueError("manca il nome del progetto Firebase (project_id)")
+            raise ValueError("the Firebase project name (project_id) is missing")
         if not config["topic"]:
-            raise ValueError("manca il 'topic' nel file di configurazione")
+            raise ValueError("the configuration file has no 'topic'")
         self.url = config["fcm_url"].format(project=self.project)
 
     def send(self, notice: Notice) -> None:
@@ -808,7 +843,7 @@ class FcmSender:
             try:
                 status, answer = http_json(self.url, "POST", payload, {"Authorization": "Bearer " + self.token.get(force=attempt == 2)}, timeout=20)
             except OSError as error:
-                raise SendError("rete non raggiungibile (%s)" % error)
+                raise SendError("network not reachable (%s)" % error)
             if status == 200:
                 return
             if status == 401 and attempt == 1:
@@ -839,7 +874,7 @@ class Outbox:
         self.thread.start()
 
     def put(self, notice: Notice) -> None:
-        LOG.info("Notifica: [%s] %s", notice.kind, notice.text)
+        LOG.info("Notification: [%s] %s", notice.kind, notice.text)
         with self._count:
             self.pending += 1
         self.queue.put((notice, time.time()))
@@ -866,21 +901,21 @@ class Outbox:
         while not self.stop.is_set():
             try:
                 if self.dry_run:
-                    LOG.info("(prova, non inviata) %s", notice.text)
+                    LOG.info("(dry run, not sent) %s", notice.text)
                 else:
                     self._send(notice)
-                    LOG.info("Inviata: %s", notice.text)
+                    LOG.info("Sent: %s", notice.text)
                 self.sent.append(notice)
                 return
             except SendError as error:
                 if not error.retry or time.time() - created > self.give_up:
-                    LOG.error("Notifica NON inviata (%s): %s", notice.text, error)
+                    LOG.error("Notification NOT sent (%s): %s", notice.text, error)
                     return
-                LOG.warning("Invio non riuscito (%s): riprovo tra %d s", error, delay)
+                LOG.warning("Sending failed (%s): retrying in %d s", error, delay)
                 self.stop.wait(delay)
                 delay = min(delay * 2, 60.0)
             except Exception as error:  # a bug must not kill the sender
-                LOG.exception("Errore inatteso nell'invio: %s", error)
+                LOG.exception("Unexpected error while sending: %s", error)
                 return
 
     def drain(self, timeout: float = 30.0) -> bool:
@@ -921,7 +956,7 @@ class Worker:
             try:
                 job()
             except Exception as error:  # a bug must not kill the worker
-                LOG.exception("Errore inatteso: %s", error)
+                LOG.exception("Unexpected error: %s", error)
 
 
 class SelfWatch:
@@ -949,7 +984,7 @@ class SelfWatch:
         except (OSError, SyntaxError, ValueError) as error:
             if self.warned != now:
                 self.warned = now
-                LOG.error("Il file %s e' cambiato ma non e' valido (%s): continuo con la versione in uso", self.path, error)
+                LOG.error("The file %s changed but is not valid (%s): going on with the one in use", self.path, error)
             return False
         return True
 
@@ -965,7 +1000,7 @@ def run(config: Dict[str, Any], dry_run: bool, stop: threading.Event, outbox_sen
     worker.start()
     watcher = Watcher(config)
     reader = PrinterReader(config)
-    LOG.info("KlippEye notifiche %s avviato (Moonraker %s, backend %s)%s", __version__, config["moonraker_url"], config["brain_url"], " [PROVA: non invia]" if dry_run else "")
+    LOG.info("KlippEye notifier %s started (Moonraker %s, backend %s)%s", __version__, config["moonraker_url"], config["brain_url"], " [DRY RUN: sends nothing]" if dry_run else "")
     poll = float(config["poll_seconds"])
     heartbeat = float(config["heartbeat_seconds"])
     selfwatch = SelfWatch(watch_file) if watch_file else None
@@ -974,7 +1009,7 @@ def run(config: Dict[str, Any], dry_run: bool, stop: threading.Event, outbox_sen
 
     def do(action: Action) -> None:
         if dry_run:
-            LOG.info("(prova, non eseguita) azione automatica: %s", action.kind)
+            LOG.info("(dry run, not done) automatic action: %s", action.kind)
             watcher.report_action(action.kind, True)
             return
         LOG.info("Azione automatica: %s", action.kind)
@@ -995,9 +1030,9 @@ def run(config: Dict[str, Any], dry_run: bool, stop: threading.Event, outbox_sen
                     payload = {"version": __version__, "seen": int(time.time()), "applied": watcher.dash["stamp"], "lastAction": watcher.last_action}
                     worker.submit(lambda payload=payload: reader.write_status(payload))
             except Exception as error:  # keep watching whatever happens
-                LOG.exception("Errore nel controllo: %s", error)
+                LOG.exception("Error while checking: %s", error)
             if selfwatch is not None and selfwatch.changed():
-                LOG.info("Il programma e' stato aggiornato (%s): mi fermo, systemd riparte con la versione nuova", selfwatch.path)
+                LOG.info("The program was updated (%s): stopping, systemd starts the new version", selfwatch.path)
                 stop.set()
             stop.wait(max(0.2, poll - (time.time() - started)))
     finally:
@@ -1011,29 +1046,29 @@ def command_check(config: Dict[str, Any]) -> int:
 
     def report(ok: bool, good: str, bad: str, required: bool = True) -> None:
         nonlocal problems
-        print(("  OK    " if ok else ("  ERRORE " if required else "  AVVISO ")) + (good if ok else bad))
+        print(("  OK      " if ok else ("  ERROR   " if required else "  WARNING ")) + (good if ok else bad))
         if not ok and required:
             problems += 1
 
-    print("Controllo di KlippEye notifiche %s" % __version__)
+    print("Checking the KlippEye notifier %s" % __version__)
     token: Optional[GoogleToken] = None
     try:
         token = GoogleToken(config["service_account_file"])
-        report(True, "Chiave Firebase trovata (progetto: %s)" % (config["project_id"] or token.project_id), "")
+        report(True, "Firebase key found (project: %s)" % (config["project_id"] or token.project_id), "")
     except (OSError, ValueError) as error:
-        report(False, "", "Chiave Firebase non utilizzabile: %s (file: %s)" % (error, config["service_account_file"]))
-    report(bool(config["topic"]), "Topic impostato: %s" % config["topic"], "Nel file notifier.json manca il \"topic\" (deve essere uguale a quello dell'app)")
+        report(False, "", "Firebase key not usable: %s (file: %s)" % (error, config["service_account_file"]))
+    report(bool(config["topic"]), "Topic set: %s" % config["topic"], "notifier.json has no \"topic\" (it must be the same as the app's)")
     try:
         status, info = http_json(config["moonraker_url"].rstrip("/") + "/printer/info")
         ok = status == 200 and isinstance(info, dict)
-        report(ok, "Moonraker raggiunto (Klipper: %s)" % (info.get("result") or {}).get("state") if ok else "", "Moonraker non risponde su %s (risposta %s)" % (config["moonraker_url"], status))
+        report(ok, "Moonraker reached (Klipper: %s)" % (info.get("result") or {}).get("state") if ok else "", "Moonraker does not answer at %s (answer %s)" % (config["moonraker_url"], status))
     except OSError as error:
-        report(False, "", "Moonraker non raggiungibile su %s (%s). Controlla \"moonraker_url\"" % (config["moonraker_url"], error))
+        report(False, "", "Moonraker not reachable at %s (%s). Check \"moonraker_url\"" % (config["moonraker_url"], error))
     try:
         status, response = http_json(config["brain_url"].rstrip("/") + "/api/print/last_analysis", headers=brain_headers(config))
-        report(status == 200, "backend raggiunto (analisi IA)", "Il backend risponde %s su %s: gli avvisi dell'IA non arriveranno" % (status, config["brain_url"]), required=False)
+        report(status == 200, "Backend reached (AI analysis)", "The backend answers %s at %s: the AI alerts will not arrive" % (status, config["brain_url"]), required=False)
     except OSError as error:
-        report(False, "", "backend non raggiungibile su %s (%s): gli avvisi dell'IA non arriveranno" % (config["brain_url"], error), required=False)
+        report(False, "", "Backend not reachable at %s (%s): the AI alerts will not arrive" % (config["brain_url"], error), required=False)
     try:
         status, answer = http_json("%s/server/database/item?namespace=%s&key=settings" % (config["moonraker_url"].rstrip("/"), DASH_NAMESPACE))
         if status == 404:
@@ -1041,49 +1076,61 @@ def command_check(config: Dict[str, Any]) -> int:
         if status == 200 and isinstance(answer, dict):
             chosen = dash_settings((answer.get("result") or {}).get("value"))
             off = sorted(name for name, value in chosen["events"].items() if not value)
-            report(True, "Impostazioni della dashboard lette (notifiche spente: %s; pausa automatica: %s; cancellazione automatica: %s)"
-                   % (", ".join(off) or "nessuna", "sì" if chosen["ai"]["auto_pause"] else "no", "sì" if chosen["ai"]["auto_cancel"] else "no"), "")
+            report(True, "Dashboard settings read (notifications off: %s; language: %s; automatic pause: %s; automatic cancel: %s)"
+                   % (", ".join(off) or "none", chosen["language"] or "not chosen yet", "yes" if chosen["ai"]["auto_pause"] else "no", "yes" if chosen["ai"]["auto_cancel"] else "no"), "")
         elif status == 404:
-            report(True, "Impostazioni della dashboard: ancora non salvate dal menù (valgono i valori di notifier.json, azioni automatiche spente)", "")
+            report(True, "Dashboard settings: not saved from the menu yet (notifier.json applies, automatic actions off)", "")
         else:
-            report(False, "", "Il database di Moonraker risponde %s: le scelte del menù della dashboard non arriveranno" % status, required=False)
+            report(False, "", "Moonraker's database answers %s: the choices of the dashboard menu will not arrive" % status, required=False)
     except OSError:
         pass  # Moonraker's own problem is reported above
     if token is not None:
         try:
             token.get(force=True)
-            report(True, "Accesso a Google riuscito (internet funziona e la chiave è valida)", "")
+            report(True, "Google sign-in works (internet works and the key is valid)", "")
         except SendError as error:
-            report(False, "", "Accesso a Google non riuscito: %s. Controlla internet e che data e ora del Raspberry siano giuste" % error)
+            report(False, "", "Google sign-in failed: %s. Check internet and that the Raspberry's date and time are right" % error)
         except OSError as error:
-            report(False, "", "Google non raggiungibile (%s): il Raspberry ha internet?" % error)
-    print("Tutto a posto." if problems == 0 else "Ci sono %d problemi da sistemare." % problems)
+            report(False, "", "Google not reachable (%s): does the Raspberry have internet?" % error)
+    print("All good." if problems == 0 else "%d problem(s) to fix." % problems)
     return 0 if problems == 0 else 1
+
+
+def dashboard_language(config: Dict[str, Any]) -> Optional[str]:
+    """The notification language chosen in the dashboard, read once from Moonraker's database (None if not known)."""
+    for namespace in (DASH_NAMESPACE, DASH_NAMESPACE_LEGACY):
+        try:
+            status, answer = http_json("%s/server/database/item?namespace=%s&key=settings" % (config["moonraker_url"].rstrip("/"), namespace))
+        except OSError:
+            return None
+        if status == 200 and isinstance(answer, dict):
+            return dash_settings((answer.get("result") or {}).get("value"))["language"]
+    return None
 
 
 def command_test(config: Dict[str, Any]) -> int:
     try:
         sender = FcmSender(config)
-        sender.send(Notice("test", config["messages"].get("test") or DEFAULT_MESSAGES["test"]))
+        sender.send(Notice("test", message_text(config, dashboard_language(config), "test")))
     except (OSError, ValueError, SendError) as error:
-        print("Notifica di prova NON inviata: %s" % error)
+        print("Test notification NOT sent: %s" % error)
         return 1
-    print("Notifica di prova inviata a Google. Dovrebbe comparire sul telefono entro pochi secondi.")
+    print("Test notification handed to Google. It should appear on the phone within a few seconds.")
     return 0
 
 
 def main(argv: Optional[List[str]] = None) -> int:
-    parser = argparse.ArgumentParser(description="Notifiche push di KlippEye")
+    parser = argparse.ArgumentParser(description="KlippEye push notifications")
     parser.add_argument("--config", default=os.path.join(os.path.dirname(os.path.abspath(__file__)), "notifier.json"))
-    parser.add_argument("--check", action="store_true", help="controlla configurazione e collegamenti")
-    parser.add_argument("--test", action="store_true", help="invia una notifica di prova")
-    parser.add_argument("--dry-run", action="store_true", help="controlla ma stampa le notifiche invece di inviarle")
+    parser.add_argument("--check", action="store_true", help="check the configuration and the connections")
+    parser.add_argument("--test", action="store_true", help="send a test notification")
+    parser.add_argument("--dry-run", action="store_true", help="watch, but print the notifications instead of sending them")
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s", datefmt="%H:%M:%S", stream=sys.stdout)
     try:
         config = load_config(args.config)
     except (OSError, ValueError) as error:
-        print("Non riesco a leggere %s: %s" % (args.config, error))
+        print("Cannot read %s: %s" % (args.config, error))
         return 2
     if args.check:
         return command_check(config)
@@ -1095,7 +1142,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     try:
         run(config, args.dry_run, stop, watch_file=os.path.abspath(__file__))
     except (OSError, ValueError) as error:
-        print("Non posso partire: %s" % error)
+        print("Cannot start: %s" % error)
         return 2
     return 0
 

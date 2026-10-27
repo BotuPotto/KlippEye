@@ -61,27 +61,27 @@ ok("start: nothing is announced for what is already there (an old verdict, nothi
 mset(print_state="printing"); quiet(0.6)
 ok("a print starting says nothing", google.kinds() == [])
 mset(print_state="complete")
-ok("COMPLETE: the push goes out with the asked text", wait_for(lambda: google.kinds() == ["complete"]) and google.bodies() == ["Stampa completata!"], (google.kinds(), google.bodies()))
+ok("COMPLETE: the push goes out with the asked text", wait_for(lambda: google.kinds() == ["complete"]) and google.bodies() == ["Print completed!"], (google.kinds(), google.bodies()))
 m = google.messages[0]["payload"]["message"]
 ok("... to the right topic, title, channel and project, signed in with a verified token", m["topic"] == "vzbot-test-topic" and m["notification"]["title"] == "KlippEye" and m["android"]["notification"]["channel_id"] == "stampa" and google.messages[0]["project"] == "vzbot-test" and google.messages[0]["token"].startswith("tok-") and not google.sign_errors, (m, google.sign_errors))
 ok("... and Google was asked for ONE token", google.token_requests == 1, google.token_requests)
 
 mset(print_state="printing"); quiet(0.5); mset(print_state="cancelled")
-ok("CANCELLED", wait_for(lambda: google.kinds() == ["complete", "cancelled"]) and google.bodies()[-1] == "Stampa interrotta!", google.bodies())
+ok("CANCELLED", wait_for(lambda: google.kinds() == ["complete", "cancelled"]) and google.bodies()[-1] == "Print cancelled!", google.bodies())
 
 mset(print_state="printing"); quiet(0.5); n = len(google.kinds()); mset(print_state="paused"); quiet(0.4)
 ok("PAUSE: not announced at once (waits to see whether a runout explains it)", len(google.kinds()) == n)
-ok("PAUSE: announced after the grace time", wait_for(lambda: google.kinds()[n:] == ["paused"]) and google.bodies()[-1] == "Stampante in pausa!", google.bodies())
+ok("PAUSE: announced after the grace time", wait_for(lambda: google.kinds()[n:] == ["paused"]) and google.bodies()[-1] == "Printer paused!", google.bodies())
 
 mset(print_state="printing"); quiet(0.6); n = len(google.kinds())
 mset(console_extra=[{"message": "echo: O2S: Printer paused due to filament runout!", "time": NOW + 100, "type": "response"}]); mset(print_state="paused")
-ok("RUNOUT: the line in the console gives the filament push", wait_for(lambda: google.kinds()[n:] == ["runout"]) and google.bodies()[-1] == "Filamento esaurito, effettuare cambio bobina!" and google.messages[-1]["payload"]["message"]["android"]["notification"]["channel_id"] == "allarmi", google.bodies())
+ok("RUNOUT: the line in the console gives the filament push", wait_for(lambda: google.kinds()[n:] == ["runout"]) and google.bodies()[-1] == "Filament run out, change the spool!" and google.messages[-1]["payload"]["message"]["android"]["notification"]["channel_id"] == "allarmi", google.bodies())
 quiet(2.0)
 ok("RUNOUT: and NO second push for the pause it caused", google.kinds()[n:] == ["runout"], google.kinds()[n:])
 mset(print_state="printing", console_extra=[]); quiet(0.6)
 
 n = len(google.kinds()); mset(webhooks="shutdown", webhooks_msg="Shutdown due to M112 command")
-ok("ERROR: Klipper in shutdown", wait_for(lambda: google.kinds()[n:] == ["error"]) and google.bodies()[-1] == "Stampante in errore! Effettuare riavvio." , google.bodies())
+ok("ERROR: Klipper in shutdown", wait_for(lambda: google.kinds()[n:] == ["error"]) and google.bodies()[-1] == "Printer error! Restart it." , google.bodies())
 quiet(1.0); ok("ERROR: only one push while it stays in shutdown", google.kinds()[n:] == ["error"])
 mset(webhooks="startup"); quiet(0.4); mset(webhooks="ready", print_state="standby"); quiet(1.0)
 ok("a restart after the error says nothing more (and the print is not 'interrotta')", google.kinds()[n:] == ["error"], google.kinds()[n:])
@@ -89,9 +89,9 @@ ok("a restart after the error says nothing more (and the print is not 'interrott
 n = len(google.kinds()); mset(print_state="printing"); quiet(0.5)
 mset(analysis_action="CONTINUA"); quiet(0.5)
 mset(analysis_action="PAUSA")
-ok("AI: PAUSA verdict -> push with the asked text", wait_for(lambda: google.kinds()[n:] == ["ai_pause"]) and google.bodies()[-1] == "Difetti di stampa rilevati, verificare e mettere in pausa la stampa!" and google.messages[-1]["payload"]["message"]["android"]["notification"]["channel_id"] == "avvisi", google.bodies())
+ok("AI: PAUSA verdict -> push with the asked text", wait_for(lambda: google.kinds()[n:] == ["ai_pause"]) and google.bodies()[-1] == "Print defects found, check and pause the print!" and google.messages[-1]["payload"]["message"]["android"]["notification"]["channel_id"] == "avvisi", google.bodies())
 mset(analysis_action="CANCELLA")
-ok("AI: CANCELLA verdict -> push with the asked text", wait_for(lambda: google.kinds()[n:] == ["ai_pause", "ai_cancel"]) and google.bodies()[-1] == "Difetti gravi di stampa rilevati, verificare e interrompere la stampa" and google.messages[-1]["payload"]["message"]["android"]["notification"]["channel_id"] == "allarmi", google.bodies())
+ok("AI: CANCELLA verdict -> push with the asked text", wait_for(lambda: google.kinds()[n:] == ["ai_pause", "ai_cancel"]) and google.bodies()[-1] == "Serious print defects found, check and cancel the print" and google.messages[-1]["payload"]["message"]["android"]["notification"]["channel_id"] == "allarmi", google.bodies())
 mset(analysis_action="CONTINUA"); quiet(0.8)
 ok("AI: back to CONTINUA says nothing", google.kinds()[n:] == ["ai_pause", "ai_cancel"])
 ok("AI: the Brain's verdict was read from the real endpoint of the stand-in (no errors)", True)
@@ -139,23 +139,23 @@ def capture(fn, *a):
     return code, buf.getvalue()
 google.reset(); mock.reset()
 code, text = capture(vn.command_check, vn.load_config(CFG_PATH))
-ok("--check: everything OK -> exit 0, every line OK", code == 0 and text.count("OK") >= 5 and "ERRORE" not in text and "Tutto a posto" in text, text)
+ok("--check: everything OK -> exit 0, every line OK", code == 0 and text.count("OK") >= 5 and "ERROR" not in text and "All good" in text, text)
 bad = dict(CONFIG, moonraker_url="http://127.0.0.1:9", service_account_file=os.path.join(TMP, "missing.json"), topic="")
 badpath = os.path.join(TMP, "bad.json"); json.dump(bad, open(badpath, "w"))
 code, text = capture(vn.command_check, vn.load_config(badpath))
-ok("--check: wrong Moonraker address, missing key, no topic -> exit 1, each problem said in plain words", code == 1 and text.count("ERRORE") == 3 and "Moonraker non raggiungibile" in text and "Chiave Firebase non utilizzabile" in text and "manca il \"topic\"" in text, text)
+ok("--check: wrong Moonraker address, missing key, no topic -> exit 1, each problem said in plain words", code == 1 and text.count("ERROR") == 3 and "Moonraker not reachable" in text and "Firebase key not usable" in text and "has no \"topic\"" in text, text)
 google.token_error = True
 code, text = capture(vn.command_check, vn.load_config(CFG_PATH))
-ok("--check: Google refuses the key -> exit 1 with the reason", code == 1 and "Accesso a Google non riuscito" in text and "Invalid JWT Signature" in text, text)
+ok("--check: Google refuses the key -> exit 1 with the reason", code == 1 and "Google sign-in failed" in text and "Invalid JWT Signature" in text, text)
 google.token_error = False
 brainless = dict(CONFIG, brain_url="http://127.0.0.1:9"); p2 = os.path.join(TMP, "nobrain.json"); json.dump(brainless, open(p2, "w"))
 code, text = capture(vn.command_check, vn.load_config(p2))
-ok("--check: Brain unreachable is only a warning (exit 0)", code == 0 and "AVVISO" in text and "backend non raggiungibile" in text, text)
+ok("--check: Brain unreachable is only a warning (exit 0)", code == 0 and "WARNING" in text and "Backend not reachable" in text, text)
 code, text = capture(vn.command_test, vn.load_config(CFG_PATH))
-ok("--test: sends the test push", code == 0 and google.kinds() == ["test"] and google.bodies() == ["Notifica di prova: tutto funziona!"] and google.messages[0]["payload"]["message"]["android"]["notification"]["channel_id"] == "stampa", (text, google.kinds()))
+ok("--test: sends the test push", code == 0 and google.kinds() == ["test"] and google.bodies() == ["Test notification: everything works!"] and google.messages[0]["payload"]["message"]["android"]["notification"]["channel_id"] == "stampa", (text, google.kinds()))
 google.fail = [400]
 code, text = capture(vn.command_test, vn.load_config(CFG_PATH))
-ok("--test: when Google refuses, it says so and exits 1", code == 1 and "NON inviata" in text and "400" in text, text)
+ok("--test: when Google refuses, it says so and exits 1", code == 1 and "NOT sent" in text and "400" in text, text)
 
 
 # ================================================================================================ version 1.1: the dashboard's settings, end to end
@@ -169,6 +169,7 @@ def print_actions():
     return json.loads(urllib.request.urlopen(mock.base + "/__mock/print_actions").read())
 def settings_doc(**kw):
     d = {"notifications": kw.get("notifications", {}), "ai": {k: v for k, v in kw.items() if k in ("autoPause", "autoCancel", "confirmations", "minConfidence", "defects")}, "_t": int(time.time() * 1000)}
+    if "language" in kw: d["language"] = kw["language"]
     return d
 
 google.reset(); mock.reset()
@@ -179,14 +180,20 @@ ok("1.1: the service tells the dashboard it is alive (key 'notifier': version, l
 seen_before = db_read("notifier")["seen"]
 ok("1.1: ... and again after a while (heartbeat)", wait_for(lambda: db_read("notifier")["seen"] > seen_before, 5), (seen_before, db_read("notifier")["seen"]))
 
-# the dashboard switches 'Stampa completata' off
+# the dashboard switches 'Print completed' off
 db_write("settings", settings_doc(notifications={"complete": False})); quiet(0.8)
 mset(print_state="printing"); quiet(0.5); mset(print_state="complete"); quiet(1.0)
-ok("1.1: 'Stampa completata' switched off in the dashboard -> no push (within a few seconds, no restart)", google.kinds() == [], google.kinds())
+ok("1.1: 'Print completed' switched off in the dashboard -> no push (within a few seconds, no restart)", google.kinds() == [], google.kinds())
 ok("1.1: ... and the service reports which settings it applied (their stamp)", db_read("notifier")["applied"] == db_read("settings")["_t"], (db_read("notifier"), db_read("settings")))
 db_write("settings", settings_doc(notifications={"complete": True})); quiet(0.8)
 mset(print_state="printing"); quiet(0.5); mset(print_state="complete")
 ok("1.1: switched on again -> the push goes out", wait_for(lambda: google.kinds() == ["complete"]), google.kinds())
+mset(print_state="standby"); quiet(0.4)
+# 1.3: the dashboard chooses Italian for the notifications
+db_write("settings", settings_doc(language="it")); quiet(0.8)
+n = len(google.kinds()); mset(print_state="printing"); quiet(0.5); mset(print_state="complete")
+ok("1.3: Italian chosen in the dashboard -> the push is in Italian", wait_for(lambda: google.kinds()[n:] == ["complete"]) and google.bodies()[-1] == "Stampa completata!", google.bodies()[n:])
+db_write("settings", settings_doc()); quiet(0.8)
 mset(print_state="standby"); quiet(0.4)
 
 # automatic pause
@@ -194,15 +201,15 @@ db_write("settings", settings_doc(autoPause=True)); quiet(0.8); n = len(google.k
 mset(print_state="printing", analysis_action="CONTINUA"); quiet(0.8)
 mset(analysis_action="PAUSA")
 ok("AUTO PAUSE: the service pauses the print through Moonraker", wait_for(lambda: print_actions() == ["pause"]), print_actions())
-ok("... the push says it was done automatically", wait_for(lambda: google.kinds()[n:] == ["ai_pause"]) and google.bodies()[-1] == "Difetti di stampa rilevati: stampa messa in pausa automaticamente.", google.bodies())
+ok("... the push says it was done automatically", wait_for(lambda: google.kinds()[n:] == ["ai_pause"]) and google.bodies()[-1] == "Print defects found: print paused automatically.", google.bodies())
 quiet(2.0)
-ok("... and there is no second push ('Stampante in pausa') for the pause it caused", google.kinds()[n:] == ["ai_pause"], google.kinds()[n:])
+ok("... and there is no second push ('Printer paused') for the pause it caused", google.kinds()[n:] == ["ai_pause"], google.kinds()[n:])
 ok("... the dashboard is told what the service did", wait_for(lambda: (db_read("notifier") or {}).get("lastAction") not in (None,)) and db_read("notifier")["lastAction"]["kind"] == "pause" and db_read("notifier")["lastAction"]["ok"] is True, db_read("notifier"))
 
 # automatic cancel, Moonraker refuses
 mset(print_state="printing", print_action_fail="Klipper is busy"); db_write("settings", settings_doc(autoCancel=True)); quiet(0.8); n = len(google.kinds())
 mset(analysis_action="CONTINUA"); quiet(0.6); mset(analysis_action="CANCELLA")
-ok("AUTO CANCEL that Moonraker refuses: the ordinary push goes out so the person acts", wait_for(lambda: google.kinds()[n:] == ["ai_cancel"]) and google.bodies()[-1] == "Difetti gravi di stampa rilevati, verificare e interrompere la stampa", google.bodies())
+ok("AUTO CANCEL that Moonraker refuses: the ordinary push goes out so the person acts", wait_for(lambda: google.kinds()[n:] == ["ai_cancel"]) and google.bodies()[-1] == "Serious print defects found, check and cancel the print", google.bodies())
 ok("... the attempt was made, and reported as failed to the dashboard", print_actions()[-1] == "cancel" and wait_for(lambda: db_read("notifier")["lastAction"]["ok"] is False), (print_actions(), db_read("notifier")))
 mset(print_action_fail="", print_state="standby"); quiet(0.5)
 
@@ -210,7 +217,7 @@ mset(print_action_fail="", print_state="standby"); quiet(0.5)
 db_write("settings", settings_doc(autoPause=True, autoCancel=True)); quiet(0.8); n = len(google.kinds()); acts = len(print_actions())
 mset(print_state="printing", analysis_action="CONTINUA"); quiet(0.8); mset(analysis_action="CANCELLA")
 ok("AUTO CANCEL: the service cancels the print", wait_for(lambda: print_actions()[acts:] == ["cancel"]), print_actions())
-ok("... one push, 'interrotta automaticamente', and not the plain 'Stampa interrotta!' too", wait_for(lambda: google.kinds()[n:] == ["ai_cancel"]) and google.bodies()[-1] == "Difetti gravi di stampa rilevati: stampa interrotta automaticamente." and (quiet(1.5) or google.kinds()[n:] == ["ai_cancel"]), google.bodies())
+ok("... one push, 'cancelled automatically', and not the plain 'Print cancelled!' too", wait_for(lambda: google.kinds()[n:] == ["ai_cancel"]) and google.bodies()[-1] == "Serious print defects found: print cancelled automatically." and (quiet(1.5) or google.kinds()[n:] == ["ai_cancel"]), google.bodies())
 
 # nothing stored / garbage stored
 mset(print_state="standby"); quiet(0.4)
@@ -230,10 +237,10 @@ ok("1.1: the service stops cleanly", not runner2.is_alive())
 # --check with settings in the database
 google.reset(); mock.reset(); db_write("settings", settings_doc(notifications={"paused": False, "runout": False}, autoPause=True))
 code, text = capture(vn.command_check, vn.load_config(CFG_PATH))
-ok("--check: says what the dashboard's settings are", code == 0 and "Impostazioni della dashboard lette" in text and "paused, runout" in text and "pausa automatica: sì" in text and "cancellazione automatica: no" in text, text)
+ok("--check: says what the dashboard's settings are", code == 0 and "Dashboard settings read" in text and "paused, runout" in text and "automatic pause: yes" in text and "automatic cancel: no" in text, text)
 mset(db_mode="refuse"); mock.set(db_mode="no_route")
 code, text = capture(vn.command_check, vn.load_config(CFG_PATH))
-ok("--check: a database that is not reachable is a warning, not an error", code == 0 and ("ancora non salvate" in text or "AVVISO" in text), text)
+ok("--check: a database that is not reachable is a warning, not an error", code == 0 and ("not saved from the menu yet" in text or "WARNING" in text), text)
 mset(db_mode="ok")
 
 # ================================================================================================ the command line, as the service runs it
@@ -244,14 +251,14 @@ ok("command line: the service process sends the push", wait_for(lambda: google.k
 proc.send_signal(signal.SIGTERM)
 try: out, _ = proc.communicate(timeout=8)
 except subprocess.TimeoutExpired: proc.kill(); out, _ = proc.communicate()
-ok("command line: SIGTERM stops it (exit code 0) and the log is in plain Italian", proc.returncode == 0 and "avviato" in out and "Inviata: Stampa completata!" in out, (proc.returncode, out[-400:]))
+ok("command line: SIGTERM stops it (exit code 0) and the log is in plain English", proc.returncode == 0 and "started" in out and "Sent: Print completed!" in out, (proc.returncode, out[-400:]))
 google.reset(); mock.reset()
 proc = subprocess.Popen([sys.executable, os.path.join(HERE, "..", "..", "notifier", "klippeye_notifier.py"), "--config", CFG_PATH, "--dry-run"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
 time.sleep(1.5); mset(print_state="printing"); time.sleep(0.6); mset(print_state="complete"); time.sleep(1.5)
 proc.send_signal(signal.SIGTERM); out, _ = proc.communicate(timeout=8)
-ok("command line --dry-run: prints the notice and sends nothing", "(prova, non inviata) Stampa completata!" in out and google.kinds() == [] and google.token_requests == 0, (out[-300:], google.kinds()))
+ok("command line --dry-run: prints the notice and sends nothing", "(dry run, not sent) Print completed!" in out and google.kinds() == [] and google.token_requests == 0, (out[-300:], google.kinds()))
 nocfg = subprocess.run([sys.executable, os.path.join(HERE, "..", "..", "notifier", "klippeye_notifier.py"), "--config", os.path.join(TMP, "nope.json")], capture_output=True, text=True)
-ok("command line: missing config file -> clear message, exit 2", nocfg.returncode == 2 and "Non riesco a leggere" in nocfg.stdout, nocfg.stdout)
+ok("command line: missing config file -> clear message, exit 2", nocfg.returncode == 2 and "Cannot read" in nocfg.stdout, nocfg.stdout)
 
 print("\nFAILED: %d %s" % (len(FAILS), FAILS) if FAILS else "\nALL PASS")
 os._exit(1 if FAILS else 0)

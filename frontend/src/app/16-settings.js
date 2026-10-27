@@ -39,15 +39,18 @@ const Z_STEP_MIN = 0.001;
 const Z_STEP_MAX = 1;
 const Z_STEP_SLOTS = 4;
 
-/** The notifications of the Raspberry's notification service, in the order the menu lists them. */
+/**
+ * The notifications of the Raspberry's notification service, in the order the menu lists them. `text` is the text of
+ * the push in English (the same as MESSAGES in notifier/klippeye_notifier.py), shown in the notifications' language.
+ */
 const NOTIFICATION_KINDS = [
-  { id: "error", title: tx("Printer error"), text: tx("Printer error! Restart it.") },
-  { id: "complete", title: tx("Print completed"), text: tx("Print completed!") },
-  { id: "cancelled", title: tx("Print cancelled"), text: tx("Print cancelled!") },
-  { id: "paused", title: tx("Printer paused"), text: tx("Printer paused!") },
-  { id: "runout", title: tx("Filament run out"), text: tx("Filament run out, change the spool!") },
-  { id: "ai_pause", title: tx("AI: defects found"), text: tx("Print defects found, check and pause the print!") },
-  { id: "ai_cancel", title: tx("AI: serious defects"), text: tx("Serious print defects found, check and cancel the print") },
+  { id: "error", title: tx("Printer error"), text: txn("Printer error! Restart it.") },
+  { id: "complete", title: tx("Print completed"), text: txn("Print completed!") },
+  { id: "cancelled", title: tx("Print cancelled"), text: txn("Print cancelled!") },
+  { id: "paused", title: tx("Printer paused"), text: txn("Printer paused!") },
+  { id: "runout", title: tx("Filament run out"), text: txn("Filament run out, change the spool!") },
+  { id: "ai_pause", title: tx("AI: defects found"), text: txn("Print defects found, check and pause the print!") },
+  { id: "ai_cancel", title: tx("AI: serious defects"), text: txn("Serious print defects found, check and cancel the print") },
 ];
 
 /** What the AI print monitor looks for (the keys of its verdict, see app/53-ai-views.js). */
@@ -71,6 +74,7 @@ const SETTINGS_DEFAULTS = {
   network: { localIp: "192.168.1.17", externalIp: "172.25.170.177", route: "auto" },
   zOffset: { steps: [0.01, 0.025, 0.05, 0.1] },
   printer: { brand: "klippeye", name: "" }, // name "": the brand's own
+  language: LANG, // of the notifications (shared by every phone): the language of the first device that saves the settings
   notifications: Object.fromEntries(NOTIFICATION_KINDS.map((kind) => [kind.id, true])),
   ai: {
     autoPause: false,
@@ -161,6 +165,7 @@ function sanitizeSettings(raw) {
     },
     zOffset: { steps: cleanZSteps(zOffset.steps) },
     printer: { brand: pickOne(printer.brand, PRINTER_BRAND_IDS, d.printer.brand), name: cleanPrinterName(printer.name) || "" },
+    language: pickOne(given.language, I18N_LANGUAGES.map((language) => language.code), d.language),
     notifications: Object.fromEntries(NOTIFICATION_KINDS.map((kind) => [kind.id, asBool(notifications[kind.id], true)])),
     ai: {
       autoPause: asBool(ai.autoPause, d.ai.autoPause),
@@ -310,6 +315,16 @@ function createSettingsStore() {
       }
       const remote = sanitizeSettings(answer.value);
       known = true;
+      if (typeof answer.value.language !== "string") {
+        // saved by a release before 1.5.0: the notifications get this device's language, and the Raspberry is told
+        current = remote;
+        stamp = nextStamp(Math.max(stamp, remoteStamp));
+        dirty = true;
+        remember();
+        announce();
+        emit();
+        return push();
+      }
       if (JSON.stringify(remote) !== JSON.stringify(current) || remoteStamp !== stamp || dirty) {
         current = remote;
         stamp = remoteStamp;

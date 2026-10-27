@@ -7,6 +7,7 @@
      tx("Restart")                          -> "Riavvia" in Italian
      tx("Restarted: {service}", { service }) -> placeholders in braces, filled in after translating
      txc("verb", "Print")                   -> the same English word in two meanings: the key is "verb|Print"
+     txn("Print completed!")                -> only marked: txIn("it", text) translates it into a given language
    (short names that the minified React code, which shares the same top-level scope, does not use)
 
    The language is the one chosen in Settings → Language (kept on this device,
@@ -78,6 +79,17 @@ function tx(text, values) {
   const dictionary = I18N_DICTIONARIES[LANG];
   const translated = dictionary && Object.prototype.hasOwnProperty.call(dictionary, text) ? dictionary[text] : text;
   return i18nFill(translated, values);
+}
+
+/** Marks an English text for the dictionaries without translating it now: txIn() translates it later into a given language. */
+function txn(text) {
+  return text;
+}
+
+/** The translation of an English text (marked with txn or tx) into `language`, whatever the page's language is. */
+function txIn(language, text, values) {
+  const dictionary = I18N_DICTIONARIES[language];
+  return i18nFill(dictionary && Object.prototype.hasOwnProperty.call(dictionary, text) ? dictionary[text] : text, values);
 }
 
 /** Like tx(), for an English text that needs a different translation in a given context (key "context|text"). */

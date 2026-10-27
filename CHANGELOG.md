@@ -1,5 +1,17 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.5.0
+
+**Notifications in your language.**
+
+* The push notifications are in English or Italian: **Settings → Notifications → Language of the notifications**, one
+  choice for every phone (the dashboard's own language stays per device). The list of notifications in that page shows
+  the texts exactly as the phones will get them.
+* Existing installs keep Italian notifications: the first time a dashboard of this release opens, it saves its own
+  language as the notifications' language. Until then (or without any dashboard) the notifications are in English, or in
+  the language written as `"language": "it"` in `notifier.json`. Texts written in `notifier.json` (`"messages"`) still win.
+* The notification service (`klippeye-notifier`, 1.3) writes its log and its `--check` / `--test` answers in English.
+
 ## 1.4.0
 
 **The dashboard speaks English and Italian.**
