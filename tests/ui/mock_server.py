@@ -883,6 +883,11 @@ def logs_list():
 @app.route("/api/logs/content")
 def logs_content():
     return jsonify(file=request.args.get("file"), content="line1\nline2 error here\nline3\n", lines=3)
+@app.route("/api/diagnose")
+def api_diagnose():
+    return Response("KlippEye diagnostic report\n== KlippEye\nrelease: 1.0.0\n", mimetype="text/plain", headers={"Content-Disposition": 'attachment; filename="klippeye-diagnose-20261027-1200.txt"'})
+
+
 @app.route("/api/logs/download")
 def logs_download():
     # like the backend's send_file(as_attachment=True)

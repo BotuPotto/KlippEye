@@ -22,6 +22,7 @@ Groq's 404 and 413) with what release 1.0 and later added:
   * texts for people are in English and translated with the dashboard's dictionaries (bt()).
 """
 from flask import Flask, request, Response, jsonify, send_file
+import gzip
 try:  # optional since 1.2.0: only needed with KLIPPEYE_CORS (development)
     from flask_cors import CORS
 except ImportError:
@@ -827,6 +828,27 @@ def proxy_moonraker(path):
     except Exception as e:
         return jsonify({"error": str(e)}), 502
 
+_PAGE_CACHE = {"key": None}
+
+
+def serve_frontend(path):
+    """The dashboard page, gzip-compressed when the browser accepts it (about a quarter of the size: it opens faster on a
+    slow network or a phone). Compressed once per file version, with an ETag so an unchanged page is not sent again."""
+    st = os.stat(path)
+    key = (path, st.st_mtime_ns, st.st_size)
+    if _PAGE_CACHE["key"] != key:
+        with open(path, "rb") as fh:
+            raw = fh.read()
+        _PAGE_CACHE.update(key=key, raw=raw, gz=gzip.compress(raw, 6), etag='"%s"' % hashlib.sha256(raw).hexdigest()[:20])
+    headers = {"ETag": _PAGE_CACHE["etag"], "Cache-Control": "no-cache", "Vary": "Accept-Encoding"}
+    if _PAGE_CACHE["etag"] in [tag.strip() for tag in request.headers.get("If-None-Match", "").split(",")]:
+        return Response(status=304, headers=headers)
+    if "gzip" in request.headers.get("Accept-Encoding", "").lower():
+        headers["Content-Encoding"] = "gzip"
+        return Response(_PAGE_CACHE["gz"], mimetype="text/html", headers=headers)
+    return Response(_PAGE_CACHE["raw"], mimetype="text/html", headers=headers)
+
+
 @app.route("/")
 def index():
     f = find_frontend()
@@ -837,11 +859,11 @@ def index():
         if not f or not frontend_ok(f):
             return Response(emergency_page(), status=503, mimetype="text/html", headers={"Retry-After": "8", "Cache-Control": "no-store"})
     if f:
-        return send_file(f)
+        return serve_frontend(f)
     run_repair()              # missing file: the same
     f = find_frontend()
     if f and frontend_ok(f):
-        return send_file(f)
+        return serve_frontend(f)
     return "frontend/klippeye_frontend.html not found in " + REPO_DIR, 404
 
 @app.route("/api/health")
@@ -1551,7 +1573,7 @@ def api_ai_config():
             provider=body.get("provider","openai")
             model=body.get("model","gpt-4o-mini")
             if not key or len(key)<20:
-                return jsonify({"error":"api_key troppo corta"}),400
+                return jsonify({"error": bt("API key too short", _lang())}), 400
             cfg={"provider":provider,"api_key":key,"model":model}
             # release 1.0: one place only (data folder), readable only by the service user
             try:
@@ -2470,6 +2492,25 @@ def set_brain_config(changes):
         else:
             detector.stop()
     return errors, changed
+
+
+DIAGNOSE_SCRIPT = os.path.join(REPO_DIR, "scripts", "diagnose.py")
+
+
+@app.route("/api/diagnose", methods=["GET"])
+def api_diagnose():
+    """The diagnostic report of scripts/diagnose.py as a text file (no secrets in it: see the script)."""
+    if not os.path.isfile(DIAGNOSE_SCRIPT):
+        return jsonify({"ok": False, "error": bt("scripts/diagnose.py is missing: update KlippEye.", _lang())}), 404
+    try:
+        r = subprocess.run([sys.executable, DIAGNOSE_SCRIPT, "--repo", REPO_DIR, "--data", DATA_DIR,
+                            "--backend", "http://127.0.0.1:%d" % PORT, "--moonraker", MOONRAKER_URL],
+                           capture_output=True, text=True, timeout=120, stdin=subprocess.DEVNULL)
+        text = r.stdout or r.stderr
+    except Exception as e:  # noqa: BLE001
+        text = "The diagnostic report failed: %s\n" % e
+    name = "klippeye-diagnose-%s.txt" % time.strftime("%Y%m%d-%H%M")
+    return Response(text, mimetype="text/plain", headers={"Content-Disposition": 'attachment; filename="%s"' % name, "Cache-Control": "no-store"})
 
 
 @app.route("/api/version", methods=["GET"])

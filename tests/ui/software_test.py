@@ -257,6 +257,11 @@ with sync_playwright() as p:
     ok("an up-to-date system says so", wait_until(lambda: "KlippEye è aggiornato" in pg.locator(".drawer__body").inner_text(), 4.0))
     ok("no update button then", pg.locator("button", has_text="Aggiorna KlippEye").count() == 0)
     ok("the restart rows are there (the notification service exists)", wait_until(lambda: "Riavvia il backend" in pg.locator(".drawer__body").inner_text() and "Riavvia le notifiche" in pg.locator(".drawer__body").inner_text(), 3.0), pg.locator(".drawer__body").inner_text()[-300:])
+    row = pg.locator(".file-action", has_text="Scarica il rapporto di diagnostica")
+    ok("1.9.0: a 'Diagnostica' block offers the diagnostic report", row.count() == 1 and "klippeye diagnose" in row.inner_text(), pg.locator(".drawer__body").inner_text()[-500:])
+    with pg.expect_download(timeout=8000) as info:
+        row.click()
+    ok("... a click downloads it from /api/diagnose", "KlippEye diagnostic report" in open(info.value.path(), encoding="utf-8").read(), info.value.suggested_filename)
     # check: a new commit appears
     mock.set(klippeye_incoming=[{"sha": "f1", "author": "t", "date": "1760000000", "subject": "Release 1.0.1", "message": ""}, {"sha": "f2", "author": "t", "date": "1759990000", "subject": "Soglie nuove", "message": ""}])
     pg.locator("button", has_text="Controlla se c'è una versione nuova").click()

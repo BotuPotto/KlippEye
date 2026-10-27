@@ -185,6 +185,9 @@ the latest app built by GitHub, and the backend offers it to the phone only if i
 
 ## 10. Troubleshooting
 
+**Asking for help?** Attach the diagnostic report: *Settings → Updates → Diagnostics → Download a diagnostic report*, or
+`klippeye diagnose --save` on the Raspberry. It contains no keys, passwords or tokens.
+
 | What you see | What to do |
 |---|---|
 | The dashboard does not answer | `klippeye status`; `klippeye restart`; `klippeye log` shows the last lines of the backend's log |
@@ -196,7 +199,8 @@ the latest app built by GitHub, and the backend offers it to the phone only if i
 | The app cannot install an update | allow "Install unknown apps" for KlippEye; Samsung's Auto Blocker must be off |
 
 Terminal commands: `klippeye status`, `version`, `log [notifier]`, `restart [backend|notifier|all]`, `repair [log]`,
-`update [--force]`, `notify test|check`, `password [set|remove|status|logout-all]`, `access ...`, `undo-install`, `help`.
+`update [--force]`, `notify test|check`, `password [set|remove|status|logout-all]`, `access ...`, `diagnose [--save]`,
+`undo-install`, `help`.
 
 ---
 
