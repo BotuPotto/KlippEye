@@ -1,5 +1,14 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.7.0
+
+**The backend speaks English** (and Italian where people read it).
+
+* Messages for people (AI key, log analysis, the move from VzBot, the Android app offer, the page shown while the
+  dashboard is being repaired) are in English and translated into the language of the dashboard that asked for them.
+* The AI monitor's status line is in English and shown translated by the dashboard.
+* The backend's log, comments and code descriptions are in English.
+
 ## 1.6.0
 
 **The AI speaks your language.**

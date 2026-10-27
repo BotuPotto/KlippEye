@@ -135,8 +135,8 @@ def backend_texts():
         return []
     start, end = src.find("CONFIG_GROUPS = ["), src.find("SPEC_BY_KEY")
     schema = [unescape(m.group(2)) for m in re.finditer(r'"(title|note|label|help)":\s*"((?:[^"\\]|\\.)*)"', src[start:end]) if m.group(2)]
-    # and the messages the backend translates itself with bt("English text", lang)
-    calls = [unescape(m.group(1)) for m in re.finditer(r'\bbt\(\s*"((?:[^"\\]|\\.)*)"', strip_python_comments(src))]
+    # and the messages the backend translates itself with bt("English text", lang) (or marks with btn())
+    calls = [unescape(m.group(1)) for m in re.finditer(r'\bbtn?\(\s*"((?:[^"\\]|\\.)*)"', strip_python_comments(src))]
     return schema + calls
 
 
