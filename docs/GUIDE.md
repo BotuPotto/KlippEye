@@ -107,6 +107,25 @@ and `~/printer_data/klippeye/alerts/`).
 | the AI reports doubtful problems | raise "Minimum AI confidence" (70 → 80) |
 | a real failure goes unnoticed | lower "Movement at the edges" or make the watched area larger |
 
+### Calibrating the camera
+
+**Settings → Camera calibration** teaches KlippEye where every point of the printer appears in the camera picture, so that
+the monitor can tell the toolhead from a problem (the masks come in the next release). About ten minutes, once:
+
+1. Say how the **Z axis** moves: the **bed** (VzBot, Voron Trident, RatRig V-Core…) or the **toolhead** (Voron 2.4…), and
+   the size of the toolhead. Printers whose bed moves in Y (Prusa, Ender) are not supported yet.
+2. Empty, clean bed, the light as during prints, then **Home**. When Z moves the bed, **Make the 6 blobs**: the printer
+   heats (PLA, 210 °C) and leaves six small blobs of filament on the bed, needed to see the bed at another height.
+3. For each of the 12 points press **Go to point**, tap the nozzle tip (or the blob) in the picture, tap again exactly in
+   the magnified view and **Keep this point**.
+4. **Calculate the calibration**: the average error in pixels; the points to redo turn red. The live picture shows the
+   toolhead outline and the bed drawn over it: move the toolhead with the buttons, the drawing must follow it.
+   **Save the calibration**, then remove the blobs.
+
+The calibration is valid **until the camera moves**. Every ten minutes the backend compares the picture with the one taken
+at calibration; if the camera has moved, the page (and its line in the menu) says so and the monitor stops using the
+calibration until you calibrate again.
+
 ### Measuring the monitor (recordings)
 
 Instead of guessing whether a change of the thresholds helps, measure it:

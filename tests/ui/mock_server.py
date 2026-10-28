@@ -836,6 +836,14 @@ def mock_recording_label(sid):
     return jsonify(ok=True, label=r["label"])
 
 
+@app.route("/api/camera/calibration")
+def mock_camera_calibration():
+    """Not calibrated, nothing being taken (the calibration itself is tried with the real backend: camcal_test.py)."""
+    if S["brain"] == "old":
+        return Response("<!doctype html><title>404 Not Found</title>", status=404, mimetype="text/html")
+    return jsonify(ok=True, saved=None, watch={"state": "unknown"}, usable=False, draft={}, marks={"state": "idle"}, printer=None, targets=[], has_cv2=True)
+
+
 @app.route("/api/print/alerts/image/<name>")
 def mock_alert_image(name):
     return Response('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 90 60"><rect width="90" height="60" fill="#555"/></svg>', mimetype="image/svg+xml")

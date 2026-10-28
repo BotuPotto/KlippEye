@@ -2016,7 +2016,7 @@ class LightDetector(FrameJudge):
                 # Check if printing
                 # === SOLUTION 5 - HYBRID - IS THE REAL PRINT RUNNING ===
                 try:
-                    pr = requests.get(f"{MOONRAKER_URL}/printer/objects/query?print_stats&extruder&display_status&virtual_sdcard&toolhead&heater_bed", timeout=3).json()
+                    pr = requests.get(f"{MOONRAKER_URL}/printer/objects/query?print_stats&extruder&display_status&virtual_sdcard&toolhead&heater_bed&motion_report=live_position", timeout=3).json()
                     status = pr.get("result",{}).get("status",{})
                     ps = status.get("print_stats",{})
                     extr = status.get("extruder",{})
@@ -2026,6 +2026,7 @@ class LightDetector(FrameJudge):
                     bed = status.get("heater_bed",{})
                     state = ps.get("state","")
                     recorder.observe(state, ps.get("filename", ""), time.time(), brain_config.snapshot())
+                    camera_cal.maybe_check()  # has the camera moved since its calibration? (every 10 minutes)
 
                     if state != "printing":
                         self._reset_reference()  # a new print starts with a new background
@@ -2077,8 +2078,10 @@ class LightDetector(FrameJudge):
                     self.stats["real_print_started"] = real_started
                     info = ps.get("info") or {}
                     position = tool.get("position") or []
+                    live = (status.get("motion_report") or {}).get("live_position") or []
                     self.meta = {"layer": info.get("current_layer"), "layers": info.get("total_layer"),
                                  "pos": [round(float(v), 1) for v in position[:3]] if len(position) >= 3 else None,
+                                 "live": [round(float(v), 1) for v in live[:3]] if len(live) >= 3 else None,  # where the toolhead really is (phase 4: masks)
                                  "progress": round(float(progress) * 100, 1)}
                     self.stats["real_print_reason"] = "; ".join(reasons) if reasons else "ok - real print"
                     self.stats["progress"] = progress
@@ -2955,6 +2958,170 @@ def api_measure_start():
             return jsonify({"ok": False, "error": str(error)}), 500
     return jsonify({"ok": True, "state": "running"})
 # === end RECORDINGS ===================================================================================================
+
+
+# === CAMERA CALIBRATION (phase 4): camera_calibration.py, camera_model.py, camera_watch.py ===========================
+import camera_calibration as _camcal  # noqa: E402
+
+
+def _klipper_query(objects):
+    r = requests.get(f"{MOONRAKER_URL}/printer/objects/query?{objects}", timeout=5)
+    r.raise_for_status()
+    return r.json()["result"]["status"]
+
+
+def _klipper_gcode(script, timeout):
+    r = requests.post(f"{MOONRAKER_URL}/printer/gcode/script", json={"script": script}, timeout=timeout)
+    if not r.ok:
+        try:
+            message = r.json()["error"]["message"]
+        except Exception:
+            message = "HTTP %s" % r.status_code
+        raise _camcal.NotReady("Klipper refused the command: {message}", message=message)
+
+
+def _camera_snapshot():
+    r = requests.get(f"{CAMERA_NGINX_URL}/snapshot", timeout=5)
+    return r.content if r.ok and len(r.content) > 1000 else None
+
+
+CAMERA_MESSAGES = (  # what camera_calibration.py and camera_model.py may answer, for the dictionaries (bt translates them)
+    btn("Klipper is not ready"), btn("the printer is printing"), btn("home the printer first"), btn("z_moves must be bed or toolhead"),
+    btn("the toolhead size must be 10 to 300 mm"), btn("unknown point"), btn("a step is at most 50 mm"),
+    btn("u and v must be fractions of the picture (0..1)"), btn("the blobs are only for printers where Z moves the bed"),
+    btn("no picture from the camera"), btn("at least 8 points are needed"), btn("calculate the calibration first"),
+    btn("the calibration is not good enough: redo the points marked in red"), btn("the camera picture changed size: calculate again"),
+    btn("the points must be at two heights at least 10 mm apart"), btn("the points are all on one plane"),
+    btn("no camera fits these points: check that each tap is on the nozzle tip"), btn("the camera is not calibrated"),
+    btn("Klipper refused the command: {message}"),
+)
+camera_cal = _camcal.CameraCalibration(DATA_DIR, _klipper_query, _klipper_gcode, _camera_snapshot, cv2 if HAS_CV2 else None, np)
+
+
+def _camera_call(work):
+    """Runs one calibration step: 409 when the printer cannot do it now, 400 when the request is wrong, 502 when Klipper or
+    the camera do not answer."""
+    try:
+        return jsonify(dict(work() or {}, ok=True))
+    except _camcal.NotReady as error:
+        return jsonify({"ok": False, "error": bt(error.text, _lang(), **error.values)}), 409
+    except ValueError as error:
+        return jsonify({"ok": False, "error": bt(str(error), _lang())}), 400
+    except requests.RequestException as error:
+        return jsonify({"ok": False, "error": bt("Klipper does not answer: {error}", _lang(), error=error)}), 502
+
+
+def _camera_body():
+    body = request.get_json(silent=True)
+    return body if isinstance(body, dict) else {}
+
+
+@app.route("/api/camera/calibration", methods=["GET"])
+def api_camera_calibration():
+    """The saved calibration, the points being taken, the points to take and the printer (homed, limits, position)."""
+    def work():
+        out = camera_cal.summary()
+        try:
+            printer = camera_cal.printer()
+            out["printer"] = printer
+            out["targets"] = camera_cal.target_list(printer)
+            out["guess"] = camera_cal.guess() if not camera_cal.z_moves() else None
+        except Exception as error:
+            out["printer"] = None
+            out["printer_error"] = str(error)[:200]
+            out["targets"] = []
+        out["has_cv2"] = HAS_CV2
+        return out
+    response = _camera_call(work)
+    if isinstance(response, Response):
+        response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+@app.route("/api/camera/calibration/options", methods=["POST"])
+def api_camera_options():
+    body = _camera_body()
+    return _camera_call(lambda: {"draft": camera_cal.set_options(body.get("z_moves"), body.get("toolhead"))})
+
+
+@app.route("/api/camera/calibration/home", methods=["POST"])
+def api_camera_home():
+    return _camera_call(lambda: camera_cal.home())
+
+
+@app.route("/api/camera/calibration/goto", methods=["POST"])
+def api_camera_goto():
+    body = _camera_body()
+    return _camera_call(lambda: camera_cal.goto(str(body.get("target", ""))))
+
+
+@app.route("/api/camera/calibration/jog", methods=["POST"])
+def api_camera_jog():
+    body = _camera_body()
+    return _camera_call(lambda: camera_cal.jog(body.get("dx", 0), body.get("dy", 0), body.get("dz", 0)))
+
+
+@app.route("/api/camera/calibration/marks", methods=["POST"])
+def api_camera_marks():
+    return _camera_call(lambda: {"marks": camera_cal.make_marks()})
+
+
+@app.route("/api/camera/calibration/point", methods=["POST"])
+def api_camera_point():
+    body = _camera_body()
+    return _camera_call(lambda: {"point": camera_cal.add_point(str(body.get("target", "")), body.get("u"), body.get("v"))})
+
+
+@app.route("/api/camera/calibration/forget", methods=["POST"])
+def api_camera_forget_point():
+    body = _camera_body()
+    return _camera_call(lambda: camera_cal.forget_point(str(body.get("target", ""))))
+
+
+@app.route("/api/camera/calibration/fit", methods=["POST"])
+def api_camera_fit():
+    if not HAS_CV2:
+        return jsonify({"ok": False, "error": bt("OpenCV is missing on the Raspberry", _lang())}), 500
+    return _camera_call(lambda: {"fit": camera_cal.fit()})
+
+
+@app.route("/api/camera/calibration/save", methods=["POST"])
+def api_camera_save():
+    return _camera_call(lambda: {"saved": camera_cal.save() and camera_cal.summary()["saved"]})
+
+
+@app.route("/api/camera/calibration/reset", methods=["POST"])
+def api_camera_reset():
+    return _camera_call(lambda: camera_cal.reset())
+
+
+@app.route("/api/camera/calibration", methods=["DELETE"])
+def api_camera_forget():
+    return _camera_call(lambda: camera_cal.forget())
+
+
+@app.route("/api/camera/overlay", methods=["GET"])
+def api_camera_overlay():
+    """Where the nozzle, the toolhead and the bed are in the picture right now (saved calibration, or ?draft=1 the one
+    just calculated): to see on the live picture whether the calibration is right."""
+    def work():
+        overlay = camera_cal.overlay(use_draft=request.args.get("draft") == "1")
+        if overlay is None:
+            raise ValueError("the camera is not calibrated")
+        return overlay
+    response = _camera_call(work)
+    if isinstance(response, Response):
+        response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+@app.route("/api/camera/check", methods=["POST"])
+def api_camera_check():
+    """Has the camera moved since the calibration? Compares a new picture with the one taken then."""
+    if not HAS_CV2:
+        return jsonify({"ok": False, "error": bt("OpenCV is missing on the Raspberry", _lang())}), 500
+    return _camera_call(lambda: {"watch": camera_cal.check_moved()})
+# === end CAMERA CALIBRATION ===========================================================================================
 
 
 # === END OPENCV DETECTOR V10 ===

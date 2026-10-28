@@ -1128,7 +1128,7 @@ check("/api/recordings/<id>: session (file, settings in use) and pictures with l
       and fr[0]["layer"] == 7 and fr[0]["layers"] == 40 and fr[0]["progress"] == 50.0 and any(f["trig"] for f in fr), (d["session"].get("file"), fr[:2]))
 check("... pictures taken during the pause after the alarm are marked", any(f.get("cool") for f in fr), [f.get("cool") for f in fr])
 full = mr.recorder.frames(sid)
-check("... the toolhead position is kept with each picture", full[0].get("pos") == [120.5, 80.2, 5.0] or full[0].get("pos") == [120.5, 80.3, 5.0], full[0])
+check("... the toolhead position is kept with each picture (commanded and live)", full[0].get("pos") in ([120.5, 80.2, 5.0], [120.5, 80.3, 5.0]) and full[0].get("live") == [121.0, 80.5, 5.0], full[0])
 r = cr.get("/api/recordings/%s/frames/1.jpg" % sid)
 check("a picture: 200 JPEG", r.status_code == 200 and r.mimetype == "image/jpeg" and r.data[:2] == b"\xff\xd8")
 check("a picture that is not there, or a bad id: 404", cr.get("/api/recordings/%s/frames/99999.jpg" % sid).status_code == 404 and cr.get("/api/recordings/..%2Fx/frames/1.jpg").status_code == 404)
@@ -1187,6 +1187,156 @@ check("CPU of the monitor: time of a check in the status", isinstance(mr.detecto
 check("the recording settings are in the menu's list (group 'recording')", [s["key"] for s in cr.get("/api/backend/config").get_json()["spec"] if s["group"] == "recording"] == ["record", "record_max_mb"])
 check("turning recording off from the menu reaches the recorder", cr.post("/api/backend/config", json={"values": {"record": False}}).status_code == 200 and mr.recorder.enabled is False and mr.recorder.status == "off")
 fake.state["filename"] = "test.gcode"
+
+print("== 1.13.0: camera calibration (phase 4a)")
+import camera_model as _cm  # noqa: E402
+_rng = _core.np.random.default_rng(7)
+CAM_W, CAM_H = 1280, 720
+_texture = _core.cv2.GaussianBlur((_rng.random((CAM_H + 80, CAM_W + 80)) * 255).astype(_core.np.uint8), (5, 5), 0)
+
+
+def _look_at(cam, target):
+    np_ = _core.np
+    fwd = np_.asarray(target, float) - cam
+    fwd /= np_.linalg.norm(fwd)
+    right = np_.cross(fwd, [0, 0, 1.0])
+    right /= np_.linalg.norm(right)
+    rot = np_.stack([right, np_.cross(fwd, right), fwd])
+    return rot, -rot @ cam
+
+
+_rot, _t = _look_at(_core.np.array([175.0, -60.0, 120.0]), [175.0, 200.0, -40.0])   # front-centre camera, looking down at the bed
+TRUE_CAM = {"model": "fisheye", "width": CAM_W, "height": CAM_H, "params": [CAM_W / 3.2, CAM_W / 2 + 15, CAM_H / 2 - 10, 0.03, -0.01] + list(_cm.rotation_to_vector(_rot)) + list(_t)}
+
+
+def render_camera(state):
+    """A picture of the fake camera: a fixed texture (what the movement check looks at), moved by state["cam_shift"] pixels."""
+    dx, dy = state.get("cam_shift", (0, 0))
+    img = _texture[40 + dy:40 + dy + CAM_H, 40 + dx:40 + dx + CAM_W]
+    return fakes.jpeg(_core.cv2.cvtColor(img, _core.cv2.COLOR_GRAY2BGR))
+
+
+def true_tap(frame, noise=1.5):
+    uv, _ = _cm.project(TRUE_CAM, [frame])
+    return [float(uv[0][0] + _rng.normal(0, noise) / CAM_W), float(uv[0][1] + _rng.normal(0, noise) / CAM_H)]
+
+
+fake.state.update({"render": render_camera, "print_state": "standby", "homed": "", "position": [175.0, 175.0, 10.0]})
+dcal = tmp()
+mc = load_brain(NEW_BRAIN, dcal, fake, brain_json={"values": {"enabled": False}})
+cc = mc.app.test_client()
+j = cc.get("/api/camera/calibration").get_json()
+check("GET: not calibrated, the printer read, the kind guessed from Klipper's settings (corexy + z_tilt: Z moves the bed)", j["ok"] and j["saved"] is None and j["printer"]["homed"] == ""
+      and j["guess"] == "bed" and j["targets"] == [], j)
+r = cc.post("/api/camera/calibration/options", json={"z_moves": "sideways"})
+check("options: an unknown kind is refused (400)", r.status_code == 400)
+r = cc.post("/api/camera/calibration/options", json={"z_moves": "bed", "toolhead": {"width": 60, "depth": 70, "height": 70}})
+j = cc.get("/api/camera/calibration").get_json()
+tg = j["targets"]
+check("Z moves the bed: 6 nozzle points near the bed, then the 6 blobs with the bed lowered", r.status_code == 200 and [t["kind"] for t in tg] == ["nozzle"] * 6 + ["mark"] * 6
+      and all(t["z"] == 0.3 for t in tg[:6]) and all(t["z"] >= 20 for t in tg[6:]), tg)
+check("... spread over the bed (15%..85% of X, 20%..80% of Y)", sorted({t["x"] for t in tg}) == [52.5, 175.0, 297.5] and sorted({t["y"] for t in tg}) == [70.0, 280.0], tg[:3])
+r = cc.post("/api/camera/calibration/goto", json={"target": "tip1"})
+check("not homed: no move (409, 'home the printer first')", r.status_code == 409 and "home" in r.get_json()["error"], r.get_json())
+fake.state["print_state"] = "printing"
+r = cc.post("/api/camera/calibration/home")
+check("while printing: not even homing (409)", r.status_code == 409)
+fake.state["print_state"] = "standby"
+del fake.scripts[:]
+r = cc.post("/api/camera/calibration/home")
+check("home: G28 sent", r.status_code == 200 and fake.scripts == ["G28"] and fake.state["homed"] == "xyz", fake.scripts)
+r = cc.post("/api/camera/calibration/goto", json={"target": "nope"})
+check("an unknown point: 400", r.status_code == 400)
+r = cc.post("/api/camera/calibration/marks")
+wait_for(lambda: mc.camera_cal.marks["state"] != "running", 10)
+blob_script = [x for x in fake.scripts if "M109" in x]
+check("the blobs: heats, one blob at each of the 6 points, then cools down", r.status_code == 200 and mc.camera_cal.marks["state"] == "done" and blob_script
+      and blob_script[0].count("G1 E4.00") == 6 and blob_script[0].rstrip().endswith("M400") and "M104 S0" in blob_script[0], (mc.camera_cal.marks, blob_script[:1]))
+del fake.scripts[:]
+r = cc.post("/api/camera/calibration/goto", json={"target": "tip1"})
+check("goto: up first, then across, then down to the point (never dragged over the bed)", r.status_code == 200 and fake.state["position"] == [52.5, 70.0, 0.3]
+      and fake.scripts[0].splitlines()[1].startswith("G0 Z") and fake.scripts[0].splitlines()[2].startswith("G0 X52.50 Y70.00"), (fake.scripts, fake.state["position"]))
+check("tap: u, v must be fractions", cc.post("/api/camera/calibration/point", json={"target": "tip1", "u": 1.5, "v": 0.2}).status_code == 400)
+for t in tg:
+    cc.post("/api/camera/calibration/goto", json={"target": t["id"]})
+    pos = fake.state["position"]
+    frame = [pos[0], pos[1], 0.0] if t["kind"] == "nozzle" else [t["x"], t["y"], 0.6 - pos[2]]
+    u, v = true_tap(frame)
+    r = cc.post("/api/camera/calibration/point", json={"target": t["id"], "u": u, "v": v})
+check("blobs: the nozzle is parked at the back and the bed lowered when the blobs are tapped", tg[-1]["kind"] == "mark" and fake.state["position"][1] == 345.0 and fake.state["position"][2] == tg[-1]["z"], fake.state["position"])
+pts = mc.camera_cal.draft["points"]
+check("12 points kept (in the draft, also after a reload): nozzle at height 0, blobs at 0.6 - Z", len(pts) == 12 and pts["tip1"]["frame"][2] == 0.0 and pts["mark1"]["frame"][2] == round(0.6 - tg[6]["z"], 6) and os.path.isfile(os.path.join(dcal, "camera_draft.json")), list(pts.items())[:2])
+check("save before calculating: refused", cc.post("/api/camera/calibration/save").status_code == 400)
+r = cc.post("/api/camera/calibration/fit")
+fit = r.get_json().get("fit") or {}
+check("fit: a good calibration (a few pixels), nothing to redo, the camera found where it is", r.status_code == 200 and fit["quality"] == "good" and fit["rms_px"] < 4 and fit["redo"] == []
+      and abs(fit["camera_position"][1] + 60) < 15 and abs(fit["camera_position"][2] - 120) < 15, {k: fit.get(k) for k in ("quality", "rms_px", "redo", "camera_position", "model")})
+r = cc.post("/api/camera/calibration/save")
+j = cc.get("/api/camera/calibration").get_json()
+check("save: camera.json and the reference picture; usable; the draft is gone", r.status_code == 200 and j["saved"]["quality"] == "good" and j["saved"]["points"] == 12 and j["usable"] is True
+      and os.path.isfile(os.path.join(dcal, "camera.json")) and os.path.isfile(os.path.join(dcal, "camera_reference.jpg")) and not j["draft"], j["saved"])
+fake.state["position"] = [100.0, 200.0, 25.0]
+ov = cc.get("/api/camera/overlay").get_json()
+truth, _ = _cm.project(TRUE_CAM, [[100.0, 200.0, 0.0]])
+check("overlay: the nozzle drawn where it really is (within 1% of the picture)", ov["ok"] and abs(ov["nozzle"][0] - truth[0][0]) < 0.01 and abs(ov["nozzle"][1] - truth[0][1]) < 0.01, (ov.get("nozzle"), truth[0]))
+check("... with the toolhead outline around it and the bed outline (bed lowered by Z = 25)", len(ov["toolhead"]) >= 4 and len(ov["bed"]) >= 30 and ov["z_moves"] == "bed")
+w = cc.post("/api/camera/check").get_json()
+check("camera check: unchanged picture -> ok", w["watch"]["state"] == "ok", w)
+fake.state["cam_shift"] = (24, 10)
+w = cc.post("/api/camera/check").get_json()
+j = cc.get("/api/camera/calibration").get_json()
+check("camera moved: 'moved', the calibration is no longer used (usable false)", w["watch"]["state"] == "moved" and j["usable"] is False, (w, j["usable"]))
+fake.state["render"] = lambda st: fakes.jpeg(fakes.frame(base=0))
+w = cc.post("/api/camera/check").get_json()
+check("a black picture says nothing: it stays 'moved' (an unclear look does not clear it)", w["watch"]["state"] == "moved", w)
+fake.state["render"] = render_camera
+fake.state["cam_shift"] = (0, 0)
+w = cc.post("/api/camera/check").get_json()
+check("camera put back: ok again", w["watch"]["state"] == "ok", w)
+mb = load_brain(NEW_BRAIN, dcal, fake, brain_json={"values": {"enabled": False}})
+check("after a restart the calibration is read again", mb.camera_cal.usable() is True and mb.camera_cal.saved["z_moves"] == "bed")
+fake.state["gcode_fail"] = "Must home axis first"
+r = cc.post("/api/camera/calibration/jog", json={"dx": 10})
+check("Klipper refuses a command: 409 with Klipper's words", r.status_code == 409 and "Must home axis first" in r.get_json()["error"], r.get_json())
+fake.state["gcode_fail"] = None
+check("jog: at most 50 mm", cc.post("/api/camera/calibration/jog", json={"dz": 80}).status_code == 400)
+cc.set_cookie("klippeye_lang", "it")
+_it = cc.post("/api/camera/calibration/goto", json={"target": "x"}).get_json()["error"]
+cc.delete_cookie("klippeye_lang")
+check("the messages are translated (Italian page)", "punto sconosciuto" in _it.lower(), _it)
+
+# --- a printer where Z moves the toolhead: nozzle at two heights
+cc.post("/api/camera/calibration/options", json={"z_moves": "toolhead"})
+tg2 = cc.get("/api/camera/calibration").get_json()["targets"]
+check("Z moves the toolhead: 12 nozzle points, 6 low (Z 5) and 6 high", [t["kind"] for t in tg2] == ["nozzle"] * 12 and {t["z"] for t in tg2[:6]} == {5.0} and len({t["z"] for t in tg2[6:]}) == 1 and tg2[6]["z"] > 20, tg2)
+TRUE_CAM2 = dict(TRUE_CAM, params=list(TRUE_CAM["params"][:5]) + list(_cm.rotation_to_vector(_look_at(_core.np.array([0.0, -50.0, 200.0]), [175.0, 175.0, 0.0])[0])) + list(_look_at(_core.np.array([0.0, -50.0, 200.0]), [175.0, 175.0, 0.0])[1]))
+for t in tg2:
+    cc.post("/api/camera/calibration/goto", json={"target": t["id"]})
+    uv, _ = _cm.project(TRUE_CAM2, [fake.state["position"]])
+    cc.post("/api/camera/calibration/point", json={"target": t["id"], "u": float(uv[0][0]), "v": float(uv[0][1])})
+fit2 = cc.post("/api/camera/calibration/fit").get_json()["fit"]
+check("... the fit is good with exact taps", fit2["quality"] == "good" and fit2["rms_px"] < 1, {k: fit2[k] for k in ("quality", "rms_px", "model")})
+cc.post("/api/camera/calibration/forget", json={"target": "high1"})
+cc.post("/api/camera/calibration/forget", json={"target": "high2"})
+cc.post("/api/camera/calibration/forget", json={"target": "high3"})
+cc.post("/api/camera/calibration/forget", json={"target": "high4"})
+cc.post("/api/camera/calibration/forget", json={"target": "high5"})
+r = cc.post("/api/camera/calibration/fit")
+check("7 points: not enough (400 'at least 8 points')", r.status_code == 400 and "8 points" in r.get_json()["error"], r.get_json())
+for t in tg2[6:11]:
+    cc.post("/api/camera/calibration/goto", json={"target": t["id"]})
+    cc.post("/api/camera/calibration/point", json={"target": t["id"], "u": 0.5, "v": 0.5})   # all tapped on the same spot: wrong
+_rb = cc.post("/api/camera/calibration/fit")
+bad = _rb.get_json().get("fit") or {}
+check("wrong taps: no camera fits (400), or the fit says 'poor' / names the points to redo",
+      (_rb.status_code == 400 and "no camera fits" in _rb.get_json()["error"]) or bad.get("quality") == "poor" or bad.get("redo"), (_rb.get_json().get("error"), {k: bad.get(k) for k in ("quality", "rms_px", "redo")}))
+if bad.get("quality") == "poor":
+    check("... save refused", cc.post("/api/camera/calibration/save").status_code == 400)
+cc.post("/api/camera/calibration/reset")
+check("reset: the draft is gone, the saved calibration stays", not mc.camera_cal.draft and mc.camera_cal.saved is not None)
+r = cc.delete("/api/camera/calibration")
+check("DELETE: the saved calibration is forgotten", r.status_code == 200 and cc.get("/api/camera/calibration").get_json()["saved"] is None and not os.path.exists(os.path.join(dcal, "camera.json")))
+fake.state.update({"render": None, "print_state": "printing", "homed": "xyz"})
 
 stop_all()
 fake.close()

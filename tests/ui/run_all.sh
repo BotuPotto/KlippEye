@@ -6,7 +6,7 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 HTML="$HERE/../../frontend/klippeye_frontend.html"
 OUT="${1:-/tmp/klippeye-ui}"
 mkdir -p "$OUT"
-TESTS="klipper_state_test icons_test editor_comment_test editor_undo_test editor_scroll_test configfiles_test tools_test endstops_test zoffset_test downloads_test desktop_test motion_test light_test live_test traffic_test title_icon_test settings_test software_test recordings_test app_test access_test"
+TESTS="klipper_state_test icons_test editor_comment_test editor_undo_test editor_scroll_test configfiles_test tools_test endstops_test zoffset_test downloads_test desktop_test motion_test light_test live_test traffic_test title_icon_test settings_test software_test recordings_test camcal_test app_test access_test"
 failed=0
 i=0
 for t in $TESTS; do

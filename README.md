@@ -58,7 +58,7 @@ key, after the user confirms. Setup (once) and steps: guide, part C. Technical d
 | Where | What | Changed by |
 |---|---|---|
 | `VERSION` | the release (one number for backend, dashboard and notifier) | each release |
-| `backend/klippeye_backend.py`, `backend/access.py`, `backend/monitor_core.py`, `backend/recorder.py` | the backend: serves the dashboard, bridges Moonraker, AI monitor (its judging in `monitor_core.py`, the recordings of the prints in `recorder.py`), password and network checks | updates |
+| `backend/` | the backend (`klippeye_backend.py`): serves the dashboard, bridges Moonraker, AI monitor (its judging in `monitor_core.py`, the recordings of the prints in `recorder.py`, the camera calibration in `camera_calibration.py`, `camera_model.py`, `camera_watch.py`), password and network checks (`access.py`) | updates |
 | `frontend/` | the dashboard: sources in `frontend/src`, built into `frontend/klippeye_frontend.html` ([frontend/README.md](frontend/README.md)) | updates |
 | `notifier/klippeye_notifier.py` | the push-notification service | updates |
 | `scripts/` | `install.sh` (run once), `repair.sh` (self-repair, runs by itself), `diagnose.py` (report for bug reports), `replay.py` (measures the AI monitor on the recorded prints), `klippeye` and `klippeye-notifiche` (rescue commands) | updates |

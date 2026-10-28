@@ -26,7 +26,11 @@ class Fake:
             "print_state": "printing", "progress": 0.5, "file_position": 5000, "file_size": 10000, "total_duration": 500.0,
             "hotend": 210.0, "hotend_target": 210.0, "bed": 60.0, "bed_target": 60.0, "z": 5.0,
             "frames": [jpeg(frame())],  # served in turn, then the last one forever
+            # the toolhead (camera calibration): machine position, homed axes, limits; render(state) -> JPEG replaces the frames
+            "position": [175.0, 175.0, 10.0], "homed": "xyz", "axis_min": [0.0, 0.0, -5.0], "axis_max": [350.0, 350.0, 340.0],
+            "render": None, "gcode_fail": None, "settings": {"printer": {"kinematics": "corexy"}, "z_tilt": {}},
         }
+        self.scripts = []
         self.posts = []
         self.snapshots = 0
         self.status_calls = 0
@@ -46,6 +50,8 @@ class Fake:
 
             def do_GET(self):
                 s = fake.state
+                if self.path.startswith("/webcam/snapshot") and s.get("render"):
+                    return self._send(200, s["render"](s), "image/jpeg")
                 if self.path.startswith("/webcam/snapshot"):
                     with fake.lock:
                         i = min(fake.snapshots, len(s["frames"]) - 1)
@@ -60,7 +66,11 @@ class Fake:
                         "heater_bed": {"temperature": s["bed"], "target": s["bed_target"]},
                         "display_status": {"progress": s["progress"]},
                         "virtual_sdcard": {"file_position": s["file_position"], "file_size": s["file_size"]},
-                        "toolhead": {"position": [120.5, 80.25, s["z"], 0]},
+                        "toolhead": {"position": [120.5, 80.25, s["z"], 0]} if "toolhead=" not in self.path else
+                                    {"position": list(s["position"]) + [0], "homed_axes": s["homed"], "axis_minimum": s["axis_min"] + [0], "axis_maximum": s["axis_max"] + [0]},
+                        "webhooks": {"state": "ready"},
+                        "motion_report": {"live_position": [121.0, 80.5, s["z"], 0]},
+                        "configfile": {"settings": s["settings"]},
                     }}}
                     return self._send(200, json.dumps(doc).encode())
                 if self.path.startswith("/printer/info"):
@@ -73,6 +83,13 @@ class Fake:
                 n = int(self.headers.get("Content-Length") or 0)
                 body = self.rfile.read(n)
                 fake.posts.append(self.path)
+                if self.path == "/printer/gcode/script":
+                    script = json.loads(body or b"{}").get("script", "")
+                    fake.scripts.append(script)
+                    if fake.state.get("gcode_fail"):
+                        return self._send(400, json.dumps({"error": {"message": fake.state["gcode_fail"]}}).encode())
+                    fake.run_gcode(script)
+                    return self._send(200, b'{"result":"ok"}')
                 if self.path == "/server/files/upload":   # Moonraker's file upload (multipart): keep the file's text
                     marker = b'filename="moonraker.conf"'
                     if marker in body:
@@ -84,6 +101,30 @@ class Fake:
         self.server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
         self.port = self.server.server_address[1]
         threading.Thread(target=self.server.serve_forever, daemon=True).start()
+
+    def run_gcode(self, script):
+        """Moves the fake toolhead as Klipper would (G0/G1 X Y Z, G90/G91, G28); the rest is only remembered."""
+        relative = False
+        for line in script.splitlines():
+            words = line.split(";")[0].split()
+            if not words:
+                continue
+            cmd = words[0].upper()
+            if cmd == "G90":
+                relative = False
+            elif cmd == "G91":
+                relative = True
+            elif cmd == "G28":
+                self.state["homed"] = "xyz"
+                self.state["position"] = [0.0, 0.0, 0.0]
+            elif cmd in ("G0", "G1"):
+                pos = list(self.state["position"])
+                for w in words[1:]:
+                    axis = "XYZ".find(w[0].upper())
+                    if axis >= 0:
+                        value = float(w[1:])
+                        pos[axis] = pos[axis] + value if relative else value
+                self.state["position"] = pos
 
     @property
     def url(self):
