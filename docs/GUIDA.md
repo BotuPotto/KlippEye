@@ -109,6 +109,26 @@ L'IA scrive le sue osservazioni nella lingua delle notifiche; ogni allarme resta
 | l'IA segnala problemi dubbi | alzare «Fiducia minima dell'IA» (70 → 80) |
 | non si accorge di un guasto vero | abbassare «Movimento ai bordi» o allargare l'area controllata |
 
+### Calibrare la camera
+
+**Impostazioni → Calibra camera** insegna a KlippEye dove ogni punto della stampante compare nell'immagine della camera, così
+il monitor può distinguere la testina da un problema (le maschere arrivano nella prossima release). Circa dieci minuti, una volta:
+
+1. Di' come si muove l'**asse Z**: il **piatto** (VzBot, Voron Trident, RatRig V-Core…) o la **testina** (Voron 2.4…), e le
+   misure della testina. Le stampanti con il piatto che si muove in Y (Prusa, Ender) non sono ancora supportate.
+2. Piatto vuoto e pulito, la luce come durante le stampe, poi **Homing**. Se Z muove il piatto, **Fai i 6 segni**: la
+   stampante scalda (PLA, 210 °C) e lascia sei piccoli segni di filamento sul piatto, che servono a vedere il piatto a
+   un'altra altezza.
+3. Per ognuno dei 12 punti premi **Vai al punto**, tocca la punta dell'ugello (o il segno) nell'immagine, tocca di nuovo
+   esattamente nella vista ingrandita e **Tieni questo punto**.
+4. **Calcola la calibrazione**: l'errore medio in pixel; i punti da rifare diventano rossi. L'immagine dal vivo mostra il
+   contorno della testina e il piatto disegnati sopra: muovi la testina con i tasti, il disegno deve seguirla.
+   **Salva la calibrazione**, poi togli i segni.
+
+La calibrazione vale **finché la camera non si muove**. Ogni dieci minuti il backend confronta l'immagine con quella presa
+alla calibrazione; se la camera si è spostata, la pagina (e la sua riga nel menu) lo dice e il monitor smette di usare la
+calibrazione finché non la rifai.
+
 ### Misurare il monitor (registrazioni)
 
 Invece di indovinare se una soglia diversa aiuta, misuralo:

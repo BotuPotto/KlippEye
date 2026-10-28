@@ -1,0 +1,32 @@
+/* ============================================================================
+   Camera calibration page of the settings menu (markup: app/59f-camera-calibration.js): the camera picture with the
+   taps and the calibration drawn over it, the magnified view, the row of points.
+   ========================================================================== */
+
+.cal-frame { position: relative; width: 100%; overflow: hidden; background: #0b0c0f; border-radius: var(--oui-r-field); line-height: 0; }
+.cal-frame__img { display: block; width: 100%; height: auto; user-select: none; -webkit-user-drag: none; }
+.cal-frame--tap .cal-frame__img { cursor: crosshair; }
+.cal-frame__draw { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+.cal-frame__draw * { vector-effect: non-scaling-stroke; }
+.cal-cross line { stroke-width: 2px; }
+.cal-cross--tap line { stroke: #ffd84a; }
+.cal-cross--saved line { stroke: var(--oui-ok); }
+.cal-cross--nozzle line { stroke: #ff5d5d; stroke-width: 2.5px; }
+.cal-toolhead { fill: rgba(183, 156, 255, 0.22); stroke: var(--oui-accent); stroke-width: 2px; }
+.cal-bed { fill: none; stroke: rgba(255, 255, 255, 0.8); stroke-width: 1.5px; stroke-dasharray: 6 5; }
+
+.cal-loupe { position: relative; width: 100%; background-color: #0b0c0f; background-repeat: no-repeat; border: 2px solid var(--oui-accent); border-radius: var(--oui-r-field); cursor: crosshair; }
+.cal-pick { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+
+/* the twelve points: done, to redo, the current one */
+.cal-targets { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+.cal-target { min-height: 36px; border: 1px solid var(--oui-stroke-strong); border-radius: 10px; background: var(--oui-surface-2); color: var(--oui-text-2); font-weight: 600; font-variant-numeric: tabular-nums; }
+.cal-target.is-done { background: var(--oui-ok-soft); color: var(--oui-ok); border-color: transparent; }
+.cal-target.is-redo { background: var(--oui-danger-soft); color: var(--oui-danger); border-color: var(--oui-danger); }
+.cal-target.is-current { box-shadow: 0 0 0 2px var(--oui-accent); color: var(--oui-text); }
+.cal-instruction { color: var(--oui-text); font-size: 14px; }
+
+.cal-jog { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.cal-jog .oui-btn { min-width: 0; padding-left: 4px; padding-right: 4px; }
+.cal-watch { display: flex; align-items: center; justify-content: space-between; gap: 10px; color: var(--oui-text-3); font-size: 12px; line-height: 1.4; }
+.cal-marks { display: flex; flex-direction: column; gap: 8px; }

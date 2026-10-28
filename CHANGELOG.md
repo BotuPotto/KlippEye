@@ -1,5 +1,23 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.13.0
+
+**Camera calibration (phase 4a of the roadmap).** The first step of a monitor that knows where the toolhead is.
+
+* **Settings → Camera calibration**: the printer goes to 12 points and you tap the nozzle tip (then again in a magnified
+  view); KlippEye finds the camera (position, direction, focal length, lens bending: fisheye or ordinary,
+  `backend/camera_model.py`) and says the average error in pixels and which points to redo. For printers where Z moves
+  the bed (VzBot, Trident, V-Core) the nozzle alone stays at one height for the camera, so the printer first leaves six
+  small blobs of filament on the bed and you tap them with the bed lowered.
+* **Live check**: the toolhead outline, the nozzle and the bed are drawn over the live picture while you move the toolhead.
+* **Has the camera moved?** The picture is compared with the one taken at calibration every ten minutes
+  (`backend/camera_watch.py`, image features and RANSAC: the toolhead and the part do not count). If the camera moved, the
+  page and the menu say so and the calibration is not used until it is done again (never half masks).
+* The recordings now keep the real toolhead position (`motion_report.live_position`) with each picture, for the masks of
+  the next release.
+* API: `/api/camera/calibration` (options, home, goto, jog, marks, point, forget, fit, save, reset, delete),
+  `/api/camera/overlay`, `/api/camera/check`.
+
 ## 1.12.0
 
 **Measuring the AI monitor (phase 3 of the roadmap).** Until now nobody knew how many of the monitor's alarms are false:
