@@ -218,7 +218,7 @@ class Sim2(Sim):
     def step(self, dt=2.0, **kw):
         self.t += dt
         for k, v in kw.items(): setattr(self, k, v)
-        snap = vn.Snapshot(klippy=self.klippy, print_state=self.state, lines=list(self.lines), ai=self.ai, settings=self.settings)
+        snap = vn.Snapshot(klippy=self.klippy, print_state=self.state, lines=list(self.lines), ai=self.ai, settings=self.settings, sensors=getattr(self, "sensors", None))
         out = self.w.step(snap, self.t)
         self.log += [(self.t, n.kind, n.text) for n in out]
         self.actions += [a.kind for a in self.w.take_actions()]
@@ -228,9 +228,27 @@ class Sim2(Sim):
 def printing2(**over):
     s = Sim2(**over); s.printing(); return s
 
+# ---- 1.18.0: the filament change from a sensor, from an announcing macro, from a line chosen in the dashboard
+s = printing2(); s.sensors = {"filament_switch_sensor runout": True}; s.step()
+ok("sensor: filament there -> nothing", s.step() == [])
+s.sensors = {"filament_switch_sensor runout": False}
+ok("sensor: the filament goes away during the print -> 'filament run out'", s.step() == ["runout"], s.log[-2:])
+a = s.step(state="paused", dt=1); b = s.step(dt=6)
+ok("... and the pause it causes is not announced again as a pause", a == [] and b == [], (a, b))
+s = printing2(); s.sensors = {"filament_switch_sensor runout": True}; s.step(); s.step(state="standby"); s.sensors = {"filament_switch_sensor runout": False}
+ok("sensor: no filament when NOT printing (spool changed by hand) -> nothing", s.step() == [])
+s = printing2(); s.settings = {"functions": {"filament": {"sensor": False}}}; s.sensors = {"filament_switch_sensor runout": True}; s.step(); s.sensors = {"filament_switch_sensor runout": False}
+ok("sensor switched off in the dashboard -> nothing from it", s.step() == [])
+s = printing2(); s.line("echo: KlippEye: filament change (M600)")
+ok("a macro announced by KlippEye's wrapper runs (M600 in the G-code) -> 'filament run out'", s.step() == ["runout"])
+s = printing2(); s.settings = {"functions": {"filament": {"phrases": ["Cambio colore richiesto"]}}}; s.step(); s.line("// Cambio colore richiesto: inserisci il filamento rosso")
+ok("a console line chosen in the dashboard -> 'filament run out'", s.step() == ["runout"])
+ok("the dashboard's choices are cleaned (not a list, empty, too long)", vn.dash_settings({"functions": {"filament": {"sensor": "no", "phrases": ["", 5, "x" * 300, " ok "]}}})["filament"] == {"sensor": True, "phrases": ["x" * 120, "ok"]})
+
 # ---- sanitising: the document comes from a browser
 ok("settings: nothing stored -> every notification as in notifier.json, automatic actions off, 1 verdict, no filters",
-   vn.dash_settings({}) == {"events": {}, "ai": {"auto_pause": False, "auto_cancel": False, "confirmations": 1, "min_confidence": 0, "defects": {k: True for k in vn.DASH_DEFECTS}}, "language": None, "stamp": 0})
+   vn.dash_settings({}) == {"events": {}, "ai": {"auto_pause": False, "auto_cancel": False, "confirmations": 1, "min_confidence": 0, "defects": {k: True for k in vn.DASH_DEFECTS}}, "language": None,
+                            "filament": {"sensor": True, "phrases": []}, "stamp": 0})
 for junk in (None, "x", 5, [], {"ai": "x", "notifications": 3}, {"ai": {"autoPause": "yes", "autoCancel": 1, "confirmations": "2", "minConfidence": 60, "defects": {"warping": 0}}}):
     d = vn.dash_settings(junk)
     ok("settings: garbage %r changes nothing (no automatic action, defaults)" % (junk,), not d["ai"]["auto_pause"] and not d["ai"]["auto_cancel"] and d["ai"]["confirmations"] == 1 and d["ai"]["min_confidence"] == 0 and all(d["ai"]["defects"].values()) and d["events"] == {}, d)

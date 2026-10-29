@@ -62,6 +62,13 @@ const AI_DEFECTS = [
 const AI_CONFIRMATIONS = [1, 2, 3];
 const AI_CONFIDENCES = [0, 50, 70, 85];
 
+/** "Printer functions" (16a-printer-functions.js): the buttons that run a macro of the printer, and how. */
+const ACTION_FUNCTIONS = ["park", "wipe", "load", "unload"];
+const ACTION_MODES = ["auto", "macro", "gcode", "off"];
+const LIGHT_MODES = ["auto", "object", "macro", "gcode", "off"];
+const FUNCTION_GCODE_MAX = 4000;
+const MACRO_NAME = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/;
+
 const SETTINGS_DEFAULTS = {
   camera: {
     method: "webrtc",
@@ -81,6 +88,12 @@ const SETTINGS_DEFAULTS = {
     confirmations: 1,
     minConfidence: 0,
     defects: Object.fromEntries(AI_DEFECTS.map((defect) => [defect.id, true])),
+  },
+  functions: {
+    reviewed: false, // the person has looked at "Printer functions" (until then a reminder is shown)
+    ...Object.fromEntries(ACTION_FUNCTIONS.map((id) => [id, { mode: "auto", macro: "", gcode: "" }])),
+    light: { mode: "auto", object: "", onMacro: "", offMacro: "", onGcode: "", offGcode: "", stateFrom: "auto" },
+    filament: { sensor: true, macros: [], phrases: [] }, // what tells the notification service that the filament ran out
   },
 };
 
@@ -136,6 +149,40 @@ function cleanPrinterName(value) {
 }
 
 const pickOne = (value, allowed, fallback) => (allowed.includes(value) ? value : fallback);
+const cleanMacroName = (value) => (typeof value === "string" && MACRO_NAME.test(value.trim()) ? value.trim().toUpperCase() : "");
+const cleanGcode = (value) => (typeof value === "string" ? value.replace(/\r\n?/g, "\n").slice(0, FUNCTION_GCODE_MAX) : "");
+const cleanObjectName = (value) => (typeof value === "string" && /^[A-Za-z_]+ [^\n]{1,80}$/.test(value.trim()) ? value.trim() : "");
+
+/** The "functions" part of the settings, cleaned. */
+function cleanFunctions(raw) {
+  const given = isPlainObject(raw) ? raw : {};
+  const light = isPlainObject(given.light) ? given.light : {};
+  const filament = isPlainObject(given.filament) ? given.filament : {};
+  const list = (value, clean, max) => [...new Set((Array.isArray(value) ? value : []).map(clean).filter(Boolean))].slice(0, max);
+  return {
+    reviewed: asBool(given.reviewed, false),
+    ...Object.fromEntries(
+      ACTION_FUNCTIONS.map((id) => {
+        const one = isPlainObject(given[id]) ? given[id] : {};
+        return [id, { mode: pickOne(one.mode, ACTION_MODES, "auto"), macro: cleanMacroName(one.macro), gcode: cleanGcode(one.gcode) }];
+      }),
+    ),
+    light: {
+      mode: pickOne(light.mode, LIGHT_MODES, "auto"),
+      object: cleanObjectName(light.object),
+      onMacro: cleanMacroName(light.onMacro),
+      offMacro: cleanMacroName(light.offMacro),
+      onGcode: cleanGcode(light.onGcode),
+      offGcode: cleanGcode(light.offGcode),
+      stateFrom: light.stateFrom === "auto" || light.stateFrom === "" ? light.stateFrom : cleanObjectName(light.stateFrom) || "auto",
+    },
+    filament: {
+      sensor: asBool(filament.sensor, true),
+      macros: list(filament.macros, cleanMacroName, 10),
+      phrases: list(filament.phrases, (text) => (typeof text === "string" ? text.trim().slice(0, 120) : ""), 10),
+    },
+  };
+}
 
 /** `raw` (anything: a stored document, nothing at all) as a complete, valid settings object. */
 function sanitizeSettings(raw) {
@@ -173,6 +220,7 @@ function sanitizeSettings(raw) {
       minConfidence: pickOne(Number(ai.minConfidence), AI_CONFIDENCES, d.ai.minConfidence),
       defects: Object.fromEntries(AI_DEFECTS.map((defect) => [defect.id, asBool(defects[defect.id], true)])),
     },
+    functions: cleanFunctions(given.functions),
   };
 }
 

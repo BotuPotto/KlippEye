@@ -4,11 +4,12 @@
    configurable length and speed.
    ========================================================================== */
 
+/** The one-tap buttons: what each one runs comes from Settings → Printer functions (16a-printer-functions.js). */
 const EXTRUDER_MACROS = [
-  { gcode: "PARK", toast: "PARK", label: "Park" },
-  { gcode: "WIPE", toast: "WIPE", label: "Wipe" },
-  { gcode: "FILAMENT_LOAD", toast: "FILAMENT LOAD", label: "Filament load" },
-  { gcode: "FILAMENT_UNLOAD", toast: "FILAMENT UNLOAD", label: "Filament unload" },
+  { id: "park", label: "Park" },
+  { id: "wipe", label: "Wipe" },
+  { id: "load", label: "Filament load" },
+  { id: "unload", label: "Filament unload" },
 ];
 const EXTRUDE_LENGTH_PRESETS_MM = [50, 25, 10, 5, 1];
 const EXTRUDE_SPEED_PRESETS_MM_S = [10, 5, 2, 1];
@@ -39,6 +40,8 @@ function PresetField({ title, unit, value, onChange, presets }) {
 }
 
 function ExtruderCard({ hotend, onGcode, onEditTemperature }) {
+  const functions = usePrinterFunctions();
+  const buttons = EXTRUDER_MACROS.filter((macro) => functions[macro.id].command);
   const [lengthMm, setLengthMm] = useState(5);
   const [speedMmS, setSpeedMmS] = useState(10);
 
@@ -59,14 +62,15 @@ function ExtruderCard({ hotend, onGcode, onEditTemperature }) {
       h(
         "div",
         { className: "grid grid-cols-2 h-full gap-2" },
-        EXTRUDER_MACROS.map((macro) =>
+        buttons.map((macro) =>
           h(
             "button",
             {
-              key: macro.gcode,
+              key: macro.id,
+              "data-function": macro.id,
               onClick: () => {
-                onGcode(macro.gcode);
-                toast.action(macro.toast);
+                onGcode(functions[macro.id].command);
+                toast.action(macro.label);
               },
               className: "macro-btn",
             },

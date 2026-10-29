@@ -75,6 +75,10 @@ class Fake:
                     return self._send(200, json.dumps(doc).encode())
                 if self.path.startswith("/printer/info"):
                     return self._send(200, json.dumps({"result": {"state": "ready"}}).encode())
+                if self.path.startswith("/printer/gcode/help") and s.get("commands") is not None:   # Klipper's commands: s["commands"] = [...]
+                    if s["commands"] == "down":
+                        return self._send(503, b'{"error": {"message": "Klippy Host not ready"}}')
+                    return self._send(200, json.dumps({"result": {c: "help" for c in s["commands"]}}).encode())
                 if self.path.startswith("/server/files/roots") and s.get("roots"):   # Moonraker's folders: s["roots"] = {name: path}
                     return self._send(200, json.dumps({"result": [{"name": k, "path": v, "permissions": "rw"} for k, v in s["roots"].items()]}).encode())
                 if self.path.startswith("/server/files/list"):   # the G-code files: s["gcodes"] = {path: text}

@@ -1,0 +1,9 @@
+/* 65c · Settings → Printer functions (app/59g-printer-functions.js) */
+.fn-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.fn-buttons .oui-btn { min-width: 0; }
+.fn-subtitle { margin-top: 8px; }
+.fn-wraps { flex-wrap: wrap; }
+.fn-phrases { min-height: 64px; resize: vertical; font-family: var(--oui-font-mono, ui-monospace, monospace); font-size: 13px; }
+.fn-now { color: var(--oui-text-2); }
+.fn-review .oui-btn, .fn-restart .oui-btn { margin-top: 6px; }
+.set-field__hint--warn { color: var(--oui-warn, #f5b041); }

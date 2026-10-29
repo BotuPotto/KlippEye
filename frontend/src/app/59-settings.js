@@ -661,6 +661,8 @@ function settingsSummary(page, settings, brain) {
       return zOffset.steps.join(" · ") + " mm";
     case "language":
       return languageSummary();
+    case "functions":
+      return printerFunctionsSummary(settings);
     case "notifications":
       return tx("{count} of {total} on", { count: NOTIFICATION_KINDS.filter((kind) => notifications[kind.id]).length, total: NOTIFICATION_KINDS.length });
     default:
@@ -670,6 +672,7 @@ function settingsSummary(page, settings, brain) {
 
 const SETTINGS_ENTRIES = [
   { id: "printer", title: tx("Printer"), icon: Icons.Cube },
+  { id: "functions", title: tx("Printer functions"), icon: Icons.Bulb },
   { id: "camera", title: "Camera", icon: Icons.Camera },
   { id: "network", title: tx("Addresses"), icon: Icons.Network },
   { id: "zoffset", title: "Z-offset", icon: Icons.Layers },
@@ -699,6 +702,7 @@ function SettingsHome({ menu }) {
           { key: entry.id, type: "button", className: "set-entry", "data-page": entry.id, onClick: () => menu.goTo(entry.id) },
           h("span", { className: "oui-row__icon oui-row__icon--accent" }, h(entry.icon)),
           h("span", { className: "oui-row__text" }, h("span", { className: "oui-row__name" }, entry.title), h("span", { className: "oui-row__meta set-entry__meta" }, settingsSummary(entry.id, settings, brain))),
+          entry.id === "functions" && !settings.functions.reviewed && h("span", { className: "set-entry__badge" }, tx("To check")),
           entry.id === "software" && ((brain.update.phase === "ok" && Number(brain.update.raw.commits_behind_count) > 0) || appUpdateWaiting(brain.app, readInstalledApp())) && h("span", { className: "set-entry__badge" }, tx("New")),
           h("span", { className: "set-entry__go", "aria-hidden": "true" }, h(Icons.Forward)),
         ),
@@ -738,6 +742,7 @@ function SettingsDrawer({ menu, updates, printing, actions }) {
   else if (page === "camcal") body = h(CameraCalibrationPage, { active: true });
   else if (page === "access") body = h(AccessPage, { active: true });
   else if (page === "language") body = h(LanguagePage);
+  else if (page === "functions") body = h(PrinterFunctionsPage, { printing });
   else if (page === "software") body = h(SoftwarePage, { active: true, menu, updates, printing, actions });
   else body = h(SettingsHome, { menu });
   return h(

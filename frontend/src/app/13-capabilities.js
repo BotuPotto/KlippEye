@@ -30,7 +30,43 @@ const UNKNOWN_CAPABILITIES = {
   zOffsetApply: "Z_OFFSET_APPLY_PROBE",
   axisLimits: DEFAULT_AXIS_LIMITS,
   maxTemp: DEFAULT_MAX_TEMP,
+  macros: [],
+  commands: {},
+  lights: [],
+  sensors: [],
 };
+
+/** Klipper objects that can be a light, and the command that switches each kind. */
+const LIGHT_KINDS = ["output_pin", "led", "neopixel", "dotstar", "pca9533", "pca9632"];
+
+/**
+ * The parts of the printer that "Printer functions" (59g-printer-functions.js) can use, read from Klipper:
+ *   macros:  every [gcode_macro] (the names as commands, upper case), sorted;
+ *   lights:  [{ object: "neopixel LUCI", kind, name, effects: ["led_effect IDLE", ...] }]: the outputs that may drive a light,
+ *            each with the klipper-led_effect effects drawn on it (an effect running = the light is on);
+ *   sensors: the filament sensors ("filament_switch_sensor runout", "filament_motion_sensor ...").
+ */
+function deriveParts(configfile, commands, objects) {
+  const settings = configfile.settings || {};
+  const raw = configfile.config || {};
+  const macros = Object.keys(settings)
+    .filter((name) => name.startsWith("gcode_macro "))
+    .map((name) => name.slice(12).toUpperCase())
+    .filter((name) => !name.startsWith("_"))
+    .sort();
+  const rawSection = (name) => raw[Object.keys(raw).find((key) => key.toLowerCase() === name.toLowerCase())] || {};
+  const lights = objects
+    .filter((object) => LIGHT_KINDS.includes(object.split(" ")[0]) && object.includes(" "))
+    .map((object) => {
+      const [kind, ...rest] = object.split(" ");
+      const name = rest.join(" ");
+      const target = (kind + ":" + name).toLowerCase();
+      const effects = objects.filter((other) => other.startsWith("led_effect ") && String(rawSection(other).leds || "").toLowerCase().split(/[\s,]+/).some((led) => led.replace(/\(.*$/, "") === target));
+      return { object, kind, name, effects };
+    });
+  const sensors = objects.filter((object) => object.startsWith("filament_switch_sensor ") || object.startsWith("filament_motion_sensor "));
+  return { macros, commands, lights, sensors };
+}
 
 /** The travel of each axis from [stepper_x] / [stepper_y] / [stepper_z] (position_min, default 0, and position_max). */
 function axisLimitsFrom(settings) {
@@ -93,38 +129,59 @@ function deriveCapabilities(configfile, commands) {
 /** Loads the capabilities; resolves null when Klipper does not answer (not ready yet). */
 async function loadCapabilities() {
   try {
-    const [configfile, commands] = await Promise.all([moonraker.configfile(), moonraker.gcodeCommands()]);
-    return Object.keys(configfile.settings || {}).length === 0 ? null : deriveCapabilities(configfile, commands);
+    const [configfile, commands, objects] = await Promise.all([moonraker.configfile(), moonraker.gcodeCommands(), moonraker.objectsList().catch(() => [])]);
+    return Object.keys(configfile.settings || {}).length === 0 ? null : { ...deriveCapabilities(configfile, commands), ...deriveParts(configfile, commands, objects) };
   } catch (error) {
     return null;
   }
 }
 
-/** The capabilities (UNKNOWN_CAPABILITIES until Klipper answers; asked again every few seconds until it does). */
+/**
+ * The capabilities, shared by every part of the page (UNKNOWN_CAPABILITIES until Klipper answers; asked again every few
+ * seconds until it does, and again after every restart of Klipper). The first component that needs them starts the loading.
+ */
+const capabilitiesStore = (() => {
+  let current = UNKNOWN_CAPABILITIES;
+  let started = false;
+  let timer = null;
+  const listeners = new Set();
+  const attempt = async () => {
+    const loaded = await loadCapabilities();
+    if (loaded) {
+      current = loaded;
+      listeners.forEach((listener) => listener());
+    } else timer = setTimeout(attempt, CAPABILITIES_RETRY_MS);
+  };
+  return {
+    get: () => current,
+    subscribe(listener) {
+      listeners.add(listener);
+      if (!started) {
+        started = true;
+        attempt();
+        // a restart may have changed the config (SAVE_CONFIG, an edited printer.cfg): read it again when Klipper is back
+        onKlipperReady(() => {
+          clearTimeout(timer);
+          attempt();
+        });
+      }
+      return () => listeners.delete(listener);
+    },
+    /** Read again now (after KlippEye wrote macros and Klipper restarted). */
+    reload() {
+      clearTimeout(timer);
+      return attempt();
+    },
+  };
+})();
+
 function usePrinterCapabilities() {
-  const [capabilities, setCapabilities] = useState(UNKNOWN_CAPABILITIES);
-
+  const [capabilities, setCapabilities] = useState(capabilitiesStore.get);
   useEffect(() => {
-    let cancelled = false;
-    let timer = null;
-    const attempt = async () => {
-      const loaded = await loadCapabilities();
-      if (cancelled) return;
-      if (loaded) setCapabilities(loaded);
-      else timer = setTimeout(attempt, CAPABILITIES_RETRY_MS);
-    };
-    attempt();
-    // a restart may have changed the config (SAVE_CONFIG, an edited printer.cfg): read it again when Klipper is back
-    const stopListening = onKlipperReady(() => {
-      clearTimeout(timer);
-      attempt();
-    });
-    return () => {
-      cancelled = true;
-      clearTimeout(timer);
-      stopListening();
-    };
+    const update = () => setCapabilities(capabilitiesStore.get());
+    const stop = capabilitiesStore.subscribe(update);
+    update();
+    return stop;
   }, []);
-
   return capabilities;
 }

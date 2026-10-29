@@ -58,6 +58,8 @@ Everything is in the menu **☰ (Settings)**. The settings are saved on the Rasp
 
 * **Printer**: the logo in the top bar (KlippEye, VzBot, Voron, RatRig) and a name of your own, also used as the browser tab
   title. Official brand logos go in the `logos/` folder of the repository (see [logos/README.md](../logos/README.md)).
+* **Printer functions** (marked *To check* until you confirm it): what the buttons that use your printer's own macros do,
+  see below.
 * **Camera**: the method (WebRTC, MJPEG, MJPEG adaptive or any web page) and its address. **Import from Mainsail** takes them from
   the webcams already set up in Mainsail.
 * **Addresses**: the Raspberry's local IP and, if you use a VPN such as ZeroTier, its external IP: the camera and the Android app
@@ -68,6 +70,35 @@ Everything is in the menu **☰ (Settings)**. The settings are saved on the Rasp
 * **Access**: the optional password (see 7).
 * **Updates**: releases, rollback, restart of the services, the Android app.
 * **Language**: English or Italian, chosen on each device (*Automatic* follows the device's language).
+
+### Printer functions
+
+Every printer parks, wipes the nozzle, loads the filament or switches its light with its own macros (or cannot). **Settings →
+Printer functions** says what each button of the dashboard does, and KlippEye fills it in by itself the first time: it looks in
+Klipper for the usual names (`PARK`, `CLEAN_NOZZLE`, `LOAD_FILAMENT`/`FILAMENT_LOAD`/`M701`, `UNLOAD_FILAMENT`/`M702`, a pair
+like `LIGHTS_ON`/`LIGHTS_OFF`) and for a light output. Check it once and press **All right**. For each function:
+
+* **Automatic**: what KlippEye found (the page says what, or that nothing was found and the button is hidden);
+* **Macro**: one of your macros (the field suggests the ones Klipper has);
+* **G-code**: a few lines written in the dashboard's editor, which opens over the page;
+* **Not used**: the button is not shown;
+* **Create a macro for this**: KlippEye proposes one (park at the back, heat and load, heat and unload, wipe on a brush whose
+  position you set), it opens in the editor, and when you save it goes into **`klippeye_macros.cfg`**, a file of KlippEye's next
+  to `printer.cfg`. The first time, `printer.cfg` gets `[include klippeye_macros.cfg]` at the end (with a backup in the data
+  folder). Klipper reads it after a restart: the page offers **Restart Klipper now** (not during a print). A macro that already
+  exists in your configuration cannot be created again with the same name.
+
+**The light** can also be switched directly on its output (**Output**: an `[output_pin]`, `[led]`, `[neopixel]`...). Whatever
+switches it, the button reads the output itself (and the *klipper-led_effect* effects drawn on it), so it is always right, also
+when the light is switched from Mainsail, KlipperScreen, the console or a macro. With macros or G-code you choose where the button
+reads the state (or none: it shows what was asked last).
+
+**Filament change notification**: the phone gets *Filament run out* when
+* a **filament sensor** (`[filament_switch_sensor]`, `[filament_motion_sensor]`) says the filament is gone during a print;
+* one of the **macros you choose** runs (`M600` in the G-code, your runout macro...): KlippEye adds to `klippeye_macros.cfg` a
+  small wrapper with the same name (`rename_existing`) that writes `KlippEye: filament change` in the console and then runs your
+  macro exactly as before. Only macros Klipper really has can be chosen (a wrong one would stop Klipper from starting);
+* a **line of the console** you write appears (*Printer paused due to filament runout!* is always recognised).
 
 ## 4. Updates
 

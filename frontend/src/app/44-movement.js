@@ -26,6 +26,7 @@ const goToGcode = (axis, target) => `G90\nG1 ${axis}${target} F${feedrateFor(axi
  */
 function useMotion(echo, capabilities) {
   const limits = (capabilities && capabilities.axisLimits) || DEFAULT_AXIS_LIMITS;
+  const parkCommand = usePrinterFunctions().park.command; // Settings → Printer functions ("" = no park)
   const [positionDialog, setPositionDialog] = useState({ open: false, axis: null, value: "" });
   // Where the "go to position" dialog starts. As in the original dashboard this is NOT the live
   // read-out: it is the last position this page commanded (homing or a go-to), initially the
@@ -53,11 +54,13 @@ function useMotion(echo, capabilities) {
     echo([{ msg: "G28 - Homing all axes", color: GREEN }]);
     fireGcode("G28");
   };
-  const park = () => {
-    toast.action("PARK");
-    echo([{ msg: "PARK macro executed", color: GREEN }]);
-    fireGcode("PARK");
-  };
+  const park = parkCommand
+    ? () => {
+        toast.action(tx("Park"));
+        echo([{ msg: parkCommand.split("\n")[0] + " - Park", color: GREEN }]);
+        fireGcode(parkCommand);
+      }
+    : null;
   const motorsOff = () => {
     toast.action(tx("M84 - Motors disabled"));
     echo([{ msg: "M84 - Motors off", color: GREEN }]);
@@ -149,7 +152,7 @@ function JogPad({ onJog, onHomeAll, onPark }) {
     onPointerDown: (e) => {
       wasLongPress.current = false;
       stopTimer();
-      pressTimer.current = window.setTimeout(() => {
+      if (onPark) pressTimer.current = window.setTimeout(() => {
         wasLongPress.current = true;
         onPark();
         try {
