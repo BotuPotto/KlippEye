@@ -1,5 +1,21 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.14.0
+
+**Printed markers for the camera calibration.** The blobs of 1.13.0 were too small and left strings between them.
+
+* **Print the markers (recommended)**: for printers where Z moves the bed, *Camera calibration* offers an STL with six
+  small pyramids (16 mm wide, 10 mm tall) placed for your bed (`/api/camera/markers.stl`). You slice it with your own
+  settings and print it; then you choose the G-code you printed and KlippEye reads from it where the pyramids are and how
+  tall they came out (`backend/camera_markers.py`: the extrusions above the first millimetre, in six groups; skirt, brim
+  and purge lines do not count). The tips of the pyramids are the points you tap with the bed lowered.
+* **Quick blobs**, reworked: you choose the nozzle and bed temperatures; each blob is a 7 mm disc (a spiral, two layers);
+  retraction and a Z hop between them, so no strings.
+* The nozzle points of the calibration are taken just above the markers, and the printer never moves across the bed
+  lower than the tallest marker.
+* API: `POST /api/camera/calibration/markers {file}`, `GET /api/camera/gcode-files`, `GET /api/camera/markers.stl`;
+  `POST /api/camera/calibration/marks` takes `{nozzle, bed}`.
+
 ## 1.13.0
 
 **Camera calibration (phase 4a of the roadmap).** The first step of a monitor that knows where the toolhead is.

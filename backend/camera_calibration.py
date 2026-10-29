@@ -10,9 +10,9 @@ The person says which kind (the page guesses it from Klipper's configuration).
 
 The points (about twelve, at two heights, never all on one plane):
   * Z moves the toolhead: the nozzle tip at a 3x2 grid of the bed, low (Z 5) and high (Z 60 or so): 12 taps;
-  * Z moves the bed: the nozzle tip at a 3x2 grid near the bed (6 taps, height 0), with a small blob of filament left on the
-    bed at each point (the page heats the nozzle and does it); then the bed goes down and the person taps the 6 blobs
-    (height -Z): 12 taps.
+  * Z moves the bed: six markers on the bed (camera_markers.py: printed pyramids, whose positions are read from the G-code
+    that printed them, or quick blobs left by the printer itself); the nozzle tip just above each marker (6 taps, height 0),
+    then the bed goes down and the person taps the 6 marker tips (height h - Z): 12 taps.
 On disk, in the data folder: camera.json (the saved calibration), camera_draft.json (the points being taken: they survive a
 reload of the page), camera_reference.jpg (the picture at calibration time, to notice when the camera moves).
 """
@@ -21,6 +21,7 @@ import os
 import threading
 import time
 
+import camera_markers
 import camera_model
 import camera_watch
 
@@ -29,9 +30,8 @@ GRID_X = (0.15, 0.5, 0.85)
 GRID_Y = (0.2, 0.8)
 LOW_Z_TOOLHEAD = 5.0
 HIGH_Z = 60.0
-MARK_Z = 0.3            # the nozzle height while leaving a blob and tapping it (Z moves the bed)
-MARK_HEIGHT = 0.6       # about how tall a blob is
-MARK_EXTRUDE_MM = 4.0
+NOZZLE_OVER_MARKER = 3.0   # mm between the nozzle tip and the top of a marker when the nozzle is tapped
+MAX_GCODE_BYTES = 50 * 1024 ** 2
 TRAVEL_FEED = 6000
 Z_FEED = 900
 DEFAULT_TOOLHEAD = {"width": 60, "depth": 70, "height": 70}   # mm around the nozzle (box from the tip upwards)
@@ -76,16 +76,17 @@ def guess_z_moves(settings):
     return "toolhead"
 
 
-def frame_point(z_moves, x, y, z, kind):
-    """Machine position -> frame coordinates. kind "nozzle": the nozzle tip; "mark": a blob on the bed seen with the
-    machine at Z = z (bed lowered by z when Z moves the bed)."""
+def frame_point(z_moves, x, y, z, kind, height=0.0):
+    """Machine position -> frame coordinates. kind "nozzle": the nozzle tip; "mark": the top of a marker `height` mm tall
+    on the bed, seen with the machine at Z = z (bed lowered by z when Z moves the bed)."""
     if kind == "mark":
-        return [x, y, MARK_HEIGHT - z] if z_moves == "bed" else [x, y, MARK_HEIGHT]
+        return [x, y, height - z] if z_moves == "bed" else [x, y, height]
     return [x, y, 0.0] if z_moves == "bed" else [x, y, z]
 
 
-def targets(z_moves, minimum, maximum):
-    """The points to take, in order (little travel). Each: id, kind, x, y, z (the machine Z to go to)."""
+def targets(z_moves, minimum, maximum, markers=None):
+    """The points to take, in order (little travel). Each: id, kind, x, y, z (the machine Z to go to), height (markers).
+    Z moves the bed: nothing until the markers are known (printed and read from their G-code, or blobs)."""
     x0, y0, x1, y1 = minimum[0], minimum[1], maximum[0], maximum[1]
     xs = [round(x0 + (x1 - x0) * f, 1) for f in GRID_X]
     ys = [round(y0 + (y1 - y0) * f, 1) for f in GRID_Y]
@@ -97,23 +98,25 @@ def targets(z_moves, minimum, maximum):
             out.append({"id": "low%d" % n, "kind": "nozzle", "x": x, "y": y, "z": LOW_Z_TOOLHEAD, "step": 1})
         for n, (x, y) in enumerate(reversed(grid), 1):
             out.append({"id": "high%d" % n, "kind": "nozzle", "x": x, "y": y, "z": high, "step": 2})
-    else:
-        for n, (x, y) in enumerate(grid, 1):
-            out.append({"id": "tip%d" % n, "kind": "nozzle", "x": x, "y": y, "z": MARK_Z, "step": 1})
-        for n, (x, y) in enumerate(grid, 1):
-            out.append({"id": "mark%d" % n, "kind": "mark", "x": x, "y": y, "z": high, "step": 2})
+    elif markers:
+        for n, (x, y, h) in enumerate(markers, 1):
+            out.append({"id": "tip%d" % n, "kind": "nozzle", "x": x, "y": y, "z": round(h + NOZZLE_OVER_MARKER, 2), "height": h, "step": 1})
+        for n, (x, y, h) in enumerate(markers, 1):
+            out.append({"id": "mark%d" % n, "kind": "mark", "x": x, "y": y, "z": high, "height": h, "step": 2})
     return out
 
 
 class CameraCalibration:
-    def __init__(self, data_dir, query, gcode, snapshot, cv2=None, np=None):
-        """query(objects) -> Klipper status dict; gcode(script, timeout) -> raises on failure; snapshot() -> JPEG bytes."""
+    def __init__(self, data_dir, query, gcode, snapshot, cv2=None, np=None, files=None, read_file=None):
+        """query(objects) -> Klipper status dict; gcode(script, timeout) -> raises on failure; snapshot() -> JPEG bytes;
+        files() -> [{path, modified, size}] of the G-code files; read_file(path) -> its text."""
         self.data_dir = data_dir
         self.path = os.path.join(data_dir, "camera.json")
         self.draft_path = os.path.join(data_dir, "camera_draft.json")
         self.reference_path = os.path.join(data_dir, "camera_reference.jpg")
         self.query, self.gcode, self.snapshot = query, gcode, snapshot
         self.cv2, self.np = cv2, np
+        self.files, self.read_file = files, read_file
         self.lock = threading.RLock()
         self.saved = _read_json(self.path)
         self.draft = _read_json(self.draft_path) or {}
@@ -185,7 +188,8 @@ class CameraCalibration:
         if not z_moves:
             return []
         printer = printer or self.printer()
-        return targets(z_moves, printer["minimum"], printer["maximum"])
+        markers = (self.draft.get("markers") or {}).get("points")
+        return targets(z_moves, printer["minimum"], printer["maximum"], markers)
 
     def _target(self, target_id, printer):
         for t in self.target_list(printer):
@@ -210,7 +214,8 @@ class CameraCalibration:
             x, y = (printer["minimum"][0] + printer["maximum"][0]) / 2, printer["maximum"][1] - 5
         else:
             x, y = t["x"], t["y"]
-        safe = max(t["z"], printer["position"][2], 10.0)
+        tallest = max([p[2] for p in (self.draft.get("markers") or {}).get("points") or []] + [0.0])
+        safe = max(t["z"], printer["position"][2], 10.0, tallest + 5.0)   # travel well above the markers
         script = "G90\nG0 Z%.2f F%d\nG0 X%.2f Y%.2f F%d\nG0 Z%.2f F%d\nM400" % (safe, Z_FEED, x, y, TRAVEL_FEED, t["z"], Z_FEED)
         self.gcode(script, 120)
         with self.lock:
@@ -236,8 +241,9 @@ class CameraCalibration:
         t = self._target(target_id, printer)
         x, y, z = printer["position"]
         if t["kind"] == "mark":
-            x, y = t["x"], t["y"]  # the blob is where it was left; the nozzle is parked elsewhere
-        point = {"kind": t["kind"], "machine": [x, y, z], "frame": frame_point(self.z_moves(), x, y, z, t["kind"]), "u": round(u, 5), "v": round(v, 5), "time": int(time.time())}
+            x, y = t["x"], t["y"]  # the marker is where it was printed; the nozzle is parked elsewhere
+        point = {"kind": t["kind"], "machine": [x, y, z], "frame": frame_point(self.z_moves(), x, y, z, t["kind"], t.get("height", 0.0)),
+                 "u": round(u, 5), "v": round(v, 5), "time": int(time.time())}
         with self.lock:
             self.draft.setdefault("points", {})[target_id] = point
             self.draft.pop("fit", None)
@@ -250,29 +256,60 @@ class CameraCalibration:
             self.draft.pop("fit", None)
             self._save_draft()
 
-    # ---------------------------------------------------------------- the blobs (Z moves the bed)
+    # ---------------------------------------------------------------- the markers (Z moves the bed)
+    def markers_stl(self):
+        """The STL of the six pyramids to print, for this printer's bed."""
+        printer = self.printer()
+        return camera_markers.markers_stl(printer["minimum"], printer["maximum"])
+
+    def gcode_files(self):
+        """The newest G-code files on the printer (to choose the one of the markers), newest first."""
+        files = sorted(self.files() if self.files else [], key=lambda f: f.get("modified") or 0, reverse=True)
+        files = [f for f in files if str(f.get("path", "")).lower().endswith((".gcode", ".gco", ".g"))]
+        return [{"path": f.get("path"), "modified": f.get("modified"), "size": f.get("size")} for f in files[:30]]
+
+    def _set_markers(self, markers):
+        with self.lock:
+            self.draft["markers"] = markers
+            self.draft["points"] = {}   # new markers: the points are taken again
+            self.draft.pop("fit", None)
+            self._save_draft()
+
+    def use_marker_file(self, path):
+        """Reads where the printed pyramids are from the G-code that printed them."""
+        if self.z_moves() != "bed":
+            raise ValueError("the markers are only for printers where Z moves the bed")
+        if not isinstance(path, str) or not path or ".." in path.split("/"):
+            raise ValueError("choose the file that printed the markers")
+        known = {f["path"]: f for f in self.gcode_files()}
+        if path in known and (known[path].get("size") or 0) > MAX_GCODE_BYTES:
+            raise ValueError("this file is too big to be the markers file")
+        text = self.read_file(path)
+        points = camera_markers.read_markers(text)
+        self._set_markers({"source": "file", "file": path, "points": [list(p) for p in points], "time": int(time.time())})
+        return self.draft["markers"]
+
     def make_marks(self, temperature=210, bed_temperature=60):
-        """Heats, and leaves a small blob of filament on the bed at each grid point, then cools the nozzle. Runs in the
-        background (a few minutes); the state is in self.marks."""
+        """The quick way: the printer leaves a small disc of filament at each grid point (temperatures chosen by the
+        person, retraction and Z hop between them), then cools down. In the background; the state is in self.marks."""
+        for value, low, high in ((temperature, 170, 300), (bed_temperature, 0, 120)):
+            if isinstance(value, bool) or not isinstance(value, (int, float)) or not low <= value <= high:
+                raise ValueError("temperatures: nozzle 170 to 300 °C, bed 0 to 120 °C")
         printer = self.printer()
         self._ready_to_move(printer)
         if self.z_moves() != "bed":
-            raise ValueError("the blobs are only for printers where Z moves the bed")
+            raise ValueError("the markers are only for printers where Z moves the bed")
         if self._marks_thread and self._marks_thread.is_alive():
             return self.marks
-        points = [t for t in self.target_list(printer) if t["kind"] == "nozzle"]
-        lines = ["M140 S%d" % bed_temperature, "M104 S%d" % temperature, "M190 S%d" % bed_temperature, "M109 S%d" % temperature, "G90", "M83",
-                 "G0 Z10 F%d" % Z_FEED]
-        for t in points:
-            lines += ["G0 X%.2f Y%.2f F%d" % (t["x"], t["y"], TRAVEL_FEED), "G0 Z%.2f F%d" % (MARK_Z, Z_FEED),
-                      "G1 E%.2f F90" % MARK_EXTRUDE_MM, "G4 P800", "G1 E-0.8 F1800", "G0 Z10 F%d" % Z_FEED]
-        lines += ["M104 S0", "M140 S0", "M82", "M400"]
-        script = "\n".join(lines)
+        positions = camera_markers.marker_positions(printer["minimum"], printer["maximum"])
+        script = camera_markers.blob_script(positions, int(temperature), int(bed_temperature))
 
         def run():
             self.marks = {"state": "running", "started": int(time.time())}
             try:
-                self.gcode(script, 1200)
+                self.gcode(script, 1800)
+                self._set_markers({"source": "blobs", "points": [[x, y, camera_markers.BLOB_HEIGHT] for x, y in positions], "time": int(time.time()),
+                                   "temperatures": [int(temperature), int(bed_temperature)]})
                 self.marks = {"state": "done", "time": int(time.time())}
             except Exception as error:
                 try:

@@ -114,13 +114,20 @@ the monitor can tell the toolhead from a problem (the masks come in the next rel
 
 1. Say how the **Z axis** moves: the **bed** (VzBot, Voron Trident, RatRig V-Core…) or the **toolhead** (Voron 2.4…), and
    the size of the toolhead. Printers whose bed moves in Y (Prusa, Ender) are not supported yet.
-2. Empty, clean bed, the light as during prints, then **Home**. When Z moves the bed, **Make the 6 blobs**: the printer
-   heats (PLA, 210 °C) and leaves six small blobs of filament on the bed, needed to see the bed at another height.
-3. For each of the 12 points press **Go to point**, tap the nozzle tip (or the blob) in the picture, tap again exactly in
-   the magnified view and **Keep this point**.
-4. **Calculate the calibration**: the average error in pixels; the points to redo turn red. The live picture shows the
+2. Clean bed, the light as during prints, then **Home**.
+3. When Z moves the bed, six **markers** on the bed are needed (the nozzle alone is always at the same height for the
+   camera). Two ways:
+   * **Print the markers (recommended)**: **Download the markers (STL)**, six small pyramids already placed for your bed.
+     Slice the file with your usual settings (no supports, a colour that stands out on the bed; keep the position the
+     STL gives), print it and leave it on the bed. Then choose the G-code you printed and **Read the markers from this
+     file**: KlippEye finds where the slicer put the pyramids and how tall they came out.
+   * **Quick blobs**: choose the nozzle and bed temperatures and **Make the 6 blobs**: the printer leaves six small discs
+     of filament (with retraction and a Z hop between them). Faster, less precise.
+4. For each of the 12 points press **Go to point**, tap the nozzle tip (or the tip of the marker) in the picture, tap
+   again exactly in the magnified view and **Keep this point**.
+5. **Calculate the calibration**: the average error in pixels; the points to redo turn red. The live picture shows the
    toolhead outline and the bed drawn over it: move the toolhead with the buttons, the drawing must follow it.
-   **Save the calibration**, then remove the blobs.
+   **Save the calibration**, then remove the markers.
 
 The calibration is valid **until the camera moves**. Every ten minutes the backend compares the picture with the one taken
 at calibration; if the camera has moved, the page (and its line in the menu) says so and the monitor stops using the
