@@ -134,7 +134,7 @@ with sync_playwright() as p:
     titles = pg.locator(".set-entry .oui-row__name").all_inner_texts()
     ok("thirteen groups, the printer first, in this order", titles == ["Stampante", "Funzioni della stampante", "Camera", "Indirizzi", "Z-offset", "Notifiche", "Monitor IA", "Soglie del monitor", "Calibra camera", "Registrazioni", "Accesso", "Aggiornamenti", "Lingua"], titles)
     summaries = pg.locator(".set-entry__meta").all_inner_texts()
-    ok("each group says what it is set to now", summaries[0] == "KlippEye" and summaries[1] == "" and summaries[2] == "WebRTC" and summaries[3] == "192.168.1.17 • 172.25.170.177" and summaries[4] == "0.01 · 0.025 · 0.05 · 0.1 mm" and summaries[5] == "7 su 7 attive" and "Pausa da sola: no" in summaries[6], summaries)
+    ok("each group says what it is set to now", summaries[0] == "KlippEye" and summaries[1] == "WebRTC" and summaries[2] == "192.168.1.17 • 172.25.170.177" and summaries[3] == "0.01 · 0.025 · 0.05 · 0.1 mm" and summaries[4] == "7 su 7 attive" and "Pausa da sola: no" in summaries[5], summaries)
     ok("the page behind cannot scroll while it is open", pg.evaluate("() => document.body.style.overflow") == "hidden")
     ok("the state line says the Raspberry keeps the settings", wait_until(lambda: "Salvate sul Raspberry" in pg.locator(".set-status").first.inner_text()), pg.locator(".set-status").first.inner_text())
     P.shot_vp(f"{out}/menu_home_390.png")

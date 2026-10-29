@@ -7,3 +7,4 @@
 .fn-now { color: var(--oui-text-2); }
 .fn-review .oui-btn, .fn-restart .oui-btn { margin-top: 6px; }
 .set-field__hint--warn { color: var(--oui-warn, #f5b041); }
+.set-entry__badge--inline { display: inline-block; margin-top: 2px; }

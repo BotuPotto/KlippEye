@@ -701,8 +701,14 @@ function SettingsHome({ menu }) {
           "button",
           { key: entry.id, type: "button", className: "set-entry", "data-page": entry.id, onClick: () => menu.goTo(entry.id) },
           h("span", { className: "oui-row__icon oui-row__icon--accent" }, h(entry.icon)),
-          h("span", { className: "oui-row__text" }, h("span", { className: "oui-row__name" }, entry.title), h("span", { className: "oui-row__meta set-entry__meta" }, settingsSummary(entry.id, settings, brain))),
-          entry.id === "functions" && !settings.functions.reviewed && h("span", { className: "set-entry__badge" }, tx("To check")),
+          h(
+            "span",
+            { className: "oui-row__text" },
+            h("span", { className: "oui-row__name" }, entry.title),
+            entry.id === "functions" && !settings.functions.reviewed
+              ? h("span", null, h("span", { className: "set-entry__badge set-entry__badge--inline" }, tx("To check"))) // under the name: the long title keeps its room on a narrow phone
+              : h("span", { className: "oui-row__meta set-entry__meta" }, settingsSummary(entry.id, settings, brain)),
+          ),
           entry.id === "software" && ((brain.update.phase === "ok" && Number(brain.update.raw.commits_behind_count) > 0) || appUpdateWaiting(brain.app, readInstalledApp())) && h("span", { className: "set-entry__badge" }, tx("New")),
           h("span", { className: "set-entry__go", "aria-hidden": "true" }, h(Icons.Forward)),
         ),
