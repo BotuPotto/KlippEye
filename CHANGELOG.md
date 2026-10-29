@@ -1,5 +1,28 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.16.0
+
+**The whole bed watched, except where the parts are (phase 4c of the roadmap).** The first prints with 1.15 had no false
+alarms, but a big failure went unseen: the monitor counted only the outer band of the watched area, and the masks could hide
+a failure under the toolhead.
+
+* **Expected zone** (`backend/print_zone.py`): with a usable camera calibration the monitor knows where the objects of the
+  print are, from Klipper's `exclude_object` (slicers with "Label objects") or, otherwise, from the G-code of the print
+  (read once in the background, line by line: its extrusions grouped on a 5 mm grid, one outline per object). It then
+  watches the whole volume above the bed and counts what changes **outside** the objects (with a 6 mm margin, up to the
+  height being printed): spaghetti next to the part, a part torn off. The part growing does not count. Without a calibration
+  or without objects: the outer band, as before. New switch *False alarms → Watch the whole bed, except where the parts are*
+  (on). During a print the calibration page draws the expected zone in green.
+* **Masks no longer hide a failure**: a point covered by the toolhead in one of the last checks counts as "not seen", not as
+  "unchanged", so the toolhead passing over a failure does not reset its persistence: each point must be seen changed in
+  the last 3 checks (persist_checks) in which it was visible, looking back at most twice as far.
+* **Fast moves**: the position of the toolhead is now read right before and right after the picture, and its way between
+  them is covered by a chain of small boxes (one every 20 mm) instead of one big rectangle: on a fast printer the mask no
+  longer covers a large part of the bed. The gantry still covers the band it sweeps.
+* The toolhead and gantry sizes can go down to their minimum (0 below the nozzle tip) instead of being refused.
+* Recordings keep the objects of the print; `klippeye replay` uses them (`--set expected_zone=off` to compare) and
+  *Measure now* says so.
+
 ## 1.15.0
 
 **The toolhead and the gantry left out of the AI monitor (phase 4b of the roadmap).** The recordings showed that most false

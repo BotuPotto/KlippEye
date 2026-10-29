@@ -173,6 +173,13 @@ class Recorder:
             self.last_trigger = (self.session["id"], now, frame, time.time())
             self._save()
 
+    def note_zone(self, zone):
+        """The objects of the print (phase 4c: where the part is expected), so that the replay can use them too."""
+        with self.lock:
+            if self.session and isinstance(zone, dict):
+                self.session["zone"] = {"source": zone.get("source"), "objects": zone.get("objects") or []}
+                self._save()
+
     def note_cpu(self, check_ms, cpu_percent):
         with self.lock:
             if self.session:

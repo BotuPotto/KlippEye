@@ -716,7 +716,7 @@ check("cartella dello storico non scrivibile: nessuna eccezione (il monitor non 
 check("impostazioni nuove: valori di serie (filtro acceso, 3 controlli, 60 s, 30%, fiducia 70%, foto di prima accesa)",
       (lambda v: v["persistent_filter"] is True and v["persist_checks"] == 3 and v["reference_seconds"] == 60 and v["global_change"] == 30 and v["ai_min_confidence"] == 70 and v["ai_send_reference"] is True)(mm.brain_config.snapshot()))
 r = mm.app.test_client().post("/api/backend/config", json={"values": {"persist_checks": 5, "reference_seconds": 90, "ai_min_confidence": 55, "persistent_filter": False}})
-check("... si cambiano dal menu e arrivano al rilevatore", r.status_code == 200 and mm.detector.persist_checks == 5 and mm.detector.recent_masks.maxlen == 5 and mm.detector.reference_seconds == 90
+check("... si cambiano dal menu e arrivano al rilevatore", r.status_code == 200 and mm.detector.persist_checks == 5 and mm.detector.recent_masks.maxlen == 10 and mm.detector.reference_seconds == 90
       and mm.detector.ai_min_confidence == 55 and mm.detector.persistent_filter is False, r.get_json())
 r = mm.app.test_client().post("/api/backend/config", json={"values": {"persist_checks": 1, "reference_seconds": 5, "global_change": 500, "ai_min_confidence": 101}})
 check("... valori fuori limite: 400 con un errore per voce", r.status_code == 400 and set(r.get_json()["errors"]) == {"persist_checks", "reference_seconds", "global_change", "ai_min_confidence"}, r.get_json())
@@ -1499,6 +1499,127 @@ check("replay: the masks are used on every recorded picture (they have the posit
       and res_on["total"]["masked_frames"] == len(_path) and "Toolhead and gantry left out: yes" in rp.stdout, (res_on["total"], rp.stdout[-400:], rp.stderr[-400:]))
 check("replay: fewer false alarms with the masks than with machine_masks=off", res_off["total"]["masks"] == "off" and res_on["total"]["false"] < res_off["total"]["false"],
       (res_on["total"]["false"], res_off["total"]["false"]))
+
+print("== 1.16.0: expected zone (phase 4c), masks that do not hide a failure, fast moves")
+import print_zone as _pz  # noqa: E402
+_g6 = fakes.sliced_markers([0.0, 0.0, -5.0], [350.0, 350.0, 340.0], 0, 0)
+_objs = _pz.objects_from_gcode(_g6)
+check("objects from the G-code: one per printed object (6 pyramids), the skirt left out", len(_objs) == 6 and all(len(o["polygon"]) >= 3 for o in _objs)
+      and max(max(p[0] for p in o["polygon"]) - min(p[0] for p in o["polygon"]) for o in _objs) < 25, [o["polygon"] for o in _objs[:1]])
+check("... the same reading the file line by line (a big file is never held in memory)", _pz.objects_from_gcode(iter(_g6.splitlines())) == _objs)
+check("objects from Klipper's exclude_object (those with a polygon)", _pz.objects_from_exclude([{"name": "A", "polygon": [[1, 2], [3, 4], [5, 1]]}, {"name": "B"}, "x"]) == [{"name": "A", "polygon": [[1.0, 2.0], [3.0, 4.0], [5.0, 1.0]]}])
+_parts = _pz.outlines(MCAM, [{"name": "p", "polygon": [[155, 155], [195, 155], [195, 195], [155, 195]]}], 5.0, [0, 0], [350, 350])
+check("outlines: the watched bed (in pieces) and the expected zone of the object", len(_parts["watched"]) >= 12 and len(_parts["expected"]) == 1, (len(_parts["watched"]), len(_parts["expected"])))
+_fast = _mm.mask(_core.cv2, _core.np, MCAM, SET_SHAPE, [[60.0, 60.0, 5.0], [280.0, 280.0, 5.0]], 540, 360)
+_box = _core.np.zeros((360, 540), _core.np.uint8)
+for _poly in _mm.polygons(MCAM, SET_SHAPE, [60.0, 60.0, 5.0], (0, 350), [280.0, 280.0, 5.0], parts=("toolhead",))["toolhead"]:
+    _core.cv2.fillPoly(_box, [(_core.np.array(_poly) * [540, 360]).astype(_core.np.int32)], 255)
+_gantry_only = _mm.mask(_core.cv2, _core.np, MCAM, dict(SET_SHAPE, toolhead=dict(SET_SHAPE["toolhead"], left=0, right=0, front=0, back=0, top=0, below=0)), [[60.0, 60.0, 5.0], [280.0, 280.0, 5.0]], 540, 360)
+check("a fast diagonal move (220 mm in X and Y while the picture is taken): the toolhead is covered along its way, not by one big rectangle",
+      _core.cv2.countNonZero(_core.cv2.bitwise_and(_fast, _core.cv2.bitwise_not(_gantry_only))) < 0.6 * _core.cv2.countNonZero(_box), (_core.cv2.countNonZero(_fast), _core.cv2.countNonZero(_box)))
+
+# the toolhead passing over a failure must not hide it (a mask in some checks = "not seen", not "unchanged")
+_jb = _core.FrameJudge()
+_jb.verbose = False
+_base = _core.cv2.cvtColor(_tex2, _core.cv2.COLOR_GRAY2BGR)
+_hit = []
+for _i in range(60):
+    _img = _base.copy()
+    if _i >= 30:
+        _core.cv2.rectangle(_img, (280, 190), (440, 340), (250, 250, 250), -1)   # a failure in the outer band, from check 30
+    _ign = _core.np.zeros((360, 540), _core.np.uint8)
+    if _i % 2:
+        _core.cv2.rectangle(_ign, (110, 70), (240, 190), 255, -1)   # every other check the toolhead covers it
+    if _i * 3.0 >= _jb.cooldown_until and _jb.judge(_img, b"", _i * 3.0, _ign)[1]:
+        _hit.append(_i)
+check("a failure covered by the toolhead every other check is still caught", _hit and 30 < _hit[0] <= 36, _hit)
+
+# the whole bed watched outside the parts: a growing part does not count, plastic next to it does
+_PART = [[155, 155], [195, 155], [195, 195], [155, 195]]
+_OBJ = [{"name": "p", "polygon": _PART}]
+
+
+def render_print(pos, height, failure=False):
+    img = _core.cv2.cvtColor(_tex2, _core.cv2.COLOR_GRAY2BGR)
+    poly = _pz.prism_outline(MCAM, _PART, -pos[2], -pos[2] + height)
+    _core.cv2.fillPoly(img, [(_core.np.array(poly) * [CAM_W, CAM_H]).astype(_core.np.int32)], (40, 140, 200))
+    if failure:
+        uv, _ = _cm.project(MCAM, [[215.0, 165.0, -pos[2]]])
+        _core.cv2.circle(img, (int(uv[0][0] * CAM_W), int(uv[0][1] * CAM_H)), 60, (240, 240, 240), -1)
+    parts = _mm.polygons(MCAM, REAL_SHAPE, pos, (0, 350))
+    for poly, colour in [(p, (90, 60, 30)) for p in parts["gantry"]] + [(p, (25, 25, 25)) for p in parts["toolhead"]]:
+        _core.cv2.fillPoly(img, [(_core.np.array(poly) * [CAM_W, CAM_H]).astype(_core.np.int32)], colour)
+    return img
+
+
+_prng = _core.np.random.default_rng(11)
+_ppath = []
+for _i in range(200):
+    _h = 0.3 + _i * 0.05
+    _ppath.append((_h, [155 + _prng.random() * 40, 155 + _prng.random() * 40, _h], [155 + _prng.random() * 40, 155 + _prng.random() * 40, _h]))
+
+
+def run_zone(use_zone, failure_from=None):
+    judge = _core.FrameJudge()
+    judge.verbose = False
+    alarms = []
+    for i, (height, before, after) in enumerate(_ppath):
+        now = i * 3.0
+        if now < judge.cooldown_until:
+            continue
+        ignore = _mm.mask(_core.cv2, _core.np, MCAM, SET_SHAPE, [before, after], 540, 360)
+        zone = _pz.masks(_core.cv2, _core.np, MCAM, _OBJ, before[2], [0, 0], [350, 350], 540, 360) if use_zone else None
+        if judge.judge(render_print(before, height, failure_from is not None and i >= failure_from), b"", now, ignore, zone)[1]:
+            alarms.append(i)
+    return alarms
+
+
+check("outer band only (as before): plastic next to the part, in the middle of the picture, is NOT seen", run_zone(False, 100) == [])
+check("whole bed outside the part: the part growing for 10 minutes raises no alarm", run_zone(True) == [])
+_zf = run_zone(True, 100)
+check("... and the plastic next to it is caught within a few checks", _zf and 100 < _zf[0] <= 110, _zf)
+
+# the backend: where the objects come from, the zone of the live monitor, the overlay, the recording
+det = mk.detector
+det.expected_zone = True
+det._update_zone("a.gcode", {"objects": [{"name": "P", "polygon": _PART}]})
+check("live: the objects from exclude_object", det.zone["source"] == "exclude_object" and det.zone["objects"][0]["name"] == "P")
+fake.state.setdefault("gcodes", {})["six parts.gcode"] = _g6
+det._update_zone("six parts.gcode", {"objects": []})
+wait_for(lambda: det.zone.get("file") == "six parts.gcode" and det.zone_reading is None, 20)
+check("live: without exclude_object the G-code of the print is read in the background (6 objects)", det.zone.get("source") == "gcode" and len(det.zone["objects"]) == 6, {k: det.zone.get(k) for k in ("file", "source", "why")})
+det.meta = {"live": [175.0, 175.0, 5.0], "live2": [176.0, 175.0, 5.0], "pos": [175.0, 175.0, 5.0]}
+_zm = det._zone_masks()
+check("live: the zone of a check (watched and expected pictures, 540x360)", _zm is not None and _zm[0].shape == (360, 540) and _zm[0].any() and _zm[1].any() and det.meta["zone"] is True and det.stats["zone"] == "gcode")
+det.expected_zone = False
+check("switched off: no zone (the outer band, as before)", det._zone_masks() is None)
+det.expected_zone = True
+ov = ck.get("/api/camera/overlay").get_json()
+check("overlay: the expected zone of the print running now (6 objects, from the G-code)", ov["zone"] and ov["zone"]["source"] == "gcode" and ov["zone"]["objects"] == 6 and len(ov["zone"]["expected"]) == 6, ov.get("zone"))
+check("the setting 'Watch the whole bed, except where the parts are' (on by default)", any(c["key"] == "expected_zone" and c["default"] is True for c in mk.CONFIG_SPEC))
+det.zone = {}
+
+# the replay with the zone: a recording that kept its objects and positions
+drz = tmp()
+os.makedirs(drz, exist_ok=True)
+shutil.copy(os.path.join(dmk, "camera.json"), os.path.join(drz, "camera.json"))
+json.dump(dict(SET_SHAPE, limits=[[0.0, 0.0], [350.0, 350.0]]), open(os.path.join(drz, "machine_shape.json"), "w"))
+recz = _rec.Recorder(os.path.join(drz, "recordings"), _core.cv2, "1.16.0")
+recz.configure(True, 500)
+recz.observe("printing", "part.gcode", 7000.0, {})
+recz.note_zone({"source": "gcode", "objects": _OBJ})
+for i, (height, before, after) in enumerate(_ppath):
+    recz.add_frame(render_print(before, height, i >= 100), 7000.0 + i * 3.0, {"live": [round(v, 2) for v in before], "live2": [round(v, 2) for v in after], "score": None, "trig": False})
+recz.observe("complete", "", 7000.0 + 3 * len(_ppath))
+recz.set_label(recz.ids()[0], "failed", 7300.0)
+_zj = os.path.join(tmp(), "zz.json")
+rpz = _sub2.run([sys.executable, REPLAY, "--data", drz, "--json", _zj], capture_output=True, text=True, timeout=300)
+resz = json.load(open(_zj))
+_sub2.run([sys.executable, REPLAY, "--data", drz, "--set", "expected_zone=off", "--json", _zj], capture_output=True, text=True, timeout=300)
+resz_off = json.load(open(_zj))
+check("replay: with the recorded objects the failure next to the part is caught, without false alarms before it", rpz.returncode == 0 and resz["sessions"][0]["seen"] is True
+      and resz["sessions"][0]["false"] == 0 and resz["total"]["zoned_frames"] >= 150 and "Whole bed watched outside the parts: yes" in rpz.stdout, (resz["sessions"][0], rpz.stdout[-300:], rpz.stderr[-500:]))
+check("replay --set expected_zone=off: the same failure is missed (outer band only)", resz_off["total"]["zone"] == "off" and resz_off["sessions"][0]["seen"] is False, resz_off["sessions"][0])
 
 stop_all()
 fake.close()

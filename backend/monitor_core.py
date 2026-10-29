@@ -56,11 +56,12 @@ class FrameJudge:
         self.persistent_filter = True  # the filter against false alarms (see _persistent_score)
         self.persist_checks = 3
         self.machine_masks = True  # leave out the toolhead and the gantry (the caller gives the mask: machine_masks.py)
+        self.expected_zone = True  # watch the whole bed except the objects (the caller gives the zone: print_zone.py)
         self.reference_seconds = 60
         self.global_change = 30.0
         self.ai_min_confidence = 70
         self.ai_send_reference = True
-        self.recent_masks = deque(maxlen=3)
+        self.recent_masks = deque(maxlen=2 * 3)  # (changed, seen) of the last checks: twice persist_checks (see _persistent)
         self.ref_small = deque(maxlen=REFERENCE_SAMPLES)  # (time, small grey picture) for the background
         self.ref_jpegs = deque(maxlen=REFERENCE_SAMPLES)  # (time, picture as the camera sent it) to show the AI "how it was before"
         self.ref_ignore = deque(maxlen=REFERENCE_SAMPLES)  # the machine mask of each background picture (or None)
@@ -98,9 +99,10 @@ class FrameJudge:
         self.ai_model = get("ai_model", self.ai_model)
         self.persistent_filter = get("persistent_filter", self.persistent_filter)
         self.machine_masks = get("machine_masks", self.machine_masks)
+        self.expected_zone = get("expected_zone", self.expected_zone)
         persist = get("persist_checks", self.persist_checks)
-        if persist != self.persist_checks or self.recent_masks.maxlen != persist:
-            self.recent_masks = deque(maxlen=persist)
+        if persist != self.persist_checks or self.recent_masks.maxlen != 2 * persist:
+            self.recent_masks = deque(maxlen=2 * persist)
         self.persist_checks = persist
         self.reference_seconds = get("reference_seconds", self.reference_seconds)
         self.global_change = get("global_change", self.global_change)
@@ -110,12 +112,13 @@ class FrameJudge:
             x, y, w, h = values["roi"]  # in % of the picture -> pixels of the resized picture (1080x720)
             self.roi = (int(OPENCV_WIDTH * x / 100), int(OPENCV_HEIGHT * y / 100), int(OPENCV_WIDTH * w / 100), int(OPENCV_HEIGHT * h / 100))
 
-    def judge(self, frame, raw, now, ignore=None):
+    def judge(self, frame, raw, now, ignore=None, zone=None):
         """One check of one picture (`frame` decoded by OpenCV, `raw` as the camera sent it) taken at `now` (seconds).
         `ignore`: the machine mask of this picture (uint8, any size, 255 = leave out) or None.
+        `zone`: (watched, expected) pictures of the expected zone (print_zone.masks) or None (the outer band, as before).
         -> (score in % or None when there is nothing to count yet, True when this check triggers the alarm).
         After a trigger the monitor rests until `cooldown_until`: the caller does not judge pictures before then."""
-        score = self._persistent_score(frame, raw, now, ignore) if self.persistent_filter else self._motion_score(frame, ignore)
+        score = self._persistent_score(frame, raw, now, ignore, zone) if self.persistent_filter else self._motion_score(frame, ignore)
         if score is None:  # the comparison is not ready yet, or this check is to be ignored (light change)
             return None, False
         self.stats["last_score"] = round(score, 2)
@@ -207,7 +210,7 @@ class FrameJudge:
         self.last_ignore = None
         self.global_streak = 0
 
-    def _persistent_score(self, frame, raw, now=None, ignore=None):
+    def _persistent_score(self, frame, raw, now=None, ignore=None, zone=None):
         """
         The filter against false alarms. Instead of comparing two pictures in a row (the passing print head is enough to trigger):
           1. the BACKGROUND is the median of 7 pictures spread over the last `reference_seconds`: what stays in a place only
@@ -216,7 +219,9 @@ class FrameJudge:
           3. if more than `global_change`% of the whole picture changes at once (light, camera moved) the check is ignored, but
              if it lasts more than GLOBAL_STREAK_MAX checks in a row it is a real change;
           4. only what changed against the background, in the outer band of the area, in ALL the last `persist_checks` checks counts;
-          5. the machine masks (`ignore`) are left out of all of it.
+          5. the machine masks (`ignore`) are left out of all of it;
+          6. with an expected zone (`zone` = (watched, expected) pictures, print_zone.py) the whole watched area counts except
+             the expected zone, instead of the outer band of the rectangle.
         It works at half resolution: 4 times fewer points to look at. -> % of the area, or None (nothing to count now).
         """
         now = time.time() if now is None else now
@@ -229,7 +234,7 @@ class FrameJudge:
             self._reset_reference()  # a long pause: the old background is no longer valid
         result = None
         if self.bg is not None and self.bg.shape == gray.shape:
-            result = self._compare_with_background(gray, ignore)
+            result = self._compare_with_background(gray, ignore, zone)
         else:
             self.stats["status"] = "preparing the comparison (%d/%d pictures)" % (len(self.ref_small), REFERENCE_MIN)
         step = max(self.check_interval, self.reference_seconds / REFERENCE_SAMPLES)
@@ -258,7 +263,7 @@ class FrameJudge:
         self.bg = np.where(unknown, 0, bg).astype(np.uint8)
         self.bg_unknown = unknown.astype(np.uint8) * 255 if unknown.any() else None
 
-    def _compare_with_background(self, gray, ignore=None):
+    def _compare_with_background(self, gray, ignore=None, zone=None):
         leave_out = ignore
         if self.bg_unknown is not None:
             leave_out = self.bg_unknown if leave_out is None else cv2.bitwise_or(leave_out, self.bg_unknown)
@@ -286,19 +291,61 @@ class FrameJudge:
             return changed  # it lasted many checks: not a flash of light
         self.global_streak = 0
         thresh = cv2.dilate(thresh, None, iterations=1)
+        if keep is not None:
+            thresh = cv2.bitwise_and(thresh, keep)
+        if zone is not None:
+            return self._zone_score(thresh, keep, zone)
         x, y, rw, rh = self._roi_rect(thresh.shape, 0.5)
         roi = thresh[y:y + rh, x:x + rw]
         if roi.size == 0:
             return 0.0
-        if self.recent_masks and self.recent_masks[-1].shape != roi.shape:
-            self.recent_masks.clear()  # the area was changed from the menu
-        self.recent_masks.append(roi)
+        seen = None if keep is None else keep[y:y + rh, x:x + rw]
+        persistent = self._persistent(roi, seen)
         self.stats["status"] = "scanning"
-        if len(self.recent_masks) < self.recent_masks.maxlen:
+        if persistent is None:
             return 0.0
-        persistent = self.recent_masks[0]
-        for other in list(self.recent_masks)[1:]:
-            persistent = cv2.bitwise_and(persistent, other)
         h_roi, w_roi = persistent.shape
         stays = cv2.bitwise_and(persistent, persistent, mask=self._periphery_mask(h_roi, w_roi))
         return (cv2.countNonZero(stays) / (w_roi * h_roi)) * 100
+
+    def _persistent(self, changed, seen):
+        """What changed in ALL the last `persist_checks` checks. A point hidden by the machine masks in a check (`seen` = 0
+        there) does not break the chain: hidden is "not known", not "unchanged" (the toolhead passing over a failure must not
+        hide it). For each point the last `persist_checks` checks in which it was SEEN count, looking back at most twice as
+        far; a point never hidden is judged exactly as before (the last `persist_checks` checks).
+        -> the persistent picture, or None while there are not enough checks yet."""
+        if self.recent_masks and self.recent_masks[-1][0].shape != changed.shape:
+            self.recent_masks.clear()  # the area was changed from the menu
+        self.recent_masks.append((changed, seen))
+        need = self.persist_checks
+        if len(self.recent_masks) < need:
+            return None
+        window = list(self.recent_masks)
+        if all(v is None for _, v in window[-need:]):
+            persistent = window[-1][0]
+            for other, _ in window[-need:-1]:
+                persistent = cv2.bitwise_and(persistent, other)
+            return persistent
+        ok = np.ones(changed.shape, bool)
+        remaining = np.full(changed.shape, need, np.int8)
+        for c, v in reversed(window):
+            use = (remaining > 0) if v is None else (v > 0) & (remaining > 0)
+            ok &= ~use | (c > 0)
+            remaining -= use
+        return (ok & (remaining <= 0)).astype(np.uint8) * 255
+
+    def _zone_score(self, thresh, keep, zone):
+        """Phase 4c (print_zone.py): the whole watched area (the volume above the bed) except the expected zone (the
+        objects up to the height being printed): a change that stays there is plastic where no part should be.
+        -> % of the watched area."""
+        watched, expected = (self._fit_mask(m, thresh.shape) for m in zone)
+        area = cv2.bitwise_and(watched, cv2.bitwise_not(expected))
+        changed = cv2.bitwise_and(thresh, area)
+        seen = area if keep is None else cv2.bitwise_and(area, keep)
+        persistent = self._persistent(changed, seen)
+        self.stats["status"] = "scanning (whole bed, outside the parts)"
+        total = cv2.countNonZero(watched)
+        self.stats["zone_watched"] = round(total * 100.0 / watched.size, 1)
+        if persistent is None or total == 0:
+            return 0.0
+        return cv2.countNonZero(cv2.bitwise_and(persistent, area)) * 100.0 / total

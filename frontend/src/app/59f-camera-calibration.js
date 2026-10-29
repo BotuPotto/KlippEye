@@ -30,10 +30,10 @@ const SHAPE_FIELDS = {
     { key: "below", label: tx("Below the nozzle tip") },
   ],
   gantry: [
-    { key: "behind", label: tx("Starts behind the nozzle (Y+)") },
+    { key: "behind", label: tx("Starts behind the nozzle (Y+)"), min: -150 },
     { key: "depth", label: tx("Depth (Y)") },
-    { key: "low", label: tx("Lower edge above the nozzle tip") },
-    { key: "high", label: tx("Upper edge above the nozzle tip") },
+    { key: "low", label: tx("Lower edge above the nozzle tip"), min: -50 },
+    { key: "high", label: tx("Upper edge above the nozzle tip"), min: -50 },
   ],
 };
 const QUALITY_TEXT = { good: tx("good"), fair: tx("acceptable"), poor: tx("not good enough") };
@@ -148,11 +148,15 @@ function LiveCheck({ camera, draft, editShape }) {
       CameraFrame,
       { src: "/api/print/snapshot?t=" + stamp, camera, label: tx("Live picture with the calibration drawn over it") },
       overlay && overlay.bed.length > 2 && h("polygon", { className: "cal-bed", points: pointsAttr(overlay.bed) }),
+      overlay && overlay.zone && overlay.zone.expected.map((piece, index) => h("polygon", { key: "z" + index, className: "cal-zone", points: pointsAttr(piece) })),
       overlay && (overlay.gantry || []).map((piece, index) => h("polygon", { key: "g" + index, className: "cal-gantry", points: pointsAttr(piece) })),
       overlay && overlay.toolhead.length > 2 && h("polygon", { className: "cal-toolhead", points: pointsAttr(overlay.toolhead) }),
       overlay && overlay.nozzle && h(Cross, { u: overlay.nozzle[0], v: overlay.nozzle[1], tone: "nozzle" }),
     ),
     h("p", { className: "set-group__note" }, tx("Purple: the toolhead; orange: the gantry; dashed: the bed. Move the toolhead: the drawing must follow it.") + (overlay ? " X " + overlay.position[0] + " • Y " + overlay.position[1] + " • Z " + overlay.position[2] : "")),
+    overlay &&
+      overlay.zone &&
+      h("p", { className: "set-group__note", "data-zone": overlay.zone.source }, tx("Green: where the parts of this print are expected ({count} from {source}). The monitor watches the whole bed around them.", { count: overlay.zone.objects, source: overlay.zone.source === "exclude_object" ? tx("Klipper's exclude_object") : tx("the G-code") })),
     h("div", { className: "cal-jog" }, step("X −20", -20, 0, 0), step("X +20", 20, 0, 0), step("Y −20", 0, -20, 0), step("Y +20", 0, 20, 0), step("Z −10", 0, 0, -10), step("Z +10", 0, 0, 10)),
     problem && h("p", { className: "set-field__error", role: "alert" }, problem),
     editShape && overlay && overlay.shape && h(ShapeEditor, { shape: overlay.shape, onSaved: () => readRef.current() }),
@@ -189,7 +193,7 @@ function ShapeEditor({ shape, onSaved }) {
       "div",
       { key: part + field.key, className: "cal-size" },
       h("span", { className: "cal-size__label" }, field.label),
-      h("button", { type: "button", className: "oui-btn oui-btn--sm", "aria-label": field.label + " −", "data-size": part + "." + field.key + ".minus", onClick: () => send(part, { [field.key]: value - SHAPE_STEP_MM }) }, "−"),
+      h("button", { type: "button", className: "oui-btn oui-btn--sm", "aria-label": field.label + " −", "data-size": part + "." + field.key + ".minus", disabled: value <= (field.min || 0), onClick: () => send(part, { [field.key]: Math.max(field.min || 0, value - SHAPE_STEP_MM) }) }, "−"),
       h("span", { className: "cal-size__value", "data-value": part + "." + field.key }, formatNumber(value), " mm"),
       h("button", { type: "button", className: "oui-btn oui-btn--sm", "aria-label": field.label + " +", "data-size": part + "." + field.key + ".plus", onClick: () => send(part, { [field.key]: value + SHAPE_STEP_MM }) }, "+"),
     );

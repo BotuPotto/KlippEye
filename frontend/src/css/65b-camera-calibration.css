@@ -46,3 +46,4 @@
 .cal-hint__marker--faint { opacity: 0.35; }
 .cal-hint__cross circle { fill: none; stroke: #ffd84a; stroke-width: 2; }
 .cal-hint__cross line { stroke: #ffd84a; stroke-width: 2; }
+.cal-zone { fill: rgba(61, 220, 138, 0.16); stroke: #3ddc8a; stroke-width: 1.5px; stroke-dasharray: 4 3; }

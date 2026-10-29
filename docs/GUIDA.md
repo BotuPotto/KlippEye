@@ -160,6 +160,15 @@ all'ugello). Regolali con **−** e **+** (5 mm alla volta), muovendo la testina
 L'interruttore **Impostazioni → Soglie del monitor → Falsi allarmi → Escludi testina e gantry** (acceso di base) accende e
 spegne le maschere.
 
+**Tutto il piatto, tranne dove sono i pezzi.** Con la calibrazione il monitor sa anche dove sono gli oggetti della stampa e
+guarda **tutto il piatto attorno a loro**, non solo i bordi dell'area osservata: conta la plastica che compare dove non
+dovrebbe esserci nessun pezzo (spaghetti accanto al pezzo, un pezzo staccato e trascinato), non il pezzo che cresce. I
+contorni degli oggetti vengono da `exclude_object` di Klipper quando lo slicer etichetta gli oggetti (PrusaSlicer/SuperSlicer/
+OrcaSlicer: *Etichetta oggetti*, e `[exclude_object]` in `printer.cfg`: consigliato), altrimenti dal G-code della stampa,
+letto una volta all'inizio. Durante una stampa l'immagine dal vivo di questa pagina li mostra in verde. Interruttore:
+**Impostazioni → Soglie del monitor → Falsi allarmi → Guarda tutto il piatto, tranne dove sono i pezzi** (acceso di base).
+Dove la testina è proprio sopra il pezzo la camera non vede sotto: un guasto si riconosce da ciò che compare attorno al pezzo.
+
 La calibrazione vale **finché la camera non si muove**. Ogni dieci minuti il backend confronta l'immagine con quella presa
 alla calibrazione; se la camera si è spostata, la pagina (e la sua riga nel menu) lo dice e il monitor smette di usare la
 calibrazione (e le maschere) finché non la rifai. Le misure di testina e gantry restano.
@@ -177,7 +186,8 @@ Invece di indovinare se una soglia diversa aiuta, misuralo:
    all'ora, quanti erano falsi e se ogni guasto è stato visto (e dopo quanto). Da terminale, per confrontare altre soglie:
    `klippeye replay --set sensitivity=45 --set persist_checks=4` (opzioni: `scripts/replay.py`).
    Con una calibrazione della camera il replay esclude testina e gantry come il monitor dal vivo (sulle stampe registrate
-   con KlippEye 1.13 o successivo, che tengono la posizione della testina); `--set machine_masks=off` confronta senza.
+   con KlippEye 1.13 o successivo, che tengono la posizione della testina); `--set machine_masks=off` confronta senza; sulle stampe registrate con la 1.16 o successiva
+   (che tengono gli oggetti) si guarda tutto il piatto fuori dai pezzi, `--set expected_zone=off` confronta con la sola fascia esterna.
 
 La pagina mostra anche il **carico del monitor**: il tempo di un controllo e la CPU usata dal backend nell'ultimo minuto.
 

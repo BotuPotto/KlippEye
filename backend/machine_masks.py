@@ -27,6 +27,8 @@ LIMITS = {"left": (0, 300), "right": (0, 300), "front": (0, 300), "back": (0, 30
           "behind": (-150, 300), "depth": (0, 300), "low": (-50, 400), "high": (-50, 400)}
 GANTRY_PIECES = 10        # the bar is drawn in pieces, so that the bending of a fisheye lens is followed closely
 GANTRY_OVERHANG = 30.0    # mm beyond the X range on both sides (carriages, belts)
+PATH_STEP_MM = 20.0        # the way of the toolhead between two positions: one small box every 20 mm
+PATH_MAX_PIECES = 12
 MARGIN_FRACTION = 0.012   # a margin around the masks (fraction of the picture width): about 6 px on 540
 
 
@@ -72,6 +74,9 @@ def clean_shape(data):
         out["gantry"]["high"] = out["gantry"]["low"] + 1.0
     if isinstance(data.get("x_range"), (list, tuple)) and len(data["x_range"]) == 2:
         out["x_range"] = [float(data["x_range"][0]), float(data["x_range"][1])]
+    limits = data.get("limits")
+    if isinstance(limits, (list, tuple)) and len(limits) == 2 and all(isinstance(c, (list, tuple)) and len(c) == 2 for c in limits):
+        out["limits"] = [[float(limits[0][0]), float(limits[0][1])], [float(limits[1][0]), float(limits[1][1])]]
     return out
 
 
@@ -81,18 +86,20 @@ def nozzle_frame(z_moves, position):
     return (float(x), float(y), 0.0) if z_moves == "bed" else (float(x), float(y), float(z))
 
 
-def polygons(calibration, shape, position, x_range=None, to=None):
+def polygons(calibration, shape, position, x_range=None, to=None, parts=("toolhead", "gantry")):
     """The outlines in the picture (fractions) of the toolhead and of the gantry with the nozzle at `position` (machine X, Y,
     Z), or anywhere between `position` and `to` (two corners: lowest and highest X, Y, Z).
     -> {"toolhead": [polygon], "gantry": [polygon, ...]} (each polygon a list of (u, v); empty when not in view)."""
     tx, ty, tz = nozzle_frame(calibration.get("z_moves"), position)
     hx, hy, hz = nozzle_frame(calibration.get("z_moves"), to) if to is not None else (tx, ty, tz)
-    tool = shape["toolhead"]
-    box = camera_model.box_corners(tx - tool["left"], hx + tool["right"], ty - tool["front"], hy + tool["back"], tz - tool["below"], hz + tool["top"])
-    head = camera_model.box_outline(calibration, box)
-    out = {"toolhead": [head] if head and len(head) > 2 else [], "gantry": []}
+    out = {"toolhead": [], "gantry": []}
+    if "toolhead" in parts:
+        tool = shape["toolhead"]
+        box = camera_model.box_corners(tx - tool["left"], hx + tool["right"], ty - tool["front"], hy + tool["back"], tz - tool["below"], hz + tool["top"])
+        head = camera_model.box_outline(calibration, box)
+        out["toolhead"] = [head] if head and len(head) > 2 else []
     gantry = shape["gantry"]
-    if gantry.get("on"):
+    if gantry.get("on") and "gantry" in parts:
         x0, x1 = x_range or shape.get("x_range") or (tx - 200.0, tx + 200.0)
         x0, x1 = x0 - GANTRY_OVERHANG, x1 + GANTRY_OVERHANG
         y0, y1 = ty + gantry["behind"], hy + gantry["behind"] + max(gantry["depth"], 1.0)
@@ -105,6 +112,21 @@ def polygons(calibration, shape, position, x_range=None, to=None):
     return out
 
 
+def path_boxes(spots, step=PATH_STEP_MM, most=PATH_MAX_PIECES):
+    """The way of the toolhead between the positions of one check, as pairs of corners (low, high) of small boxes: a fast
+    diagonal move is covered by a chain of small boxes along it, not by one big rectangle (a VzBot crosses 150 mm in the
+    time of one picture)."""
+    points = [[float(v) for v in p[:3]] for p in spots]
+    samples = [points[0]]
+    for a, b in zip(points, points[1:]):
+        length = max(abs(b[i] - a[i]) for i in range(3))
+        pieces = max(1, min(most, int(length // step) + 1))
+        samples += [[a[i] + (b[i] - a[i]) * k / pieces for i in range(3)] for k in range(1, pieces + 1)]
+    if len(samples) == 1:
+        return [(samples[0], samples[0])]
+    return [([min(a[i], b[i]) for i in range(3)], [max(a[i], b[i]) for i in range(3)]) for a, b in zip(samples, samples[1:])]
+
+
 def mask(cv2, np, calibration, shape, positions, width, height, x_range=None):
     """The picture (`width` x `height`, uint8: 255 = leave out) of the toolhead and the gantry at the positions of one check
     (and on the way between them). None when no position is known."""
@@ -113,8 +135,13 @@ def mask(cv2, np, calibration, shape, positions, width, height, x_range=None):
         return None
     low = [min(float(p[i]) for p in spots) for i in range(3)]
     high = [max(float(p[i]) for p in spots) for i in range(3)]
+    outlines = []
+    for a, b in path_boxes(spots):   # the toolhead along its way
+        outlines += polygons(calibration, shape, a, x_range, b, parts=("toolhead",))["toolhead"]
+    # the gantry: a bar across the printer that moves only in Y (and Z): between two positions it sweeps the whole band
+    outlines += polygons(calibration, shape, low, x_range, high, parts=("gantry",))["gantry"]
     out = np.zeros((height, width), np.uint8)
-    for polygon in [p for part in polygons(calibration, shape, low, x_range, high).values() for p in part]:
+    for polygon in outlines:
         pts = np.array([[u * width, v * height] for u, v in polygon], np.float32)
         pts = np.clip(pts, -4 * width, 5 * width).astype(np.int32)
         cv2.fillPoly(out, [pts], 255)
