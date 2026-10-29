@@ -258,7 +258,9 @@ def dash_settings(raw: Any) -> Dict[str, Any]:
             "auto_pause": ai.get("autoPause") is True,
             "auto_cancel": ai.get("autoCancel") is True,
             "confirmations": _number_in(ai.get("confirmations"), AI_CONFIRMATIONS, 1),
-            "min_confidence": _number_in(ai.get("minConfidence"), AI_CONFIDENCES, 0),
+            # 1.19: the only confidence threshold is the backend's (Settings -> AI monitor): a verdict below it already
+            # arrives as CONTINUE. An old "minConfidence" of the dashboard is ignored (two thresholds hid a real failure).
+            "min_confidence": 0,
             "defects": {name: defects.get(name) is not False for name in DASH_DEFECTS},
         },
         "language": given.get("language") if given.get("language") in LANGUAGES else None,

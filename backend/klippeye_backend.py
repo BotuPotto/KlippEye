@@ -489,7 +489,7 @@ def access_logout_all():
 CONFIG_GROUPS = [
     {"id": "monitor", "title": "Monitor", "note": ""},
     {"id": "rilevamento", "title": "Motion detection",
-     "note": "Every few seconds the backend compares two camera pictures: if many points of the outer band of the watched area change, and it happens several times, it asks the AI to look at the picture."},
+     "note": "Every few seconds the backend compares the camera picture with the earlier ones: if enough of it changes, and it happens several times, it asks the AI to look at the picture. With the camera calibrated it looks at the whole bed outside the parts; without, only at the outer band of a rectangle."},
     {"id": "filtro", "title": "False alarms",
      "note": "The filter compares the current picture with a «background» made of several pictures of the last minutes (the passing toolhead is not part of it) and counts only the changes that stay for several checks in a row. It also ignores light changes."},
     {"id": "area", "title": "Watched area", "note": "The rectangle where the backend looks for suspicious movement. By default it is the central 60% of the picture. With the camera calibrated and the objects of the print known, the whole bed is watched instead (False alarms → Watch the whole bed)."},
@@ -534,9 +534,9 @@ CONFIG_SPEC = [
     {"key": "global_change", "type": "float", "default": 30, "min": 5, "max": 100, "step": 5, "decimals": 0, "unit": "%", "group": "filtro",
      "label": "Light change: ignore if more than this changes",
      "help": "If more than this part of the whole picture changes at once (light on or off, camera moved, toolhead right in front of the lens) the check is ignored. If it lasts more than about thirty seconds it counts as a real change."},
-    {"key": "ai_min_confidence", "type": "int", "default": 70, "min": 0, "max": 100, "step": 5, "unit": "%", "group": "ia",
+    {"key": "ai_min_confidence", "type": "int", "default": 70, "min": 30, "max": 95, "step": 5, "unit": "%", "group": "ia",
      "label": "Minimum AI confidence to report a problem",
-     "help": "If the AI suggests PAUSE or CANCEL but no defect has at least this confidence, the verdict becomes CONTINUE (it stays written in the history). 0 = always trust it."},
+     "help": "The only confidence threshold of KlippEye. If the AI suggests PAUSE or CANCEL but no defect reaches it, the verdict becomes CONTINUE (it stays written in the history, in orange). Higher = fewer false alarms but a real failure may be let through: above 85% the AI rarely stops a print."},
     {"key": "ai_send_reference", "type": "bool", "default": True, "group": "ia", "label": "Also send the earlier picture to the AI",
      "help": "The AI sees «before» and «now» and judges whether something serious changed: it makes fewer mistakes. It uses more data per call; if the service refuses two pictures, it sends one."},
     {"key": "roi", "type": "area", "default": [20, 20, 60, 60], "group": "area", "label": "Watched area",
@@ -1576,6 +1576,12 @@ def api_ai_config():
         else:
             body=request.get_json(force=True,silent=True) or {}
             key=body.get("api_key") or body.get("key") or ""
+            if body.get("delete") is True:   # "Delete the key" in the dashboard
+                try:
+                    os.remove(AI_CONFIG_PATH)
+                except FileNotFoundError:
+                    pass
+                return jsonify({"ok": True, "deleted": True})
             provider=body.get("provider","openai")
             model=body.get("model","gpt-4o-mini")
             if not key or len(key)<20:
@@ -2284,8 +2290,12 @@ class LightDetector(FrameJudge):
         try:
             now = time.time()
             if now - self.last_ai_call < self.ai_cooldown:
-                print(f"[OPENCV] AI cooldown on, skipped ({int(self.ai_cooldown - (now-self.last_ai_call))}s to go)")
-                record_alert({"outcome": "skipped: AI cooldown not over", "score": score}, img_path, ref_path)
+                # the AI is resting (pause between two analyses): this alarm is not lost, the monitor rests until the AI can
+                # look again and then checks afresh (before 1.19 the alarm was written as "skipped" and the monitor rested
+                # its own pause on top: a real failure could wait three or four minutes for its analysis)
+                free_at = min(self.last_ai_call, now) + self.ai_cooldown   # a clock that went back cannot freeze the monitor
+                self.cooldown_until = max(self.cooldown_until, free_at)
+                print(f"[OPENCV] AI resting, the monitor waits {int(free_at - now)}s and looks again")
                 return
             self.last_ai_call = now
             print(f"[OPENCV] calling the AI for {img_path}")

@@ -36,7 +36,7 @@ function useSettingsMenu() {
     const onKey = (event) => {
       if (event.key !== "Escape") return;
       if (question) return setQuestion(null);
-      if (page) setPage(null);
+      if (page) setPage(PAGE_PARENT[page] || null);
       else setOpen(false);
     };
     window.addEventListener("keydown", onKey);
@@ -54,7 +54,7 @@ function useSettingsMenu() {
     },
     close: () => setOpen(false),
     goTo: setPage,
-    back: () => setPage(null),
+    back: () => setPage((current) => PAGE_PARENT[current] || null),
     ask: setQuestion,
   };
 }
@@ -560,64 +560,6 @@ function NotificationsPage({ active }) {
 
 /* ---- AI monitor ---- */
 const CONFIRMATION_OPTIONS = AI_CONFIRMATIONS.map((value) => ({ id: value, label: value === 1 ? tx("1 check") : tx("{count} in a row", { count: value }) }));
-const CONFIDENCE_OPTIONS = AI_CONFIDENCES.map((value) => ({ id: value, label: value === 0 ? tx("Any") : value + "%" }));
-
-function AiPage({ active, menu }) {
-  const { settings, update } = useSettings();
-  const status = useNotifierStatus(active);
-  const ai = settings.ai;
-  const last = lastActionText(status);
-  return h(
-    React.Fragment,
-    null,
-    h(ServiceLine, { status }),
-    h(
-      SettingsGroup,
-      { title: tx("Automatic actions"), note: tx("The Raspberry does them by itself, also with the phone off. The AI can be wrong: a cancel cannot be undone.") },
-      h(
-        "div",
-        { className: "oui-list" },
-        h(SwitchRow, { title: tx("Pause by itself"), detail: tx("When the AI suggests PAUSE (or CANCEL, if automatic cancel is off)"), checked: ai.autoPause, onChange: (value) => update((draft) => (draft.ai.autoPause = value)) }),
-        h(SwitchRow, { title: tx("Cancel by itself"), detail: tx("When the AI suggests CANCEL. A cancelled print cannot be recovered"), danger: true, checked: ai.autoCancel, onChange: (value) => (value ? menu.ask("autoCancel") : update((draft) => (draft.ai.autoCancel = false))) }),
-      ),
-      last && h("p", { className: "set-group__note" }, last),
-    ),
-    h(
-      SettingsGroup,
-      { title: tx("Checks in a row"), note: tx("How many analyses in a row must report a problem before you are told or something is done. Higher = fewer false alarms, but slower.") },
-      h(ChipChoice, { label: tx("Checks in a row"), options: CONFIRMATION_OPTIONS, value: ai.confirmations, onChange: (id) => update((draft) => (draft.ai.confirmations = id)) }),
-    ),
-    h(
-      SettingsGroup,
-      { title: tx("Minimum AI confidence"), note: tx("A defect with a lower percentage than this is ignored.") },
-      h(ChipChoice, { label: tx("Minimum confidence"), options: CONFIDENCE_OPTIONS, value: ai.minConfidence, onChange: (id) => update((draft) => (draft.ai.minConfidence = id)) }),
-    ),
-    h(
-      SettingsGroup,
-      { title: tx("Camera sensitivity"), note: tx("How much movement at the edges calls the AI, the watched area, the pauses: the thresholds are in the backend and are changed here.") },
-      h(
-        "div",
-        { className: "oui-list" },
-        h(
-          "button",
-          { type: "button", className: "set-entry", "data-page": "detector", onClick: () => menu.goTo("detector") },
-          h("span", { className: "oui-row__icon oui-row__icon--accent" }, h(Icons.Sliders)),
-          h("span", { className: "oui-row__text" }, h("span", { className: "oui-row__name" }, tx("Monitor thresholds")), h("span", { className: "oui-row__meta set-entry__meta" }, tx("Change threshold, area, pauses, model"))),
-          h("span", { className: "set-entry__go", "aria-hidden": "true" }, h(Icons.Forward)),
-        ),
-      ),
-    ),
-    h(
-      SettingsGroup,
-      { title: tx("Defects to consider"), note: tx("The ones turned off trigger neither alerts nor actions. The backend decides by itself when to analyse: here you only choose what to do with the result.") },
-      h(
-        "div",
-        { className: "oui-list" },
-        AI_DEFECTS.map((defect) => h(SwitchRow, { key: defect.id, title: defect.title, detail: defect.detail, checked: ai.defects[defect.id], onChange: (value) => update((draft) => (draft.ai.defects[defect.id] = value)) })),
-      ),
-    ),
-  );
-}
 
 /* ---------------------------------------------------------------------------
    The menu
@@ -666,7 +608,7 @@ function settingsSummary(page, settings, brain) {
     case "notifications":
       return tx("{count} of {total} on", { count: NOTIFICATION_KINDS.filter((kind) => notifications[kind.id]).length, total: NOTIFICATION_KINDS.length });
     default:
-      return tx("Auto pause: {pause} • Auto cancel: {cancel}", { pause: ON_OFF(ai.autoPause), cancel: ON_OFF(ai.autoCancel) });
+      return aiMonitorSummary(settings, brain);
   }
 }
 
@@ -678,14 +620,18 @@ const SETTINGS_ENTRIES = [
   { id: "zoffset", title: "Z-offset", icon: Icons.Layers },
   { id: "notifications", title: tx("Notifications"), icon: Icons.Bell },
   { id: "ai", title: tx("AI monitor"), icon: Icons.Sparkle },
-  { id: "detector", title: tx("Monitor thresholds"), icon: Icons.Sliders },
-  { id: "camcal", title: tx("Camera calibration"), icon: Icons.Probe },
-  { id: "recordings", title: tx("Recordings"), icon: Icons.Image },
   { id: "access", title: tx("Access"), icon: Icons.Lock },
   { id: "software", title: tx("Updates"), icon: Icons.Download },
   { id: "language", title: tx("Language"), icon: Icons.Language },
 ];
-const PAGE_TITLES = Object.fromEntries(SETTINGS_ENTRIES.map((entry) => [entry.id, entry.title]));
+/** The pages inside "AI monitor" (1.19: one entry for everything the monitor does, see 59h-ai-monitor-settings.js). */
+const AI_SUBPAGES = [
+  { id: "camcal", title: tx("Camera calibration"), icon: Icons.Probe },
+  { id: "detector", title: tx("Monitor thresholds"), icon: Icons.Sliders },
+  { id: "recordings", title: tx("Recordings"), icon: Icons.Image },
+];
+const PAGE_PARENT = Object.fromEntries(AI_SUBPAGES.map((entry) => [entry.id, "ai"]));
+const PAGE_TITLES = Object.fromEntries([...SETTINGS_ENTRIES, ...AI_SUBPAGES].map((entry) => [entry.id, entry.title]));
 
 function SettingsHome({ menu }) {
   const { settings, sync } = useSettings();

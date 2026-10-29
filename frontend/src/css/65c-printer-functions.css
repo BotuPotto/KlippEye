@@ -8,3 +8,9 @@
 .fn-review .oui-btn, .fn-restart .oui-btn { margin-top: 6px; }
 .set-field__hint--warn { color: var(--oui-warn, #f5b041); }
 .set-entry__badge--inline { display: inline-block; margin-top: 2px; }
+/* Settings → AI monitor (app/59h-ai-monitor-settings.js) */
+.fn-key { display: flex; flex-direction: column; gap: 8px; }
+.fn-warn { color: var(--oui-warn, #f5b041); }
+.fn-confidence { display: flex; flex-direction: column; gap: 6px; }
+.fn-fallback.is-unused { opacity: 0.55; }
+.rec-alert__under { color: var(--oui-warn, #f5b041); font-size: 12px; font-weight: 600; }

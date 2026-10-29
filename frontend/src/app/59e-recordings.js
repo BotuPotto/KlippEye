@@ -138,6 +138,14 @@ function AlertLabelButtons({ value, onChange, busy }) {
   );
 }
 
+/** What an alarm says, in the page's language (the backend writes its outcomes in English). */
+function alertSummary(alert) {
+  const outcome = String(alert.outcome || "");
+  if (outcome.startsWith("skipped: AI cooldown")) return tx("Not analysed: the AI was resting between two analyses (before 1.19 these alarms were written; now the monitor waits for the AI).");
+  if (outcome.startsWith("skipped: no AI key")) return tx("Not analysed: there is no AI key (Settings → AI monitor).");
+  return alert.summary || alert.observation || outcome;
+}
+
 function AlertRow({ alert, onLabelled }) {
   const [label, setLabel] = useState(alert.label || null);
   const [busy, setBusy] = useState(false);
@@ -154,6 +162,8 @@ function AlertRow({ alert, onLabelled }) {
     } else setProblem(tx("Not saved: ") + (reply.message || tx("the backend does not answer")));
   };
   const action = aiAction(alert.action);
+  const proposed = aiAction(alert.original_action); // the AI wanted to stop, the threshold made it "continue"
+  const summary = alertSummary(alert);
   return h(
     "div",
     { className: "oui-tile rec-alert", "data-alert": alert.id },
@@ -164,8 +174,16 @@ function AlertRow({ alert, onLabelled }) {
       h(
         "div",
         { className: "rec-alert__text" },
-        h("div", { className: "rec-alert__when" }, alert.time || "", action && h("span", { className: cx("oui-badge", action === "CONTINUE" ? "oui-badge--ok" : action === "PAUSE" ? "oui-badge--warn" : "oui-badge--danger") }, aiActionLabel(action))),
-        h("div", { className: "rec-alert__summary" }, alert.summary || alert.observation || alert.outcome || ""),
+        h(
+          "div",
+          { className: "rec-alert__when" },
+          alert.time || "",
+          proposed && proposed !== action
+            ? h("span", { className: "oui-badge oui-badge--warn", "data-under": "1" }, tx("{action} proposed, under the threshold", { action: aiActionLabel(proposed) }))
+            : action && h("span", { className: cx("oui-badge", action === "CONTINUE" ? "oui-badge--ok" : action === "PAUSE" ? "oui-badge--warn" : "oui-badge--danger") }, aiActionLabel(action)),
+        ),
+        proposed && proposed !== action && Number.isFinite(alert.confidence) && h("div", { className: "rec-alert__under" }, tx("Highest confidence of a defect: {confidence}%", { confidence: alert.confidence })),
+        h("div", { className: "rec-alert__summary" }, summary),
       ),
     ),
     h(AlertLabelButtons, { value: label, onChange: change, busy }),

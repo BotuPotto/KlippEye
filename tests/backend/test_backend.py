@@ -675,9 +675,9 @@ b_ai, cur, prev = fresh_ai(ai_reply(defect_confidence=85))
 b_ai.detector.call_ai_analysis(cur, prev, 60)
 check("difetto con fiducia 85% sopra la soglia: resta PAUSE", b_ai.detector.last_analysis["analysis"]["action"] == "PAUSE" and "original_action" not in b_ai.detector.last_analysis["analysis"])
 b_ai, cur, prev = fresh_ai(ai_reply(defect_confidence=40))
-b_ai.set_brain_config({"ai_min_confidence": 0})
+b_ai.set_brain_config({"ai_min_confidence": 30})
 b_ai.detector.call_ai_analysis(cur, prev, 60)
-check("ai_min_confidence=0: si fida sempre (resta PAUSE)", b_ai.detector.last_analysis["analysis"]["action"] == "PAUSE")
+check("ai_min_confidence=30 (the lowest): a defect at 40% stays PAUSE", b_ai.detector.last_analysis["analysis"]["action"] == "PAUSE")
 b_ai, cur, prev = fresh_ai(ai_reply(defect_confidence=40, action="PAUSE", english=True))
 b_ai._SHARED_LANGUAGE.update(value="it", at=time.time())
 b_ai.detector.call_ai_analysis(cur, prev, 60)
@@ -696,9 +696,11 @@ check("il servizio rifiuta due foto (400): riprova da solo con una e l'analisi a
 check("... e lo storico lo segna ('senza foto di prima', senza copiare quella)", b_ai.read_alert_history()[0]["with_reference"] is False and "reference" not in b_ai.read_alert_history()[0])
 
 b_ai, cur, prev = fresh_ai(ai_reply())
-b_ai.detector.last_ai_call = time.time()
+b_ai.detector.last_ai_call = time.time() - 30
+b_ai.detector.cooldown_until = time.time() + 5
 b_ai.detector.call_ai_analysis(cur, prev, 60)
-check("pausa tra due analisi non finita: salta ma lo scrive nello storico", "skipped" in b_ai.read_alert_history()[0]["outcome"])
+check("1.19: the AI is resting: no 'skipped' entry, the monitor waits until the AI can look and checks again",
+      b_ai.read_alert_history() == [] and abs(b_ai.detector.cooldown_until - (b_ai.detector.last_ai_call + b_ai.detector.ai_cooldown)) < 1, (b_ai.read_alert_history()[:1], b_ai.detector.cooldown_until - time.time()))
 
 b_ai, cur, prev = fresh_ai(ai_reply())
 for i in range(45):
@@ -1116,7 +1118,7 @@ fake.state.update({"print_state": "printing", "progress": 0.5, "file_position": 
                    "hotend": 210.0, "hotend_target": 210.0, "layer": 7, "filename": "benchy.gcode", "frames": blink(EDGE, 60)})
 drec = tmp()
 mr = load_brain(NEW_BRAIN, drec, fake, brain_json={"values": {"enabled": False, "persistent_filter": False, "record": True, "check_interval": 1, "cooldown": 10}})
-mr.detector.last_ai_call = time.time() + 99999
+mr.detector.call_ai_analysis = lambda *args, **kwargs: None   # no AI in this test: only the recording
 mr.detector.enabled = True
 mr.detector.start()
 ok_trigger = wait_for(lambda: mr.recorder.session is not None and len(mr.recorder.session["live_triggers"]) >= 1, 25)
@@ -1707,6 +1709,28 @@ check("announcers removed: the wrappers leave the file, the created macro stays"
 _pp.forget()
 fake.state["roots"] = None
 fake.state["commands"] = None
+
+print("== 1.19.0: AI monitor reorganised")
+_ro = os.path.join(tmp(), "recordings")
+_r1 = _rec.Recorder(_ro, _core.cv2, "1.19.0")
+_r1.configure(True, 500)
+_r1.observe("printing", "cut.gcode", 9000.0, {})
+for _i in range(3):
+    _r1.add_frame(fakes.frame(EDGE), 9000.0 + _i * 3, {"score": None, "trig": False})
+_sid = _r1.session["id"]
+# the power goes: no close. At the next start the recording is closed at its last picture
+_r2 = _rec.Recorder(_ro, _core.cv2, "1.19.0")
+_s = _r2.load(_sid)
+check("a recording left open by a power cut is closed at the next start (no more 'recording' for ever)", _s["ended"] == 9006.0 and _s["end_state"].startswith("interrupted") and _s["frames"] == 3, _s)
+_spec = {c["key"]: c for c in load_brain(NEW_BRAIN, tmp(), fake, brain_json={"values": {"enabled": False}}).CONFIG_SPEC}["ai_min_confidence"]
+check("one confidence threshold, 30..95 (100 let no failure through)", _spec["min"] == 30 and _spec["max"] == 95 and _spec["default"] == 70)
+_dk = tmp()
+_bk = load_brain(NEW_BRAIN, _dk, fake, brain_json={"values": {"enabled": False}})
+_ck = _bk.app.test_client()
+_ck.post("/api/ai/config", json={"api_key": "gsk_" + "x" * 40, "provider": "groq"})
+_was = _ck.get("/api/ai/config").get_json()["configured"]
+r = _ck.post("/api/ai/config", json={"delete": True})
+check("the AI key can be deleted from the dashboard", _was is True and r.status_code == 200 and _ck.get("/api/ai/config").get_json()["configured"] is False)
 
 stop_all()
 fake.close()

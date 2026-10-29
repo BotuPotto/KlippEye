@@ -242,12 +242,21 @@ const localizeBrainSchema = (data) => ({
   spec: data.spec.map((spec) => ({ ...spec, label: tx(spec.label), help: spec.help && tx(spec.help) })),
 });
 
+const DETECTOR_ELSEWHERE = ["enabled", "ai_min_confidence", "ai_send_reference", "ai_model", "machine_masks", "expected_zone", "persistent_filter"];
+/** Used only when the camera is not calibrated (or the whole-bed watching is off): the rectangle and its outer band. */
+const FALLBACK_KEYS = ["roi", "border"];
+
 function DetectorPage({ active }) {
   const config = useBrainConfig(active);
+  const calibration = useBackendJson("/api/camera/calibration", active, BRAIN_POLL_MS);
   const [askReset, setAskReset] = useState(false);
   const data = useMemo(() => (config.data ? localizeBrainSchema(config.data) : null), [config.data]);
   if (config.phase !== "ok" || !data) return h(BrainNotice, { phase: config.phase });
-  const thresholds = data.spec.filter((spec) => spec.group !== "recording"); // recording has its own page (59e-recordings.js)
+  // shown elsewhere (1.19): the switch and the AI on the AI monitor page, the masks on Camera calibration, recording on
+  // Recordings; the old detection (filter off) is no longer offered: it ignores the masks and the zone
+  const thresholds = data.spec.filter((spec) => spec.group !== "recording" && !DETECTOR_ELSEWHERE.includes(spec.key));
+  const zoneActive = Boolean(calibration.phase === "ok" && calibration.data.saved && calibration.data.usable && config.values.expected_zone !== false);
+  const fallback = thresholds.filter((spec) => FALLBACK_KEYS.includes(spec.key));
   const changed = thresholds.some((spec) => JSON.stringify(config.values[spec.key]) !== JSON.stringify(data.defaults ? data.defaults[spec.key] : spec.default));
   const watching = data.running && config.values.enabled !== false;
   return h(
@@ -263,7 +272,7 @@ function DetectorPage({ active }) {
     config.problem && h("div", { className: "set-status set-status--warn", role: "alert" }, h("span", { className: "set-status__dot" }), config.problem),
     data.saved === false && !changed && h("p", { className: "set-group__note" }, tx("These are the default values: until you change something the backend writes no file.")),
     data.groups.map((group) => {
-      const specs = thresholds.filter((spec) => spec.group === group.id);
+      const specs = thresholds.filter((spec) => spec.group === group.id && !FALLBACK_KEYS.includes(spec.key));
       if (!specs.length) return null;
       const switches = specs.filter((spec) => spec.type === "bool");
       const others = specs.filter((spec) => spec.type !== "bool");
@@ -274,6 +283,17 @@ function DetectorPage({ active }) {
         others.map((spec) => h(BrainSettingControl, { key: spec.key, spec, config })),
       );
     }),
+    fallback.length > 0 &&
+      h(
+        SettingsGroup,
+        {
+          title: tx("Without camera calibration: the watched rectangle"),
+          note: zoneActive
+            ? tx("Not used now: the camera is calibrated, so the monitor watches the whole bed outside the parts. These are used again only if the calibration is lost or the whole-bed watching is switched off.")
+            : tx("Used now: without a camera calibration the monitor watches only the outer band of this rectangle. Calibrate the camera (AI monitor → Camera calibration) to watch the whole bed."),
+        },
+        h("div", { className: cx("fn-fallback", zoneActive && "is-unused"), "data-fallback": zoneActive ? "unused" : "used" }, fallback.map((spec) => h(BrainSettingControl, { key: spec.key, spec, config }))),
+      ),
     h(
       SettingsGroup,
       { note: tx("The thresholds stay on the Raspberry (not on the phone) and apply at once, also during a print; KlippEye updates do not touch them.") },

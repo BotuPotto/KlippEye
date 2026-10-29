@@ -217,7 +217,7 @@ function sanitizeSettings(raw) {
       autoPause: asBool(ai.autoPause, d.ai.autoPause),
       autoCancel: asBool(ai.autoCancel, d.ai.autoCancel),
       confirmations: pickOne(Number(ai.confirmations), AI_CONFIRMATIONS, d.ai.confirmations),
-      minConfidence: pickOne(Number(ai.minConfidence), AI_CONFIDENCES, d.ai.minConfidence),
+      minConfidence: 0, // 1.19: the only threshold is the backend's (Settings → AI monitor); an old value here is dropped
       defects: Object.fromEntries(AI_DEFECTS.map((defect) => [defect.id, asBool(defects[defect.id], true)])),
     },
     functions: cleanFunctions(given.functions),

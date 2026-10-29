@@ -253,7 +253,7 @@ for junk in (None, "x", 5, [], {"ai": "x", "notifications": 3}, {"ai": {"autoPau
     d = vn.dash_settings(junk)
     ok("settings: garbage %r changes nothing (no automatic action, defaults)" % (junk,), not d["ai"]["auto_pause"] and not d["ai"]["auto_cancel"] and d["ai"]["confirmations"] == 1 and d["ai"]["min_confidence"] == 0 and all(d["ai"]["defects"].values()) and d["events"] == {}, d)
 ok("settings: only a real true switches an automatic action on (not 1, not 'true')", vn.dash_settings({"ai": {"autoPause": True}})["ai"]["auto_pause"] is True and not vn.dash_settings({"ai": {"autoPause": 1}})["ai"]["auto_pause"] and not vn.dash_settings({"ai": {"autoCancel": "true"}})["ai"]["auto_cancel"])
-ok("settings: confirmations only 1-3, confidence only 0/50/70/85, True is not a number", vn.dash_settings({"ai": {"confirmations": 3, "minConfidence": 85}})["ai"]["confirmations"] == 3 and vn.dash_settings({"ai": {"confirmations": 9, "minConfidence": 60}})["ai"]["confirmations"] == 1 and vn.dash_settings({"ai": {"minConfidence": 60}})["ai"]["min_confidence"] == 0 and vn.dash_settings({"ai": {"confirmations": True}})["ai"]["confirmations"] == 1)
+ok("settings: confirmations only 1-3, an old minConfidence is ignored (1.19: one threshold, the backend's), True is not a number", vn.dash_settings({"ai": {"confirmations": 3, "minConfidence": 85}})["ai"]["confirmations"] == 3 and vn.dash_settings({"ai": {"minConfidence": 85}})["ai"]["min_confidence"] == 0 and vn.dash_settings({"ai": {"confirmations": 9, "minConfidence": 60}})["ai"]["confirmations"] == 1 and vn.dash_settings({"ai": {"minConfidence": 60}})["ai"]["min_confidence"] == 0 and vn.dash_settings({"ai": {"confirmations": True}})["ai"]["confirmations"] == 1)
 ok("settings: a notification switch must be a real boolean", vn.dash_settings({"notifications": {"error": False, "paused": "no", "complete": 0, "bogus": False}})["events"] == {"error": False})
 
 # ---- the language of the notifications chosen in the dashboard (1.3)
@@ -283,15 +283,12 @@ ok("switch: the document emptied -> back to notifier.json (on)", s.step(state="c
 s = printing2(); s.settings = doc()
 ok("filters at their defaults: a PAUSA verdict notifies, whatever its details", s.step(ai=verdict("a", "PAUSA", warping=(False, 0))) == ["ai_pause"])
 s = printing2(); s.settings = doc(minConfidence=70)
-ok("min confidence 70: a PAUSA whose only defect is at 61% is ignored", s.step(ai=verdict("a", "PAUSA", warping=(True, 61), spaghetti=(False, 10))) == [])
-ok("... and one at 72% counts", s.step(ai=verdict("b", "PAUSA", warping=(True, 72))) == ["ai_pause"])
-s = printing2(); s.settings = doc(minConfidence=70)
-ok("min confidence: a verdict without details (plain text) is trusted: nothing to filter on", s.step(ai=vn.AiVerdict(key="a", action="PAUSA")) == ["ai_pause"])
+ok("1.19: an old minConfidence of the dashboard no longer hides a PAUSA (the backend's threshold already decided)", s.step(ai=verdict("a", "PAUSA", warping=(True, 61), spaghetti=(False, 10))) == ["ai_pause"])
 s = printing2(); s.settings = doc(defects={"warping": False})
 ok("defect off: a PAUSA caused only by warping is ignored", s.step(ai=verdict("a", "PAUSA", warping=(True, 90), spaghetti=(False, 5))) == [])
 ok("... but spaghetti at the same time counts", s.step(ai=verdict("b", "CANCELLA", warping=(True, 90), spaghetti=(True, 80))) == ["ai_cancel"])
-s = printing2(); s.settings = doc(defects={"empty_bed": False, "warping": False}, minConfidence=50)
-ok("filters together: only enabled defects at or above the minimum count", s.step(ai=verdict("a", "PAUSA", empty_bed=(True, 99), warping=(True, 99), layer_shift=(True, 49))) == [] and s.step(ai=verdict("b", "PAUSA", layer_shift=(True, 50))) == ["ai_pause"])
+s = printing2(); s.settings = doc(defects={"empty_bed": False, "warping": False})
+ok("defects off together: only enabled defects count", s.step(ai=verdict("a", "PAUSA", empty_bed=(True, 99), warping=(True, 99))) == [] and s.step(ai=verdict("b", "PAUSA", layer_shift=(True, 50))) == ["ai_pause"])
 
 # ---- verdicts in a row
 s = printing2(); s.settings = doc(confirmations=2)

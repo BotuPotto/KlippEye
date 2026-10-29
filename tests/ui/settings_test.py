@@ -92,6 +92,13 @@ def choice(pg, title):
 
 
 def go(P, name):
+    """Opens a page of the menu; 1.19: camcal / detector / recordings are inside "Monitor IA"."""
+    for _ in range(2):
+        if P.pg.locator('.set-entry[data-page="%s"]' % name).count() or P.pg.locator('.set-entry[data-page="ai"]').count():
+            break
+        P.pg.click('.drawer button[aria-label="Indietro"]'); P.settle(400)
+    if not P.pg.locator('.set-entry[data-page="%s"]' % name).count() and name in ("camcal", "detector", "recordings"):
+        P.pg.click('.set-entry[data-page="ai"]'); P.settle(600)
     P.pg.click('.set-entry[data-page="%s"]' % name); P.settle(450)
 
 
@@ -132,7 +139,7 @@ with sync_playwright() as p:
     ok("it slides in from the left, at most 420 px wide and never covering the whole page", box["x"] == 0 and box["width"] <= 420 and box["width"] <= 390 - 40, box)
     ok("it is a dialog with a name", pg.locator(".drawer").get_attribute("role") == "dialog" and pg.locator(".drawer").get_attribute("aria-label") == "Impostazioni")
     titles = pg.locator(".set-entry .oui-row__name").all_inner_texts()
-    ok("thirteen groups, the printer first, in this order", titles == ["Stampante", "Funzioni della stampante", "Camera", "Indirizzi", "Z-offset", "Notifiche", "Monitor IA", "Soglie del monitor", "Calibra camera", "Registrazioni", "Accesso", "Aggiornamenti", "Lingua"], titles)
+    ok("ten groups (1.19: everything of the AI monitor is inside 'Monitor IA'), the printer first, in this order", titles == ["Stampante", "Funzioni della stampante", "Camera", "Indirizzi", "Z-offset", "Notifiche", "Monitor IA", "Accesso", "Aggiornamenti", "Lingua"], titles)
     summaries = pg.locator(".set-entry__meta").all_inner_texts()
     ok("each group says what it is set to now", summaries[0] == "KlippEye" and summaries[1] == "WebRTC" and summaries[2] == "192.168.1.17 • 172.25.170.177" and summaries[3] == "0.01 · 0.025 · 0.05 · 0.1 mm" and summaries[4] == "7 su 7 attive" and "Pausa da sola: no" in summaries[5], summaries)
     ok("the page behind cannot scroll while it is open", pg.evaluate("() => document.body.style.overflow") == "hidden")
@@ -145,7 +152,7 @@ with sync_playwright() as p:
     open_menu(P); pg.keyboard.press("Escape"); pg.wait_for_selector(".drawer", state="detached")
     ok("Escape closes it", True)
     open_menu(P); go(P, "camera"); pg.keyboard.press("Escape"); P.settle(300)
-    ok("Escape inside a group goes back to the list first, then closes", pg.locator(".set-entry").count() == 13 and pg.locator(".drawer").count() == 1)
+    ok("Escape inside a group goes back to the list first, then closes", pg.locator(".set-entry").count() == 10 and pg.locator(".drawer").count() == 1)
     pg.keyboard.press("Escape"); pg.wait_for_selector(".drawer", state="detached")
     open_menu(P)
     TOUCH = """([sx, ex]) => { const el = document.querySelector('.drawer'); const mk = (type, x) => { const e = new Event(type, { bubbles: true, cancelable: true }); const t = [{ identifier: 1, clientX: x, clientY: 300, target: el }]; e.touches = type === 'touchend' ? [] : t; e.changedTouches = t; return e; }; el.dispatchEvent(mk('touchstart', sx)); el.dispatchEvent(mk('touchend', ex)); }"""
@@ -154,7 +161,7 @@ with sync_playwright() as p:
     pg.evaluate(TOUCH, [300, 120]); pg.wait_for_selector(".drawer", state="detached")
     ok("a swipe to the left closes it", True)
     open_menu(P); go(P, "camera"); close_menu(P); open_menu(P)
-    ok("it always opens on the list of groups", pg.locator(".set-entry").count() == 13)
+    ok("it always opens on the list of groups", pg.locator(".set-entry").count() == 10)
     close_menu(P)
     for tab in ("controllo", "files", "config", "sistema"):
         P.goto(tab, 700)
@@ -488,7 +495,7 @@ with sync_playwright() as p:
     open_menu(P); go(P, "ai")
     P.shot_vp(f"{out}/menu_ai_390.png")
     ok("automatic actions are OFF at first", not checked(P, "Metti in pausa da solo") and not checked(P, "Cancella da solo"))
-    ok("1 verdict, any confidence, every defect counts at first", pg.locator('.set-chips[aria-label="Controlli di fila"] .oui-chip.is-selected').inner_text() == "1 controllo" and pg.locator('.set-chips[aria-label="Sicurezza minima"] .oui-chip.is-selected').inner_text() == "Qualsiasi" and all(checked(P, t) for t in ("Spaghetti", "Piatto vuoto", "Layer shift", "Warping")))
+    ok("1 verdict, 70% confidence (the backend's one threshold), every defect counts at first", pg.locator('.set-chips[aria-label="Controlli di fila"] .oui-chip.is-selected').inner_text() == "1 controllo" and wait_until(lambda: pg.locator('.set-chips[aria-label="Fiducia minima dell\'IA"] .oui-chip.is-selected').inner_text() == "70%") and all(checked(P, t) for t in ("Spaghetti", "Piatto vuoto", "Layer shift", "Warping")))
     ok("the service not being there is said (it does the work)", "non si è ancora fatto vivo" in pg.locator(".set-status").first.inner_text())
     switch(P, "Metti in pausa da solo").click(); P.settle(200)
     ok("auto pause: on at once, no question asked", checked(P, "Metti in pausa da solo") and pg.locator(".confirm-overlay").count() == 0 and wait_until(lambda: stored()["ai"]["autoPause"] is True), stored()["ai"])
@@ -503,11 +510,13 @@ with sync_playwright() as p:
     ok("'Attiva': on, and sent to the Raspberry", checked(P, "Cancella da solo") and wait_until(lambda: stored()["ai"]["autoCancel"] is True), stored()["ai"])
     switch(P, "Cancella da solo").click(); P.settle(300)
     ok("switching it off needs no question", not checked(P, "Cancella da solo") and pg.locator(".confirm-overlay").count() == 0 and wait_until(lambda: stored()["ai"]["autoCancel"] is False))
-    pg.locator('.set-chips[aria-label="Controlli di fila"] .oui-chip', has_text="2 di fila").click(); pg.locator('.set-chips[aria-label="Sicurezza minima"] .oui-chip', has_text="70%").click(); switch(P, "Warping").click(); P.settle(300)
-    ok("verdicts in a row, confidence, defects: each one is a choice that is kept", wait_until(lambda: stored()["ai"]["confirmations"] == 2 and stored()["ai"]["minConfidence"] == 70 and stored()["ai"]["defects"]["warping"] is False and stored()["ai"]["defects"]["spaghetti"] is True), stored()["ai"])
-    ok("... and the chips show the choice", pg.locator('.set-chips[aria-label="Controlli di fila"] .oui-chip.is-selected').inner_text() == "2 di fila" and pg.locator('.set-chips[aria-label="Sicurezza minima"] .oui-chip.is-selected').inner_text() == "70%")
+    pg.locator('.set-chips[aria-label="Controlli di fila"] .oui-chip', has_text="2 di fila").click(); pg.locator('.set-chips[aria-label="Fiducia minima dell\'IA"] .oui-chip', has_text="90%").click(); switch(P, "Warping").click(); P.settle(1500)
+    ok("verdicts in a row, defects: each one is a choice that is kept (shared settings)", wait_until(lambda: stored()["ai"]["confirmations"] == 2 and stored()["ai"]["defects"]["warping"] is False and stored()["ai"]["defects"]["spaghetti"] is True), stored()["ai"])
+    ok("1.19: the ONE confidence threshold is the backend's (ai_min_confidence), with a warning above 85%", wait_until(lambda: any(e.get("ai_min_confidence") == 90 for e in json.loads(urllib.request.urlopen(mock.base + "/__mock/state").read())["brain_cfg_log"]), 4)
+       and "potrebbe NON essere fermata" in pg.locator(".fn-confidence").inner_text(), pg.locator(".drawer__body").inner_text()[:600])
+    ok("... and the chips show the choice", pg.locator('.set-chips[aria-label="Controlli di fila"] .oui-chip.is-selected').inner_text() == "2 di fila" and pg.locator('.set-chips[aria-label="Fiducia minima dell\'IA"] .oui-chip.is-selected').inner_text() == "90%")
     back(P)
-    ok("the list shows the automatic actions", pg.locator('.set-entry[data-page="ai"] .set-entry__meta').inner_text() == "Pausa da sola: sì • Cancella da sola: no", pg.locator('.set-entry[data-page="ai"] .set-entry__meta').inner_text())
+    ok("the list shows the automatic actions", pg.locator('.set-entry[data-page="ai"] .set-entry__meta').inner_text() == "Solo la fascia esterna • Pausa da sola: sì", pg.locator('.set-entry[data-page="ai"] .set-entry__meta').inner_text())
     close_menu(P)
     db_write("notifier", {"version": "1.1", "seen": int(time.time()) - 5, "lastAction": {"kind": "pause", "ok": True, "at": int(time.time()) - 60}})
     open_menu(P); go(P, "ai")
@@ -655,7 +664,7 @@ with sync_playwright() as p:
     ok("... the choice stays on this device only (the notifications' language, shared, does not change)", pg.evaluate("() => localStorage.getItem('ke_lang')") == "en" and (settings_now(P) or {}).get("language") == "it", (pg.evaluate("() => localStorage.getItem('ke_lang')"), (settings_now(P) or {}).get("language")))
     pg.click('button[aria-label="Settings"]'); pg.wait_for_selector(".drawer"); P.settle(450)
     titles = pg.locator(".set-entry .oui-row__name").all_inner_texts()
-    ok("... the menu is in English", titles == ["Printer", "Printer functions", "Camera", "Addresses", "Z-offset", "Notifications", "AI monitor", "Monitor thresholds", "Camera calibration", "Recordings", "Access", "Updates", "Language"] and meta() == "English", (titles, meta()))
+    ok("... the menu is in English", titles == ["Printer", "Printer functions", "Camera", "Addresses", "Z-offset", "Notifications", "AI monitor", "Access", "Updates", "Language"] and meta() == "English", (titles, meta()))
     go(P, "language"); choice(pg, "Automatic").click(); pg.wait_for_load_state("load"); P.settle(1500)
     ok("back to automatic: Italian again, and nothing kept", pg.evaluate("() => document.documentElement.lang") == "it" and pg.evaluate("() => localStorage.getItem('ke_lang')") is None)
     ok("no errors in the page", not P.errors, P.errors[:3])
@@ -684,7 +693,7 @@ with sync_playwright() as p:
     close_menu(P); P.settle(800)
     other = [r for r in P.reqs if r["m"] != "GET" and "/server/database/item" not in r["u"]]
     ok("looking at every page of the menu sends nothing to the printer (no G-code, no commands)", not other and mock.gcode() == [], (other, mock.gcode()))
-    ok("... and reads only the settings, the service's key and the update channel", all("/server/database/item" in r["u"] or r["u"].split("?")[0].startswith(POLL_PATHS + ("/api/update/channel",)) or r["u"].startswith("EXT") for r in P.reqs if r["m"] == "GET"), [r["u"] for r in P.reqs if r["m"] == "GET" and "/server/database/item" not in r["u"] and not r["u"].split("?")[0].startswith(POLL_PATHS)][:5])
+    ok("... and reads only the settings, the service's key and the update channel", all("/server/database/item" in r["u"] or r["u"].split("?")[0].startswith(POLL_PATHS + ("/api/update/channel", "/api/ai/config")) or r["u"].startswith("EXT") for r in P.reqs if r["m"] == "GET"), [r["u"] for r in P.reqs if r["m"] == "GET" and "/server/database/item" not in r["u"] and not r["u"].split("?")[0].startswith(POLL_PATHS)][:5])
     ok("no errors in the page", not P.errors, P.errors[:3])
     P.close()
     b.close()

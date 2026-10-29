@@ -66,7 +66,7 @@ Tutto sta nel menu **☰ (Impostazioni)**. Le impostazioni restano sul Raspberry
   a seconda della rete in cui sei.
 * **Z-offset**: i passi della card Z-offset.
 * **Notifiche**: quali notifiche push ricevere e in che lingua (vedi 6).
-* **Monitor IA** e **Soglie del monitor**: vedi 5.
+* **Monitor IA**: tutto il monitor IA (soglie, calibrazione della camera, registrazioni), vedi 5.
 * **Accesso**: la password facoltativa (vedi 7).
 * **Aggiornamenti**: release, ritorno alla versione precedente, riavvio dei servizi, app Android.
 * **Lingua**: italiano o inglese, scelta su ogni dispositivo (*Automatica* segue la lingua del dispositivo).
@@ -127,27 +127,33 @@ foto con uno *sfondo* fatto dalle ultime foto, ignora i cambi di luce e la testi
 **restano**. Quando qualcosa di sospetto resta per alcuni controlli, manda la foto (e com'era prima) a un'**IA online**, che giudica
 se c'è un problema vero: spaghetti, pezzo staccato, layer shift, warping.
 
-1. **Chiave dell'IA**: dashboard → **Config → Log di sistema → ⚙️**: scegli il servizio (consigliato Groq, gratis) e incolla la
-   chiave. È la stessa dell'analisi dei log. Resta in `~/printer_data/klippeye/ai.json`, leggibile solo dal servizio.
-2. **Impostazioni → Monitor IA**: quali difetti contano, quanti verdetti di fila, la fiducia minima e le **azioni automatiche**
-   (pausa o cancellazione da sole, spente di serie: l'IA può sbagliare e una stampa cancellata non si recupera).
-3. **Impostazioni → Soglie del monitor**: sensibilità, area controllata sulla foto della camera, pause tra due chiamate all'IA,
-   quando comincia a controllare. **Consiglio:** disegna l'area controllata solo sul piatto: cinghie e parti del portale in primo
-   piano si muovono sempre.
+Tutto sta in **Impostazioni → Monitor IA**, una pagina sola, dall'alto in basso:
 
-L'IA scrive le sue osservazioni nella lingua delle notifiche; ogni allarme resta con le sue foto (card del monitor IA e
-`~/printer_data/klippeye/alerts/`).
+1. **Monitor attivo** e se il servizio delle notifiche funziona.
+2. **Come guarda la stampa**: una riga dice cosa guarda adesso il monitor: **tutto il piatto fuori dai pezzi** (con la camera
+   calibrata) oppure solo la **fascia esterna di un rettangolo** (senza). Da qui: **Calibra camera** (sotto), **Soglie del
+   monitor** (i numeri fini: sensibilità, quanto deve restare un cambiamento, pause, quando comincia; c'è anche il rettangolo,
+   usato solo senza calibrazione) e **Registrazioni** (per misurare il monitor).
+3. **Quando vede un problema**: la **fiducia minima dell'IA** (l'unica: 70% è il valore consigliato; sopra l'85% una stampa
+   fallita potrebbe non essere fermata), quali difetti contano, quante analisi dell'IA di fila, e le **azioni automatiche**
+   (pausa o cancellazione da sole, spente di serie: l'IA può sbagliare e una stampa cancellata non si recupera).
+4. **Il servizio IA**: la **chiave dell'IA** (Groq è gratis; è la stessa dell'analisi dei log, resta in
+   `~/printer_data/klippeye/ai.json`, leggibile solo dal servizio), se mandare anche la foto di prima, il modello.
+
+L'IA scrive le sue osservazioni nella lingua delle notifiche; ogni allarme resta con le sue foto (card del monitor IA, allarmi in
+Registrazioni e `~/printer_data/klippeye/alerts/`). Quando l'IA ha proposto pausa o cancellazione ma nessun difetto arrivava alla
+fiducia minima, l'allarme lo dice in arancione («Pausa proposta, sotto la soglia»).
 
 | Se… | prova a… |
 |---|---|
-| allarmi quando passa la testina | lasciare acceso «Ignora i movimenti passeggeri»; alzare «Controlli di fila in cui il cambiamento deve restare» (3 → 4 o 5) |
+| allarmi quando passa la testina | calibrare la camera e regolare i contorni di testina e gantry; alzare «Controlli di fila in cui il cambiamento deve restare» (3 → 4) |
 | allarmi quando cambia la luce | tenere «Cambio di luce» a 30; fissare l'esposizione della camera; schermare un LED troppo forte |
 | l'IA segnala problemi dubbi | alzare «Fiducia minima dell'IA» (70 → 80) |
-| non si accorge di un guasto vero | abbassare «Movimento ai bordi» o allargare l'area controllata |
+| non si accorge di un guasto vero | calibrare la camera (guarda tutto il piatto); controllare gli allarmi in Registrazioni: uno arancione vuol dire fiducia troppo alta |
 
 ### Calibrare la camera
 
-**Impostazioni → Calibra camera** insegna a KlippEye dove ogni punto della stampante compare nell'immagine della camera.
+**Impostazioni → Monitor IA → Calibra camera** insegna a KlippEye dove ogni punto della stampante compare nell'immagine della camera.
 Così il monitor IA sa, a ogni controllo, dove sono la testina e il gantry e li esclude (sono la causa principale dei falsi
 allarmi). Circa quindici minuti, una volta; da rifare solo se sposti la camera.
 
@@ -193,8 +199,7 @@ all'ugello). Regolali con **−** e **+** (5 mm alla volta), muovendo la testina
 * gantry: dove la barra **inizia dietro l'ugello**, quanto è **profonda** e i suoi **bordi basso e alto** sopra la punta
   dell'ugello. Spegnilo se la tua stampante non ha un gantry che attraversa l'immagine.
 
-L'interruttore **Impostazioni → Soglie del monitor → Falsi allarmi → Escludi testina e gantry** (acceso di base) accende e
-spegne le maschere.
+L'interruttore **Escludi testina e gantry** (acceso di base), nella stessa pagina, accende e spegne le maschere.
 
 **Tutto il piatto, tranne dove sono i pezzi.** Con la calibrazione il monitor sa anche dove sono gli oggetti della stampa e
 guarda **tutto il piatto attorno a loro**, non solo i bordi dell'area osservata: conta la plastica che compare dove non
@@ -202,7 +207,7 @@ dovrebbe esserci nessun pezzo (spaghetti accanto al pezzo, un pezzo staccato e t
 contorni degli oggetti vengono da `exclude_object` di Klipper quando lo slicer etichetta gli oggetti (PrusaSlicer/SuperSlicer/
 OrcaSlicer: *Etichetta oggetti*, e `[exclude_object]` in `printer.cfg`: consigliato), altrimenti dal G-code della stampa,
 letto una volta all'inizio. Durante una stampa l'immagine dal vivo di questa pagina li mostra in verde. Interruttore:
-**Impostazioni → Soglie del monitor → Falsi allarmi → Guarda tutto il piatto, tranne dove sono i pezzi** (acceso di base).
+**Guarda tutto il piatto, tranne dove sono i pezzi**, nella stessa pagina (acceso di base).
 Dove la testina è proprio sopra il pezzo la camera non vede sotto: un guasto si riconosce da ciò che compare attorno al pezzo.
 
 La calibrazione vale **finché la camera non si muove**. Ogni dieci minuti il backend confronta l'immagine con quella presa
@@ -213,7 +218,7 @@ calibrazione (e le maschere) finché non la rifai. Le misure di testina e gantry
 
 Invece di indovinare se una soglia diversa aiuta, misuralo:
 
-1. **Impostazioni → Registrazioni → Registra le stampe**. Durante ogni stampa il backend conserva le foto guardate dal monitor
+1. **Impostazioni → Monitor IA → Registrazioni → Registra le stampe**. Durante ogni stampa il backend conserva le foto guardate dal monitor
    (piccole, circa 150 MB per una stampa di quattro ore) con strato, posizione e punteggio, in `~/printer_data/klippeye/recordings/`.
    Quando lo spazio scelto è pieno si cancellano le stampe più vecchie, e con meno di 1 GB libero sul disco non si registra niente.
 2. Dopo ogni stampa, nella stessa pagina: segna ogni **allarme** come *Falso allarme* o *Problema vero*, e apri la stampa per

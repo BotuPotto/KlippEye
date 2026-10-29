@@ -67,6 +67,34 @@ class Recorder:
         self.status = "off"
         self.last_trigger = None  # (session id, time, frame) of the last live alarm
         self._sizes = None  # {id: bytes} of the folders, measured once and then kept up to date
+        self.close_orphans()
+
+    def close_orphans(self):
+        """Recordings left open by a power cut or a restart of the backend (session.json without an end): closed at the
+        time of their last picture, so that they no longer say "recording". -> how many."""
+        closed = 0
+        for sid in self.ids():
+            session = self.load(sid)
+            if not session or session.get("ended") is not None:
+                continue
+            last, count = session.get("started"), 0
+            try:
+                with open(os.path.join(self.root, sid, "frames.jsonl"), encoding="utf-8") as f:
+                    for line in f:
+                        try:
+                            row = json.loads(line)
+                        except ValueError:
+                            continue
+                        count += 1
+                        if isinstance(row.get("t"), (int, float)):
+                            last = row["t"]
+            except OSError:
+                pass
+            session.update(ended=last, end_state="interrupted (power cut or restart)", frames=max(count, session.get("frames") or 0))
+            self._save(session)
+            closed += 1
+            print("[RECORDER] recording %s was left open: closed (%d pictures)" % (sid, count))
+        return closed
 
     # ------------------------------------------------------------------ settings
     def configure(self, enabled, max_mb):

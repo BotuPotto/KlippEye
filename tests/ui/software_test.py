@@ -74,6 +74,9 @@ def open_menu(P):
 
 
 def go(P, name):
+    """Opens a page of the menu; 1.19: camcal / detector / recordings are inside "Monitor IA"."""
+    if not P.pg.locator('.set-entry[data-page="%s"]' % name).count() and name in ("camcal", "detector", "recordings"):
+        P.pg.click('.set-entry[data-page="ai"]'); P.settle(600)
     P.pg.click('.set-entry[data-page="%s"]' % name); P.settle(500)
 
 
@@ -124,7 +127,7 @@ with sync_playwright() as p:
     pg = P.pg
     open_menu(P)
     titles = pg.locator(".set-entry .oui-row__name").all_inner_texts()
-    ok("thirteen groups, the printer first, then Accesso, the software one and Lingua last", titles == ["Stampante", "Funzioni della stampante", "Camera", "Indirizzi", "Z-offset", "Notifiche", "Monitor IA", "Soglie del monitor", "Calibra camera", "Registrazioni", "Accesso", "Aggiornamenti", "Lingua"], titles)
+    ok("ten groups, the printer first, then Accesso, the software one and Lingua last", titles == ["Stampante", "Funzioni della stampante", "Camera", "Indirizzi", "Z-offset", "Notifiche", "Monitor IA", "Accesso", "Aggiornamenti", "Lingua"], titles)
     ok("the list says which release is installed", wait_until(lambda: pg.locator('.set-entry[data-page="software"] .set-entry__meta').inner_text() == "Release 1.0.0"), pg.locator('.set-entry[data-page="software"] .set-entry__meta').inner_text())
     ok("no 'Nuovo' sign when nothing is waiting (only 'Da controllare' on Printer functions)", pg.locator('.set-entry[data-page="software"] .set-entry__badge').count() == 0 and pg.locator(".set-entry__badge").all_inner_texts() == ["Da controllare"], pg.locator(".set-entry__badge").all_inner_texts())
     P.close()
@@ -147,7 +150,7 @@ with sync_playwright() as p:
     ok("Monitor IA page: a row leads to the thresholds", pg.locator('.set-entry[data-page="detector"]').count() == 1)
     pg.click('.set-entry[data-page="detector"]'); P.settle(600)
     ok("the thresholds page opens with its title", pg.locator(".drawer__title").inner_text() == "Soglie del monitor")
-    wanted = ["monitor", "rilevamento del movimento", "falsi allarmi", "area controllata", "pause e consumi", "quando comincia a controllare", "modello dell'ia"]
+    wanted = ["rilevamento del movimento", "falsi allarmi", "pause e consumi", "quando comincia a controllare", "senza calibrazione della camera: il rettangolo controllato"]
     ok("the groups are the ones the backend declares", wait_until(lambda: [t.lower() for t in pg.locator(".set-group__label").all_inner_texts()] == wanted), pg.locator(".set-group__label").all_inner_texts())
     ok("a line says the monitor is on", "Il monitor è acceso" in pg.locator(".set-status").first.inner_text(), pg.locator(".set-status").first.inner_text())
     ok("a number shows its usual value in its box", num_box(P, "Soglia di cambiamento").input_value() == "35" and num_box(P, "Controlli sospetti prima dell'allarme").input_value() == "3")
@@ -179,11 +182,21 @@ with sync_playwright() as p:
     type_into(num_box(P, "Attesa dopo l'inizio della stampa"), "60")
     ok("two quick changes are sent as one request", wait_until(lambda: last_post() == {"cooldown": 120, "warmup_seconds": 60}, 3.0), cfg_log()[-3:])
 
-    # the switch
+    # the switch (1.19: on the AI monitor page, at the top)
+    pg.click('.drawer button[aria-label="Indietro"]'); P.settle(600)
     pg.click(".set-switch:has-text('Monitor attivo')"); P.settle(300)
-    ok("switching the monitor off is sent and the line says so", wait_until(lambda: last_post() == {"enabled": False}, 3.0) and "Il monitor è spento" in pg.locator(".set-status").first.inner_text(), cfg_log()[-2:])
+    ok("switching the monitor off (AI monitor page) is sent", wait_until(lambda: last_post() == {"enabled": False}, 3.0), cfg_log()[-2:])
     pg.click(".set-switch:has-text('Monitor attivo')"); P.settle(300)
     ok("... and on again", wait_until(lambda: last_post() == {"enabled": True}, 3.0))
+    # the model (1.19: on the AI monitor page, 'Il servizio IA')
+    model = pg.locator("input[placeholder='predefinito']")
+    type_into(model, "gpt 4o")
+    P.settle(1300)
+    ok("a model name with a space is refused and not sent", "ai_model" not in sent_keys() and "niente spazi" in pg.locator(".set-field__error").first.inner_text(), sent_keys())
+    type_into(model, "llama-3.3-70b")
+    ok("a good model name is sent", wait_until(lambda: last_post() == {"ai_model": "llama-3.3-70b"}, 3.0), cfg_log()[-2:])
+    pg.locator(".drawer__title").click(); P.settle(300)
+    pg.click('.set-entry[data-page="detector"]'); P.settle(900)
 
     # the area
     area_inputs = tile(P, "Area controllata").locator(".set-grid input")
@@ -198,15 +211,6 @@ with sync_playwright() as p:
     type_into(area_inputs.nth(2), "70")
     ok("a good area is sent as one list of four numbers", wait_until(lambda: last_post() == {"roi": [20.0, 20.0, 70.0, 60.0]}, 3.0), cfg_log()[-2:])
     ok("... and the rectangle moves with it", pg.locator(".set-roi__box").evaluate("e => e.style.width") == "70%")
-    pg.locator(".drawer__title").click(); P.settle(300)
-
-    # the model
-    model = pg.locator("input[placeholder='predefinito']")
-    type_into(model, "gpt 4o")
-    P.settle(1300)
-    ok("a model name with a space is refused and not sent", "ai_model" not in sent_keys() and "niente spazi" in pg.locator(".set-field__error").first.inner_text(), sent_keys())
-    type_into(model, "llama-3.3-70b")
-    ok("a good model name is sent", wait_until(lambda: last_post() == {"ai_model": "llama-3.3-70b"}, 3.0), cfg_log()[-2:])
     pg.locator(".drawer__title").click(); P.settle(300)
 
     # reading it back from the backend (another device changed something)

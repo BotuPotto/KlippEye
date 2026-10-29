@@ -1,5 +1,31 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.19.0
+
+**The AI monitor, in one place and without contradictions.** A review of everything the AI monitor does, after a real failure
+was seen by the AI and still not reported.
+
+* **One menu entry**: *Settings → AI monitor* is the only entry; *Camera calibration*, *Monitor thresholds* and *Recordings*
+  are pages inside it (Back returns to it). The page says, top to bottom: monitor on, **how it looks at the print** (the whole bed
+  outside the parts, or only the outer band of a rectangle when the camera is not calibrated), **what happens when it sees a
+  problem**, and **the AI service** (key, earlier picture, model). The AI key can now be entered, changed and deleted here
+  (it was only in the logs page, and deleting it did not work).
+* **One confidence threshold**: there were two ("Minimum AI confidence" in the thresholds, used by the backend, and "Minimum AI
+  confidence" in the AI monitor, used by the notification service). A value of 100% in the first one turned the AI's "pause"
+  on a detached part into "continue". Now there is one, on the AI monitor page, from 30% to 95% (70% usual, a warning above
+  85%); the old second one is ignored. A value of 100% saved before is replaced by 70%.
+* **A downgraded verdict is no longer green**: when the AI proposed to pause or cancel and the threshold made it "continue", the
+  alarm (Recordings) and the AI card say "Pause proposed, under the threshold" in orange, with the highest confidence.
+* **The rectangle only when it is used**: the watched area and the outer band are shown in *Monitor thresholds* under
+  "Without camera calibration", greyed out with an explanation while the camera is calibrated (the whole bed is watched).
+  The switches of the masks and of the whole-bed watching moved to *Camera calibration*. "Ignore passing movements" (the old
+  detection, which ignored masks and zone) is no longer offered.
+* **The AI is waited for, not skipped**: an alarm that came while the AI was resting between two analyses was written as
+  "skipped" and the monitor then rested its own pause on top, so a real failure could wait several minutes for its analysis.
+  Now the monitor waits until the AI can look and checks again at once. Old "skipped" alarms are explained in plain words.
+* **Checks in a row** says how much later each extra check makes the warning (at least the pause between two analyses).
+* Recordings left open by a power cut are closed at the next start (they said "recording" for ever).
+
 ## 1.18.1
 
 * **Measure now** no longer stops with an OpenCV error (`!buf.empty() in function 'imdecode_'`) when a recorded picture is

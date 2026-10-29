@@ -66,7 +66,7 @@ Everything is in the menu **☰ (Settings)**. The settings are saved on the Rasp
   use the right one depending on the network you are on.
 * **Z-offset**: the step sizes of the Z-offset card.
 * **Notifications**: which push notifications to receive and their language (see 6).
-* **AI monitor** and **Monitor thresholds**: see 5.
+* **AI monitor**: everything of the AI monitor (thresholds, camera calibration, recordings), see 5.
 * **Access**: the optional password (see 7).
 * **Updates**: releases, rollback, restart of the services, the Android app.
 * **Language**: English or Italian, chosen on each device (*Automatic* follows the device's language).
@@ -124,26 +124,33 @@ compares each picture with a *background* made of the last pictures, ignores lig
 counts only changes that **stay**. When something suspicious stays for a few checks, it sends the picture (and how it looked
 before) to an **online AI**, which judges whether there is a real problem: spaghetti, a detached part, a layer shift, warping.
 
-1. **AI key**: dashboard → **Config → System logs → ⚙️**: choose the service (Groq, free, is recommended) and paste the key.
-   The same key is used for the log analysis. It is saved in `~/printer_data/klippeye/ai.json`, readable only by the service.
-2. **Settings → AI monitor**: which defects count, how many verdicts in a row, the minimum confidence, and the **automatic
-   actions** (pause or cancel by itself, both off by default; the AI can be wrong and a cancelled print cannot be recovered).
-3. **Settings → Monitor thresholds**: sensitivity, the watched area on the camera picture, pauses between AI calls, when checking
-   starts. **Tip:** draw the watched area on the bed only: belts and parts of the gantry in the foreground move all the time.
+Everything is in **Settings → AI monitor**, one page, top to bottom:
+
+1. **Monitor on** and whether the notification service is running.
+2. **How it looks at the print**: one line says what the monitor watches now: the **whole bed outside the parts** (with a
+   camera calibration) or only the **outer band of a rectangle** (without). From here: **Camera calibration** (below),
+   **Monitor thresholds** (the fine numbers: sensitivity, how long a change must stay, pauses, when checking starts; the
+   rectangle is there too, used only without a calibration) and **Recordings** (to measure the monitor).
+3. **When it sees a problem**: the **minimum AI confidence** (the only one: 70% is the usual value; above 85% a failed print may
+   not be stopped), which defects count, how many AI verdicts in a row, and the **automatic actions** (pause or cancel by
+   itself, both off by default; the AI can be wrong and a cancelled print cannot be recovered).
+4. **The AI service**: the **AI key** (Groq is free; the same key is used for the log analysis, saved in
+   `~/printer_data/klippeye/ai.json`, readable only by the service), whether the earlier picture is sent too, the model.
 
 The AI writes its observations in the language of the notifications; every alert is kept with its pictures (AI monitor card,
-and `~/printer_data/klippeye/alerts/`).
+the alarms in Recordings, and `~/printer_data/klippeye/alerts/`). When the AI proposed to pause or cancel but no defect reached
+the minimum confidence, the alarm says so in orange ("Pause proposed, under the threshold").
 
 | If… | try… |
 |---|---|
-| alarms when the print head passes | keep "Ignore passing movements" on; raise "Checks in a row the change must stay for" (3 → 4 or 5) |
+| alarms when the print head passes | calibrate the camera and adjust the toolhead and gantry outlines; raise "Checks in a row the change must stay for" (3 → 4) |
 | alarms when the light changes | keep "Light change" at 30; fix the camera exposure; diffuse a bright LED |
 | the AI reports doubtful problems | raise "Minimum AI confidence" (70 → 80) |
-| a real failure goes unnoticed | lower "Movement at the edges" or make the watched area larger |
+| a real failure goes unnoticed | calibrate the camera (whole bed watched); check the alarms in Recordings: an orange one means the confidence is too high |
 
 ### Calibrating the camera
 
-**Settings → Camera calibration** teaches KlippEye where every point of the printer appears in the camera picture. With it
+**Settings → AI monitor → Camera calibration** teaches KlippEye where every point of the printer appears in the camera picture. With it
 the AI monitor knows, at every check, where the toolhead and the gantry are and leaves them out (they are the main cause of
 false alarms). About fifteen minutes, once; again only if you move the camera.
 
@@ -189,16 +196,15 @@ Adjust them with **−** and **+** (5 mm a step), moving the toolhead with the b
 * gantry: where the bar **starts behind the nozzle**, how **deep** it is and its **lower and upper edges** above the nozzle
   tip. Switch it off if your printer has no gantry crossing the picture.
 
-The switch **Settings → Monitor thresholds → False alarms → Leave out the toolhead and the gantry** (on by default) turns
-the masks on and off.
+The switch **Leave out the toolhead and the gantry** (on by default), on the same page, turns the masks on and off.
 
 **The whole bed, except where the parts are.** With the calibration the monitor also knows where the objects of the print
 are, and watches the **whole bed around them** instead of only the edges of the watched area: plastic that appears where no
 part should be (spaghetti next to the part, a part torn off and dragged) counts, the part growing does not. The outlines
 of the objects come from Klipper's `exclude_object` when the slicer labels the objects (PrusaSlicer/SuperSlicer/OrcaSlicer:
 *Label objects*, and `[exclude_object]` in `printer.cfg`: recommended), otherwise from the G-code of the print, read once at
-the start. During a print the live picture of this page shows them in green. Switch: **Settings → Monitor thresholds →
-False alarms → Watch the whole bed, except where the parts are** (on by default). Where the toolhead is right on the part,
+the start. During a print the live picture of this page shows them in green. Switch: **Watch the whole bed, except where the parts
+are**, on the same page (on by default). Where the toolhead is right on the part,
 the camera cannot see under it: a failure is recognised by what appears around the part.
 
 The calibration is valid **until the camera moves**. Every ten minutes the backend compares the picture with the one taken
@@ -209,7 +215,7 @@ calibration (and the masks) until you calibrate again. The sizes of the toolhead
 
 Instead of guessing whether a change of the thresholds helps, measure it:
 
-1. **Settings → Recordings → Record the prints**. During every print the backend keeps the pictures the monitor looked at
+1. **Settings → AI monitor → Recordings → Record the prints**. During every print the backend keeps the pictures the monitor looked at
    (small, about 150 MB for a four-hour print) with layer, position and score, in `~/printer_data/klippeye/recordings/`. The
    oldest prints are deleted when the chosen space is full, and nothing is recorded with less than 1 GB free on the disk.
 2. After each print, in the same page: mark each **alarm** as *False alarm* or *Real problem*, and open the print to say

@@ -151,8 +151,11 @@ with sync_playwright() as p:
     pg.click('button[aria-label="Impostazioni"]')
     pg.wait_for_selector(".drawer")
     pg.wait_for_timeout(1500)
+    pg.click('.set-entry[data-page="ai"]')   # 1.19: inside "Monitor IA"
+    pg.wait_for_timeout(1500)
+    ok("Monitor IA says what it looks at: only the outer band until the camera is calibrated", "Solo la fascia esterna" in body(pg), body(pg)[:400])
     entry = pg.locator('.set-entry[data-page="camcal"]')
-    ok("the menu has 'Calibra camera', 'Non calibrata'", entry.count() == 1 and wait(pg, lambda: "Non calibrata" in entry.inner_text()), entry.inner_text() if entry.count() else "")
+    ok("'Monitor IA' has 'Calibra camera', 'Non calibrata'", entry.count() == 1 and wait(pg, lambda: "Non calibrata" in entry.inner_text()), entry.inner_text() if entry.count() else "")
     entry.click()
     pg.wait_for_timeout(1200)
     ok("not calibrated: the page says so and offers to calibrate", wait(pg, lambda: "La camera non è calibrata" in body(pg)) and pg.locator('[data-start="1"]').count() == 1, body(pg)[:300])
