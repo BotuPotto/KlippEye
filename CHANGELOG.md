@@ -1,5 +1,27 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.15.0
+
+**The toolhead and the gantry left out of the AI monitor (phase 4b of the roadmap).** The recordings showed that most false
+alarms come from the toolhead and the gantry moving in front of the camera.
+
+* **Machine masks** (`backend/machine_masks.py`): with a good camera calibration, at every check the monitor knows where the
+  toolhead and the gantry are (Klipper's live position just before and just after the picture, and the way
+  between them) and leaves those parts of the picture out: out of the comparison, out of the background (each background picture
+  keeps its own mask; the background is the median of the pictures that saw each point free) and out of the "the whole
+  picture changed" check. Never half masks: without a calibration, or when the camera has moved, the monitor works as before.
+  New switch *Monitor thresholds → False alarms → Leave out the toolhead and the gantry* (on).
+* **Shape of the toolhead and of the gantry**, adjusted on the live picture (*Camera calibration*, after saving): left, right,
+  front, back, above and below the nozzle for the toolhead; where the bar starts behind the nozzle, its depth and its lower
+  and upper edges for the gantry (a bar across the whole X travel, drawn in ten pieces so that it follows the fisheye
+  bending). Kept in `machine_shape.json`, also when the camera is calibrated again. `POST /api/camera/shape`.
+* **Clearer calibration**: a small drawing and plain words at every point say what to tap (the lowest point of the nozzle,
+  not the marker under it; the top tip of the marker); the steps of a point are explained above the list; the guide has a
+  table of what to tap. The toolhead size is no longer asked at the start (the shape is adjusted after saving).
+* **Replay with the masks**: `klippeye replay` leaves the toolhead and the gantry out on the recorded pictures that have the
+  toolhead position, like the live monitor; `--set machine_masks=off` to compare. *Recordings → Measure now* says whether
+  they were used. The recordings keep the position after the picture too (`live2`).
+
 ## 1.14.0
 
 **Printed markers for the camera calibration.** The blobs of 1.13.0 were too small and left strings between them.

@@ -7,6 +7,11 @@ It is used in two places, so that they always judge the same way:
   * the replay (scripts/replay.py), on the pictures recorded during earlier prints (recorder.py), to count how many alarms a
     given set of thresholds would have raised.
 Time is passed in (`now`), never read here, so a replay runs as fast as the computer allows. Needs OpenCV and numpy.
+
+The machine masks (phase 4b, machine_masks.py): with each picture the caller may give `ignore`, the parts of the picture
+where the toolhead and the gantry are at that moment. They are left out of everything: of the comparison, of the background
+(each background picture keeps its own mask and the background is the median of the pictures that saw that point free) and
+of the "the whole picture changed" check.
 """
 import time
 from collections import deque
@@ -50,6 +55,7 @@ class FrameJudge:
         self.ai_model = ""
         self.persistent_filter = True  # the filter against false alarms (see _persistent_score)
         self.persist_checks = 3
+        self.machine_masks = True  # leave out the toolhead and the gantry (the caller gives the mask: machine_masks.py)
         self.reference_seconds = 60
         self.global_change = 30.0
         self.ai_min_confidence = 70
@@ -57,7 +63,10 @@ class FrameJudge:
         self.recent_masks = deque(maxlen=3)
         self.ref_small = deque(maxlen=REFERENCE_SAMPLES)  # (time, small grey picture) for the background
         self.ref_jpegs = deque(maxlen=REFERENCE_SAMPLES)  # (time, picture as the camera sent it) to show the AI "how it was before"
+        self.ref_ignore = deque(maxlen=REFERENCE_SAMPLES)  # the machine mask of each background picture (or None)
         self.bg = None
+        self.bg_unknown = None  # points that no background picture saw free of the toolhead (not compared)
+        self.last_ignore = None  # the mask of the previous picture (the comparison without the filter)
         self.global_streak = 0
         self.global_streak_max = GLOBAL_STREAK_MAX
         self.stats = {
@@ -88,6 +97,7 @@ class FrameJudge:
         self.hotend_tol = get("hotend_tolerance", self.hotend_tol)
         self.ai_model = get("ai_model", self.ai_model)
         self.persistent_filter = get("persistent_filter", self.persistent_filter)
+        self.machine_masks = get("machine_masks", self.machine_masks)
         persist = get("persist_checks", self.persist_checks)
         if persist != self.persist_checks or self.recent_masks.maxlen != persist:
             self.recent_masks = deque(maxlen=persist)
@@ -100,11 +110,12 @@ class FrameJudge:
             x, y, w, h = values["roi"]  # in % of the picture -> pixels of the resized picture (1080x720)
             self.roi = (int(OPENCV_WIDTH * x / 100), int(OPENCV_HEIGHT * y / 100), int(OPENCV_WIDTH * w / 100), int(OPENCV_HEIGHT * h / 100))
 
-    def judge(self, frame, raw, now):
+    def judge(self, frame, raw, now, ignore=None):
         """One check of one picture (`frame` decoded by OpenCV, `raw` as the camera sent it) taken at `now` (seconds).
+        `ignore`: the machine mask of this picture (uint8, any size, 255 = leave out) or None.
         -> (score in % or None when there is nothing to count yet, True when this check triggers the alarm).
         After a trigger the monitor rests until `cooldown_until`: the caller does not judge pictures before then."""
-        score = self._persistent_score(frame, raw, now) if self.persistent_filter else self._motion_score(frame)
+        score = self._persistent_score(frame, raw, now, ignore) if self.persistent_filter else self._motion_score(frame, ignore)
         if score is None:  # the comparison is not ready yet, or this check is to be ignored (light change)
             return None, False
         self.stats["last_score"] = round(score, 2)
@@ -124,7 +135,20 @@ class FrameJudge:
         self.trigger_count = 0
         return score, True
 
-    def _motion_score(self, frame):
+    @staticmethod
+    def _fit_mask(ignore, shape):
+        """The machine mask at the size of the picture being looked at (None stays None)."""
+        if ignore is None:
+            return None
+        h, w = shape[:2]
+        if ignore.shape[:2] != (h, w):
+            ignore = cv2.resize(ignore, (w, h), interpolation=cv2.INTER_NEAREST)
+        return ignore
+
+    def _note_masked(self, ignore):
+        self.stats["masked"] = None if ignore is None else round(cv2.countNonZero(ignore) * 100.0 / ignore.size, 1)
+
+    def _motion_score(self, frame, ignore=None):
         """The older detection (filter off): how much the outer band moves between two pictures in a row, in % of the area."""
         small = cv2.resize(frame, (OPENCV_WIDTH, OPENCV_HEIGHT))
         gray = cv2.cvtColor(small, cv2.COLOR_BGR2GRAY)
@@ -138,6 +162,12 @@ class FrameJudge:
         diff = cv2.absdiff(prev, gray)
         thresh = cv2.threshold(diff, self.sensitivity, 255, cv2.THRESH_BINARY)[1]
         thresh = cv2.dilate(thresh, None, iterations=2)
+        now_mask, before = self._fit_mask(ignore, thresh.shape), self.last_ignore
+        self.last_ignore = now_mask
+        both = now_mask if before is None or now_mask is None else cv2.bitwise_or(now_mask, before)
+        self._note_masked(both)
+        if both is not None:
+            thresh = cv2.bitwise_and(thresh, cv2.bitwise_not(both))  # where the toolhead is now or was in the previous picture
         return self._periphery_score(thresh, 1.0)
 
     def _roi_rect(self, shape, scale):
@@ -170,11 +200,14 @@ class FrameJudge:
     def _reset_reference(self):
         self.ref_small.clear()
         self.ref_jpegs.clear()
+        self.ref_ignore.clear()
         self.recent_masks.clear()
         self.bg = None
+        self.bg_unknown = None
+        self.last_ignore = None
         self.global_streak = 0
 
-    def _persistent_score(self, frame, raw, now=None):
+    def _persistent_score(self, frame, raw, now=None, ignore=None):
         """
         The filter against false alarms. Instead of comparing two pictures in a row (the passing print head is enough to trigger):
           1. the BACKGROUND is the median of 7 pictures spread over the last `reference_seconds`: what stays in a place only
@@ -182,34 +215,65 @@ class FrameJudge:
           2. the average brightness is aligned to the background's (the camera adjusting its exposure is not movement);
           3. if more than `global_change`% of the whole picture changes at once (light, camera moved) the check is ignored, but
              if it lasts more than GLOBAL_STREAK_MAX checks in a row it is a real change;
-          4. only what changed against the background, in the outer band of the area, in ALL the last `persist_checks` checks counts.
+          4. only what changed against the background, in the outer band of the area, in ALL the last `persist_checks` checks counts;
+          5. the machine masks (`ignore`) are left out of all of it.
         It works at half resolution: 4 times fewer points to look at. -> % of the area, or None (nothing to count now).
         """
         now = time.time() if now is None else now
         small = cv2.resize(frame, (OPENCV_WIDTH // 2, OPENCV_HEIGHT // 2), interpolation=cv2.INTER_AREA)
         gray = cv2.GaussianBlur(cv2.cvtColor(small, cv2.COLOR_BGR2GRAY), (11, 11), 0)
+        ignore = self._fit_mask(ignore, gray.shape)
+        self._note_masked(ignore)
         self.stats["frames_checked"] += 1
         if self.ref_small and now - self.ref_small[-1][0] > 2 * self.reference_seconds:
             self._reset_reference()  # a long pause: the old background is no longer valid
         result = None
         if self.bg is not None and self.bg.shape == gray.shape:
-            result = self._compare_with_background(gray)
+            result = self._compare_with_background(gray, ignore)
         else:
             self.stats["status"] = "preparing the comparison (%d/%d pictures)" % (len(self.ref_small), REFERENCE_MIN)
         step = max(self.check_interval, self.reference_seconds / REFERENCE_SAMPLES)
         if not self.ref_small or now - self.ref_small[-1][0] >= step:
             self.ref_small.append((now, gray))
             self.ref_jpegs.append((now, raw))
+            self.ref_ignore.append(ignore)
             if len(self.ref_small) >= REFERENCE_MIN:
-                self.bg = np.median(np.stack([g for _, g in self.ref_small]), axis=0).astype(np.uint8)
+                self._make_background()
         return result
 
-    def _compare_with_background(self, gray):
-        shift = float(gray.mean()) - float(self.bg.mean())
+    def _make_background(self):
+        """The median of the background pictures; with machine masks, for each point only the pictures that saw it free."""
+        stack = np.stack([g for _, g in self.ref_small])
+        masks = list(self.ref_ignore)
+        if all(m is None for m in masks) or any(m is not None and m.shape != stack.shape[1:] for m in masks):
+            self.bg, self.bg_unknown = np.median(stack, axis=0).astype(np.uint8), None
+            return
+        hidden = np.stack([np.zeros(stack.shape[1:], bool) if m is None else m > 0 for m in masks])
+        values = np.where(hidden, 999, stack.astype(np.int16))
+        values.sort(axis=0)
+        free = (~hidden).sum(axis=0)
+        pick = np.maximum(free - 1, 0) // 2  # the (lower) median of the free values, which come first after sorting
+        bg = np.take_along_axis(values, pick[None], axis=0)[0]
+        unknown = free == 0
+        self.bg = np.where(unknown, 0, bg).astype(np.uint8)
+        self.bg_unknown = unknown.astype(np.uint8) * 255 if unknown.any() else None
+
+    def _compare_with_background(self, gray, ignore=None):
+        leave_out = ignore
+        if self.bg_unknown is not None:
+            leave_out = self.bg_unknown if leave_out is None else cv2.bitwise_or(leave_out, self.bg_unknown)
+        keep = None if leave_out is None else cv2.bitwise_not(leave_out)
+        if keep is None:
+            shift = float(gray.mean()) - float(self.bg.mean())
+        else:
+            shift = float(cv2.mean(gray, mask=keep)[0]) - float(cv2.mean(self.bg, mask=keep)[0])
         if abs(shift) > 1:
             gray = cv2.convertScaleAbs(gray, alpha=1.0, beta=-shift)
         thresh = cv2.threshold(cv2.absdiff(self.bg, gray), self.sensitivity, 255, cv2.THRESH_BINARY)[1]
-        changed = cv2.countNonZero(thresh) * 100.0 / thresh.size
+        if keep is not None:
+            thresh = cv2.bitwise_and(thresh, keep)
+        visible = thresh.size if keep is None else max(1, cv2.countNonZero(keep))
+        changed = cv2.countNonZero(thresh) * 100.0 / visible
         self.stats["global_change"] = round(changed, 1)
         if changed > self.global_change:
             self.global_streak += 1

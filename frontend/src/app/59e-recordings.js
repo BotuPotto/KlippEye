@@ -322,6 +322,11 @@ function MeasureResult({ result }) {
       h(InfoLine, { label: tx("False alarms"), value: total.known_hours > 0 ? tx("{count} • {rate} per hour", { count: total.false, rate: formatNumber(total.false_per_hour) }) : tx("mark the prints to know"), warn: total.false > 0 }),
       h(InfoLine, { label: tx("Failures caught"), value: total.failures ? tx("{seen} of {count}", { seen: total.seen, count: total.failures }) + (total.average_delay_s !== null ? " • " + tx("after {time}", { time: formatRecordingTime(total.average_delay_s) }) : "") : tx("no failed print marked"), warn: total.failures > total.seen }),
       total.ms_per_check !== null && h(InfoLine, { label: tx("Time of one check"), value: formatNumber(total.ms_per_check) + " ms" }),
+      total.masks &&
+        h(InfoLine, {
+          label: tx("Toolhead and gantry left out"),
+          value: total.masks === "on" ? tx("yes, in {count} of {total} pictures", { count: total.masked_frames, total: total.frames }) : total.masks === "off" ? tx("no (switched off)") : tx("no: the camera is not calibrated"),
+        }),
     ),
     h(
       "div",

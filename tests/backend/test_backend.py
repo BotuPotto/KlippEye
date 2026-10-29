@@ -43,6 +43,15 @@ def check(name, condition, detail=""):
 _modules = []
 
 
+def _raises(fn):
+    """The exception `fn()` raises (None when it raises none)."""
+    try:
+        fn()
+    except Exception as error:
+        return error
+    return None
+
+
 def load_brain(path, data_dir, fake=None, brain_json=None, name=None):
     """Imports a fresh copy of the Brain with its own data folder (and optionally a prepared brain.json)."""
     os.makedirs(data_dir, exist_ok=True)
@@ -1377,6 +1386,119 @@ check("reset: the draft is gone, the saved calibration stays", not mc.camera_cal
 r = cc.delete("/api/camera/calibration")
 check("DELETE: the saved calibration is forgotten", r.status_code == 200 and cc.get("/api/camera/calibration").get_json()["saved"] is None and not os.path.exists(os.path.join(dcal, "camera.json")))
 fake.state.update({"render": None, "print_state": "printing", "homed": "xyz"})
+
+print("== 1.15.0: machine masks (phase 4b): the toolhead and the gantry left out")
+import machine_masks as _mm  # noqa: E402
+MCAM = dict(TRUE_CAM, z_moves="bed", quality="good")
+# the real printer of this test: its toolhead and gantry (what the camera sees) and the shape the person set (a bit larger)
+REAL_SHAPE = _mm.clean_shape({"toolhead": {"left": 25, "right": 25, "front": 30, "back": 30, "top": 60, "below": 1}, "gantry": {"behind": 25, "depth": 30, "low": 10, "high": 50}})
+SET_SHAPE = _mm.clean_shape({"x_range": [0, 350]})
+_tex2 = _core.cv2.GaussianBlur((_rng.random((CAM_H, CAM_W)) * 120 + 60).astype(_core.np.uint8), (5, 5), 0)
+
+
+def render_machine(pos, failure=False):
+    """The camera picture with the toolhead and the gantry at `pos` and, when `failure`, a lump of plastic on the bed."""
+    img = _core.cv2.cvtColor(_tex2, _core.cv2.COLOR_GRAY2BGR)
+    if failure:
+        uv, _ = _cm.project(MCAM, [[320.0, 60.0, -pos[2]]])
+        _core.cv2.circle(img, (int(uv[0][0] * CAM_W), int(uv[0][1] * CAM_H)), 75, (240, 240, 240), -1)
+    parts = _mm.polygons(MCAM, REAL_SHAPE, pos, (0, 350))
+    for poly, colour in [(p, (90, 60, 30)) for p in parts["gantry"]] + [(p, (25, 25, 25)) for p in parts["toolhead"]]:
+        _core.cv2.fillPoly(img, [(_core.np.array(poly) * [CAM_W, CAM_H]).astype(_core.np.int32)], colour)
+    return img
+
+
+_spots = [(60, 110), (290, 150), (175, 230), (60, 260)]   # four parts on the plate: the toolhead stays half a minute at each
+_mrng = _core.np.random.default_rng(3)
+_path = []
+for _i in range(160):
+    _sx, _sy = _spots[(_i // 10) % len(_spots)]
+    _p = [_sx + _mrng.normal(0, 8), _sy + _mrng.normal(0, 8), 5.0]
+    _path.append((_p, [_p[0] + _mrng.normal(0, 4), _p[1] + _mrng.normal(0, 4), 5.0]))
+
+
+def run_masks(masks, failure_from=None):
+    judge = _core.FrameJudge()
+    judge.verbose = False
+    alarms = []
+    for i, (before, after) in enumerate(_path):
+        now = i * 3.0
+        if now < judge.cooldown_until:
+            continue
+        ignore = _mm.mask(_core.cv2, _core.np, MCAM, SET_SHAPE, [before, after], 540, 360) if masks else None
+        _, trig = judge.judge(render_machine(before, failure_from is not None and i >= failure_from), b"", now, ignore)
+        if trig:
+            alarms.append(i)
+    return alarms, judge
+
+
+poly = _mm.polygons(MCAM, SET_SHAPE, [175.0, 175.0, 5.0], (0, 350))
+_tip, _ = _cm.project(MCAM, [[175.0, 175.0, 0.0]])
+check("the shape: the toolhead outline around the nozzle tip, the gantry in 10 pieces across the picture", len(poly["toolhead"]) == 1 and len(poly["gantry"]) == 10
+      and min(u for u, v in poly["toolhead"][0]) < _tip[0][0] < max(u for u, v in poly["toolhead"][0]) and max(u for p in poly["gantry"] for u, v in p) - min(u for p in poly["gantry"] for u, v in p) > 0.35, poly["toolhead"])
+_m = _mm.mask(_core.cv2, _core.np, MCAM, SET_SHAPE, [[175.0, 175.0, 5.0], [215.0, 175.0, 5.0]], 540, 360)
+_real = _core.cv2.resize(_core.cv2.cvtColor(render_machine([195.0, 175.0, 5.0]), _core.cv2.COLOR_BGR2GRAY), (540, 360)) < 30
+check("the mask covers the toolhead between the two positions of a check (before and after the picture)", _m.shape == (360, 540) and _m[_real].min() == 255, int((_m[_real] == 0).sum()))
+check("no position: no mask (the monitor works as before)", _mm.mask(_core.cv2, _core.np, MCAM, SET_SHAPE, [None, None], 540, 360) is None)
+check("a wrong size is refused (with the limits)", isinstance(_raises(lambda: _mm.clean_shape({"toolhead": {"left": -5}})), _mm.ShapeError))
+check("old calibrations: the shape from the toolhead size (width 80 -> 40 each side)", _mm.from_toolhead_box({"width": 80, "depth": 60, "height": 50})["toolhead"]["left"] == 40.0)
+a_off, _ = run_masks(False)
+a_on, j_on = run_masks(True)
+check("without masks the toolhead moving between parts raises false alarms", len(a_off) >= 2, a_off)
+check("with the masks: no false alarm at all", a_on == [] and j_on.stats["masked"] > 0, (a_on, j_on.stats.get("masked")))
+a_fail, _ = run_masks(True, 80)
+check("... and a real failure (a lump on the bed from check 80) is still caught, within a few checks", a_fail and 80 < a_fail[0] <= 86, a_fail)
+
+# --- the backend: shape, overlay, the mask of the live monitor
+dmk = tmp()
+os.makedirs(dmk, exist_ok=True)
+json.dump(dict(MCAM, saved=int(time.time()), rms_px=1.0, rms=0.001, points={}, toolhead={"width": 60, "depth": 70, "height": 70}, watch={"state": "ok"}), open(os.path.join(dmk, "camera.json"), "w"))
+fake.state.update({"render": None, "print_state": "standby", "position": [175.0, 175.0, 5.0], "homed": "xyz"})
+mk = load_brain(NEW_BRAIN, dmk, fake, brain_json={"values": {"enabled": False}})
+ck = mk.app.test_client()
+j = ck.get("/api/camera/calibration").get_json()
+check("GET: the shape (from the toolhead size of the calibration, gantry on)", j["shape"]["toolhead"]["left"] == 30.0 and j["shape"]["toolhead"]["front"] == 35.0 and j["shape"]["gantry"]["on"] is True, j.get("shape"))
+r = ck.post("/api/camera/shape", json={"toolhead": {"left": 45}, "gantry": {"depth": 25}})
+j = r.get_json()
+check("POST shape: only the given sizes change; kept in machine_shape.json", r.status_code == 200 and j["shape"]["toolhead"]["left"] == 45.0 and j["shape"]["toolhead"]["right"] == 30.0
+      and j["shape"]["gantry"]["depth"] == 25.0 and json.load(open(os.path.join(dmk, "machine_shape.json")))["toolhead"]["left"] == 45.0, j)
+ck.set_cookie("klippeye_lang", "it")
+r = ck.post("/api/camera/shape", json={"toolhead": {"top": 900}})
+ck.delete_cookie("klippeye_lang")
+check("a wrong size: 400 with the limits, in Italian", r.status_code == 400 and r.get_json()["error"] == "ogni misura deve essere da 0 a 400 mm", r.get_json())
+ov = ck.get("/api/camera/overlay").get_json()
+check("overlay: the toolhead and the gantry (10 pieces) drawn, with the shape", ov["ok"] and len(ov["toolhead"]) > 2 and len(ov["gantry"]) == 10 and ov["shape"]["toolhead"]["left"] == 45.0, {k: ov.get(k) for k in ("toolhead", "shape")})
+mm1 = mk.camera_cal.monitor_mask([[175.0, 175.0, 5.0], [180.0, 175.0, 5.0]], 540, 360)
+check("the live monitor gets a mask; the printer's X travel is kept for the replay", mm1 is not None and mm1.shape == (360, 540) and mm1.any()
+      and json.load(open(os.path.join(dmk, "machine_shape.json")))["x_range"] == fake.state["axis_min"][:1] + fake.state["axis_max"][:1])
+mk.camera_cal.watch = {"state": "moved"}
+check("camera moved: no mask (never half masks)", mk.camera_cal.monitor_mask([[175.0, 175.0, 5.0]], 540, 360) is None)
+mk.camera_cal.watch = {"state": "ok"}
+check("the setting 'Leave out the toolhead and the gantry' (on by default)", any(c["key"] == "machine_masks" and c["default"] is True for c in mk.CONFIG_SPEC))
+fake.state["position"] = [175.0, 175.0, 10.0]
+
+# --- the replay with the masks, on a recording with the toolhead positions
+drm = tmp()
+os.makedirs(drm, exist_ok=True)
+for name in ("camera.json", "machine_shape.json"):
+    shutil.copy(os.path.join(dmk, name), os.path.join(drm, name))
+json.dump(SET_SHAPE, open(os.path.join(drm, "machine_shape.json"), "w"))
+rec = _rec.Recorder(os.path.join(drm, "recordings"), _core.cv2, "1.15.0")
+rec.configure(True, 500)
+rec.observe("printing", "four_parts.gcode", 5000.0, {})
+for i, (before, after) in enumerate(_path):
+    rec.add_frame(render_machine(before), 5000.0 + i * 3.0, {"live": [round(v, 1) for v in before], "live2": [round(v, 1) for v in after], "score": None, "trig": False})
+rec.observe("complete", "", 5000.0 + 3 * len(_path))
+rec.set_label(rec.ids()[0], "ok")
+_mj = os.path.join(tmp(), "mm.json")
+rp = _sub2.run([sys.executable, REPLAY, "--data", drm, "--json", _mj], capture_output=True, text=True, timeout=300)
+res_on = json.load(open(_mj))
+rp_off = _sub2.run([sys.executable, REPLAY, "--data", drm, "--set", "machine_masks=off", "--json", _mj], capture_output=True, text=True, timeout=300)
+res_off = json.load(open(_mj))
+check("replay: the masks are used on every recorded picture (they have the position) and the table says so", rp.returncode == 0 and res_on["total"]["masks"] == "on"
+      and res_on["total"]["masked_frames"] == len(_path) and "Toolhead and gantry left out: yes" in rp.stdout, (res_on["total"], rp.stdout[-400:], rp.stderr[-400:]))
+check("replay: fewer false alarms with the masks than with machine_masks=off", res_off["total"]["masks"] == "off" and res_on["total"]["false"] < res_off["total"]["false"],
+      (res_on["total"]["false"], res_off["total"]["false"]))
 
 stop_all()
 fake.close()

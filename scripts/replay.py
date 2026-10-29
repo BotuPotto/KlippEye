@@ -15,6 +15,10 @@ An alarm is the moment the monitor would call the AI. Whether it was false comes
   * not marked: when one of its alarms is marked "right" the print failed from that alarm; when all its alarms are marked
     "false alarm" and the print completed, it went fine; otherwise it is not known.
 The AI itself is never called: this measures the local check that decides when to ask it.
+
+Machine masks (phase 4b): with a camera calibration (camera.json) the toolhead and the gantry are left out at every picture
+that was recorded with the toolhead position (KlippEye 1.13 and later), as the live monitor does. To compare:
+    klippeye replay --set machine_masks=off
 """
 import argparse
 import json
@@ -24,6 +28,7 @@ import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(HERE), "backend"))
+import machine_masks  # noqa: E402
 import monitor_core  # noqa: E402
 from monitor_core import FrameJudge  # noqa: E402
 
@@ -77,9 +82,24 @@ def truth_of(session):
     return None, None, None
 
 
-def replay_session(folder, session, settings):
-    """Runs the monitor on one recording. -> dict with the alarms and the time it took."""
+def load_masks(data_dir):
+    """The camera calibration and the shape of the moving parts, when the calibration is good enough. -> dict or None."""
+    calibration = read_json(os.path.join(data_dir, "camera.json"))
+    if not isinstance(calibration, dict) or calibration.get("quality") not in ("good", "fair") or not calibration.get("params"):
+        return None
+    stored = read_json(os.path.join(data_dir, "machine_shape.json"))
+    try:
+        shape = machine_masks.clean_shape(stored) if stored else machine_masks.from_toolhead_box(calibration.get("toolhead"))
+    except ValueError:
+        shape = machine_masks.from_toolhead_box(calibration.get("toolhead"))
+    return {"calibration": calibration, "shape": shape, "x_range": shape.get("x_range")}
+
+
+def replay_session(folder, session, settings, masks=None):
+    """Runs the monitor on one recording. -> dict with the alarms and the time it took.
+    `masks` (load_masks): leave out the toolhead and the gantry at the recorded positions (unless machine_masks is off)."""
     cv2, np = monitor_core.cv2, monitor_core.np
+    use_masks = masks is not None and settings.get("machine_masks", True) is not False
     judge = FrameJudge()
     judge.verbose = False
     judge.apply_config(settings)
@@ -94,7 +114,7 @@ def replay_session(folder, session, settings):
     except OSError:
         pass
     frames.sort(key=lambda row: row.get("n", 0))
-    alarms, judged, spent = [], 0, 0.0
+    alarms, judged, spent, masked = [], 0, 0.0, 0
     for row in frames:
         t = row.get("t")
         if not isinstance(t, (int, float)) or t < judge.cooldown_until:
@@ -108,19 +128,25 @@ def replay_session(folder, session, settings):
         frame = cv2.imdecode(np.frombuffer(raw, np.uint8), cv2.IMREAD_COLOR)
         if frame is None:
             continue
-        _, triggered = judge.judge(frame, raw, t)
+        ignore = None
+        if use_masks and row.get("live"):
+            ignore = machine_masks.mask(cv2, np, masks["calibration"], masks["shape"], [row.get("live"), row.get("live2")],
+                                        monitor_core.OPENCV_WIDTH // 2, monitor_core.OPENCV_HEIGHT // 2, masks["x_range"])
+            masked += ignore is not None
+        _, triggered = judge.judge(frame, raw, t, ignore)
         spent += time.perf_counter() - started
         judged += 1
         if triggered:
             alarms.append({"t": round(t, 2), "frame": row["n"], "layer": row.get("layer"), "progress": row.get("progress")})
     times = [row["t"] for row in frames if isinstance(row.get("t"), (int, float))]
-    return {"frames": len(frames), "judged": judged, "alarms": alarms, "ms_per_check": round(spent * 1000 / judged, 1) if judged else None,
+    return {"frames": len(frames), "judged": judged, "alarms": alarms, "masked": masked, "ms_per_check": round(spent * 1000 / judged, 1) if judged else None,
             "first": min(times) if times else session.get("started"), "last": max(times) if times else (session.get("ended") or session.get("started"))}
 
 
 def measure(data_dir, ids=None, current=False, overrides=None):
     root = os.path.join(data_dir, "recordings")
     now_values = (read_json(os.path.join(data_dir, "monitor.json"), {}) or {}).get("values") or {}
+    masks = load_masks(data_dir)
     try:
         names = sorted(n for n in os.listdir(root) if all(c in ID_CHARS for c in n) and os.path.isfile(os.path.join(root, n, "session.json")))
     except OSError:
@@ -136,7 +162,7 @@ def measure(data_dir, ids=None, current=False, overrides=None):
         if current:
             settings.update(now_values)
         settings.update(overrides or {})
-        result = replay_session(os.path.join(root, name), session, settings)
+        result = replay_session(os.path.join(root, name), session, settings, masks)
         outcome, failed_at, source = truth_of(session)
         hours = max(0.0, (result["last"] or 0) - (result["first"] or 0)) / 3600.0
         false = seen = delay = None
@@ -155,7 +181,7 @@ def measure(data_dir, ids=None, current=False, overrides=None):
                "alarm_list": result["alarms"], "per_hour": round(len(result["alarms"]) / hours, 2) if hours > 0 else None,
                "false": false, "seen": seen, "delay_s": delay, "live_alarms": len(session.get("live_triggers") or []),
                "alerts_false": labels.count("false"), "alerts_right": labels.count("right"),
-               "ms_per_check": result["ms_per_check"], "live_cpu": session.get("cpu") or {}}
+               "ms_per_check": result["ms_per_check"], "live_cpu": session.get("cpu") or {}, "masked_frames": result["masked"]}
         sessions.append(row)
         total["hours"] += hours
         total["alarms"] += row["alarms"]
@@ -178,6 +204,8 @@ def measure(data_dir, ids=None, current=False, overrides=None):
         "failures": total["failures"], "seen": total["seen"],
         "average_delay_s": round(sum(total["delays"]) / len(total["delays"])) if total["delays"] else None,
         "ms_per_check": round(sum(total["ms"]) / len(total["ms"]), 1) if total["ms"] else None,
+        "masked_frames": sum(s["masked_frames"] for s in sessions), "frames": sum(s["frames"] for s in sessions),
+        "masks": "off" if (overrides or {}).get("machine_masks") is False else ("on" if masks else "no calibration"),
     }
     return {"ok": True, "time": int(time.time()), "settings": "current" if current else "as recorded", "overrides": overrides or {},
             "sessions": sessions, "total": summary}
@@ -207,6 +235,8 @@ def table(result):
     lines.insert(len(lines) - 1, "-" * len(lines[0]))
     out = "\n".join(lines)
     out += "\n\nThresholds: %s%s" % (result["settings"], (" + " + ", ".join("%s=%s" % kv for kv in result["overrides"].items())) if result["overrides"] else "")
+    out += "\nToolhead and gantry left out: %s" % {"on": "yes, in %d of %d pictures (those with the toolhead position)" % (t.get("masked_frames", 0), t.get("frames", 0)),
+                                                "off": "no (machine_masks=off)", "no calibration": "no (the camera is not calibrated)"}.get(t.get("masks"), "-")
     out += "\nFalse alarms per hour of print known to be fine: %s" % fmt(t["false_per_hour"])
     if t["failures"]:
         out += "\nFailed prints whose problem was caught: %d of %d%s" % (t["seen"], t["failures"], (", on average after " + minutes(t["average_delay_s"])) if t["average_delay_s"] is not None else "")

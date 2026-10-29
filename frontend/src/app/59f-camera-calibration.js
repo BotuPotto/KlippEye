@@ -3,13 +3,15 @@
    The page "Calibra la camera" of the settings menu (roadmap phase 4): the backend learns where every point of the
    printer appears in the camera picture (backend/camera_calibration.py, camera_model.py), so that the AI monitor can
    leave the toolhead out and know where the part is. The person:
-     1. says how Z moves (the bed, or the toolhead) and how big the toolhead is;
+     1. says how Z moves (the bed, or the toolhead);
      2. (Z moves the bed) puts six markers on the bed: six small pyramids printed from the STL made here (KlippEye then
         reads where they ended up in the G-code that printed them), or six quick blobs left by the printer itself;
      3. for each of about twelve points: the printer goes there, the person taps the nozzle tip (or the marker) in the
         picture, then taps again in the magnified view to be precise;
      4. "Calculate": the error in pixels and the points to redo; "Save" when it is good;
-     5. checks it live: the toolhead outline and the bed are drawn over the picture while the toolhead moves.
+     5. checks it live: the toolhead outline and the bed are drawn over the picture while the toolhead moves;
+     6. (phase 4b) adjusts the shape of the toolhead and of the gantry on the live picture, until the drawing covers them:
+        the monitor leaves those parts out of its checks (backend/machine_masks.py).
    The calibration is valid until the camera moves: the backend compares the picture with the one taken at calibration
    every ten minutes and, when the camera has moved, says so here and stops using the calibration.
    ========================================================================== */
@@ -17,11 +19,23 @@
 const CAMCAL_POLL_MS = 3000;
 const CAMCAL_LIVE_MS = 1500;
 const LOUPE_ZOOM = 4;
-const TOOLHEAD_FIELDS = [
-  { key: "width", label: tx("Width (X)") },
-  { key: "depth", label: tx("Depth (Y)") },
-  { key: "height", label: tx("Height above the nozzle") },
-];
+const SHAPE_STEP_MM = 5;
+const SHAPE_FIELDS = {
+  toolhead: [
+    { key: "left", label: tx("Left of the nozzle (X−)") },
+    { key: "right", label: tx("Right of the nozzle (X+)") },
+    { key: "front", label: tx("In front of the nozzle (Y−)") },
+    { key: "back", label: tx("Behind the nozzle (Y+)") },
+    { key: "top", label: tx("Above the nozzle tip") },
+    { key: "below", label: tx("Below the nozzle tip") },
+  ],
+  gantry: [
+    { key: "behind", label: tx("Starts behind the nozzle (Y+)") },
+    { key: "depth", label: tx("Depth (Y)") },
+    { key: "low", label: tx("Lower edge above the nozzle tip") },
+    { key: "high", label: tx("Upper edge above the nozzle tip") },
+  ],
+};
 const QUALITY_TEXT = { good: tx("good"), fair: tx("acceptable"), poor: tx("not good enough") };
 
 /** POST to the calibration API; resolves { ok, data, message } like brainPost, with a longer wait (moves take time). */
@@ -93,11 +107,12 @@ function Loupe({ src, camera, tap, onTap, aspect }) {
 }
 
 /** Live picture with the toolhead outline, the nozzle and the bed drawn from the calibration (saved, or the one just calculated). */
-function LiveCheck({ camera, draft }) {
+function LiveCheck({ camera, draft, editShape }) {
   const [stamp, setStamp] = useState(() => Date.now());
   const [overlay, setOverlay] = useState(null);
   const [problem, setProblem] = useState("");
   const [busy, setBusy] = useState(false);
+  const readRef = useRef(noop);
   useEffect(() => {
     let cancelled = false;
     const read = async () => {
@@ -112,7 +127,12 @@ function LiveCheck({ camera, draft }) {
       } catch (error) {}
       if (!cancelled) setStamp(Date.now());
     };
-    return startPolling(read, CAMCAL_LIVE_MS);
+    readRef.current = read;
+    const stop = startPolling(read, CAMCAL_LIVE_MS);
+    return () => {
+      cancelled = true;
+      stop();
+    };
   }, [draft]);
   const jog = async (dx, dy, dz) => {
     setBusy(true);
@@ -128,12 +148,83 @@ function LiveCheck({ camera, draft }) {
       CameraFrame,
       { src: "/api/print/snapshot?t=" + stamp, camera, label: tx("Live picture with the calibration drawn over it") },
       overlay && overlay.bed.length > 2 && h("polygon", { className: "cal-bed", points: pointsAttr(overlay.bed) }),
+      overlay && (overlay.gantry || []).map((piece, index) => h("polygon", { key: "g" + index, className: "cal-gantry", points: pointsAttr(piece) })),
       overlay && overlay.toolhead.length > 2 && h("polygon", { className: "cal-toolhead", points: pointsAttr(overlay.toolhead) }),
       overlay && overlay.nozzle && h(Cross, { u: overlay.nozzle[0], v: overlay.nozzle[1], tone: "nozzle" }),
     ),
-    h("p", { className: "set-group__note" }, tx("Purple: the toolhead as the monitor will see it; dashed: the bed. Move the toolhead: the drawing must follow it.") + (overlay ? " X " + overlay.position[0] + " • Y " + overlay.position[1] + " • Z " + overlay.position[2] : "")),
+    h("p", { className: "set-group__note" }, tx("Purple: the toolhead; orange: the gantry; dashed: the bed. Move the toolhead: the drawing must follow it.") + (overlay ? " X " + overlay.position[0] + " • Y " + overlay.position[1] + " • Z " + overlay.position[2] : "")),
     h("div", { className: "cal-jog" }, step("X −20", -20, 0, 0), step("X +20", 20, 0, 0), step("Y −20", 0, -20, 0), step("Y +20", 0, 20, 0), step("Z −10", 0, 0, -10), step("Z +10", 0, 0, 10)),
     problem && h("p", { className: "set-field__error", role: "alert" }, problem),
+    editShape && overlay && overlay.shape && h(ShapeEditor, { shape: overlay.shape, onSaved: () => readRef.current() }),
+  );
+}
+
+/**
+ * The size of the toolhead and of the gantry around the nozzle, adjusted while looking at the drawing: what is inside the
+ * purple and orange outlines is left out of the monitor's checks, so they must cover the parts (a little more is fine,
+ * much more hides a problem near the nozzle).
+ */
+function ShapeEditor({ shape, onSaved }) {
+  const [local, setLocal] = useState(shape);
+  const [problem, setProblem] = useState("");
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    if (!busy) setLocal(shape);
+  }, [JSON.stringify(shape)]);
+  const send = async (part, values) => {
+    const next = { ...local, [part]: { ...local[part], ...values } };
+    setLocal(next);
+    setBusy(true);
+    const reply = await camcalPost("shape", { [part]: values });
+    setBusy(false);
+    if (reply.ok) {
+      setProblem("");
+      setLocal(reply.data.shape);
+      onSaved();
+    } else setProblem(reply.message);
+  };
+  const row = (part, field) => {
+    const value = local[part][field.key];
+    return h(
+      "div",
+      { key: part + field.key, className: "cal-size" },
+      h("span", { className: "cal-size__label" }, field.label),
+      h("button", { type: "button", className: "oui-btn oui-btn--sm", "aria-label": field.label + " −", "data-size": part + "." + field.key + ".minus", onClick: () => send(part, { [field.key]: value - SHAPE_STEP_MM }) }, "−"),
+      h("span", { className: "cal-size__value", "data-value": part + "." + field.key }, formatNumber(value), " mm"),
+      h("button", { type: "button", className: "oui-btn oui-btn--sm", "aria-label": field.label + " +", "data-size": part + "." + field.key + ".plus", onClick: () => send(part, { [field.key]: value + SHAPE_STEP_MM }) }, "+"),
+    );
+  };
+  return h(
+    "div",
+    { className: "cal-shape" },
+    h("h3", { className: "cal-shape__title" }, tx("Toolhead")),
+    h("p", { className: "set-group__note" }, tx("A box around the nozzle tip, with fan ducts and cables: make the purple outline cover the toolhead, with a little room. Move the toolhead to a few places to check it.")),
+    SHAPE_FIELDS.toolhead.map((field) => row("toolhead", field)),
+    h("h3", { className: "cal-shape__title" }, tx("Gantry")),
+    h(SwitchRow, { title: tx("Leave out the gantry too"), detail: tx("The bar that carries the toolhead across the whole printer (VzBot, Voron, most CoreXY)."), checked: local.gantry.on, onChange: (on) => send("gantry", { on }) }),
+    local.gantry.on && h("p", { className: "set-group__note" }, tx("The orange bar goes from side to side and moves with the toolhead: make it cover the bar, with a little room.")),
+    local.gantry.on && SHAPE_FIELDS.gantry.map((field) => row("gantry", field)),
+    problem && h("p", { className: "set-field__error", role: "alert" }, problem),
+  );
+}
+
+/** A small drawing of what to tap: the nozzle tip, or the tip of a marker. */
+function TapHint({ kind }) {
+  const cross = (x, y) => h("g", { className: "cal-hint__cross" }, h("circle", { cx: x, cy: y, r: 7 }), h("line", { x1: x - 12, y1: y, x2: x + 12, y2: y }), h("line", { x1: x, y1: y - 12, x2: x, y2: y + 12 }));
+  return h(
+    "svg",
+    { className: "cal-hint", viewBox: "0 0 160 90", role: "img", "aria-label": kind === "mark" ? tx("Tap the top tip of the marker") : tx("Tap the lowest point of the nozzle") },
+    kind === "mark"
+      ? h(React.Fragment, null, h("line", { className: "cal-hint__bed", x1: 10, y1: 78, x2: 150, y2: 78 }), h("polygon", { className: "cal-hint__marker", points: "50,78 80,30 110,78" }), cross(80, 30))
+      : h(
+          React.Fragment,
+          null,
+          h("rect", { className: "cal-hint__block", x: 55, y: 4, width: 50, height: 26, rx: 3 }),
+          h("polygon", { className: "cal-hint__nozzle", points: "68,30 92,30 86,46 74,46" }),
+          h("polygon", { className: "cal-hint__nozzle", points: "74,46 86,46 80,56" }),
+          h("polygon", { className: "cal-hint__marker cal-hint__marker--faint", points: "60,86 80,62 100,86" }),
+          cross(80, 56),
+        ),
   );
 }
 
@@ -143,43 +234,15 @@ function LiveCheck({ camera, draft }) {
 function KindStep({ state, onChange, busy }) {
   const draft = state.draft || {};
   const chosen = draft.z_moves || "";
-  const tool = draft.toolhead || {};
-  const [sizes, setSizes] = useState(() => ({ width: tool.width || 60, depth: tool.depth || 70, height: tool.height || 70 }));
   const options = [
     { id: "bed", label: tx("Z moves the bed"), detail: tx("VzBot, Voron Trident, RatRig V-Core, most CoreXY") },
     { id: "toolhead", label: tx("Z moves the toolhead"), detail: tx("Voron 2.4 and other printers whose gantry goes up and down") },
   ];
   return h(
-    React.Fragment,
-    null,
-    h(
-      SettingsGroup,
-      { title: tx("How does the Z axis move?"), note: (state.guess && !chosen ? tx("From Klipper's configuration it looks like: {kind}.", { kind: options.find((o) => o.id === state.guess).label }) + " " : "") + tx("Printers whose bed moves in Y (Prusa, Ender) are not supported yet.") },
-      h(ChoiceRows, { options, value: chosen || state.guess, label: tx("How does the Z axis move?"), onChange: (id) => onChange({ z_moves: id, toolhead: sizes }) }),
-    ),
-    h(
-      SettingsGroup,
-      { title: tx("Size of the toolhead"), note: tx("A box around the nozzle, from the tip upwards, in mm: with fan duct and cables. Used for the drawing (and later for leaving the toolhead out).") },
-      h(
-        "div",
-        { className: "set-grid" },
-        TOOLHEAD_FIELDS.map((field) =>
-          h(
-            "label",
-            { key: field.key, className: "set-field" },
-            h("span", { className: "set-field__label" }, field.label),
-            h("input", {
-              className: "oui-field oui-field--num set-field__input",
-              inputMode: "numeric",
-              value: sizes[field.key],
-              onChange: (event) => /^\d{0,3}$/.test(event.target.value) && setSizes({ ...sizes, [field.key]: event.target.value }),
-              onBlur: () => chosen && onChange({ toolhead: { width: Number(sizes.width) || 60, depth: Number(sizes.depth) || 70, height: Number(sizes.height) || 70 } }),
-            }),
-          ),
-        ),
-      ),
-      !chosen && h("button", { type: "button", className: "oui-btn oui-btn--primary oui-btn--block", disabled: busy || !state.guess, onClick: () => onChange({ z_moves: state.guess, toolhead: { width: Number(sizes.width) || 60, depth: Number(sizes.depth) || 70, height: Number(sizes.height) || 70 } }) }, tx("Go on")),
-    ),
+    SettingsGroup,
+    { title: tx("How does the Z axis move?"), note: (state.guess && !chosen ? tx("From Klipper's configuration it looks like: {kind}.", { kind: options.find((o) => o.id === state.guess).label }) + " " : "") + tx("Printers whose bed moves in Y (Prusa, Ender) are not supported yet.") },
+    h(ChoiceRows, { options, value: chosen || state.guess, label: tx("How does the Z axis move?"), onChange: (id) => onChange({ z_moves: id }) }),
+    !chosen && h("button", { type: "button", className: "oui-btn oui-btn--primary oui-btn--block", disabled: busy || !state.guess, onClick: () => onChange({ z_moves: state.guess }) }, tx("Go on")),
   );
 }
 
@@ -319,7 +382,7 @@ function PointsStep({ state, camera, run, busy }) {
     target &&
       h(
         SettingsGroup,
-        { title: tx("Points: {done} of {total}", { done, total: targets.length }) },
+        { title: tx("Points: {done} of {total}", { done, total: targets.length }), note: tx("For each point: 1. «Go to point»: the printer moves and a new picture appears. 2. Tap the picture where the point is. 3. In the magnified view, tap exactly on it. 4. «Keep this point». Green numbers are done; tap a number to see or redo it.") },
         h(
           "div",
           { className: "cal-targets", role: "group", "aria-label": tx("Points") },
@@ -339,11 +402,16 @@ function PointsStep({ state, camera, run, busy }) {
           ),
         ),
         h(
-          "p",
-          { className: "set-group__note cal-instruction" },
-          target.kind === "mark"
-            ? tx("Point {n}: the bed goes down and the nozzle moves away. Tap the tip of the marker at X {x}, Y {y} (the centre, for a blob).", { n: targets.indexOf(target) + 1, x: target.x, y: target.y })
-            : tx("Point {n}: the nozzle goes to X {x}, Y {y}, Z {z}. Tap the very tip of the nozzle.", { n: targets.indexOf(target) + 1, x: target.x, y: target.y, z: target.z }),
+          "div",
+          { className: "cal-instruction-row" },
+          h(TapHint, { kind: target.kind }),
+          h(
+            "p",
+            { className: "set-group__note cal-instruction", "data-kind": target.kind },
+            target.kind === "mark"
+              ? tx("Point {n}: the bed goes down and the nozzle moves to the back. Tap the TOP TIP of the marker at X {x}, Y {y} (for a blob: its centre).", { n: targets.indexOf(target) + 1, x: target.x, y: target.y })
+              : tx("Point {n}: the nozzle goes to X {x}, Y {y}, Z {z}. Tap the LOWEST POINT OF THE NOZZLE (the metal tip), not the marker under it.", { n: targets.indexOf(target) + 1, x: target.x, y: target.y, z: target.z }),
+          ),
         ),
         h("button", { type: "button", className: "oui-btn oui-btn--primary oui-btn--block", "data-go": target.id, disabled: busy, onClick: go }, at ? tx("Go there again") : tx("Go to point {n}", { n: targets.indexOf(target) + 1 })),
         at &&
@@ -477,7 +545,12 @@ function CameraCalibrationPage({ active }) {
       : h(
           React.Fragment,
           null,
-          saved && h(SettingsGroup, { title: tx("Check it on the live picture") }, h(LiveCheck, { camera, draft: false })),
+          saved &&
+            h(
+              SettingsGroup,
+              { title: tx("Toolhead and gantry on the live picture"), note: tx("What is inside the outlines is left out of the AI monitor's checks (Settings → Monitor thresholds → False alarms). Adjust the sizes until the outlines cover the toolhead and the gantry wherever they are.") },
+              h(LiveCheck, { camera, draft: false, editShape: true }),
+            ),
           h(
             SettingsGroup,
             { note: tx("About ten minutes, once: do it again only if you move the camera.") },

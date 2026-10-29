@@ -109,29 +109,58 @@ and `~/printer_data/klippeye/alerts/`).
 
 ### Calibrating the camera
 
-**Settings → Camera calibration** teaches KlippEye where every point of the printer appears in the camera picture, so that
-the monitor can tell the toolhead from a problem (the masks come in the next release). About ten minutes, once:
+**Settings → Camera calibration** teaches KlippEye where every point of the printer appears in the camera picture. With it
+the AI monitor knows, at every check, where the toolhead and the gantry are and leaves them out (they are the main cause of
+false alarms). About fifteen minutes, once; again only if you move the camera.
 
-1. Say how the **Z axis** moves: the **bed** (VzBot, Voron Trident, RatRig V-Core…) or the **toolhead** (Voron 2.4…), and
-   the size of the toolhead. Printers whose bed moves in Y (Prusa, Ender) are not supported yet.
-2. Clean bed, the light as during prints, then **Home**.
-3. When Z moves the bed, six **markers** on the bed are needed (the nozzle alone is always at the same height for the
-   camera). Two ways:
+**Before you start**: clean bed, the light as during prints, the printer idle. The printer moves by itself during the
+calibration: keep your hands out.
+
+1. **How does the Z axis move?** The **bed** (VzBot, Voron Trident, RatRig V-Core, most CoreXY) or the **toolhead**
+   (Voron 2.4). KlippEye proposes the answer from Klipper's configuration. Printers whose bed moves in Y (Prusa, Ender) are
+   not supported yet.
+2. **Home** the printer.
+3. **Markers** (only when Z moves the bed: for the camera the nozzle alone is always at the same height, so six markers on
+   the bed give the second height). Two ways:
    * **Print the markers (recommended)**: **Download the markers (STL)**, six small pyramids already placed for your bed.
-     Slice the file with your usual settings (no supports, a colour that stands out on the bed; keep the position the
-     STL gives), print it and leave it on the bed. Then choose the G-code you printed and **Read the markers from this
-     file**: KlippEye finds where the slicer put the pyramids and how tall they came out.
+     Slice the file with your usual settings (no supports, a colour that stands out on the bed), print it and leave it on
+     the bed. Then choose the G-code you printed and **Read the markers from this file**: KlippEye finds where the slicer
+     put the pyramids and how tall they came out (the slicer may move them: it does not matter).
    * **Quick blobs**: choose the nozzle and bed temperatures and **Make the 6 blobs**: the printer leaves six small discs
      of filament (with retraction and a Z hop between them). Faster, less precise.
-4. For each of the 12 points press **Go to point**, tap the nozzle tip (or the tip of the marker) in the picture, tap
-   again exactly in the magnified view and **Keep this point**.
-5. **Calculate the calibration**: the average error in pixels; the points to redo turn red. The live picture shows the
-   toolhead outline and the bed drawn over it: move the toolhead with the buttons, the drawing must follow it.
-   **Save the calibration**, then remove the markers.
+4. **The 12 points.** For each point:
+   1. press **Go to point**: the printer moves and a new picture appears;
+   2. tap the picture where the point is (see the table below);
+   3. a magnified view opens: tap again **exactly** on the point;
+   4. **Keep this point**.
+
+   | Points | What happens | What to tap |
+   |---|---|---|
+   | 1 to 6 | the nozzle stops 3 mm above a marker (Z moves the bed) or at a point of the bed (Z moves the toolhead) | the **lowest point of the nozzle**, the metal tip, **not** the marker under it |
+   | 7 to 12, Z moves the bed | the bed goes down and the nozzle goes to the back | the **top tip of the marker** (for a blob: its centre) |
+   | 7 to 12, Z moves the toolhead | the nozzle goes to the same points, higher | the **lowest point of the nozzle** |
+
+   The page shows a small drawing of what to tap at each point. Green numbers are done; tap a number to see it or redo it.
+   The yellow cross is your tap, the green cross a point already kept.
+5. **Calculate the calibration**: the average error in pixels (good: a few pixels) and, in red, the points to redo (a tap
+   on the wrong thing: redo just those and calculate again). The live picture shows the toolhead and the bed drawn over it:
+   move the toolhead with the buttons, the drawing must follow it. **Save the calibration**, then remove the markers.
+
+**Toolhead and gantry.** After saving, the page shows the live picture with the **toolhead** (purple) and the **gantry**
+(orange: the bar that carries the toolhead from side to side) drawn over it. What is inside those outlines is what the
+monitor leaves out, so they must cover the parts, with a little room (much more would hide a problem near the nozzle).
+Adjust them with **−** and **+** (5 mm a step), moving the toolhead with the buttons to check a few places:
+
+* toolhead: how far it goes **left, right, in front of and behind the nozzle**, **above** the nozzle tip and below it;
+* gantry: where the bar **starts behind the nozzle**, how **deep** it is and its **lower and upper edges** above the nozzle
+  tip. Switch it off if your printer has no gantry crossing the picture.
+
+The switch **Settings → Monitor thresholds → False alarms → Leave out the toolhead and the gantry** (on by default) turns
+the masks on and off.
 
 The calibration is valid **until the camera moves**. Every ten minutes the backend compares the picture with the one taken
 at calibration; if the camera has moved, the page (and its line in the menu) says so and the monitor stops using the
-calibration until you calibrate again.
+calibration (and the masks) until you calibrate again. The sizes of the toolhead and the gantry are kept.
 
 ### Measuring the monitor (recordings)
 
@@ -144,7 +173,9 @@ Instead of guessing whether a change of the thresholds helps, measure it:
    **It went fine**, or, if it failed, move to the first picture where the problem shows and press **It failed from here**.
 3. **Measure now** runs the monitor again on every recorded print, with the thresholds in use now, and shows the alarms per
    hour, how many were false and whether each failure was caught (and how long it took). From the terminal, to compare other
-   thresholds: `klippeye replay --set sensitivity=45 --set persist_checks=4` (options: `scripts/replay.py`).
+   thresholds: `klippeye replay --set sensitivity=45 --set persist_checks=4` (options: `scripts/replay.py`). With a camera
+   calibration the replay leaves out the toolhead and the gantry like the live monitor (on the prints recorded with
+   KlippEye 1.13 or later, which keep the toolhead position); `--set machine_masks=off` compares without them.
 
 The page also shows the **monitor load**: the time of one check and the CPU the backend used in the last minute.
 
