@@ -1621,6 +1621,33 @@ check("replay: with the recorded objects the failure next to the part is caught,
       and resz["sessions"][0]["false"] == 0 and resz["total"]["zoned_frames"] >= 150 and "Whole bed watched outside the parts: yes" in rpz.stdout, (resz["sessions"][0], rpz.stdout[-300:], rpz.stderr[-500:]))
 check("replay --set expected_zone=off: the same failure is missed (outer band only)", resz_off["total"]["zone"] == "off" and resz_off["sessions"][0]["seen"] is False, resz_off["sessions"][0])
 
+print("== 1.17.0: any user, any folders (phase 5a)")
+import printer_paths as _pp  # noqa: E402
+_proot = tmp()
+for _d in ("cfg", "lg"):
+    os.makedirs(os.path.join(_proot, _d), exist_ok=True)
+open(os.path.join(_proot, "lg", "klippy.log"), "w").write("Klipper state: Ready\n")
+open(os.path.join(_proot, "cfg", "macros.cfg"), "w").write("[gcode_macro MY_PARK]\ngcode:\n  G28\n")
+_pp.forget()
+fake.state["roots"] = {"config": os.path.join(_proot, "cfg"), "logs": os.path.join(_proot, "lg"), "gcodes": os.path.join(_proot, "gc")}
+_pb = load_brain(NEW_BRAIN, tmp(), fake, brain_json={"values": {"enabled": False}})
+_pbc = _pb.app.test_client()
+check("the folders come from Moonraker (its file roots), whatever the user", _pb._config_dir() == os.path.join(_proot, "cfg") and _pb._logs_dir() == os.path.join(_proot, "lg")
+      and _pb._macro_dirs()[0] == os.path.join(_proot, "cfg") and _pb._shaketune_dirs()[0] == os.path.join(_proot, "cfg", "shaketune"), (_pb._config_dir(), _pb._logs_dir()))
+_lj = _pbc.get("/api/logs/list").get_json()
+check("the logs page lists the logs of that folder", _lj.get("dir") == os.path.join(_proot, "lg") and [f["name"] for f in _lj["files"]] == ["klippy.log"], _lj)
+_pp.forget()
+fake.state["roots"] = None
+_home = tmp()
+os.makedirs(os.path.join(_home, "klipper_config"))
+_old_home = os.environ.get("HOME")
+os.environ["HOME"] = _home
+check("Moonraker not answering: the usual places in the user's home (also the old ~/klipper_config)", _pp.config_dir() == os.path.join(_home, "klipper_config")
+      and _pp.logs_dir() == os.path.join(_home, "printer_data", "logs"))
+if _old_home is not None:
+    os.environ["HOME"] = _old_home
+_pp.forget()
+
 stop_all()
 fake.close()
 print("\n%d PASS, %d FAIL" % (passed, failed))

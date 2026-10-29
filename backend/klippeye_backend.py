@@ -994,20 +994,26 @@ import glob as globmod
 import re as re_global
 import os
 
-MACRO_BASE_DIRS = [
-    "/home/pi/printer_data/config",
-    "/home/pi/klipper_config",
-    "/home/pi/klippain_shaketune",
-    "/home/pi/klippain_shaketune/shaketune",
-]
+# Where the macro files, Shake&Tune and the logs are: asked to Moonraker (its file roots), never a fixed user folder
+# (printer_paths.py: any user, several printers, the old ~/klipper_config layout).
+import printer_paths  # noqa: E402
 
-SHAKETUNE_PATHS = [
-    "/home/pi/printer_data/config/shaketune",
-    "/home/pi/klipper_config/shaketune",
-    "/home/pi/klippain_shaketune",
-    "/home/pi/klippain_shaketune/shaketune",
-    "/home/pi/klippain_shaketune/config",
-]
+
+def _config_dir():
+    return printer_paths.config_dir(MOONRAKER_URL, requests)
+
+
+def _logs_dir():
+    return printer_paths.logs_dir(MOONRAKER_URL, requests)
+
+
+def _macro_dirs():
+    return printer_paths.macro_dirs(MOONRAKER_URL, requests)
+
+
+def _shaketune_dirs():
+    return printer_paths.shaketune_dirs(MOONRAKER_URL, requests)
+
 
 def extract_params_with_defaults(gcode_text):
     params = []
@@ -1152,7 +1158,7 @@ def parse_macros_from_file(filepath):
 
 def scan_shaketune_folders():
     found = []
-    for base in SHAKETUNE_PATHS:
+    for base in _shaketune_dirs():
         if not os.path.exists(base):
             continue
         for root, dirs, files in os.walk(base):
@@ -1187,8 +1193,8 @@ def api_macros_list():
         moon_files, files_status = get_files_from_moonraker_config()
         macros_map, moon_status = get_macros_from_moonraker_both()
         
-        base_dir = "/home/pi/printer_data/config"
-        for bd in MACRO_BASE_DIRS:
+        base_dir = _config_dir()
+        for bd in _macro_dirs():
             if os.path.exists(bd):
                 base_dir = bd
                 break
@@ -1205,7 +1211,7 @@ def api_macros_list():
                 if os.path.exists(full):
                     files_to_scan.add(full)
         
-        for base in SHAKETUNE_PATHS:
+        for base in _shaketune_dirs():
             if os.path.exists(base):
                 for root, dirs, files in os.walk(base):
                     for fname in files:
@@ -1354,20 +1360,19 @@ def api_calibration_selected_post():
         return jsonify({"ok": False, "error": str(e), "trace": traceback.format_exc()}), 500
 
 # === LOGS SYSTEM V27 ===
-LOGS_DIR = "/home/pi/printer_data/logs"
 
 
 @app.route("/api/logs/list", methods=["GET"])
 def api_logs_list():
     try:
-        if not os.path.exists(LOGS_DIR):
-            return jsonify({"error": f"logs dir not found: {LOGS_DIR}", "files": []}), 404
+        if not os.path.exists(_logs_dir()):
+            return jsonify({"error": f"logs dir not found: {_logs_dir()}", "files": []}), 404
         files = []
-        for name in os.listdir(LOGS_DIR):
+        for name in os.listdir(_logs_dir()):
             # ignora *.log.* (vecchi log rotati)
             if ".log." in name:
                 continue
-            full = os.path.join(LOGS_DIR, name)
+            full = os.path.join(_logs_dir(), name)
             if not os.path.isfile(full):
                 continue
             try:
@@ -1383,7 +1388,7 @@ def api_logs_list():
                 files.append({"name": name, "error": str(e)})
         # sort by modified desc (newest first)
         files.sort(key=lambda x: x.get("modified",0), reverse=True)
-        return jsonify({"dir": LOGS_DIR, "files": files, "count": len(files)})
+        return jsonify({"dir": _logs_dir(), "files": files, "count": len(files)})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -1398,7 +1403,7 @@ def api_logs_content():
             return jsonify({"error": "invalid filename"}), 400
         if ".log." in fname:
             return jsonify({"error": "rotated log not allowed"}), 400
-        full = os.path.join(LOGS_DIR, fname)
+        full = os.path.join(_logs_dir(), fname)
         if not os.path.exists(full):
             return jsonify({"error": "file not found"}), 404
         # read the last N lines
@@ -1434,7 +1439,7 @@ def api_logs_download():
         fname = request.args.get("file") or ""
         if not fname or "/" in fname or ".." in fname or ".log." in fname:
             return jsonify({"error": "invalid"}), 400
-        full = os.path.join(LOGS_DIR, fname)
+        full = os.path.join(_logs_dir(), fname)
         if not os.path.exists(full):
             return jsonify({"error": "not found"}), 404
         return send_file(full, as_attachment=True, download_name=fname)
@@ -1465,11 +1470,11 @@ def load_ai_config():
 
 def get_logs_combined(max_files=25, lines_per_file=400, max_chars=12000):
     """Takes ALL the .log files (not *.log.*), klippy and moonraker first"""
-    if not os.path.exists(LOGS_DIR):
+    if not os.path.exists(_logs_dir()):
         return "", []
     files=[]
     try:
-        for name in os.listdir(LOGS_DIR):
+        for name in os.listdir(_logs_dir()):
             if ".log." in name:  # esclude rotati tipo klippy.log.2024-10-01
                 continue
             if not name.endswith('.log'):
@@ -1477,7 +1482,7 @@ def get_logs_combined(max_files=25, lines_per_file=400, max_chars=12000):
                 # but also .log files with odd prefixes
                 if '.log' not in name:
                     continue
-            full=os.path.join(LOGS_DIR,name)
+            full=os.path.join(_logs_dir(),name)
             if not os.path.isfile(full):
                 continue
             try:
@@ -1601,7 +1606,7 @@ def api_logs_analyze():
         is_single = False
         if single_file:
             safe_name = os.path.basename(single_file)
-            full = os.path.join(LOGS_DIR, safe_name)
+            full = os.path.join(_logs_dir(), safe_name)
             if ".log." in safe_name or not os.path.isfile(full):
                 return jsonify({"error": bt("File {name} not found", _lang(), name=safe_name)}), 404
             try:
@@ -1644,7 +1649,7 @@ Answer in {LANGUAGE_NAMES.get(language, "English")}, short markdown, about this 
 """
         else:
             prompt = f"""You are an expert in Klipper, Moonraker and Crowsnest.
-Analyse these system logs taken from printer_data/logs (all the files, not only klippy.log).
+Analyse these system logs taken from Klipper's logs folder (all the files, not only klippy.log).
 
 Files included: {', '.join(used_files)}
 

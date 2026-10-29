@@ -266,10 +266,15 @@ with sync_playwright() as p:
     ok("1.10.0: the 'Canale degli aggiornamenti' block shows the two channels, 'Ogni modifica' chosen (dev)", wait_until(lambda: choices() == 2, 4.0) and pg.locator('.set-choice[aria-checked="true"]', has_text="Ogni modifica").count() == 1, pg.locator(".drawer__body").inner_text()[-800:])
     pg.locator(".set-choice", has_text="Release stabili").click()
     ok("... choosing 'Release stabili' asks the backend to switch to stable", wait_until(lambda: state()["channel_posts"] == ["stable"], 4.0) and wait_until(lambda: pg.locator('.set-choice[aria-checked="true"]', has_text="Release stabili").count() == 1, 4.0), state()["channel_posts"])
+    # a channel change makes the page ask Moonraker to look again a few seconds later: let it happen now, so that it does not
+    # land in the middle of the update below (it would bring the new commits back and the update would look unfinished)
+    refreshes = lambda: sum(1 for x in state()["update_log"] if x[0] == "refresh")
+    wait_until(lambda: refreshes() >= 1, 12.0)
     # check: a new commit appears
+    before_check = refreshes()
     mock.set(klippeye_incoming=[{"sha": "f1", "author": "t", "date": "1760000000", "subject": "Release 1.0.1", "message": ""}, {"sha": "f2", "author": "t", "date": "1759990000", "subject": "Soglie nuove", "message": ""}])
     pg.locator("button", has_text="Controlla se c'è una versione nuova").click()
-    ok("'Controlla' asks Moonraker to look", wait_until(lambda: any(a[0] == "refresh" for a in state()["update_log"]), 3.0), state()["update_log"])
+    ok("'Controlla' asks Moonraker to look", wait_until(lambda: refreshes() > before_check, 3.0), state()["update_log"])
     ok("... and the page announces release 1.0.1 with the commits", wait_until(lambda: "Disponibile la release 1.0.1" in pg.locator(".drawer__body").inner_text() and "ora hai la 1.0.0" in pg.locator(".drawer__body").inner_text(), 6.0), pg.locator(".drawer__body").inner_text()[:600])
     ok("... listing what changed", "Release 1.0.1" in pg.locator(".set-commits").inner_text() and "Soglie nuove" in pg.locator(".set-commits").inner_text())
     ok("the update button is there", pg.locator("button", has_text="Aggiorna KlippEye").count() == 1 and not pg.locator("button", has_text="Aggiorna KlippEye").is_disabled())

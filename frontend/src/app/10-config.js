@@ -29,9 +29,11 @@ const POLL_MS = {
   light: 1500, // the light rarely changes by itself; while a command waits for Klipper the engine asks every 250 ms (app/41-camera.js)
 };
 
-/** Axis travel limits (mm) used by the on-screen jog controls. */
-const AXIS_LIMITS = { X: [0, 350], Y: [0, 350], Z: [0, 300] };
+/** Axis travel limits (mm) until Klipper has said the real ones (13-capabilities.js reads position_min/max). */
+const DEFAULT_AXIS_LIMITS = { X: [0, 250], Y: [0, 250], Z: [0, 250] };
+/** Maximum temperatures (°C) until Klipper has said the real ones ([extruder] and [heater_bed] max_temp). */
+const DEFAULT_MAX_TEMP = { hotend: 300, bed: 120 };
 /** Feed rates (mm/min) for jog and go-to moves. */
 const FEEDRATE = { xy: 6000, z: 1500 };
-/** Position shown before the printer has reported a real one. */
-const DEFAULT_POSITION = { x: 163, y: 163, z: 5 };
+/** Position shown before the printer has reported a real one: the centre of the bed, 5 mm up. */
+const centrePosition = (limits) => ({ x: Math.round((limits.X[0] + limits.X[1]) / 2), y: Math.round((limits.Y[0] + limits.Y[1]) / 2), z: 5 });

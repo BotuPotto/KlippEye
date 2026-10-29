@@ -36,7 +36,10 @@ you what to do. At the end it shows the dashboard address and `Moonraker sees Kl
 
 What the installer does:
 
-* creates the **data folder** `~/printer_data/klippeye` (your settings, AI key, notification keys): updates never touch it;
+* creates the **data folder** `~/printer_data/klippeye` (your settings, AI key, notification keys): updates never touch it.
+  Any user works, not only `pi`: the printer's folders (config, logs, `printer_data` or `printer_1_data` with several
+  printers, the old `~/klipper_config`) are asked to Moonraker. To choose the folder by hand:
+  `KLIPPEYE_PRINTER_DATA=~/printer_2_data bash ~/klippeye/scripts/install.sh`;
 * installs the services **`klippeye`** (backend and dashboard, port **8085**) and **`klippeye-notifier`** (push notifications,
   only once its keys are there), started at every boot. If the new backend does not answer, it puts everything back as it was;
 * adds two terminal commands, `klippeye` and `klippeye-notifiche`;

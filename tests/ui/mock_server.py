@@ -138,6 +138,10 @@ OBJECTS = ["webhooks","print_stats","toolhead","extruder","heater_bed","fan","fa
 def settings_now():
     out = dict(CONFIG)
     out["stepper_z"] = {"endstop_pin": S["z_pin"], "position_max": 300}
+    out["stepper_x"] = {"position_min": -5, "position_max": 350}
+    out["stepper_y"] = {"position_max": 350}
+    out["extruder"] = dict(out.get("extruder") or {}, max_temp=285)
+    out["heater_bed"] = dict(out.get("heater_bed") or {}, max_temp=110)
     out["cartographer"] = {"serial": "/dev/serial/by-id/usb-cartographer"}
     if S["has_screws"]:
         out["screws_tilt_adjust"] = {"screw1": [30, 30], "screw1_name": "front left", "screw2": [320, 30], "screw2_name": "front right",

@@ -24,12 +24,14 @@ const goToGcode = (axis, target) => `G90\nG1 ${axis}${target} F${feedrateFor(axi
  * Motion actions. `echo(lines)` writes lines to the console view,
  * each line being { msg, color }.
  */
-function useMotion(echo) {
+function useMotion(echo, capabilities) {
+  const limits = (capabilities && capabilities.axisLimits) || DEFAULT_AXIS_LIMITS;
   const [positionDialog, setPositionDialog] = useState({ open: false, axis: null, value: "" });
   // Where the "go to position" dialog starts. As in the original dashboard this is NOT the live
   // read-out: it is the last position this page commanded (homing or a go-to), initially the
   // centre of the bed.
-  const [commanded, setCommanded] = useState(DEFAULT_POSITION);
+  const [commandedByPage, setCommanded] = useState(null);
+  const commanded = commandedByPage || centrePosition(limits);
 
   const jog = (axis, delta) => {
     toast.action(`${axis}${signed(delta)}mm`);
@@ -41,11 +43,12 @@ function useMotion(echo) {
     toast.action(`⌖ ${gcode}`);
     echo([{ msg: `${gcode} - Homing ${axes}`, color: GREEN }]);
     const axis = axes.toLowerCase();
-    setCommanded(axes === "XY" ? DEFAULT_POSITION : (position) => ({ ...position, [axis]: DEFAULT_POSITION[axis] }));
+    const centre = centrePosition(limits);
+    setCommanded(axes === "XY" ? centre : (position) => ({ ...(position || centre), [axis]: centre[axis] }));
     fireGcode(gcode);
   };
   const homeAll = () => {
-    setCommanded(DEFAULT_POSITION);
+    setCommanded(centrePosition(limits));
     toast.action("⌖ G28");
     echo([{ msg: "G28 - Homing all axes", color: GREEN }]);
     fireGcode("G28");
@@ -69,7 +72,7 @@ function useMotion(echo) {
     const requested = parseFloat(positionDialog.value);
     const axis = positionDialog.axis;
     if (isNaN(requested) || !axis) return;
-    const target = clamp(requested, AXIS_LIMITS[axis][0], AXIS_LIMITS[axis][1]);
+    const target = clamp(requested, limits[axis][0], limits[axis][1]);
     const gcode = goToGcode(axis, target);
     setCommanded((position) => ({ ...position, [axis.toLowerCase()]: target }));
     echo([
@@ -271,7 +274,7 @@ function ZControls({ onJog }) {
 const AXES = ["X", "Y", "Z"];
 
 function PositionReadout({ position, homedAxes, onPickAxis }) {
-  const shown = position || DEFAULT_POSITION;
+  const shown = position || centrePosition(DEFAULT_AXIS_LIMITS);
   const value = (axis) => shown[axis.toLowerCase()];
   const isHomed = (axis) => (homedAxes || "").includes(axis.toLowerCase());
   const axisState = (axis) => (homedAxes === undefined ? "" : isHomed(axis) ? "is-homed" : "is-unhomed");
