@@ -6,7 +6,6 @@
    asked for when the backend reports it is missing or rejected.
    ========================================================================== */
 
-const LOGS_DIR_HINT = "/home/pi/printer_data/logs";
 const KEY_ERROR_WORDS = ["api key", "configurata", "invalid", "unauthorized", "authentication"];
 const KEY_MIN_LENGTH = 10;
 const KEY_SAVED_ANALYSIS_DELAY_MS = 600;
@@ -60,7 +59,7 @@ const logsApi = {
 const READY_HINT = tx("Ready • Tap AI for one file or Analyse automatically for all of them");
 
 function useLogs() {
-  const [list, setList] = useState({ status: "loading", files: [], dir: LOGS_DIR_HINT, error: "" });
+  const [list, setList] = useState({ status: "loading", files: [], dir: "", error: "" });
   const [result, setResult] = useState({ kind: "idle" });
   const [hint, setHint] = useState(null); // { text, tone: "ready" | "busy" | "done" }
   const [badge, setBadge] = useState(null); // "Completed" once an all-logs analysis finished
@@ -224,7 +223,7 @@ function AnalysisResult({ logs, onKeySaved, onKeyCleared }) {
     case "keySaved":
       return h("div", { className: "oui-tile oui-tile--ok logs-saved" }, h("span", null, "✓"), tx(" Key saved! Starting the analysis..."));
     case "keyCleared":
-      return h("div", { className: "logs-key__message" }, tx("Key deleted. Over SSH: "), h("code", { className: "ai-code" }, "rm /home/pi/klippeye_ai_config.json"));
+      return h("div", { className: "logs-key__message" }, tx("Key deleted."));
     default:
       return h("div", { className: "oui-caption" }, tx("No analysis yet. Tap Analyse automatically for a direct AI analysis."));
   }
@@ -255,7 +254,7 @@ function LogRow({ file, onAnalyze, onOpen }) {
 
 /** What to show instead of the rows (loading / error / no logs), or null when there are rows. */
 function logsListNotice(list) {
-  if (list.status === "loading") return h("div", { className: "logs-notice" }, tx("Loading logs from ") + LOGS_DIR_HINT + "...");
+  if (list.status === "loading") return h("div", { className: "logs-notice" }, tx("Loading the logs…"));
   if (list.status === "error")
     return h(
       "div",

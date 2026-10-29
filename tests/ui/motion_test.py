@@ -73,6 +73,7 @@ with sync_playwright() as p:
     P = fresh()
     P.pg.locator("button.heater-tile").first.click(); P.pg.wait_for_timeout(500)
     ok("temperature dialog opens in a .modal with a card", P.pg.locator(".modal .modal-card").count() == 1)
+    ok("the highest temperature is Klipper's ([extruder] max_temp 285), not a fixed 300", P.pg.locator(".modal input").get_attribute("max") == "285", P.pg.locator(".modal input").get_attribute("max"))
     P.pg.locator(".modal .dialog-close").click(); P.pg.wait_for_timeout(40)
     ok("temperature dialog leaves with an animation first", P.pg.locator("[data-presence=leaving] .modal").count() == 1)
     P.pg.wait_for_timeout(350)

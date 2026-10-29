@@ -37,7 +37,9 @@ Ci vuole circa un minuto. Ogni passo dice `OK`; se qualcosa non va lo scrive in 
 Cosa fa l'installazione:
 
 * crea la **cartella dei dati** `~/printer_data/klippeye` (impostazioni, chiave dell'IA, chiavi delle notifiche): gli
-  aggiornamenti non la toccano mai;
+  aggiornamenti non la toccano mai. Va bene qualunque utente, non solo `pi`: le cartelle della stampante (config, log,
+  `printer_data` o `printer_1_data` con più stampanti, la vecchia `~/klipper_config`) vengono chieste a Moonraker. Per
+  scegliere la cartella a mano: `KLIPPEYE_PRINTER_DATA=~/printer_2_data bash ~/klippeye/scripts/install.sh`;
 * installa i servizi **`klippeye`** (backend e dashboard, porta **8085**) e **`klippeye-notifier`** (notifiche push, solo quando
   ci sono le sue chiavi), che partono a ogni accensione. Se il backend nuovo non risponde rimette tutto com'era;
 * aggiunge due comandi da terminale, `klippeye` e `klippeye-notifiche`;

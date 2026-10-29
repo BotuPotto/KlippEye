@@ -75,6 +75,8 @@ class Fake:
                     return self._send(200, json.dumps(doc).encode())
                 if self.path.startswith("/printer/info"):
                     return self._send(200, json.dumps({"result": {"state": "ready"}}).encode())
+                if self.path.startswith("/server/files/roots") and s.get("roots"):   # Moonraker's folders: s["roots"] = {name: path}
+                    return self._send(200, json.dumps({"result": [{"name": k, "path": v, "permissions": "rw"} for k, v in s["roots"].items()]}).encode())
                 if self.path.startswith("/server/files/list"):   # the G-code files: s["gcodes"] = {path: text}
                     files = [{"path": k, "modified": 1700000000.0 + i, "size": len(v), "permissions": "rw"} for i, (k, v) in enumerate((s.get("gcodes") or {}).items())]
                     return self._send(200, json.dumps({"result": files}).encode())

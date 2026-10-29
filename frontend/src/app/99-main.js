@@ -59,8 +59,8 @@ function App() {
   useSettingsSync();
   usePrinterIdentity();
   const temperature = useTemperatureDialog();
-  const motion = useMotion(consoleFeed.echo);
   const capabilities = usePrinterCapabilities();
+  const motion = useMotion(consoleFeed.echo, capabilities);
   const lockReason = printLockReason(printStatus);
   const zOffset = useZOffset({ status, capabilities, onSaveConfig: saveConfig.confirm });
   const bedTools = useBedTools({ capabilities, homedAxes: status.homedAxes, lockReason, onSaveConfig: saveConfig.confirm });
@@ -145,7 +145,7 @@ function App() {
         ),
     h(PowerMenuDialogs, { menu: power, klipper }),
     h(SettingsMenuLayer, { menu: settingsMenu, updates, printing: printStatus.printing, actions: { restartService } }),
-    h(Presence, null, temperature.dialog.open && h(TemperatureDialog, { dialog: temperature.dialog, onChange: temperature.setValue, onClose: temperature.close, onConfirm: temperature.confirm })),
+    h(Presence, null, temperature.dialog.open && h(TemperatureDialog, { maxTemp: capabilities.maxTemp, dialog: temperature.dialog, onChange: temperature.setValue, onClose: temperature.close, onConfirm: temperature.confirm })),
     h(Presence, null, motion.positionDialog.open && h(PositionDialog, { dialog: motion.positionDialog, onChange: motion.setPositionValue, onClose: motion.closePositionDialog, onConfirm: motion.goToPosition })),
     h(Presence, null, updates.dialog.open && h(UpdateDialog, { controller: updates })),
     !desktop && h(BottomNav, { active: tab, onSelect: selectTab }),

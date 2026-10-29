@@ -28,8 +28,26 @@ SUDO="${KLIPPEYE_SUDO-sudo}"
 SYSTEMCTL="${KLIPPEYE_SYSTEMCTL:-systemctl}"
 UNIT_DIR="${KLIPPEYE_SYSTEMD_DIR:-/etc/systemd/system}"
 BIN_DIR="${KLIPPEYE_BIN_DIR:-/usr/local/bin}"
-PRINTER_DATA="${KLIPPEYE_PRINTER_DATA:-$HOME/printer_data}"
 MOONRAKER_URL="${KLIPPEYE_MOONRAKER_URL:-http://127.0.0.1:7125}"
+# The printer's data folder (printer_data, printer_1_data with several printers...): the parent of Moonraker's "config"
+# root, asked to Moonraker; ~/printer_data when it does not answer. KLIPPEYE_PRINTER_DATA=... chooses it by hand.
+moonraker_printer_data() {
+  python3 - "$MOONRAKER_URL" <<'PY' 2>/dev/null
+import json, os, sys, urllib.request
+try:
+    roots = json.load(urllib.request.urlopen(sys.argv[1] + "/server/files/roots", timeout=3)).get("result") or []
+    config = [r["path"] for r in roots if r.get("name") == "config"]
+    if config:
+        print(os.path.dirname(os.path.expanduser(config[0]).rstrip("/")))
+except Exception:
+    pass
+PY
+}
+if [ -n "${KLIPPEYE_PRINTER_DATA:-}" ]; then PRINTER_DATA="$KLIPPEYE_PRINTER_DATA"
+else
+  PRINTER_DATA="$(moonraker_printer_data)"
+  [ -n "$PRINTER_DATA" ] && [ -d "$PRINTER_DATA" ] || PRINTER_DATA="$HOME/printer_data"
+fi
 BRAIN_URL="${KLIPPEYE_BRAIN_URL:-http://127.0.0.1:8085}"
 MOONRAKER_SERVICE="${KLIPPEYE_MOONRAKER_SERVICE:-moonraker}"
 if [ -n "${KLIPPEYE_DATA:-}" ]; then DATA="$KLIPPEYE_DATA"

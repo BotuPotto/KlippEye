@@ -4,8 +4,8 @@
    ========================================================================== */
 
 const HEATERS = {
-  hotend: { label: "HOTEND", icon: HOTEND_ICON_PNG, maxTemp: 300, gcode: "M104 S" },
-  bed: { label: "BED", icon: BED_ICON_PNG, maxTemp: 120, gcode: "M140 S" },
+  hotend: { label: "HOTEND", icon: HOTEND_ICON_PNG, gcode: "M104 S" },
+  bed: { label: "BED", icon: BED_ICON_PNG, gcode: "M140 S" },
 };
 
 function HeaterTile({ kind, heater, onEdit, className }) {
@@ -65,7 +65,7 @@ function useTemperatureDialog() {
   return { dialog, edit, close, setValue, confirm };
 }
 
-function TemperatureDialog({ dialog, onChange, onClose, onConfirm }) {
+function TemperatureDialog({ dialog, onChange, onClose, onConfirm, maxTemp }) {
   const inputRef = useRef(null);
   useEffect(() => {
     if (!dialog.open) return;
@@ -98,7 +98,7 @@ function TemperatureDialog({ dialog, onChange, onClose, onConfirm }) {
             ref: inputRef,
             type: "number",
             inputMode: "numeric",
-            max: spec.maxTemp,
+            max: (maxTemp || DEFAULT_MAX_TEMP)[dialog.kind],
             placeholder: "0",
             value: dialog.value,
             onChange: (e) => onChange(e.target.value),

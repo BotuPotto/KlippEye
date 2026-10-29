@@ -1,5 +1,21 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.17.0
+
+**Any user, any folders (phase 5a of the roadmap: KlippEye for everyone).** The first step to make KlippEye work on any
+Klipper printer, not only on the one it was born on.
+
+* **No fixed home folder**: the macro files, Shake&Tune's files and the logs were looked for in `/home/pi/...`. Now the
+  folders are asked to Moonraker (`/server/files/roots`, `backend/printer_paths.py`): any user, several printers
+  (`printer_1_data`...), the old `~/klipper_config` layout. Without Moonraker, the usual places in the user's home.
+* The installer finds the printer's data folder the same way (`KLIPPEYE_PRINTER_DATA=...` still chooses it by hand).
+* **Axis travel and maximum temperatures from Klipper**: the "go to position" of the movement card was limited to
+  X 350, Y 350, Z 300 and the temperature dialogs to 300 / 120 °C. Now they come from `[stepper_x/y/z]` position_min/max and
+  from `[extruder]` / `[heater_bed]` max_temp; the starting position is the centre of the bed.
+* The logs page no longer shows a fixed folder or an old `rm` command.
+* New test `tests/test_no_fixed_paths.py` (part of `tests/run_all.sh`): it fails if a fixed `/home/<user>` comes back in the
+  program, its scripts, the app or the guides.
+
 ## 1.16.0
 
 **The whole bed watched, except where the parts are (phase 4c of the roadmap).** The first prints with 1.15 had no false

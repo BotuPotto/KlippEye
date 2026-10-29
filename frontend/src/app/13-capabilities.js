@@ -28,7 +28,27 @@ const UNKNOWN_CAPABILITIES = {
   twistNeedsConfig: false,
   probe: true,
   zOffsetApply: "Z_OFFSET_APPLY_PROBE",
+  axisLimits: DEFAULT_AXIS_LIMITS,
+  maxTemp: DEFAULT_MAX_TEMP,
 };
+
+/** The travel of each axis from [stepper_x] / [stepper_y] / [stepper_z] (position_min, default 0, and position_max). */
+function axisLimitsFrom(settings) {
+  const out = {};
+  for (const axis of ["X", "Y", "Z"]) {
+    const section = settings["stepper_" + axis.toLowerCase()] || {};
+    const max = Number(section.position_max);
+    const min = section.position_min === undefined ? 0 : Number(section.position_min);
+    out[axis] = Number.isFinite(max) && Number.isFinite(min) && max > min ? [min, max] : DEFAULT_AXIS_LIMITS[axis];
+  }
+  return out;
+}
+
+/** The highest temperatures Klipper accepts ([extruder] and [heater_bed] max_temp). */
+function maxTempFrom(settings) {
+  const read = (section, fallback) => (Number.isFinite(Number((settings[section] || {}).max_temp)) ? Number(settings[section].max_temp) : fallback);
+  return { hotend: read("extruder", DEFAULT_MAX_TEMP.hotend), bed: read("heater_bed", DEFAULT_MAX_TEMP.bed) };
+}
 
 /**
  * `configfile` is Klipper's config object (`settings`: every section, parsed); `commands` the map
@@ -65,6 +85,8 @@ function deriveCapabilities(configfile, commands) {
     twistNeedsConfig: cartographerTwist && !twistConfigured,
     probe: registered("QUERY_PROBE") || PROBE_SECTIONS.some(hasSection) || Object.keys(settings).some((name) => name.startsWith("probe_eddy_current ")),
     zOffsetApply: registered(applyCommand) ? applyCommand : null,
+    axisLimits: axisLimitsFrom(settings),
+    maxTemp: maxTempFrom(settings),
   };
 }
 
