@@ -521,6 +521,8 @@ CONFIG_SPEC = [
      "help": "The movement that counts is the one at the edges of the watched area (spaghetti in the air), not the one in the middle where it prints. Measured in % of the area."},
     {"key": "persistent_filter", "type": "bool", "default": True, "group": "filtro", "label": "Ignore passing movements (recommended)",
      "help": "On: only what changes and stays counts (spaghetti, part come off); the passing toolhead, shadows and light changes do not trigger the alarm. Off: the older detection (a movement at the edges is enough)."},
+    {"key": "machine_masks", "type": "bool", "default": True, "group": "filtro", "label": "Leave out the toolhead and the gantry",
+     "help": "With a good camera calibration (Settings → Camera calibration) the monitor knows where the toolhead and the gantry are at every check and does not look there. Without a calibration, or when the camera has moved, it has no effect."},
     {"key": "persist_checks", "type": "int", "default": 3, "min": 2, "max": 6, "step": 1, "unit": "", "group": "filtro",
      "label": "Checks in a row the change must stay for",
      "help": "Higher = fewer false alarms but a problem is noticed a few seconds later (checks × interval)."},
@@ -1967,6 +1969,26 @@ class LightDetector(FrameJudge):
         except Exception as error:
             print(f"[RECORDER] picture during the pause not taken: {error}")
 
+    def _machine_mask(self):
+        """The machine mask of this check (phase 4b): the toolhead and the gantry where they were just before the picture
+        (self.meta["live"]) and just after it (asked now), at the size the monitor looks at. None without a usable calibration."""
+        self.meta["masked"] = False
+        if not self.machine_masks or not camera_cal.usable():
+            return None
+        try:
+            status = requests.get(f"{MOONRAKER_URL}/printer/objects/query?motion_report=live_position", timeout=2).json()["result"]["status"]
+            after = (status.get("motion_report") or {}).get("live_position") or []
+            self.meta["live2"] = [round(float(v), 1) for v in after[:3]] if len(after) >= 3 else None
+        except Exception:
+            self.meta["live2"] = None
+        try:
+            mask = camera_cal.monitor_mask([self.meta.get("live"), self.meta.get("live2")], OPENCV_WIDTH // 2, OPENCV_HEIGHT // 2)
+        except Exception as error:
+            print(f"[OPENCV] machine mask not made: {error}")
+            return None
+        self.meta["masked"] = mask is not None
+        return mask
+
     def set_roi(self, x, y, w, h):
         self.roi = (x,y,w,h)
 
@@ -2118,7 +2140,8 @@ class LightDetector(FrameJudge):
                     continue
 
                 now = time.time()
-                score, triggered = self.judge(frame, r.content, now)
+                ignore = self._machine_mask()
+                score, triggered = self.judge(frame, r.content, now, ignore)
                 recorder.add_frame(frame, now, dict(self.meta, score=None if score is None else round(score, 2), trig=triggered))
                 self._measure(time.time() - now + decode_seconds)  # decoding, judging and (when on) recording
                 if score is None:  # the comparison is not ready yet, or this check is to be ignored (light change)
@@ -2988,7 +3011,7 @@ def _camera_snapshot():
 
 CAMERA_MESSAGES = (  # what camera_calibration.py and camera_model.py may answer, for the dictionaries (bt translates them)
     btn("Klipper is not ready"), btn("the printer is printing"), btn("home the printer first"), btn("z_moves must be bed or toolhead"),
-    btn("the toolhead size must be 10 to 300 mm"), btn("unknown point"), btn("a step is at most 50 mm"),
+    btn("the toolhead size must be 10 to 300 mm"), btn("each size must be {low} to {high} mm"), btn("unknown point"), btn("a step is at most 50 mm"),
     btn("u and v must be fractions of the picture (0..1)"), btn("the markers are only for printers where Z moves the bed"),
     btn("choose the file that printed the markers"), btn("this file is too big to be the markers file"),
     btn("temperatures: nozzle 170 to 300 °C, bed 0 to 120 °C"), btn("this file extrudes nothing"),
@@ -3146,6 +3169,13 @@ def api_camera_reset():
 @app.route("/api/camera/calibration", methods=["DELETE"])
 def api_camera_forget():
     return _camera_call(lambda: camera_cal.forget())
+
+
+@app.route("/api/camera/shape", methods=["POST"])
+def api_camera_shape():
+    """The size of the toolhead and of the gantry around the nozzle (mm): {"toolhead": {left, right, front, back, top, below},
+    "gantry": {on, behind, depth, low, high}}; the values not given stay. The masks of the monitor use it at once."""
+    return _camera_call(lambda: {"shape": camera_cal.set_shape(_camera_body())})
 
 
 @app.route("/api/camera/overlay", methods=["GET"])

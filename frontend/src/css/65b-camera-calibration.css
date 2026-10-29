@@ -30,3 +30,19 @@
 .cal-jog .oui-btn { min-width: 0; padding-left: 4px; padding-right: 4px; }
 .cal-watch { display: flex; align-items: center; justify-content: space-between; gap: 10px; color: var(--oui-text-3); font-size: 12px; line-height: 1.4; }
 .cal-marks { display: flex; flex-direction: column; gap: 8px; }
+.cal-gantry { fill: rgba(255, 166, 77, 0.18); stroke: #ffa64d; stroke-width: 1.5px; }
+.cal-shape { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
+.cal-shape__title { margin: 8px 0 0; font-size: 13px; font-weight: 700; color: var(--oui-text); }
+.cal-size { display: grid; grid-template-columns: 1fr 40px 72px 40px; gap: 8px; align-items: center; }
+.cal-size__label { font-size: 13px; color: var(--oui-text-2); line-height: 1.3; }
+.cal-size__value { text-align: center; font-weight: 600; font-variant-numeric: tabular-nums; }
+.cal-size .oui-btn { min-width: 0; padding-left: 0; padding-right: 0; }
+.cal-instruction-row { display: grid; grid-template-columns: 96px 1fr; gap: 12px; align-items: center; }
+.cal-hint { width: 96px; height: auto; background: var(--oui-surface-2); border-radius: 10px; }
+.cal-hint__block { fill: #6c6f7a; }
+.cal-hint__nozzle { fill: #c9a24a; }
+.cal-hint__bed { stroke: var(--oui-text-3); stroke-width: 2; }
+.cal-hint__marker { fill: #3fbf6f; }
+.cal-hint__marker--faint { opacity: 0.35; }
+.cal-hint__cross circle { fill: none; stroke: #ffd84a; stroke-width: 2; }
+.cal-hint__cross line { stroke: #ffd84a; stroke-width: 2; }

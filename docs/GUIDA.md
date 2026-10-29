@@ -111,29 +111,58 @@ L'IA scrive le sue osservazioni nella lingua delle notifiche; ogni allarme resta
 
 ### Calibrare la camera
 
-**Impostazioni → Calibra camera** insegna a KlippEye dove ogni punto della stampante compare nell'immagine della camera, così
-il monitor può distinguere la testina da un problema (le maschere arrivano nella prossima release). Circa dieci minuti, una volta:
+**Impostazioni → Calibra camera** insegna a KlippEye dove ogni punto della stampante compare nell'immagine della camera.
+Così il monitor IA sa, a ogni controllo, dove sono la testina e il gantry e li esclude (sono la causa principale dei falsi
+allarmi). Circa quindici minuti, una volta; da rifare solo se sposti la camera.
 
-1. Di' come si muove l'**asse Z**: il **piatto** (VzBot, Voron Trident, RatRig V-Core…) o la **testina** (Voron 2.4…), e le
-   misure della testina. Le stampanti con il piatto che si muove in Y (Prusa, Ender) non sono ancora supportate.
-2. Piatto pulito, la luce come durante le stampe, poi **Homing**.
-3. Se Z muove il piatto servono sei **segni** sul piatto (per la camera l'ugello da solo è sempre alla stessa altezza).
-   Due modi:
+**Prima di iniziare**: piatto pulito, la luce come durante le stampe, stampante ferma. Durante la calibrazione la stampante
+si muove da sola: tieni lontane le mani.
+
+1. **Come si muove l'asse Z?** Il **piatto** (VzBot, Voron Trident, RatRig V-Core, quasi tutte le CoreXY) o la **testina**
+   (Voron 2.4). KlippEye propone la risposta dalla configurazione di Klipper. Le stampanti con il piatto che si muove in Y
+   (Prusa, Ender) non sono ancora supportate.
+2. **Homing** della stampante.
+3. **Segni** (solo se Z muove il piatto: per la camera l'ugello da solo è sempre alla stessa altezza, quindi sei segni sul
+   piatto danno la seconda altezza). Due modi:
    * **Stampa i segni (consigliato)**: **Scarica i segni (STL)**, sei piccole piramidi già posizionate per il tuo piatto.
-     Passa il file nello slicer con le tue impostazioni solite (senza supporti, un colore che si distingua dal piatto;
-     lascia la posizione data dall'STL), stampalo e lascialo sul piatto. Poi scegli il G-code che hai stampato e
-     **Leggi i segni da questo file**: KlippEye trova dove lo slicer ha messo le piramidi e quanto sono venute alte.
-   * **Gocce rapide**: scegli le temperature di ugello e piatto e **Fai le 6 gocce**: la stampante lascia sei dischetti
-     di filamento (con retrazione e z-hop tra uno e l'altro). Più veloce, meno preciso.
-4. Per ognuno dei 12 punti premi **Vai al punto**, tocca la punta dell'ugello (o la punta del segno) nell'immagine, tocca
-   di nuovo esattamente nella vista ingrandita e **Tieni questo punto**.
-5. **Calcola la calibrazione**: l'errore medio in pixel; i punti da rifare diventano rossi. L'immagine dal vivo mostra il
-   contorno della testina e il piatto disegnati sopra: muovi la testina con i tasti, il disegno deve seguirla.
-   **Salva la calibrazione**, poi togli i segni.
+     Passa il file nello slicer con le tue impostazioni solite (senza supporti, un colore che si distingua dal piatto),
+     stampalo e lascialo sul piatto. Poi scegli il G-code che hai stampato e **Leggi i segni da questo file**: KlippEye
+     trova dove lo slicer ha messo le piramidi e quanto sono venute alte (se lo slicer le sposta non importa).
+   * **Gocce rapide**: scegli le temperature di ugello e piatto e **Fai le 6 gocce**: la stampante lascia sei dischetti di
+     filamento (con retrazione e z-hop tra uno e l'altro). Più veloce, meno preciso.
+4. **I 12 punti.** Per ogni punto:
+   1. premi **Vai al punto**: la stampante si muove e compare un'immagine nuova;
+   2. tocca l'immagine dove si trova il punto (vedi la tabella sotto);
+   3. si apre una vista ingrandita: tocca di nuovo **esattamente** sul punto;
+   4. **Tieni questo punto**.
+
+   | Punti | Cosa succede | Cosa toccare |
+   |---|---|---|
+   | da 1 a 6 | l'ugello si ferma 3 mm sopra un segno (Z muove il piatto) o in un punto del piatto (Z muove la testina) | il **punto più basso dell'ugello**, la punta di metallo, **non** il segno sotto |
+   | da 7 a 12, Z muove il piatto | il piatto scende e l'ugello va in fondo | la **punta in alto del segno** (per una goccia: il centro) |
+   | da 7 a 12, Z muove la testina | l'ugello va negli stessi punti, più in alto | il **punto più basso dell'ugello** |
+
+   A ogni punto la pagina mostra un piccolo disegno di cosa toccare. I numeri verdi sono fatti; tocca un numero per vederlo
+   o rifarlo. La croce gialla è il tuo tocco, quella verde un punto già tenuto.
+5. **Calcola la calibrazione**: l'errore medio in pixel (buono: pochi pixel) e, in rosso, i punti da rifare (un tocco sulla
+   cosa sbagliata: rifai solo quelli e calcola di nuovo). L'immagine dal vivo mostra la testina e il piatto disegnati sopra:
+   muovi la testina con i tasti, il disegno deve seguirla. **Salva la calibrazione**, poi togli i segni.
+
+**Testina e gantry.** Dopo il salvataggio la pagina mostra l'immagine dal vivo con la **testina** (viola) e il **gantry**
+(arancione: la barra che porta la testina da un lato all'altro) disegnati sopra. Quello che sta dentro i contorni è ciò che
+il monitor esclude, quindi devono coprire le parti, con un po' di margine (molto di più nasconderebbe un problema vicino
+all'ugello). Regolali con **−** e **+** (5 mm alla volta), muovendo la testina con i tasti per controllare in qualche punto:
+
+* testina: quanto sporge **a sinistra, a destra, davanti e dietro l'ugello**, **sopra** la punta dell'ugello e sotto;
+* gantry: dove la barra **inizia dietro l'ugello**, quanto è **profonda** e i suoi **bordi basso e alto** sopra la punta
+  dell'ugello. Spegnilo se la tua stampante non ha un gantry che attraversa l'immagine.
+
+L'interruttore **Impostazioni → Soglie del monitor → Falsi allarmi → Escludi testina e gantry** (acceso di base) accende e
+spegne le maschere.
 
 La calibrazione vale **finché la camera non si muove**. Ogni dieci minuti il backend confronta l'immagine con quella presa
 alla calibrazione; se la camera si è spostata, la pagina (e la sua riga nel menu) lo dice e il monitor smette di usare la
-calibrazione finché non la rifai.
+calibrazione (e le maschere) finché non la rifai. Le misure di testina e gantry restano.
 
 ### Misurare il monitor (registrazioni)
 
@@ -147,6 +176,8 @@ Invece di indovinare se una soglia diversa aiuta, misuralo:
 3. **Misura adesso** rifà girare il monitor su ogni stampa registrata, con le soglie in uso adesso, e mostra gli allarmi
    all'ora, quanti erano falsi e se ogni guasto è stato visto (e dopo quanto). Da terminale, per confrontare altre soglie:
    `klippeye replay --set sensitivity=45 --set persist_checks=4` (opzioni: `scripts/replay.py`).
+   Con una calibrazione della camera il replay esclude testina e gantry come il monitor dal vivo (sulle stampe registrate
+   con KlippEye 1.13 o successivo, che tengono la posizione della testina); `--set machine_masks=off` confronta senza.
 
 La pagina mostra anche il **carico del monitor**: il tempo di un controllo e la CPU usata dal backend nell'ultimo minuto.
 

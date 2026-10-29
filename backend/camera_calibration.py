@@ -14,7 +14,9 @@ The points (about twelve, at two heights, never all on one plane):
     that printed them, or quick blobs left by the printer itself); the nozzle tip just above each marker (6 taps, height 0),
     then the bed goes down and the person taps the 6 marker tips (height h - Z): 12 taps.
 On disk, in the data folder: camera.json (the saved calibration), camera_draft.json (the points being taken: they survive a
-reload of the page), camera_reference.jpg (the picture at calibration time, to notice when the camera moves).
+reload of the page), camera_reference.jpg (the picture at calibration time, to notice when the camera moves),
+machine_shape.json (the size of the toolhead and of the gantry, adjusted on the live picture: machine_masks.py; it stays when
+the camera is calibrated again).
 """
 import json
 import os
@@ -24,6 +26,7 @@ import time
 import camera_markers
 import camera_model
 import camera_watch
+import machine_masks
 
 Z_MOVES = ("bed", "toolhead")
 GRID_X = (0.15, 0.5, 0.85)
@@ -119,6 +122,9 @@ class CameraCalibration:
         self.files, self.read_file = files, read_file
         self.lock = threading.RLock()
         self.saved = _read_json(self.path)
+        self.shape_path = os.path.join(data_dir, "machine_shape.json")
+        self.shape = None
+        self._limits = (0.0, None)   # (when read, the X range of the printer) for the gantry
         self.draft = _read_json(self.draft_path) or {}
         self.watch = (self.saved or {}).get("watch") or {"state": "unknown"}
         self.marks = {"state": "idle"}
@@ -426,10 +432,9 @@ class CameraCalibration:
         z_moves = calibration.get("z_moves") or self.z_moves() or "toolhead"
         printer = self.printer()
         x, y, z = printer["position"]
-        tool = (self.saved or {}).get("toolhead") or self.draft.get("toolhead") or DEFAULT_TOOLHEAD
         tip = frame_point(z_moves, x, y, z, "nozzle")
-        w, d, h = tool["width"] / 2.0, tool["depth"] / 2.0, tool["height"]
-        box = camera_model.box_corners(tip[0] - w, tip[0] + w, tip[1] - d, tip[1] + d, tip[2] + 1.0, tip[2] + h)
+        shape = self.get_shape()
+        parts = machine_masks.polygons(dict(calibration, z_moves=z_moves), shape, [x, y, z], [printer["minimum"][0], printer["maximum"][0]])
         bed_z = -z if z_moves == "bed" else 0.0
         (bx0, by0), (bx1, by1) = printer["minimum"][:2], printer["maximum"][:2]
         bed = []
@@ -440,8 +445,64 @@ class CameraCalibration:
         nozzle_uv, nozzle_front = camera_model.project(calibration, [tip])
         return {"position": printer["position"], "z_moves": z_moves,
                 "nozzle": [round(float(c), 4) for c in nozzle_uv[0]] if nozzle_front[0] else None,
-                "toolhead": [[round(a, 4), round(b, 4)] for a, b in (camera_model.box_outline(calibration, box) or [])],
+                "toolhead": [[round(a, 4), round(b, 4)] for a, b in (parts["toolhead"][0] if parts["toolhead"] else [])],
+                "gantry": [[[round(a, 4), round(b, 4)] for a, b in piece] for piece in parts["gantry"]],
+                "shape": shape,
                 "bed": [[round(float(a), 4), round(float(b), 4)] for (a, b), f in zip(bed_uv, bed_front) if f]}
+
+    # ---------------------------------------------------------------- the shape of the toolhead and the gantry (masks)
+    def get_shape(self):
+        """The shape of the moving parts: the one adjusted by the person, else made from the toolhead size of the calibration."""
+        if self.shape is None:
+            stored = _read_json(self.shape_path)
+            try:
+                self.shape = machine_masks.clean_shape(stored) if stored else None
+            except ValueError:
+                self.shape = None
+            if self.shape is None:
+                self.shape = machine_masks.from_toolhead_box((self.saved or {}).get("toolhead") or self.draft.get("toolhead"))
+        return self.shape
+
+    def set_shape(self, data):
+        """Changes some sizes (the others stay): {"toolhead": {...}, "gantry": {...}}."""
+        current = self.get_shape()
+        merged = {}
+        for part in machine_masks.DEFAULT_SHAPE:
+            given = data.get(part) if isinstance(data, dict) else None
+            merged[part] = dict(current[part], **given) if isinstance(given, dict) else dict(current[part])
+        if "x_range" in current:
+            merged["x_range"] = current["x_range"]
+        shape = machine_masks.clean_shape(merged)
+        with self.lock:
+            self.shape = shape
+            _write_json(self.shape_path, shape)
+        return shape
+
+    def x_range(self):
+        """The X travel of the printer (the gantry spans it), read from Klipper at most every ten minutes and kept in
+        machine_shape.json, so that the replay of the recordings knows it too."""
+        when, known = self._limits
+        if known is None or time.time() - when > WATCH_EVERY_S:
+            try:
+                printer = self.printer()
+                known = [float(printer["minimum"][0]), float(printer["maximum"][0])]
+                self._limits = (time.time(), known)
+                shape = self.get_shape()
+                if shape.get("x_range") != known:
+                    with self.lock:
+                        shape["x_range"] = known
+                        _write_json(self.shape_path, shape)
+            except Exception:
+                known = known or self.get_shape().get("x_range")
+                self._limits = (time.time(), known)
+        return known
+
+    def monitor_mask(self, positions, width, height):
+        """The machine mask for one check of the monitor (positions: where the toolhead was before and after the picture),
+        or None when the calibration cannot be trusted (never half masks) or no position is known."""
+        if not self.usable() or self.cv2 is None:
+            return None
+        return machine_masks.mask(self.cv2, self.np, self.saved, self.get_shape(), positions, width, height, self.x_range())
 
     def summary(self):
         saved = self.saved
@@ -449,4 +510,4 @@ class CameraCalibration:
         if saved:
             brief = {k: saved.get(k) for k in ("saved", "z_moves", "model", "rms_px", "rms", "quality", "toolhead", "camera_position", "width", "height")}
             brief["points"] = len(saved.get("points") or {})
-        return {"saved": brief, "watch": self.watch, "usable": self.usable(), "draft": self.draft, "marks": self.marks}
+        return {"saved": brief, "watch": self.watch, "usable": self.usable(), "draft": self.draft, "marks": self.marks, "shape": self.get_shape()}
