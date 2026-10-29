@@ -322,6 +322,7 @@ function MeasureResult({ result }) {
       h(InfoLine, { label: tx("False alarms"), value: total.known_hours > 0 ? tx("{count} • {rate} per hour", { count: total.false, rate: formatNumber(total.false_per_hour) }) : tx("mark the prints to know"), warn: total.false > 0 }),
       h(InfoLine, { label: tx("Failures caught"), value: total.failures ? tx("{seen} of {count}", { seen: total.seen, count: total.failures }) + (total.average_delay_s !== null ? " • " + tx("after {time}", { time: formatRecordingTime(total.average_delay_s) }) : "") : tx("no failed print marked"), warn: total.failures > total.seen }),
       total.ms_per_check !== null && h(InfoLine, { label: tx("Time of one check"), value: formatNumber(total.ms_per_check) + " ms" }),
+      total.unreadable_frames > 0 && h(InfoLine, { label: tx("Pictures skipped"), value: tx("{count} empty or broken (a power cut while recording)", { count: total.unreadable_frames }), warn: true }),
       total.masks &&
         h(InfoLine, {
           label: tx("Toolhead and gantry left out"),
