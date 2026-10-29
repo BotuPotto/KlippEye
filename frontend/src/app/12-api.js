@@ -156,6 +156,11 @@ const moonraker = {
     const status = await moonraker.queryObjects("configfile" + (fields ? "=" + fields : ""), options);
     return status.configfile || {};
   },
+  /** The names of Klipper's objects ("neopixel LUCI", "gcode_macro PARK", "filament_switch_sensor runout"...). */
+  async objectsList(options) {
+    const json = await fetchJson("/printer/objects/list", options);
+    return (json.result && json.result.objects) || [];
+  },
   /** Every registered G-code command as { NAME: help text }. */
   async gcodeCommands(options) {
     const json = await fetchJson("/printer/gcode/help", options);

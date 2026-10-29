@@ -54,6 +54,8 @@ def default_state():
         "light_read_delay": 0.0,    # seconds a VAR_LUCI read takes; the value is taken when the request ARRIVES (stale if slow)
         "light_fail": False,        # the macro runs but the variable never changes
         "light_cmds": [],           # (script, time) of every luci_* command received
+        "pm_macros": {}, "pm_wraps": [], "pm_posts": [],   # KlippEye's own macros (/api/printer-macros)
+        "extra_commands": [],       # commands Klipper knows besides the usual ones (a macro KlippEye made)
         "light_reads": 0,
         # --- Klipper / Moonraker / Raspberry outages and restarts
         "disconnected": False,      # Moonraker has no Klipper: every /printer/* answers 503
@@ -129,10 +131,17 @@ CONFIG = {
     "gcode_macro SHAPER_CALIBRATE": {"gcode": "SHAPER", "description": "Shaper"},
     "gcode_macro CLEAN_NOZZLE": {"gcode": "G1 X0", "description": "Clean"},
     "gcode_macro _HIDDEN": {"gcode": "", "description": ""},
+    # the case light of the VzBot: a neopixel strip driven by klipper-led_effect effects, switched by two macros
+    "gcode_macro VAR_LUCI": {"variable_stato_luci": "1", "gcode": ""},
+    "gcode_macro LUCI_ON": {"gcode": "SET_LED_EFFECT EFFECT=IDLE REPLACE=1"},
+    "gcode_macro LUCI_OFF": {"gcode": "stop_led_effects"},
+    "neopixel LUCI": {"pin": "PE6", "chain_count": "60", "color_order": "GRB"},
+    "led_effect IDLE": {"leds": "\nneopixel:LUCI", "autostart": "false"},
 }
 OBJECTS = ["webhooks","print_stats","toolhead","extruder","heater_bed","fan","fan_generic Aux_Fan","heater_fan hotend_fan",
            "controller_fan drivers_fan","virtual_sdcard","display_status","gcode_move","bed_mesh","configfile",
            "gcode_macro PARK_TEST","gcode_macro SHAPER_CALIBRATE","gcode_macro CLEAN_NOZZLE","gcode_macro VAR_LUCI",
+           "gcode_macro LUCI_ON","gcode_macro LUCI_OFF","neopixel LUCI","led_effect IDLE",
            "mcu","mcu EBBCan"]
 
 def settings_now():
@@ -151,7 +160,8 @@ def settings_now():
     return out
 
 def commands_now():
-    names = ["G28", "M84", "SAVE_CONFIG", "SET_GCODE_OFFSET", "QUERY_PROBE", "CARTOGRAPHER_AXIS_TWIST_COMPENSATION"]
+    names = ["G28", "M84", "SAVE_CONFIG", "SET_GCODE_OFFSET", "QUERY_PROBE", "CARTOGRAPHER_AXIS_TWIST_COMPENSATION", "PARK_TEST", "SHAPER_CALIBRATE",
+             "CLEAN_NOZZLE", "VAR_LUCI", "LUCI_ON", "LUCI_OFF", "SET_LED", "SET_PIN", "SET_LED_EFFECT", "STOP_LED_EFFECTS"] + S.get("extra_commands", [])
     if S["has_screws"]:
         names.append("SCREWS_TILT_CALCULATE")
     names.append("Z_OFFSET_APPLY_PROBE" if S["z_apply"] == "probe" else "Z_OFFSET_APPLY_ENDSTOP")
@@ -184,6 +194,10 @@ def status_for(keys, fields=None):
             st[k] = FANS[k]
         elif k == "gcode_macro VAR_LUCI":
             st[k] = {"stato_luci": S["light"]}
+        elif k == "neopixel LUCI":   # the effects draw on the strip: its own colour stays 0 (only an effect says it is on)
+            st[k] = {"color_data": [[0.0, 0.0, 0.0, 0.0]] * 3}
+        elif k == "led_effect IDLE":
+            st[k] = {"enabled": S["light"] == 1, "frame_rate": 60.0}
         elif k == "configfile":
             if S["caps_down"]:
                 continue
@@ -224,7 +238,7 @@ def mock_reset():
     S.clear(); S.update(default_state()); return jsonify(ok=True)
 @app.route("/__mock/state")
 def mock_state():
-    return jsonify({k: v for k, v in S.items() if k in ("light", "light_cmds", "light_reads", "actions", "webhooks", "webhooks_msg", "disconnected", "moonraker_down", "host_off", "services", "update_log", "brain_cfg_log", "brain_release", "brain_started", "klippeye_info", "pending_release", "logos", "app_apk_hits", "app_apk_downloads", "update_channel", "channel_posts", "rec_posts", "measure_starts", "recordings", "alerts")})
+    return jsonify({k: v for k, v in S.items() if k in ("light", "light_cmds", "light_reads", "actions", "webhooks", "webhooks_msg", "disconnected", "moonraker_down", "host_off", "services", "update_log", "brain_cfg_log", "brain_release", "brain_started", "klippeye_info", "pending_release", "logos", "app_apk_hits", "app_apk_downloads", "update_channel", "channel_posts", "rec_posts", "measure_starts", "recordings", "alerts", "pm_macros", "pm_wraps", "pm_posts", "gcode_log")})
 @app.route("/__mock/print_actions")
 def mock_print_actions():
     return jsonify(S.get("print_actions", []))
@@ -248,11 +262,38 @@ def obj_query():
     if S["caps_down"] and "configfile" in keys:
         return jsonify(error={"code": 503, "message": "Klippy Host not ready"}), 503
     snapshot = status_for(keys, fields)
-    if "gcode_macro VAR_LUCI" in keys:
+    if "gcode_macro VAR_LUCI" in keys or "neopixel LUCI" in keys:
         S["light_reads"] += 1
         if S["light_read_delay"]:
             time.sleep(S["light_read_delay"])   # slow answer: the value above is already old when it leaves
     return jsonify(result={"eventtime": 1.0, "status": snapshot})
+# --- KlippEye's own macros (backend /api/printer-macros: klippeye_macros.cfg), in memory
+@app.route("/api/printer-macros", methods=["GET"])
+def printer_macros_get():
+    return jsonify(ok=True, macros=S["pm_macros"], wraps=S["pm_wraps"], file="/home/x/printer_data/config/klippeye_macros.cfg", file_exists=bool(S["pm_macros"] or S["pm_wraps"]), included=True, tag="KlippEye: filament change")
+@app.route("/api/printer-macros/template", methods=["GET"])
+def printer_macros_template():
+    kind = request.args.get("kind", "")
+    name = {"park": "KLIPPEYE_PARK", "wipe": "KLIPPEYE_WIPE", "load": "KLIPPEYE_LOAD_FILAMENT", "unload": "KLIPPEYE_UNLOAD_FILAMENT", "light_on": "KLIPPEYE_LIGHT_ON", "light_off": "KLIPPEYE_LIGHT_OFF"}.get(kind)
+    if not name:
+        return jsonify(ok=False, error="unknown function"), 400
+    return jsonify(ok=True, name=name, text="[gcode_macro %s]\ndescription: made by KlippEye\ngcode:\n  G28\n" % name)
+@app.route("/api/printer-macros/macro", methods=["POST"])
+def printer_macros_macro():
+    body = request.get_json(force=True, silent=True) or {}
+    S["pm_posts"].append(("macro", body.get("name"), body.get("text")))
+    if body.get("text") is None:
+        S["pm_macros"].pop(body.get("name"), None)
+    else:
+        S["pm_macros"][body["name"]] = body["text"]
+        S.setdefault("extra_commands", []).append(body["name"])
+    return printer_macros_get()
+@app.route("/api/printer-macros/wraps", methods=["POST"])
+def printer_macros_wraps():
+    body = request.get_json(force=True, silent=True) or {}
+    S["pm_posts"].append(("wraps", body.get("names")))
+    S["pm_wraps"] = list(body.get("names") or [])
+    return printer_macros_get()
 @app.route("/printer/objects/list")
 def obj_list():
     return jsonify(result={"objects": OBJECTS})
@@ -393,7 +434,8 @@ def api_gcode():
     body = request.get_json(force=True, silent=True) or {}
     script = body.get("script", "")
     S["gcode_log"].append(script)
-    if script in ("luci_on", "luci_off"):
+    if script.lower() in ("luci_on", "luci_off"):
+        script = script.lower()
         S["light_cmds"].append((script, time.time()))
         target = 1 if script == "luci_on" else 0
         def apply():

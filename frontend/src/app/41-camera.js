@@ -4,7 +4,10 @@
    of Mainsail's webcam page: the WebRTC page served by the printer's nginx (the default), an MJPEG stream, MJPEG
    "adaptive" (one photo after the other) or any web page. Which of the two addresses of the Raspberry (home network
    or ZeroTier) is used depends on how the dashboard itself was reached. The light switch mirrors the real LED, which
-   Klipper exposes through the VAR_LUCI macro variable `stato_luci`.
+   Klipper exposes: the output that drives it (and the klipper-led_effect effects drawn on it), as chosen in
+   Settings → Printer functions (16a-printer-functions.js). Whoever switches the light (this page, Mainsail, KlipperScreen,
+   a macro, the console), the switch shows what the output really does. Without an output to read (a light switched only
+   by macros or G-code) the switch shows what was last asked.
    ========================================================================== */
 
 /** Away at least this long (ms) and the camera page is loaded again on coming back. */
@@ -21,7 +24,6 @@ const CAMERA_RELOAD_AFTER_AWAY_MS = 8000;
      · commands go out one at a time and only when needed (on, off, on in a second sends one command);
      · if Klipper has not followed after LIGHT_CONFIRM_MS the switch goes back and says so.
    ------------------------------------------------------------------------- */
-const LIGHT_MACRO_VARS = "gcode_macro%20VAR_LUCI";
 /** Reading rhythm while a wish waits to show up in Klipper (the normal rhythm is POLL_MS.light). */
 const LIGHT_CONFIRM_POLL_MS = 250;
 /** How long after Klipper has answered the command it may still take to show the new state, before we ask once more and give up. */
@@ -30,19 +32,18 @@ const LIGHT_CONFIRM_MS = 3500;
 const LIGHT_GIVE_UP_MS = 12000;
 const LIGHT_SEND_TIMEOUT_MS = 10000;
 
-async function fetchLightState(signal) {
-  const status = await moonraker.queryObjects(LIGHT_MACRO_VARS, { signal });
-  const macro = status["gcode_macro VAR_LUCI"];
-  if (!macro || macro.stato_luci === undefined) return null;
-  return Number(macro.stato_luci) === 1;
+async function fetchLightState(signal, light) {
+  if (!light || !light.object) return null;
+  const status = await moonraker.queryObjects(lightQuery(light.object), { signal });
+  return lightIsOn(status, light.object);
 }
 
-/** Sends luci_on / luci_off; true when Klipper answered (the backend waits for the macro to finish). */
-async function sendLightCommand(turnOn) {
+/** Sends the light's "on" or "off" G-code; true when Klipper answered (the backend waits for a macro to finish). */
+async function sendLightCommand(turnOn, light) {
   let timer = 0;
   try {
     const timeout = new Promise((_, reject) => (timer = setTimeout(() => reject(new Error("timeout")), LIGHT_SEND_TIMEOUT_MS)));
-    const response = await Promise.race([sendBrainGcode(turnOn ? "luci_on" : "luci_off"), timeout]);
+    const response = await Promise.race([sendBrainGcode(turnOn ? light.on : light.off), timeout]);
     return Boolean(response && response.ok);
   } catch (e) {
     return false;
@@ -55,7 +56,7 @@ async function sendLightCommand(turnOn) {
  * The state machine behind the switch, kept out of React so that it reads top to bottom.
  * `publish({ on, waiting, failures })` is called whenever what the switch shows changes.
  */
-function createLightEngine(publish) {
+function createLightEngine(publish, getLight) {
   let alive = false;
   let real = null; // what Klipper said last (null until the first answer)
   let wish = null; // what the person asked for and Klipper has not shown yet (null: nothing pending)
@@ -102,7 +103,7 @@ function createLightEngine(publish) {
     const controller = new AbortController(); // fetchFresh also gives every reading a time limit
     reading = controller;
     try {
-      const state = await fetchLightState(controller.signal);
+      const state = await fetchLightState(controller.signal, getLight());
       if (!alive || myGeneration !== generation || state === null) return; // out of date: a tap came after it left
       real = state;
       if (wish === null) return emit();
@@ -136,11 +137,12 @@ function createLightEngine(publish) {
       while (alive && wish !== null) {
         const target = wish;
         if ((commanded !== null ? commanded : real) === target) break;
-        if (!(await sendLightCommand(target))) {
+        if (!(await sendLightCommand(target, getLight()))) {
           sending = false;
           return giveUp(tx("Cannot switch the light"));
         }
         commanded = target;
+        if (!getLight().confirmable) real = target; // nothing to read: what was asked is what the switch shows
       }
     } finally {
       sending = false;
@@ -179,14 +181,20 @@ function createLightEngine(publish) {
 
 /** The case light as the button shows it ({ on, waiting, failures }) plus toggle(). */
 function useCaseLight() {
+  const light = usePrinterFunctions().light;
+  const lightRef = useRef(light);
+  lightRef.current = light;
   const [view, setView] = useState({ on: false, waiting: false, failures: 0 });
   const engine = useRef(null);
-  if (!engine.current) engine.current = createLightEngine(setView);
+  if (!engine.current) engine.current = createLightEngine(setView, () => lightRef.current);
+  const available = light.mode !== "off";
+  const key = light.mode + "|" + (light.object ? light.object.object : "") + "|" + light.on + "|" + light.off;
   useEffect(() => {
+    if (!available) return undefined;
     engine.current.start();
     return () => engine.current.stop();
-  }, []);
-  return { ...view, toggle: engine.current.toggle };
+  }, [key]);
+  return { ...view, available, toggle: engine.current.toggle };
 }
 
 /* ---------------------------------------------------------------------------
@@ -344,7 +352,7 @@ function CameraCard() {
   return h(
     Card,
     null,
-    h(CardHeader, { title: "Camera" }, h(LightButton, light)),
+    h(CardHeader, { title: "Camera" }, light.available && h(LightButton, light)),
     h("div", { className: "camera-frame" }, h(CameraMedia, { className: "camera-frame__video", reloads })),
   );
 }

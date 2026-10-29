@@ -124,9 +124,9 @@ with sync_playwright() as p:
     pg = P.pg
     open_menu(P)
     titles = pg.locator(".set-entry .oui-row__name").all_inner_texts()
-    ok("twelve groups, the printer first, then Accesso, the software one and Lingua last", titles == ["Stampante", "Camera", "Indirizzi", "Z-offset", "Notifiche", "Monitor IA", "Soglie del monitor", "Calibra camera", "Registrazioni", "Accesso", "Aggiornamenti", "Lingua"], titles)
+    ok("thirteen groups, the printer first, then Accesso, the software one and Lingua last", titles == ["Stampante", "Funzioni della stampante", "Camera", "Indirizzi", "Z-offset", "Notifiche", "Monitor IA", "Soglie del monitor", "Calibra camera", "Registrazioni", "Accesso", "Aggiornamenti", "Lingua"], titles)
     ok("the list says which release is installed", wait_until(lambda: pg.locator('.set-entry[data-page="software"] .set-entry__meta').inner_text() == "Release 1.0.0"), pg.locator('.set-entry[data-page="software"] .set-entry__meta').inner_text())
-    ok("no 'Nuovo' sign when nothing is waiting", pg.locator(".set-entry__badge").count() == 0)
+    ok("no 'Nuovo' sign when nothing is waiting (only 'Da controllare' on Printer functions)", pg.locator('.set-entry[data-page="software"] .set-entry__badge').count() == 0 and pg.locator(".set-entry__badge").all_inner_texts() == ["Da controllare"], pg.locator(".set-entry__badge").all_inner_texts())
     P.close()
 
     P = fresh(b, vz={"commits_behind": [{"sha": "aaa", "subject": "Release 1.0.1", "date": "1760000000"}], "commits_behind_count": 1, "remote_version": "v0.0.0-4"})

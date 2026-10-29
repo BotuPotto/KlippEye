@@ -1648,6 +1648,56 @@ if _old_home is not None:
     os.environ["HOME"] = _old_home
 _pp.forget()
 
+print("== 1.18.0: printer functions (phase 5b): KlippEye's own macros")
+import printer_macros as _pmac  # noqa: E402
+_cfgdir = tmp()
+os.makedirs(_cfgdir, exist_ok=True)
+_PRINTER_CFG = "[include macros.cfg]\n[printer]\nkinematics: corexy\n\n#*# <---------------------- SAVE_CONFIG ---------------------->\n#*# DO NOT EDIT THIS BLOCK OR BELOW.\n#*#\n#*# [probe]\n#*# z_offset = 1.2\n"
+open(os.path.join(_cfgdir, "printer.cfg"), "w").write(_PRINTER_CFG)
+_pp.forget()
+fake.state["roots"] = {"config": _cfgdir, "logs": _cfgdir}
+fake.state["commands"] = ["G28", "M600", "PARK", "FILAMENT_CHANGE_STATE1"]
+_dm = tmp()
+_mb = load_brain(NEW_BRAIN, _dm, fake, brain_json={"values": {"enabled": False}})
+_mc = _mb.app.test_client()
+j = _mc.get("/api/printer-macros").get_json()
+check("nothing made yet: no macros, not included", j["ok"] and j["macros"] == {} and j["wraps"] == [] and j["included"] is False and j["file"] == os.path.join(_cfgdir, "klippeye_macros.cfg"), j)
+t = _mc.get("/api/printer-macros/template?kind=park").get_json()
+check("template: KLIPPEYE_PARK, homes if needed, uses Klipper's travel (no fixed size)", t["name"] == "KLIPPEYE_PARK" and "axis_maximum" in t["text"] and "G28" in t["text"] and "[gcode_macro KLIPPEYE_PARK]" in t["text"])
+check("template: unknown function -> 400", _mc.get("/api/printer-macros/template?kind=coffee").status_code == 400)
+r = _mc.post("/api/printer-macros/macro", json={"name": "KLIPPEYE_PARK", "text": t["text"]})
+cfg_now = open(os.path.join(_cfgdir, "printer.cfg")).read()
+check("create: klippeye_macros.cfg written, [include] added BEFORE the SAVE_CONFIG block, the rest untouched", r.status_code == 200 and r.get_json()["restart_needed"] and r.get_json()["include_added"]
+      and "[gcode_macro KLIPPEYE_PARK]" in open(os.path.join(_cfgdir, "klippeye_macros.cfg")).read()
+      and cfg_now.index("[include klippeye_macros.cfg]") < cfg_now.index("#*# <----") and cfg_now.startswith("[include macros.cfg]\n[printer]\nkinematics: corexy\n")
+      and cfg_now.endswith(_PRINTER_CFG[_PRINTER_CFG.index("#*# <----"):]), cfg_now)
+check("... a backup of printer.cfg in the data folder", any(n.startswith("printer.cfg.") for n in os.listdir(os.path.join(_dm, "backups"))))
+_mc.post("/api/printer-macros/macro", json={"name": "KLIPPEYE_PARK", "text": t["text"].replace("variable_lift: 10", "variable_lift: 20")})
+check("saved again: the include is not added twice", open(os.path.join(_cfgdir, "printer.cfg")).read().count("[include klippeye_macros.cfg]") == 1
+      and "variable_lift: 20" in open(os.path.join(_cfgdir, "klippeye_macros.cfg")).read())
+_mc.set_cookie("klippeye_lang", "it")
+r = _mc.post("/api/printer-macros/macro", json={"name": "PARK", "text": "[gcode_macro PARK]\ngcode:\n  G28\n"})
+check("a name that already exists in the printer is refused (it would silently replace the person's macro), in Italian", r.status_code == 400 and "esiste già" in r.get_json()["error"], r.get_json())
+r = _mc.post("/api/printer-macros/macro", json={"name": "X1", "text": "[printer]\nmax_velocity: 9999\n[gcode_macro X1]\ngcode:\n"})
+check("only [gcode_macro] sections can be saved (not [printer], not [include])", r.status_code == 400 and "gcode_macro" in r.get_json()["error"], r.get_json())
+r = _mc.post("/api/printer-macros/wraps", json={"names": ["M600", "NOT_THERE"]})
+check("an announcer for a macro the printer does not have is refused (Klipper would not start)", r.status_code == 400 and "NOT_THERE" in r.get_json()["error"] and "Klipper non partirebbe" in r.get_json()["error"], r.get_json())
+_mc.delete_cookie("klippeye_lang")
+r = _mc.post("/api/printer-macros/wraps", json={"names": ["m600", "FILAMENT_CHANGE_STATE1"]})
+_file = open(os.path.join(_cfgdir, "klippeye_macros.cfg")).read()
+check("announcers: a wrapper per macro, with rename_existing, the KlippEye line, then the original with its parameters", r.status_code == 200 and r.get_json()["wraps"] == ["M600", "FILAMENT_CHANGE_STATE1"]
+      and "[gcode_macro M600]\nrename_existing: KLIPPEYE_ORIGINAL_M600" in _file and 'RESPOND MSG="KlippEye: filament change (M600)"' in _file and "KLIPPEYE_ORIGINAL_M600 {rawparams}" in _file, _file[-500:])
+fake.state["commands"] = "down"
+r = _mc.post("/api/printer-macros/wraps", json={"names": ["M600"]})
+check("Klipper not answering: announcers are not changed (they could not be checked)", r.status_code == 400 and "Klipper" in r.get_json()["error"])
+fake.state["commands"] = ["G28", "M600"]
+check("after a restart of the backend the macros are still known", load_brain(NEW_BRAIN, _dm, fake, brain_json={"values": {"enabled": False}}).printer_macros_store.summary()["wraps"] == ["M600", "FILAMENT_CHANGE_STATE1"])
+r = _mc.post("/api/printer-macros/wraps", json={"names": []})
+check("announcers removed: the wrappers leave the file, the created macro stays", "rename_existing" not in open(os.path.join(_cfgdir, "klippeye_macros.cfg")).read() and "KLIPPEYE_PARK" in open(os.path.join(_cfgdir, "klippeye_macros.cfg")).read())
+_pp.forget()
+fake.state["roots"] = None
+fake.state["commands"] = None
+
 stop_all()
 fake.close()
 print("\n%d PASS, %d FAIL" % (passed, failed))

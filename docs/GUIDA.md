@@ -58,6 +58,8 @@ Tutto sta nel menu **☰ (Impostazioni)**. Le impostazioni restano sul Raspberry
 
 * **Stampante**: il logo nella barra in alto (KlippEye, VzBot, Voron, RatRig) e un nome tuo, usato anche come titolo della scheda
   del browser. I loghi ufficiali delle marche vanno nella cartella `logos/` del repository (vedi [logos/README.md](../logos/README.md)).
+* **Funzioni della stampante** (segnata *Da controllare* finché non la confermi): cosa fanno i pulsanti che usano le macro della
+  tua stampante, vedi sotto.
 * **Camera**: il metodo (WebRTC, MJPEG, MJPEG adaptive o una pagina web qualsiasi) e il suo indirizzo. **Importa da Mainsail** li
   prende dalle camere già impostate in Mainsail.
 * **Indirizzi**: l'IP locale del Raspberry e, se usi una VPN come ZeroTier, quello esterno: camera e app Android usano quello giusto
@@ -68,6 +70,38 @@ Tutto sta nel menu **☰ (Impostazioni)**. Le impostazioni restano sul Raspberry
 * **Accesso**: la password facoltativa (vedi 7).
 * **Aggiornamenti**: release, ritorno alla versione precedente, riavvio dei servizi, app Android.
 * **Lingua**: italiano o inglese, scelta su ogni dispositivo (*Automatica* segue la lingua del dispositivo).
+
+### Funzioni della stampante
+
+Ogni stampante parcheggia, pulisce l'ugello, carica il filamento o accende la luce con le sue macro (oppure non può farlo).
+**Impostazioni → Funzioni della stampante** dice cosa fa ogni pulsante della dashboard, e la prima volta KlippEye la compila da
+solo: cerca in Klipper i nomi più comuni (`PARK`, `CLEAN_NOZZLE`, `LOAD_FILAMENT`/`FILAMENT_LOAD`/`M701`,
+`UNLOAD_FILAMENT`/`M702`, una coppia come `LIGHTS_ON`/`LIGHTS_OFF`) e un'uscita per la luce. Controllala una volta e premi **Va
+tutto bene**. Per ogni funzione:
+
+* **Automatico**: quello che KlippEye ha trovato (la pagina dice cosa, oppure che non ha trovato niente e il pulsante non compare);
+* **Macro**: una delle tue macro (il campo suggerisce quelle che Klipper ha);
+* **G-code**: qualche riga scritta nell'editor della dashboard, che si apre sopra la pagina;
+* **Non usata**: il pulsante non compare;
+* **Crea una macro per questo**: KlippEye ne propone una (parcheggio in fondo, scalda e carica, scalda e scarica, pulizia su una
+  spazzola di cui imposti la posizione), si apre nell'editor e quando salvi finisce in **`klippeye_macros.cfg`**, un file di
+  KlippEye accanto a `printer.cfg`. La prima volta `printer.cfg` riceve `[include klippeye_macros.cfg]` in fondo (con una copia di
+  sicurezza nella cartella dei dati). Klipper lo legge dopo un riavvio: la pagina propone **Riavvia Klipper adesso** (non durante
+  una stampa). Una macro che esiste già nella tua configurazione non si può ricreare con lo stesso nome.
+
+**La luce** si può anche comandare direttamente sulla sua uscita (**Uscita**: un `[output_pin]`, `[led]`, `[neopixel]`...).
+Chiunque la cambi, il pulsante legge l'uscita stessa (e gli effetti di *klipper-led_effect* che ci girano sopra), quindi è sempre
+giusto, anche quando la luce viene cambiata da Mainsail, KlipperScreen, dalla console o da una macro. Con le macro o il G-code
+scegli da dove il pulsante legge lo stato (oppure nessuna: mostra l'ultima richiesta).
+
+**Notifica di cambio filamento**: il telefono riceve *Filamento esaurito* quando
+* un **sensore del filamento** (`[filament_switch_sensor]`, `[filament_motion_sensor]`) dice che il filamento è finito durante
+  una stampa;
+* parte una delle **macro che scegli** (`M600` nel G-code, la tua macro di fine filamento...): KlippEye aggiunge in
+  `klippeye_macros.cfg` un piccolo involucro con lo stesso nome (`rename_existing`) che scrive `KlippEye: filament change` nella
+  console e poi esegue la tua macro esattamente come prima. Si possono scegliere solo macro che Klipper ha davvero (una sbagliata
+  impedirebbe a Klipper di partire);
+* compare una **riga della console** che scrivi tu (*Printer paused due to filament runout!* è sempre riconosciuta).
 
 ## 4. Aggiornamenti
 

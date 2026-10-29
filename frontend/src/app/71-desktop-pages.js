@@ -23,7 +23,7 @@ function CameraPanel() {
     { className: "desk-camera" },
     h(CameraMedia, { className: "desk-camera__video", reloads }),
     h("span", { className: "desk-camera__tag" }, h("span", { className: "oui-dot desk-camera__live" }), "Camera"),
-    h("div", { className: "desk-camera__light" }, h(LightButton, light)),
+    light.available && h("div", { className: "desk-camera__light" }, h(LightButton, light)),
   );
 }
 

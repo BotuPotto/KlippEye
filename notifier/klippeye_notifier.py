@@ -9,7 +9,10 @@ Cloud Messaging, the service every Android app uses for push) when something hap
     complete   print finished
     cancelled  print cancelled
     paused     print paused
-    runout     filament runout (the macro filament_change_state1 writes "Printer paused due to filament runout!")
+    runout     filament runout: a filament sensor of Klipper says the filament is gone during a print; or a macro chosen in
+               the dashboard (Settings -> Printer functions) announces a filament change ("KlippEye: filament change", written by
+               the wrapper KlippEye puts in klippeye_macros.cfg); or a console line chosen there (by default "Printer paused
+               due to filament runout!")
     ai_pause   the AI print monitor recommends a pause (verdict PAUSE)
     ai_cancel  the AI print monitor recommends cancelling (verdict CANCEL)
 
@@ -45,6 +48,7 @@ import logging
 import os
 import queue
 import re
+import urllib.parse
 import signal
 import sys
 import threading
@@ -216,10 +220,12 @@ class Snapshot:
     lines: List[Tuple[float, str]] = field(default_factory=list)  # recent console lines: (time, text)
     ai: Optional[AiVerdict] = None  # None: backend not reachable or nothing to say
     settings: Optional[Dict[str, Any]] = None  # the dashboard's settings document; {} = nothing stored yet; None = not known (keep the last)
+    sensors: Optional[Dict[str, bool]] = None  # filament sensors: {name: filament detected} (enabled ones only); None = not read
 
 
 KLIPPY_ERRORS = ("shutdown", "error")
 RUNOUT_LINE = re.compile(r"paused due to filament runout", re.IGNORECASE)
+FILAMENT_TAG = "KlippEye: filament change"  # written by the wrappers of backend/printer_macros.py
 
 # ---- the dashboard's settings (Moonraker database, namespace "klippeye", key "settings")
 DASH_NAMESPACE = "klippeye"
@@ -256,8 +262,15 @@ def dash_settings(raw: Any) -> Dict[str, Any]:
             "defects": {name: defects.get(name) is not False for name in DASH_DEFECTS},
         },
         "language": given.get("language") if given.get("language") in LANGUAGES else None,
+        "filament": filament_settings(_dict(_dict(given.get("functions")).get("filament"))),
         "stamp": given.get("_t") if isinstance(given.get("_t"), (int, float)) and not isinstance(given.get("_t"), bool) else 0,
     }
+
+
+def filament_settings(given: Dict[str, Any]) -> Dict[str, Any]:
+    """How a filament runout is recognised: the sensors (on unless switched off), and console phrases chosen in the dashboard."""
+    phrases = [p.strip()[:120] for p in given.get("phrases") or [] if isinstance(p, str) and p.strip()][:10]
+    return {"sensor": given.get("sensor") is not False, "phrases": phrases}
 
 
 class Watcher:
@@ -284,6 +297,7 @@ class Watcher:
         self.last_action: Optional[Dict[str, Any]] = None  # for the dashboard: {"kind", "ok", "at"}
         self.sent_at: Dict[str, float] = {}
         self.runout_notified_at = float("-inf")
+        self.sensors: Optional[Dict[str, bool]] = None
         self.pending_pause: Optional[float] = None
         self._actions: List[Action] = []
         self._results: List[Tuple[str, bool]] = []
@@ -329,6 +343,7 @@ class Watcher:
         self._results_of_actions(now, out)
         self._klippy(snap, now, out)
         self._lines(snap, now, out)  # before the print state: the runout line comes before the pause it causes
+        self._sensors(snap, now, out)
         self._print(snap, now, out)
         self._pause(snap, now, out)
         self._ai(snap, now, out)
@@ -387,9 +402,25 @@ class Watcher:
             return
         fresh = [text for time_, text in snap.lines if time_ > self.last_line_time]
         self.last_line_time = max(self.last_line_time, newest)
-        if any(RUNOUT_LINE.search(text) for text in fresh):
-            if self._emit("runout", now, out):
-                self.runout_notified_at = now
+        phrases = [p.lower() for p in self.dash.get("filament", {}).get("phrases", [])]
+        if any(RUNOUT_LINE.search(text) or FILAMENT_TAG.lower() in text.lower() or any(p in text.lower() for p in phrases) for text in fresh):
+            self._runout(now, out)
+
+    def _runout(self, now: float, out: List[Notice]) -> None:
+        if now - self.runout_notified_at < 30:
+            return  # the sensor and the macro of the same change: one notice
+        if self._emit("runout", now, out):
+            self.runout_notified_at = now
+
+    def _sensors(self, snap: Snapshot, now: float, out: List[Notice]) -> None:
+        """A filament sensor that goes from "filament" to "no filament" while printing (or paused) is a runout."""
+        if snap.sensors is None:
+            return
+        before, self.sensors = self.sensors, dict(snap.sensors)
+        if before is None or not self.dash.get("filament", {}).get("sensor", True) or self.print_state not in ("printing", "paused"):
+            return
+        if any(before.get(name) is True and detected is False for name, detected in snap.sensors.items()):
+            self._runout(now, out)
 
     def _print(self, snap: Snapshot, now: float, out: List[Notice]) -> None:
         state = snap.print_state
@@ -592,6 +623,21 @@ class PrinterReader:
         self._ai: Optional[AiVerdict] = None
         self._settings: Optional[Dict[str, Any]] = None
         self._reachable: Dict[str, bool] = {}
+        self._sensors_known: Optional[List[str]] = None
+
+    def _sensor_names(self) -> List[str]:
+        """Klipper's filament sensors (asked once after every start of Klipper)."""
+        if self._sensors_known is None:
+            try:
+                status, answer = http_json(self.moonraker + "/printer/objects/list")
+                if status == 200 and isinstance(answer, dict):
+                    objects = (answer.get("result") or {}).get("objects") or []
+                    self._sensors_known = [o for o in objects if isinstance(o, str) and o.split(" ")[0] in ("filament_switch_sensor", "filament_motion_sensor")]
+                else:
+                    self._sensors_known = []  # an older Moonraker / a stand-in: no sensors (asked again after Klipper restarts)
+            except OSError:
+                return []
+        return self._sensors_known or []
 
     def _note(self, name: str, ok: bool, what: str) -> None:
         """Says (once) when something becomes unreachable or comes back."""
@@ -614,12 +660,19 @@ class PrinterReader:
         except OSError:
             self._note("moonraker", False, "Moonraker")
         if snap.klippy == "ready":
+            sensors = self._sensor_names()
             try:
-                status, stats = http_json(self.moonraker + "/printer/objects/query?print_stats")
+                query = "print_stats" + "".join("&" + urllib.parse.quote(name) for name in sensors)
+                status, stats = http_json(self.moonraker + "/printer/objects/query?" + query)
                 if status == 200 and isinstance(stats, dict):
-                    snap.print_state = ((stats.get("result") or {}).get("status") or {}).get("print_stats", {}).get("state") or None
+                    found = (stats.get("result") or {}).get("status") or {}
+                    snap.print_state = found.get("print_stats", {}).get("state") or None
+                    snap.sensors = {name: bool(found[name].get("filament_detected")) for name in sensors
+                                    if isinstance(found.get(name), dict) and found[name].get("enabled", True) is not False}
             except OSError:
                 pass
+        else:
+            self._sensors_known = None  # Klipper restarts: its sensors are asked again (the configuration may have changed)
         if snap.klippy is not None:
             try:
                 status, store = http_json(self.moonraker + "/server/gcode_store?count=100")

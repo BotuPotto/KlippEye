@@ -135,7 +135,7 @@ with sync_playwright() as p:
     t = wait_for(P, lambda: P.pg.evaluate("() => document.querySelector('.light-btn').classList.contains('is-on')"), 15)
     ok("[light after sleep] shown on within 4 s", t is not None and t <= 4, t)
     P.pg.locator(".light-btn").click()
-    t = wait_for(P, lambda: mock.gcode() and mock.gcode()[-1] == "luci_off", 3)
+    t = wait_for(P, lambda: mock.gcode() and mock.gcode()[-1].lower() == "luci_off", 3)
     ok("[light after sleep] the button works", t is not None, t)
     P.close()
 

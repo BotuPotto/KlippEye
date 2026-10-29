@@ -1,5 +1,25 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.18.0
+
+**Printer functions (phase 5b of the roadmap).** The buttons that used the macros of one printer (PARK, WIPE, FILAMENT_LOAD,
+FILAMENT_UNLOAD, luci_on / luci_off with the VAR_LUCI variable) now work on any printer, and say what they do.
+
+* **Settings → Printer functions**, marked *To check* until confirmed: for park, wipe, load and unload the filament and the light,
+  **Automatic** (the usual macro names found in Klipper), **Macro** (chosen from the printer's macros), **G-code** (written in the
+  dashboard's editor), **Not used** (no button). The Control page shows only the buttons that do something.
+* **Create a macro**: KlippEye proposes one (park, wipe, load, unload, light on / off), it opens in the editor and is saved into
+  `klippeye_macros.cfg` (`backend/printer_macros.py`), included at the end of `printer.cfg` (with a backup); the page offers to
+  restart Klipper (not while printing). Names that already exist in the configuration are refused.
+* **The light switch reads the real output**: an `[output_pin]` value, a `[led]`/`[neopixel]` colour, or a *klipper-led_effect*
+  effect running on it. The switch is right whoever changes the light (Mainsail, KlipperScreen, the console, a macro). The light
+  can also be switched directly on its output (SET_PIN, SET_LED, STOP_LED_EFFECTS), without macros.
+* **Filament change notification on any printer**: from Klipper's filament sensors, from macros announced by a small wrapper in
+  `klippeye_macros.cfg` (rename_existing: it writes "KlippEye: filament change" and runs the original), or from a console line
+  chosen in the dashboard. Only macros Klipper has can be announced (a wrong one would stop Klipper from starting).
+* The dashboard's editor can edit a text that is not a file (a G-code or a macro being prepared).
+* API: `/api/printer-macros` (GET; `/template`, `/macro`, `/wraps`).
+
 ## 1.17.0
 
 **Any user, any folders (phase 5a of the roadmap: KlippEye for everyone).** The first step to make KlippEye work on any

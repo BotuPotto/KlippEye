@@ -3248,6 +3248,68 @@ def api_camera_forget():
     return _camera_call(lambda: camera_cal.forget())
 
 
+# === PRINTER FUNCTIONS (phase 5b): the macros KlippEye writes into klippeye_macros.cfg ==================================
+import printer_macros  # noqa: E402
+
+MACRO_MESSAGES = (  # what printer_macros.py may answer, for the dictionaries (bt translates them)
+    btn("the macro is empty"), btn("the macro is too long"), btn("only [gcode_macro NAME] sections can be saved here"),
+    btn("{name} is not a valid macro name"), btn("the macro must be called {name}"),
+    btn("{name} is announced as a filament change: it cannot also be created here"), btn("too many macros"),
+    btn("{name} already exists in your configuration: choose another name"),
+    btn("{name} is not a command of your printer: Klipper would not start with it"),
+    btn("Klipper does not answer: it must be running to check the macros"),
+    btn("the configuration folder was not found: {folder}"), btn("printer.cfg was not found in {folder}"), btn("unknown function"),
+)
+
+
+def _klipper_commands():
+    r = requests.get(f"{MOONRAKER_URL}/printer/gcode/help", timeout=5)
+    r.raise_for_status()
+    return list((r.json().get("result") or {}).keys())
+
+
+printer_macros_store = printer_macros.PrinterMacros(DATA_DIR, _config_dir, _klipper_commands)
+
+
+def _macros_call(work):
+    try:
+        return jsonify(dict(work() or {}, ok=True))
+    except printer_macros.MacroError as error:
+        return jsonify({"ok": False, "error": bt(str(error), _lang(), **error.values)}), 400
+    except OSError as error:
+        return jsonify({"ok": False, "error": str(error)}), 500
+
+
+@app.route("/api/printer-macros", methods=["GET"])
+def api_printer_macros():
+    """The macros KlippEye made (and the ones it announces as a filament change), and whether printer.cfg includes them."""
+    return _macros_call(printer_macros_store.summary)
+
+
+@app.route("/api/printer-macros/template", methods=["GET"])
+def api_printer_macros_template():
+    """The macro KlippEye proposes for a function (park, wipe, load, unload, light_on, light_off), to edit before saving."""
+    def work():
+        name, text = printer_macros.template(request.args.get("kind", ""))
+        return {"name": name, "text": text}
+    return _macros_call(work)
+
+
+@app.route("/api/printer-macros/macro", methods=["POST"])
+def api_printer_macros_macro():
+    """{name, text}: creates or replaces one of KlippEye's macros; text null removes it. Klipper reads it at its next restart."""
+    body = request.get_json(silent=True) or {}
+    return _macros_call(lambda: printer_macros_store.set_macro(body.get("name"), body.get("text")))
+
+
+@app.route("/api/printer-macros/wraps", methods=["POST"])
+def api_printer_macros_wraps():
+    """{names: [...]}: the macros that announce a filament change to the notification service (see printer_macros.py)."""
+    body = request.get_json(silent=True) or {}
+    names = body.get("names")
+    return _macros_call(lambda: printer_macros_store.set_wraps(names if isinstance(names, list) else []))
+
+
 @app.route("/api/camera/shape", methods=["POST"])
 def api_camera_shape():
     """The size of the toolhead and of the gantry around the nozzle (mm): {"toolhead": {left, right, front, back, top, below},

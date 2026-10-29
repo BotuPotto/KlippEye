@@ -465,7 +465,7 @@ function EditorScreen({ session, onClose, inline, onDirtyChange }) {
     setBusy(true);
     setStatus(SAVE_STATUS.saving);
     try {
-      await configFilesApi.save(path, text, root);
+      await (session.onSave ? session.onSave(text) : configFilesApi.save(path, text, root));
     } catch (error) {
       setStatus(tx("Error: ") + (error.message || error));
       setBusy(false);
@@ -517,7 +517,7 @@ function EditorScreen({ session, onClose, inline, onDirtyChange }) {
 
   const matchLines = new Set(matches.map((offset) => lineOfOffset(text, offset)));
   const currentMatchLine = matches[matchIndex] !== undefined ? lineOfOffset(text, matches[matchIndex]) : -1;
-  const saveDisabled = !dirty || busy || readOnly;
+  const saveDisabled = (!dirty && !session.onSave) || busy || readOnly; // a proposed macro can be saved as it is
 
   return h(
     "div",
@@ -537,7 +537,7 @@ function EditorScreen({ session, onClose, inline, onDirtyChange }) {
         { className: "editor-actions" },
         h("button", { className: cx("oui-btn oui-btn--icon", searchOpen && "oui-btn--accent-soft"), title: tx("Search"), "aria-label": tx("Search"), onClick: () => (searchOpen ? setSearchOpen(false) : openSearch()) }, h(Icons.Search, { size: 20 })),
         !readOnly && h("button", { className: "oui-btn oui-btn--primary editor-save", disabled: saveDisabled, onClick: () => save(false) }, tx("Save")),
-        !readOnly && !isGcode && h("button", { className: "oui-btn editor-save", disabled: saveDisabled, onClick: () => save(true) }, tx("Save and restart")),
+        !readOnly && !isGcode && !session.onSave && h("button", { className: "oui-btn editor-save", disabled: saveDisabled, onClick: () => save(true) }, tx("Save and restart")),
       ),
     ),
     searchOpen &&
@@ -613,7 +613,8 @@ function EditorScreen({ session, onClose, inline, onDirtyChange }) {
 }
 
 /**
- * `session` = { path, content, token } while a file is open, otherwise null.
+ * `session` = { path, content, token } while a file is open, otherwise null. With `session.onSave(text)` (a promise) the text
+ * is handed to it instead of being written to `path` (a macro or G-code being prepared, e.g. by Printer functions).
  * `inline` shows it inside the page (the wide Config page) instead of over it; `onDirtyChange(bool)` reports unsaved changes.
  */
 function TextEditor({ session, onClose, inline, onDirtyChange }) {
