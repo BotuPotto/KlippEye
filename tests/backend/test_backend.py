@@ -1182,6 +1182,16 @@ row4 = json.load(open(out_json))["sessions"][0]
 check("replay: not marked: false alarms unknown", row4["false"] is None and row4["outcome"] is None, row4)
 empty = tmp()
 rp4 = _sub2.run([sys.executable, REPLAY, "--data", empty], capture_output=True, text=True, timeout=60)
+# a picture left empty by a power cut while it was being written: skipped and counted, the measure goes on
+_one = sorted(n for n in os.listdir(os.path.join(drec, "recordings", sorted(os.listdir(os.path.join(drec, "recordings")))[0])) if n.endswith(".jpg"))[2]
+_session_dir = os.path.join(drec, "recordings", sorted(os.listdir(os.path.join(drec, "recordings")))[0])
+open(os.path.join(_session_dir, _one), "wb").close()
+open(os.path.join(_session_dir, sorted(n for n in os.listdir(_session_dir) if n.endswith(".jpg"))[3]), "wb").write(b"not a jpeg")
+_ej = os.path.join(tmp(), "e.json")
+rpe = _sub2.run([sys.executable, REPLAY, "--data", drec, "--json", _ej], capture_output=True, text=True, timeout=120)
+rese = json.load(open(_ej)) if os.path.isfile(_ej) else {}
+check("replay: an empty and a broken picture are skipped and counted (no OpenCV error)", rpe.returncode == 0 and rese.get("ok") and rese["total"]["unreadable_frames"] == 2
+      and "empty or broken" in rpe.stdout, (rpe.returncode, rpe.stderr[-400:], rese.get("total")))
 check("replay without recordings: says how to start, exit 0", rp4.returncode == 0 and "No recordings" in rp4.stdout, rp4.stdout + rp4.stderr)
 
 # --- measuring from the dashboard

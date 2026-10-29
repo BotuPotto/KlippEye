@@ -1,5 +1,11 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.18.1
+
+* **Measure now** no longer stops with an OpenCV error (`!buf.empty() in function 'imdecode_'`) when a recorded picture is
+  empty or broken (it happens when the power goes while the picture is being written): such pictures are skipped and counted,
+  and the result says how many.
+
 ## 1.18.0
 
 **Printer functions (phase 5b of the roadmap).** The buttons that used the macros of one printer (PARK, WIPE, FILAMENT_LOAD,

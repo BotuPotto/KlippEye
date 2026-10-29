@@ -100,6 +100,16 @@ def load_masks(data_dir):
     return {"calibration": calibration, "shape": shape, "x_range": shape.get("x_range"), "limits": shape.get("limits")}
 
 
+def decode(cv2, np, raw):
+    """The picture, or None when the file is empty or broken (OpenCV raises on an empty buffer instead of answering None)."""
+    if not raw:
+        return None
+    try:
+        return cv2.imdecode(np.frombuffer(raw, np.uint8), cv2.IMREAD_COLOR)
+    except cv2.error:
+        return None
+
+
 def replay_session(folder, session, settings, masks=None):
     """Runs the monitor on one recording. -> dict with the alarms and the time it took.
     `masks` (load_masks): leave out the toolhead and the gantry at the recorded positions (unless machine_masks is off)."""
@@ -122,7 +132,7 @@ def replay_session(folder, session, settings, masks=None):
     except OSError:
         pass
     frames.sort(key=lambda row: row.get("n", 0))
-    alarms, judged, spent, masked, zoned = [], 0, 0.0, 0, 0
+    alarms, judged, spent, masked, zoned, unreadable = [], 0, 0.0, 0, 0, 0
     for row in frames:
         t = row.get("t")
         if not isinstance(t, (int, float)) or t < judge.cooldown_until:
@@ -133,8 +143,9 @@ def replay_session(folder, session, settings, masks=None):
         except (OSError, KeyError):
             continue
         started = time.perf_counter()
-        frame = cv2.imdecode(np.frombuffer(raw, np.uint8), cv2.IMREAD_COLOR)
+        frame = decode(cv2, np, raw)
         if frame is None:
+            unreadable += 1  # empty or broken picture (a power cut while it was being written): skipped
             continue
         ignore = None
         if use_masks and row.get("live"):
@@ -156,7 +167,7 @@ def replay_session(folder, session, settings, masks=None):
         if triggered:
             alarms.append({"t": round(t, 2), "frame": row["n"], "layer": row.get("layer"), "progress": row.get("progress")})
     times = [row["t"] for row in frames if isinstance(row.get("t"), (int, float))]
-    return {"frames": len(frames), "judged": judged, "alarms": alarms, "masked": masked, "zoned": zoned, "ms_per_check": round(spent * 1000 / judged, 1) if judged else None,
+    return {"frames": len(frames), "judged": judged, "alarms": alarms, "masked": masked, "zoned": zoned, "unreadable": unreadable, "ms_per_check": round(spent * 1000 / judged, 1) if judged else None,
             "first": min(times) if times else session.get("started"), "last": max(times) if times else (session.get("ended") or session.get("started"))}
 
 
@@ -198,7 +209,7 @@ def measure(data_dir, ids=None, current=False, overrides=None):
                "alarm_list": result["alarms"], "per_hour": round(len(result["alarms"]) / hours, 2) if hours > 0 else None,
                "false": false, "seen": seen, "delay_s": delay, "live_alarms": len(session.get("live_triggers") or []),
                "alerts_false": labels.count("false"), "alerts_right": labels.count("right"),
-               "ms_per_check": result["ms_per_check"], "live_cpu": session.get("cpu") or {}, "masked_frames": result["masked"], "zoned_frames": result["zoned"]}
+               "ms_per_check": result["ms_per_check"], "live_cpu": session.get("cpu") or {}, "masked_frames": result["masked"], "zoned_frames": result["zoned"], "unreadable_frames": result["unreadable"]}
         sessions.append(row)
         total["hours"] += hours
         total["alarms"] += row["alarms"]
@@ -223,6 +234,7 @@ def measure(data_dir, ids=None, current=False, overrides=None):
         "ms_per_check": round(sum(total["ms"]) / len(total["ms"]), 1) if total["ms"] else None,
         "masked_frames": sum(s["masked_frames"] for s in sessions), "frames": sum(s["frames"] for s in sessions),
         "zoned_frames": sum(s["zoned_frames"] for s in sessions),
+        "unreadable_frames": sum(s["unreadable_frames"] for s in sessions),
         "zone": "off" if (overrides or {}).get("expected_zone") is False else ("on" if masks else "no calibration"),
         "masks": "off" if (overrides or {}).get("machine_masks") is False else ("on" if masks else "no calibration"),
     }
@@ -259,6 +271,8 @@ def table(result):
     out += "\nWhole bed watched outside the parts: %s" % {"on": "yes, in %d of %d pictures (those of prints with the objects known)" % (t.get("zoned_frames", 0), t.get("frames", 0)),
                                                        "off": "no (expected_zone=off)", "no calibration": "no (the camera is not calibrated)"}.get(t.get("zone"), "-")
     out += "\nFalse alarms per hour of print known to be fine: %s" % fmt(t["false_per_hour"])
+    if t.get("unreadable_frames"):
+        out += "\nPictures skipped because empty or broken (e.g. a power cut while recording): %d" % t["unreadable_frames"]
     if t["failures"]:
         out += "\nFailed prints whose problem was caught: %d of %d%s" % (t["seen"], t["failures"], (", on average after " + minutes(t["average_delay_s"])) if t["average_delay_s"] is not None else "")
     if t["ms_per_check"] is not None:
