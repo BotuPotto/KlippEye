@@ -116,12 +116,18 @@ il monitor può distinguere la testina da un problema (le maschere arrivano nell
 
 1. Di' come si muove l'**asse Z**: il **piatto** (VzBot, Voron Trident, RatRig V-Core…) o la **testina** (Voron 2.4…), e le
    misure della testina. Le stampanti con il piatto che si muove in Y (Prusa, Ender) non sono ancora supportate.
-2. Piatto vuoto e pulito, la luce come durante le stampe, poi **Homing**. Se Z muove il piatto, **Fai i 6 segni**: la
-   stampante scalda (PLA, 210 °C) e lascia sei piccoli segni di filamento sul piatto, che servono a vedere il piatto a
-   un'altra altezza.
-3. Per ognuno dei 12 punti premi **Vai al punto**, tocca la punta dell'ugello (o il segno) nell'immagine, tocca di nuovo
-   esattamente nella vista ingrandita e **Tieni questo punto**.
-4. **Calcola la calibrazione**: l'errore medio in pixel; i punti da rifare diventano rossi. L'immagine dal vivo mostra il
+2. Piatto pulito, la luce come durante le stampe, poi **Homing**.
+3. Se Z muove il piatto servono sei **segni** sul piatto (per la camera l'ugello da solo è sempre alla stessa altezza).
+   Due modi:
+   * **Stampa i segni (consigliato)**: **Scarica i segni (STL)**, sei piccole piramidi già posizionate per il tuo piatto.
+     Passa il file nello slicer con le tue impostazioni solite (senza supporti, un colore che si distingua dal piatto;
+     lascia la posizione data dall'STL), stampalo e lascialo sul piatto. Poi scegli il G-code che hai stampato e
+     **Leggi i segni da questo file**: KlippEye trova dove lo slicer ha messo le piramidi e quanto sono venute alte.
+   * **Gocce rapide**: scegli le temperature di ugello e piatto e **Fai le 6 gocce**: la stampante lascia sei dischetti
+     di filamento (con retrazione e z-hop tra uno e l'altro). Più veloce, meno preciso.
+4. Per ognuno dei 12 punti premi **Vai al punto**, tocca la punta dell'ugello (o la punta del segno) nell'immagine, tocca
+   di nuovo esattamente nella vista ingrandita e **Tieni questo punto**.
+5. **Calcola la calibrazione**: l'errore medio in pixel; i punti da rifare diventano rossi. L'immagine dal vivo mostra il
    contorno della testina e il piatto disegnati sopra: muovi la testina con i tasti, il disegno deve seguirla.
    **Salva la calibrazione**, poi togli i segni.
 

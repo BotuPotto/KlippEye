@@ -36,6 +36,7 @@ import tempfile
 import shutil
 import threading
 import subprocess
+import urllib.parse
 
 app = Flask(__name__)
 # CORS: no longer open to every site (1.2.0). The dashboard and the app talk to the backend from its own origin; see ACCESS.
@@ -2988,14 +2989,37 @@ def _camera_snapshot():
 CAMERA_MESSAGES = (  # what camera_calibration.py and camera_model.py may answer, for the dictionaries (bt translates them)
     btn("Klipper is not ready"), btn("the printer is printing"), btn("home the printer first"), btn("z_moves must be bed or toolhead"),
     btn("the toolhead size must be 10 to 300 mm"), btn("unknown point"), btn("a step is at most 50 mm"),
-    btn("u and v must be fractions of the picture (0..1)"), btn("the blobs are only for printers where Z moves the bed"),
+    btn("u and v must be fractions of the picture (0..1)"), btn("the markers are only for printers where Z moves the bed"),
+    btn("choose the file that printed the markers"), btn("this file is too big to be the markers file"),
+    btn("temperatures: nozzle 170 to 300 °C, bed 0 to 120 °C"), btn("this file extrudes nothing"),
+    btn("this file has no markers: print the KlippEye markers file"), btn("the markers file was not recognised: {found} markers found instead of 6"),
     btn("no picture from the camera"), btn("at least 8 points are needed"), btn("calculate the calibration first"),
     btn("the calibration is not good enough: redo the points marked in red"), btn("the camera picture changed size: calculate again"),
     btn("the points must be at two heights at least 10 mm apart"), btn("the points are all on one plane"),
     btn("no camera fits these points: check that each tap is on the nozzle tip"), btn("the camera is not calibrated"),
     btn("Klipper refused the command: {message}"),
 )
-camera_cal = _camcal.CameraCalibration(DATA_DIR, _klipper_query, _klipper_gcode, _camera_snapshot, cv2 if HAS_CV2 else None, np)
+def _gcode_files():
+    r = requests.get(f"{MOONRAKER_URL}/server/files/list?root=gcodes", timeout=10)
+    r.raise_for_status()
+    return r.json().get("result") or []
+
+
+def _read_gcode(path):
+    r = requests.get(f"{MOONRAKER_URL}/server/files/gcodes/" + urllib.parse.quote(path), timeout=60, stream=True)
+    if r.status_code == 404:
+        raise ValueError("choose the file that printed the markers")
+    r.raise_for_status()
+    data = b""
+    for chunk in r.iter_content(1024 * 1024):
+        data += chunk
+        if len(data) > _camcal.MAX_GCODE_BYTES:
+            raise ValueError("this file is too big to be the markers file")
+    return data.decode("utf-8", "replace")
+
+
+camera_cal = _camcal.CameraCalibration(DATA_DIR, _klipper_query, _klipper_gcode, _camera_snapshot, cv2 if HAS_CV2 else None, np,
+                                       files=_gcode_files, read_file=_read_gcode)
 
 
 def _camera_call(work):
@@ -3006,7 +3030,7 @@ def _camera_call(work):
     except _camcal.NotReady as error:
         return jsonify({"ok": False, "error": bt(error.text, _lang(), **error.values)}), 409
     except ValueError as error:
-        return jsonify({"ok": False, "error": bt(str(error), _lang())}), 400
+        return jsonify({"ok": False, "error": bt(str(error), _lang(), **getattr(error, "values", {}))}), 400
     except requests.RequestException as error:
         return jsonify({"ok": False, "error": bt("Klipper does not answer: {error}", _lang(), error=error)}), 502
 
@@ -3063,7 +3087,31 @@ def api_camera_jog():
 
 @app.route("/api/camera/calibration/marks", methods=["POST"])
 def api_camera_marks():
-    return _camera_call(lambda: {"marks": camera_cal.make_marks()})
+    """The quick markers: {"nozzle": °C, "bed": °C}; the printer leaves six small discs of filament."""
+    body = _camera_body()
+    return _camera_call(lambda: {"marks": camera_cal.make_marks(body.get("nozzle", 210), body.get("bed", 60))})
+
+
+@app.route("/api/camera/calibration/markers", methods=["POST"])
+def api_camera_markers():
+    """{"file": path}: the G-code that printed the markers; where the six pyramids are is read from it."""
+    body = _camera_body()
+    return _camera_call(lambda: {"markers": camera_cal.use_marker_file(body.get("file"))})
+
+
+@app.route("/api/camera/gcode-files", methods=["GET"])
+def api_camera_gcode_files():
+    return _camera_call(lambda: {"files": camera_cal.gcode_files()})
+
+
+@app.route("/api/camera/markers.stl", methods=["GET"])
+def api_camera_markers_stl():
+    """The six pyramids to print (sized for this printer's bed): slice it with your usual settings and print it."""
+    try:
+        data = camera_cal.markers_stl()
+    except Exception as error:
+        return jsonify({"ok": False, "error": bt("Klipper does not answer: {error}", _lang(), error=error)}), 502
+    return Response(data, mimetype="model/stl", headers={"Content-Disposition": 'attachment; filename="klippeye-camera-markers.stl"', "Cache-Control": "no-store"})
 
 
 @app.route("/api/camera/calibration/point", methods=["POST"])

@@ -1,7 +1,7 @@
 """Release 1.13.0: "Calibra la camera" (roadmap phase 4a) with the REAL backend, a fake Klipper that moves when told and a
-fake camera that draws the printer as a fisheye camera in front of it would see it (bed, blobs, toolhead, nozzle tip).
-The test taps where the nozzle tip and the blobs really are, as a person would, and checks the whole path: kind of printer,
-homing, blobs, twelve points with the magnified view, calculation, saving, the live drawing, the camera moved.
+fake camera that draws the printer as a fisheye camera in front of it would see it (bed, markers, toolhead, nozzle tip).
+The test taps where the nozzle tip and the markers really are, as a person would, and checks the whole path: kind of printer,
+homing, the markers (quick blobs, then the printed pyramids read from their G-code), twelve points with the magnified view, calculation, saving, the live drawing, the camera moved.
 Usage: camcal_test.py <html> <outdir> <port>"""
 import importlib.util
 import os
@@ -50,7 +50,6 @@ ROT, T = look_at(np.array([175.0, -70.0, 110.0]), [175.0, 210.0, -60.0])
 CAM = {"model": "fisheye", "width": W, "height": H, "params": [W / 3.0, W / 2 + 12, H / 2 - 8, 0.02, -0.01] + list(cm.rotation_to_vector(ROT)) + list(T)}
 rng = np.random.default_rng(5)
 BACKGROUND = cv2.GaussianBlur((rng.random((H + 60, W + 60)) * 120 + 40).astype(np.uint8), (7, 7), 0)
-MARKS = [(52.5, 70.0), (175.0, 70.0), (297.5, 70.0), (297.5, 280.0), (175.0, 280.0), (52.5, 280.0)]
 
 
 def px(points):
@@ -70,11 +69,10 @@ def render(state):
             corners.append(np.array(edge[i]) + (np.array(edge[(i + 1) % 4]) - np.array(edge[i])) * s)
     pts, front = px(corners)
     cv2.fillPoly(img, [pts[front]], (60, 70, 120))
-    if any("M109" in sc for sc in fake.scripts):   # the blobs, once made
-        for mx, my in MARKS:
-            p, f = px([[mx, my, bed_z + 0.6]])
-            if f[0]:
-                cv2.circle(img, tuple(int(c) for c in p[0]), 5, (60, 220, 90), -1)
+    for mx, my, mh in state.get("markers") or []:   # what is on the bed: the printed pyramids (their tips) or the blobs
+        p, f = px([[mx, my, bed_z + mh]])
+        if f[0]:
+            cv2.circle(img, tuple(int(c) for c in p[0]), 5, (60, 220, 90), -1)
     box = cm.box_corners(x - 30, x + 30, y - 35, y + 35, 1, 70)
     outline = cm.box_outline(CAM, box)
     if outline:
@@ -93,10 +91,13 @@ for name in os.listdir(os.path.join(ROOT, "backend")):
     if name.endswith(".py"):
         shutil.copy(os.path.join(ROOT, "backend", name), os.path.join(repo, "backend", name))
 shutil.copy(html, os.path.join(repo, "frontend", "klippeye_frontend.html"))
+shutil.copytree(os.path.join(ROOT, "frontend", "src", "i18n"), os.path.join(repo, "frontend", "src", "i18n"))   # the backend's messages in Italian
 open(os.path.join(repo, "VERSION"), "w").write("1.13.0\n")
 os.environ["KLIPPEYE_DATA"] = data
 fake = fakes.Fake()
 fake.state.update({"render": render, "print_state": "standby", "homed": "", "position": [175.0, 175.0, 20.0]})
+PRINTED = fakes.sliced_markers(fake.state["axis_min"], fake.state["axis_max"], 3.0, -2.0)
+fake.state["gcodes"] = {"vase.gcode": "G90\nM83\nG1 Z0.2\nG1 X10 Y10 E5\n", "klippeye-camera-markers_0.2mm_PLA.gcode": PRINTED}
 os.makedirs(data, exist_ok=True)
 open(os.path.join(data, "monitor.json"), "w").write('{"values": {"enabled": false}}')
 spec = importlib.util.spec_from_file_location("ke_backend", os.path.join(repo, "backend", "klippeye_backend.py"))
@@ -160,11 +161,30 @@ with sync_playwright() as p:
     ok("step 1: how Z moves, guessed from Klipper (Z moves the bed)", "come si muove l'asse z?" in body(pg).lower() and "Dalla configurazione di Klipper sembra: Z muove il piatto." in body(pg), body(pg)[:600])
     pg.screenshot(path=os.path.join(out, "01_kind.png"))
     pg.locator("button", has_text="Avanti").click()
-    ok("... 'Avanti' keeps it: the points appear (12) and the blobs step", wait(pg, lambda: pg.locator(".cal-target").count() == 12 and "Fai i 6 segni" in body(pg)), body(pg)[-600:])
+    ok("... 'Avanti' keeps it: the markers step, no points yet", wait(pg, lambda: "segni sul piatto" in body(pg).lower() and "Stampa i segni (consigliato)" in body(pg)) and pg.locator(".cal-target").count() == 0, body(pg)[-600:])
+    stl = pg.evaluate("async () => { const r = await fetch('/api/camera/markers.stl'); return [r.status, (await r.arrayBuffer()).byteLength]; }")
+    ok("the STL link downloads the six pyramids", pg.locator('[data-stl="1"]').count() == 1 and stl == [200, 84 + 36 * 50], stl)
+    ok("the printed file is offered first (its name says markers)", wait(pg, lambda: pg.locator('[data-file="1"]').input_value() == "klippeye-camera-markers_0.2mm_PLA.gcode"), body(pg)[-400:])
     pg.locator("button", has_text="Fai l'homing").click()
     ok("home: G28 sent and 'Homing fatto.'", wait(pg, lambda: "Homing fatto." in body(pg)) and "G28" in fake.scripts, fake.scripts)
+    pg.locator(".oui-chip", has_text="Gocce rapide").click()
+    ok("quick blobs: the temperatures can be chosen (210 / 60 to start)", wait(pg, lambda: pg.locator('[data-temp="nozzle"]').input_value() == "210" and pg.locator('[data-temp="bed"]').input_value() == "60"))
+    pg.locator('[data-temp="nozzle"]').fill("225")
+    pg.locator('[data-temp="bed"]').fill("70")
     pg.click('[data-marks="start"]')
-    ok("the 6 blobs: heated, made, cooled; the page says so", wait(pg, lambda: "Segni fatti" in body(pg), 12) and any("M109" in sc and sc.count("G1 E4.00") == 6 for sc in fake.scripts), body(pg)[-500:])
+    ok("the 6 blobs: the chosen temperatures, retraction and Z hop; the page says so", wait(pg, lambda: "6 gocce fatte" in body(pg), 12)
+       and any("M109 S225" in sc and "M190 S70" in sc and sc.count("G0 Z5 F1200") == 6 for sc in fake.scripts) and pg.locator(".cal-target").count() == 12, body(pg)[-500:])
+    pg.screenshot(path=os.path.join(out, "01b_blobs.png"))
+    pg.locator(".oui-chip", has_text="Stampa i segni").click()
+    wait(pg, lambda: pg.locator('[data-file="1"]').count() == 1)
+    pg.locator('[data-file="1"]').select_option("vase.gcode")
+    pg.click('[data-read="1"]')
+    ok("a file without markers: the page says, next to the button, to print the markers file", wait(pg, lambda: "stampa il file dei segni di KlippEye" in pg.locator('[data-markers-error="1"]').inner_text()), body(pg)[:900])
+    pg.locator('[data-file="1"]').select_option("klippeye-camera-markers_0.2mm_PLA.gcode")
+    pg.click('[data-read="1"]')
+    ok("the printed markers read from their G-code: 'trovati', 12 points", wait(pg, lambda: "6 segni trovati in klippeye-camera-markers_0.2mm_PLA.gcode" in body(pg)) and pg.locator(".cal-target").count() == 12, body(pg)[-500:])
+    fake.state["markers"] = b.camera_cal.draft["markers"]["points"]
+    pg.locator(".drawer").screenshot(path=os.path.join(out, "01c_markers.png"))
     targets = b.camera_cal.target_list()
     for n, t in enumerate(targets):
         pg.locator('.cal-target[data-target="%s"]' % t["id"]).click()
@@ -172,7 +192,7 @@ with sync_playwright() as p:
         wait(pg, lambda: pg.locator(".cal-pick .cal-frame__img").count() == 1)
         pg.wait_for_timeout(500)
         x, y, z = fake.state["position"]
-        frame = [x, y, 0.0] if t["kind"] == "nozzle" else [t["x"], t["y"], 0.6 - z]
+        frame = [x, y, 0.0] if t["kind"] == "nozzle" else [t["x"], t["y"], t["height"] - z]
         u, v = truth(frame)
         img = pg.locator(".cal-pick .cal-frame__img")
         click_fraction(pg, img, u + 0.01, v - 0.012)   # a first, rough tap

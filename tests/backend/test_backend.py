@@ -1232,10 +1232,54 @@ r = cc.post("/api/camera/calibration/options", json={"z_moves": "sideways"})
 check("options: an unknown kind is refused (400)", r.status_code == 400)
 r = cc.post("/api/camera/calibration/options", json={"z_moves": "bed", "toolhead": {"width": 60, "depth": 70, "height": 70}})
 j = cc.get("/api/camera/calibration").get_json()
+check("Z moves the bed: no points before the markers are on the bed", r.status_code == 200 and j["targets"] == [], j["targets"])
+import camera_markers as _mk  # noqa: E402
+r = cc.get("/api/camera/markers.stl")
+_stl = r.data
+check("the markers STL: 6 pyramids (36 triangles) sized for this bed, as a download", r.status_code == 200 and "klippeye-camera-markers.stl" in r.headers.get("Content-Disposition", "")
+      and len(_stl) == 84 + 36 * 50 and _core.np.frombuffer(_stl[80:84], "<u4")[0] == 36, (r.status_code, len(_stl)))
+
+
+
+def sliced_markers(dx, dy, count=6):
+    return fakes.sliced_markers(fake.state["axis_min"], fake.state["axis_max"], dx, dy, count=count)
+
+
+fake.state["gcodes"] = {"benchy.gcode": "G90\nM83\nG1 Z0.2\nG1 X10 Y10 E5\nG1 X100 Y10 E5\n", "klippeye-camera-markers_PLA_12m.gcode": sliced_markers(4.0, -3.0), "notes.txt": "x"}
+r = cc.get("/api/camera/gcode-files")
+check("the G-code files on the printer (newest first, only G-code)", r.status_code == 200 and [f["path"] for f in r.get_json()["files"]] == ["klippeye-camera-markers_PLA_12m.gcode", "benchy.gcode"], r.get_json())
+r = cc.post("/api/camera/calibration/markers", json={"file": "missing.gcode"})
+check("markers from a file that is not there: 400", r.status_code == 400, r.get_json())
+r = cc.post("/api/camera/calibration/markers", json={"file": "benchy.gcode"})
+check("markers from a file without them: 400 'print the KlippEye markers file'", r.status_code == 400 and "markers file" in r.get_json()["error"], r.get_json())
+fake.state["gcodes"]["five.gcode"] = sliced_markers(0, 0, count=5)
+r = cc.post("/api/camera/calibration/markers", json={"file": "five.gcode"})
+check("a file with 5 markers: 400 '5 markers found instead of 6'", r.status_code == 400 and "5 markers" in r.get_json()["error"], r.get_json())
+r = cc.post("/api/camera/calibration/markers", json={"file": "klippeye-camera-markers_PLA_12m.gcode"})
+mk = r.get_json().get("markers") or {}
+_expect = [(x + 4.0, y - 3.0) for x, y in _mk.marker_positions(fake.state["axis_min"], fake.state["axis_max"])]
+check("markers read from the printed G-code: 6, where the slicer put them (moved 4, -3), tips at 10 mm", r.status_code == 200 and mk.get("source") == "file" and len(mk["points"]) == 6
+      and all(abs(p[0] - e[0]) < 0.3 and abs(p[1] - e[1]) < 0.3 and abs(p[2] - 10.0) < 0.01 for p, e in zip(mk["points"], _expect)), mk)
+j = cc.get("/api/camera/calibration").get_json()
 tg = j["targets"]
-check("Z moves the bed: 6 nozzle points near the bed, then the 6 blobs with the bed lowered", r.status_code == 200 and [t["kind"] for t in tg] == ["nozzle"] * 6 + ["mark"] * 6
-      and all(t["z"] == 0.3 for t in tg[:6]) and all(t["z"] >= 20 for t in tg[6:]), tg)
-check("... spread over the bed (15%..85% of X, 20%..80% of Y)", sorted({t["x"] for t in tg}) == [52.5, 175.0, 297.5] and sorted({t["y"] for t in tg}) == [70.0, 280.0], tg[:3])
+check("now 6 nozzle points just above the tips, then the 6 markers with the bed lowered", [t["kind"] for t in tg] == ["nozzle"] * 6 + ["mark"] * 6
+      and all(t["z"] == 13.0 for t in tg[:6]) and all(t["z"] >= 20 and t["height"] == 10.0 for t in tg[6:]) and (tg[0]["x"], tg[0]["y"]) == (round(_expect[0][0], 2), round(_expect[0][1], 2)), tg)
+r = cc.post("/api/camera/calibration/marks", json={"nozzle": 400, "bed": 60})
+check("blobs: a wrong temperature is refused (400)", r.status_code == 400 and "170" in r.get_json()["error"], r.get_json())
+del fake.scripts[:]
+fake.state["homed"] = "xyz"   # the blobs need a homed printer (homing itself is checked below)
+r = cc.post("/api/camera/calibration/marks", json={"nozzle": 215, "bed": 65})
+wait_for(lambda: mc.camera_cal.marks["state"] != "running", 10)
+blob_script = [x for x in fake.scripts if "M109" in x]
+_bs = blob_script[0] if blob_script else ""
+check("the blobs: the chosen temperatures, a disc at each of the 6 points, retraction and Z hop between them, then cools down",
+      r.status_code == 200 and mc.camera_cal.marks["state"] == "done" and "M109 S215" in _bs and "M190 S65" in _bs and _bs.count("G1 E-1 F2400") == 7
+      and _bs.count("G0 Z5 F1200") == 6 and _bs.rstrip().endswith("M400") and "M104 S0" in _bs, (mc.camera_cal.marks, _bs[:300]))
+check("... the blobs are the markers now (0.6 mm tall)", mc.camera_cal.draft["markers"]["source"] == "blobs" and [p[2] for p in mc.camera_cal.draft["markers"]["points"]] == [0.6] * 6)
+r = cc.post("/api/camera/calibration/markers", json={"file": "klippeye-camera-markers_PLA_12m.gcode"})
+tg = cc.get("/api/camera/calibration").get_json()["targets"]
+check("... and the printed ones again (back to the file)", r.status_code == 200 and mc.camera_cal.draft["markers"]["source"] == "file" and tg[6]["height"] == 10.0)
+fake.state["homed"] = ""
 r = cc.post("/api/camera/calibration/goto", json={"target": "tip1"})
 check("not homed: no move (409, 'home the printer first')", r.status_code == 409 and "home" in r.get_json()["error"], r.get_json())
 fake.state["print_state"] = "printing"
@@ -1247,25 +1291,21 @@ r = cc.post("/api/camera/calibration/home")
 check("home: G28 sent", r.status_code == 200 and fake.scripts == ["G28"] and fake.state["homed"] == "xyz", fake.scripts)
 r = cc.post("/api/camera/calibration/goto", json={"target": "nope"})
 check("an unknown point: 400", r.status_code == 400)
-r = cc.post("/api/camera/calibration/marks")
-wait_for(lambda: mc.camera_cal.marks["state"] != "running", 10)
-blob_script = [x for x in fake.scripts if "M109" in x]
-check("the blobs: heats, one blob at each of the 6 points, then cools down", r.status_code == 200 and mc.camera_cal.marks["state"] == "done" and blob_script
-      and blob_script[0].count("G1 E4.00") == 6 and blob_script[0].rstrip().endswith("M400") and "M104 S0" in blob_script[0], (mc.camera_cal.marks, blob_script[:1]))
 del fake.scripts[:]
 r = cc.post("/api/camera/calibration/goto", json={"target": "tip1"})
-check("goto: up first, then across, then down to the point (never dragged over the bed)", r.status_code == 200 and fake.state["position"] == [52.5, 70.0, 0.3]
-      and fake.scripts[0].splitlines()[1].startswith("G0 Z") and fake.scripts[0].splitlines()[2].startswith("G0 X52.50 Y70.00"), (fake.scripts, fake.state["position"]))
+check("goto: up first (above the tallest marker), then across, then down to the point (never dragged over the markers)", r.status_code == 200
+      and fake.state["position"] == [tg[0]["x"], tg[0]["y"], 13.0] and fake.scripts[0].splitlines()[1] == "G0 Z15.00 F900"
+      and fake.scripts[0].splitlines()[2].startswith("G0 X%.2f Y%.2f" % (tg[0]["x"], tg[0]["y"])), (fake.scripts, fake.state["position"]))
 check("tap: u, v must be fractions", cc.post("/api/camera/calibration/point", json={"target": "tip1", "u": 1.5, "v": 0.2}).status_code == 400)
 for t in tg:
     cc.post("/api/camera/calibration/goto", json={"target": t["id"]})
     pos = fake.state["position"]
-    frame = [pos[0], pos[1], 0.0] if t["kind"] == "nozzle" else [t["x"], t["y"], 0.6 - pos[2]]
+    frame = [pos[0], pos[1], 0.0] if t["kind"] == "nozzle" else [t["x"], t["y"], 10.0 - pos[2]]
     u, v = true_tap(frame)
     r = cc.post("/api/camera/calibration/point", json={"target": t["id"], "u": u, "v": v})
-check("blobs: the nozzle is parked at the back and the bed lowered when the blobs are tapped", tg[-1]["kind"] == "mark" and fake.state["position"][1] == 345.0 and fake.state["position"][2] == tg[-1]["z"], fake.state["position"])
+check("markers: the nozzle is parked at the back and the bed lowered when the markers are tapped", tg[-1]["kind"] == "mark" and fake.state["position"][1] == 345.0 and fake.state["position"][2] == tg[-1]["z"], fake.state["position"])
 pts = mc.camera_cal.draft["points"]
-check("12 points kept (in the draft, also after a reload): nozzle at height 0, blobs at 0.6 - Z", len(pts) == 12 and pts["tip1"]["frame"][2] == 0.0 and pts["mark1"]["frame"][2] == round(0.6 - tg[6]["z"], 6) and os.path.isfile(os.path.join(dcal, "camera_draft.json")), list(pts.items())[:2])
+check("12 points kept (in the draft, also after a reload): nozzle at height 0, marker tips at 10 - Z", len(pts) == 12 and pts["tip1"]["frame"][2] == 0.0 and pts["mark1"]["frame"][2] == round(10.0 - tg[6]["z"], 6) and os.path.isfile(os.path.join(dcal, "camera_draft.json")), list(pts.items())[:2])
 check("save before calculating: refused", cc.post("/api/camera/calibration/save").status_code == 400)
 r = cc.post("/api/camera/calibration/fit")
 fit = r.get_json().get("fit") or {}

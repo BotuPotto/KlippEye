@@ -4,8 +4,9 @@
    printer appears in the camera picture (backend/camera_calibration.py, camera_model.py), so that the AI monitor can
    leave the toolhead out and know where the part is. The person:
      1. says how Z moves (the bed, or the toolhead) and how big the toolhead is;
-     2. (Z moves the bed) lets the printer leave six small blobs of filament on the bed;
-     3. for each of about twelve points: the printer goes there, the person taps the nozzle tip (or the blob) in the
+     2. (Z moves the bed) puts six markers on the bed: six small pyramids printed from the STL made here (KlippEye then
+        reads where they ended up in the G-code that printed them), or six quick blobs left by the printer itself;
+     3. for each of about twelve points: the printer goes there, the person taps the nozzle tip (or the marker) in the
         picture, then taps again in the magnified view to be precise;
      4. "Calculate": the error in pixels and the points to redo; "Save" when it is good;
      5. checks it live: the toolhead outline and the bed are drawn over the picture while the toolhead moves.
@@ -182,11 +183,102 @@ function KindStep({ state, onChange, busy }) {
   );
 }
 
+/** Z moves the bed: the six markers, printed (the STL, then the G-code that printed them) or quick blobs. */
+function MarkersStep({ state, run, busy }) {
+  const draft = state.draft || {};
+  const markers = draft.markers;
+  const marks = state.marks || {};
+  const [way, setWay] = useState(() => (markers && markers.source === "blobs" ? "blobs" : "file"));
+  const [files, setFiles] = useState(null);
+  const [file, setFile] = useState("");
+  const [temps, setTemps] = useState({ nozzle: "210", bed: "60" });
+  const [problem, setProblem] = useState("");
+  const ask = async (path, body) => {
+    setProblem("");
+    const reply = await run(path, body, true);
+    if (!reply.ok) setProblem(reply.message);
+  };
+  useEffect(() => {
+    if (way !== "file") return undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        const response = await fetchFresh("/api/camera/gcode-files", { timeout: BRAIN_READ_TIMEOUT_MS * 2 });
+        const data = await response.json();
+        if (cancelled || !data.ok) return;
+        setFiles(data.files);
+        const guess = data.files.find((f) => /marker|klippeye/i.test(f.path)) || data.files[0];
+        setFile((previous) => previous || (guess ? guess.path : ""));
+      } catch (error) {
+        if (!cancelled) setFiles([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [way, markers && markers.time]);
+  const ways = [
+    { id: "file", label: tx("Print the markers (recommended)") },
+    { id: "blobs", label: tx("Quick blobs") },
+  ];
+  return h(
+    SettingsGroup,
+    { title: tx("Markers on the bed"), note: tx("Z moves the bed, so for the camera the nozzle is always at the same height: six markers on the bed, tapped again with the bed lowered, give the second height.") },
+    h(ChipChoice, { options: ways, value: way, label: tx("Markers on the bed"), onChange: (id) => (setWay(id), setProblem("")) }),
+    way === "file"
+      ? h(
+          "div",
+          { className: "cal-marks" },
+          h("a", { className: "oui-btn oui-btn--block", href: "/api/camera/markers.stl", download: "klippeye-camera-markers.stl", "data-stl": "1" }, h(Icons.Download, { size: 18 }), tx("Download the markers (STL)")),
+          h("p", { className: "set-group__note" }, tx("Six small pyramids sized for your bed. Slice the file with your usual settings (no supports, a colour that stands out on the bed), print it and leave it on the bed. Then choose here the file you printed: KlippEye reads where the pyramids ended up.")),
+          files === null
+            ? h("p", { className: "set-group__note" }, tx("Reading the files on the printer…"))
+            : files.length === 0
+              ? h("p", { className: "set-group__note" }, tx("No G-code files on the printer yet."))
+              : h(
+                  "label",
+                  { className: "set-field" },
+                  h("span", { className: "set-field__label" }, tx("The file you printed")),
+                  h("select", { className: "oui-field set-field__input", value: file, "data-file": "1", onChange: (event) => setFile(event.target.value) }, files.map((f) => h("option", { key: f.path, value: f.path }, f.path + (f.modified ? " • " + formatFileDate(f.modified) : "")))),
+                ),
+          h("button", { type: "button", className: "oui-btn oui-btn--primary oui-btn--block", "data-read": "1", disabled: busy || !file, onClick: () => ask("calibration/markers", { file }) }, tx("Read the markers from this file")),
+        )
+      : h(
+          "div",
+          { className: "cal-marks" },
+          h("p", { className: "set-group__note" }, tx("The printer itself leaves six small discs of filament (retraction and a Z hop between them). Faster, less precise than printed markers. Filament loaded.")),
+          h(
+            "div",
+            { className: "set-grid" },
+            [
+              ["nozzle", tx("Nozzle °C")],
+              ["bed", tx("Bed °C")],
+            ].map(([key, label]) =>
+              h("label", { key, className: "set-field" }, h("span", { className: "set-field__label" }, label), h("input", { className: "oui-field oui-field--num set-field__input", inputMode: "numeric", value: temps[key], "data-temp": key, onChange: (event) => /^\d{0,3}$/.test(event.target.value) && setTemps({ ...temps, [key]: event.target.value }) })),
+            ),
+          ),
+          h(
+            "button",
+            { type: "button", className: "oui-btn oui-btn--primary oui-btn--block", "data-marks": "start", disabled: busy || marks.state === "running", onClick: () => ask("calibration/marks", { nozzle: Number(temps.nozzle), bed: Number(temps.bed) }) },
+            marks.state === "running" ? tx("Making the blobs…") : tx("Make the 6 blobs"),
+          ),
+          marks.state === "error" && h("p", { className: "set-field__error", role: "alert" }, tx("The blobs were not made: ") + (marks.message || "")),
+        ),
+    problem && h("p", { className: "set-field__error", role: "alert", "data-markers-error": "1" }, problem),
+    markers &&
+      h(
+        "div",
+        { className: "set-status set-status--ok", "data-markers": markers.source },
+        h("span", { className: "set-status__dot" }),
+        markers.source === "file" ? tx("6 markers found in {file}. Leave them on the bed until the calibration is saved.", { file: markers.file }) : tx("6 blobs made. Leave them on the bed until the calibration is saved."),
+      ),
+  );
+}
+
 function PointsStep({ state, camera, run, busy }) {
   const draft = state.draft || {};
   const points = draft.points || {};
   const targets = state.targets || [];
-  const marks = state.marks || {};
   const [current, setCurrent] = useState(null);
   const [tap, setTap] = useState(null);
   const [stamp, setStamp] = useState(() => Date.now());
@@ -218,20 +310,12 @@ function PointsStep({ state, camera, run, busy }) {
     null,
     h(
       SettingsGroup,
-      { title: tx("Before starting"), note: tx("Empty, clean bed; the light as during prints; the printer idle. The printer moves by itself: keep your hands out.") },
+      { title: tx("Before starting"), note: tx("Clean bed (only the markers on it); the light as during prints; the printer idle. The printer moves by itself: keep your hands out.") },
       !state.printer || !/x/.test(state.printer.homed) || !/z/.test(state.printer.homed)
         ? h("button", { type: "button", className: "oui-btn oui-btn--block", disabled: busy, onClick: () => run("calibration/home") }, h(Icons.House, { size: 16 }), tx("Home the printer (G28)"))
         : h("p", { className: "set-group__note" }, tx("Printer homed.")),
-      needsMarks &&
-        h(
-          "div",
-          { className: "cal-marks" },
-          h("p", { className: "set-group__note" }, tx("Z moves the bed, so the nozzle alone is always at the same height for the camera: the printer leaves 6 small blobs of filament on the bed, and later you tap them with the bed lowered. It heats the nozzle to 210 °C and the bed to 60 °C (PLA loaded); a few minutes.")),
-          h("button", { type: "button", className: "oui-btn oui-btn--block", "data-marks": "start", disabled: busy || marks.state === "running", onClick: () => run("calibration/marks") }, marks.state === "running" ? tx("Making the blobs…") : marks.state === "done" ? tx("Make the blobs again") : tx("Make the 6 blobs")),
-          marks.state === "done" && h("p", { className: "set-group__note" }, tx("Blobs done. Leave them on the bed until the calibration is saved.")),
-          marks.state === "error" && h("p", { className: "set-field__error", role: "alert" }, tx("The blobs were not made: ") + (marks.message || "")),
-        ),
     ),
+    needsMarks && h(MarkersStep, { state, run, busy }),
     target &&
       h(
         SettingsGroup,
@@ -258,10 +342,10 @@ function PointsStep({ state, camera, run, busy }) {
           "p",
           { className: "set-group__note cal-instruction" },
           target.kind === "mark"
-            ? tx("Point {n}: the bed goes down and the nozzle moves away. Tap the blob left at X {x}, Y {y}.", { n: targets.indexOf(target) + 1, x: target.x, y: target.y })
+            ? tx("Point {n}: the bed goes down and the nozzle moves away. Tap the tip of the marker at X {x}, Y {y} (the centre, for a blob).", { n: targets.indexOf(target) + 1, x: target.x, y: target.y })
             : tx("Point {n}: the nozzle goes to X {x}, Y {y}, Z {z}. Tap the very tip of the nozzle.", { n: targets.indexOf(target) + 1, x: target.x, y: target.y, z: target.z }),
         ),
-        h("button", { type: "button", className: "oui-btn oui-btn--primary oui-btn--block", "data-go": target.id, disabled: busy || (target.kind === "mark" && needsMarks && marks.state !== "done" && !points[target.id]), onClick: go }, at ? tx("Go there again") : tx("Go to point {n}", { n: targets.indexOf(target) + 1 })),
+        h("button", { type: "button", className: "oui-btn oui-btn--primary oui-btn--block", "data-go": target.id, disabled: busy, onClick: go }, at ? tx("Go there again") : tx("Go to point {n}", { n: targets.indexOf(target) + 1 })),
         at &&
           h(
             "div",
@@ -359,14 +443,15 @@ function CameraCalibrationPage({ active }) {
   const [problem, setProblem] = useState("");
   const [calibrating, setCalibrating] = useState(false);
   const [askForget, setAskForget] = useState(false);
-  const run = async (path, body) => {
+  /** One step on the backend. `here`: the caller shows the error next to its own button (it gets the whole reply). */
+  const run = async (path, body, here) => {
     setBusy(true);
     const reply = await camcalPost(path, body);
     setBusy(false);
-    setProblem(reply.ok ? "" : reply.message);
+    setProblem(reply.ok || here ? "" : reply.message);
     if (reply.ok && path === "calibration/save") setCalibrating(false);
     reload();
-    return reply.ok;
+    return here ? reply : reply.ok;
   };
   if (state.phase === "old") return h("div", { className: "set-status set-status--warn" }, h("span", { className: "set-status__dot" }), tx("The backend on the Raspberry cannot calibrate the camera yet: update KlippEye (Settings → Updates)."));
   if (state.phase !== "ok") return h(BrainNotice, { phase: state.phase === "loading" ? "loading" : "down" });
