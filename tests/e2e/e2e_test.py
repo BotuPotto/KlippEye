@@ -613,6 +613,8 @@ if scenario("ui") and PLAYWRIGHT:
         pg.click('button[aria-label="Impostazioni"]')
         pg.wait_for_selector(".drawer")
         pg.wait_for_timeout(500)
+        pg.click('.set-entry[data-page="ai"]')   # 1.19: the thresholds are inside "Monitor IA"
+        pg.wait_for_timeout(800)
         pg.click('.set-entry[data-page="detector"]')
         pg.wait_for_timeout(1500)
         ok("[ui] AI monitor thresholds (real backend): the default values are shown", wait(lambda: pg.locator("#set-num-sensitivity").count() == 1 and pg.locator("#set-num-sensitivity").input_value() == "35", 15), body())

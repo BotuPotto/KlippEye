@@ -195,6 +195,16 @@ function MonitorTile({ label, children }) {
 /** Banner for a verdict that recommends stopping or pausing. */
 function VerdictAlert({ latest }) {
   const action = aiAction(latest.verdict.action);
+  const proposed = aiAction(latest.verdict.original_action);
+  if (action === "CONTINUE" && proposed && proposed !== "CONTINUE") {
+    // the AI wanted to stop the print, the minimum confidence made it "continue": said, not hidden behind a green verdict
+    return h(
+      "div",
+      { className: "ai-alert ai-alert--warn", "data-under": "1" },
+      h("div", { className: "flex items-center justify-between gap-2" }, h("span", { className: "ai-alert__title" }, tx("{action} proposed, under the threshold", { action: aiActionLabel(proposed) })), h("span", { className: "oui-caption" }, latest.timestamp || "")),
+      h("div", { className: "ai-alert__text" }, latest.verdict.summary || ""),
+    );
+  }
   if (!action || action === "CONTINUE") return h("div", { className: "ai-alert hidden" });
   return h(
     "div",

@@ -555,6 +555,7 @@ function CameraCalibrationPage({ active }) {
               { title: tx("Toolhead and gantry on the live picture"), note: tx("What is inside the outlines is left out of the AI monitor's checks (Settings → Monitor thresholds → False alarms). Adjust the sizes until the outlines cover the toolhead and the gantry wherever they are.") },
               h(LiveCheck, { camera, draft: false, editShape: true }),
             ),
+          saved && h(MaskSwitches, { active }),
           h(
             SettingsGroup,
             { note: tx("About ten minutes, once: do it again only if you move the camera.") },
@@ -577,6 +578,15 @@ async function camcalDelete() {
   try {
     await fetch("/api/camera/calibration", { method: "DELETE" });
   } catch (error) {}
+}
+
+/** What the AI monitor does with the calibration (1.19: these two switches were in Monitor thresholds). */
+function MaskSwitches({ active }) {
+  const config = useBrainConfig(active);
+  const data = useMemo(() => (config.data ? localizeBrainSchema(config.data) : null), [config.data]);
+  if (config.phase !== "ok" || !data) return null;
+  const specs = ["machine_masks", "expected_zone"].map((key) => data.spec.find((spec) => spec.key === key)).filter(Boolean);
+  return h(SettingsGroup, { title: tx("What the AI monitor does with it") }, h("div", { className: "oui-list" }, specs.map((spec) => h(BrainSettingControl, { key: spec.key, spec, config }))));
 }
 
 /** One line for the menu list. */
