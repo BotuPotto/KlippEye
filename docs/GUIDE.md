@@ -158,6 +158,15 @@ Adjust them with **−** and **+** (5 mm a step), moving the toolhead with the b
 The switch **Settings → Monitor thresholds → False alarms → Leave out the toolhead and the gantry** (on by default) turns
 the masks on and off.
 
+**The whole bed, except where the parts are.** With the calibration the monitor also knows where the objects of the print
+are, and watches the **whole bed around them** instead of only the edges of the watched area: plastic that appears where no
+part should be (spaghetti next to the part, a part torn off and dragged) counts, the part growing does not. The outlines
+of the objects come from Klipper's `exclude_object` when the slicer labels the objects (PrusaSlicer/SuperSlicer/OrcaSlicer:
+*Label objects*, and `[exclude_object]` in `printer.cfg`: recommended), otherwise from the G-code of the print, read once at
+the start. During a print the live picture of this page shows them in green. Switch: **Settings → Monitor thresholds →
+False alarms → Watch the whole bed, except where the parts are** (on by default). Where the toolhead is right on the part,
+the camera cannot see under it: a failure is recognised by what appears around the part.
+
 The calibration is valid **until the camera moves**. Every ten minutes the backend compares the picture with the one taken
 at calibration; if the camera has moved, the page (and its line in the menu) says so and the monitor stops using the
 calibration (and the masks) until you calibrate again. The sizes of the toolhead and the gantry are kept.
@@ -175,7 +184,8 @@ Instead of guessing whether a change of the thresholds helps, measure it:
    hour, how many were false and whether each failure was caught (and how long it took). From the terminal, to compare other
    thresholds: `klippeye replay --set sensitivity=45 --set persist_checks=4` (options: `scripts/replay.py`). With a camera
    calibration the replay leaves out the toolhead and the gantry like the live monitor (on the prints recorded with
-   KlippEye 1.13 or later, which keep the toolhead position); `--set machine_masks=off` compares without them.
+   KlippEye 1.13 or later, which keep the toolhead position); `--set machine_masks=off` compares without them; on prints recorded with 1.16 or later
+   (which keep the objects) the whole bed is watched outside the parts, `--set expected_zone=off` compares with the outer band only.
 
 The page also shows the **monitor load**: the time of one check and the CPU the backend used in the last minute.
 

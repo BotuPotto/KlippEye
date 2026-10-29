@@ -27,6 +27,7 @@ import camera_markers
 import camera_model
 import camera_watch
 import machine_masks
+import print_zone
 
 Z_MOVES = ("bed", "toolhead")
 GRID_X = (0.15, 0.5, 0.85)
@@ -470,32 +471,47 @@ class CameraCalibration:
         for part in machine_masks.DEFAULT_SHAPE:
             given = data.get(part) if isinstance(data, dict) else None
             merged[part] = dict(current[part], **given) if isinstance(given, dict) else dict(current[part])
-        if "x_range" in current:
-            merged["x_range"] = current["x_range"]
+        for key in ("x_range", "limits"):
+            if key in current:
+                merged[key] = current[key]
         shape = machine_masks.clean_shape(merged)
         with self.lock:
             self.shape = shape
             _write_json(self.shape_path, shape)
         return shape
 
-    def x_range(self):
-        """The X travel of the printer (the gantry spans it), read from Klipper at most every ten minutes and kept in
-        machine_shape.json, so that the replay of the recordings knows it too."""
+    def limits(self):
+        """The travel of the printer, ([x min, y min], [x max, y max]): read from Klipper at most every ten minutes and kept in
+        machine_shape.json (the gantry spans the X travel; the watched area is the bed), so that the replay knows it too."""
         when, known = self._limits
         if known is None or time.time() - when > WATCH_EVERY_S:
             try:
                 printer = self.printer()
-                known = [float(printer["minimum"][0]), float(printer["maximum"][0])]
+                known = ([float(printer["minimum"][0]), float(printer["minimum"][1])], [float(printer["maximum"][0]), float(printer["maximum"][1])])
                 self._limits = (time.time(), known)
                 shape = self.get_shape()
-                if shape.get("x_range") != known:
+                if shape.get("limits") != [known[0], known[1]] or shape.get("x_range") != [known[0][0], known[1][0]]:
                     with self.lock:
-                        shape["x_range"] = known
+                        shape["x_range"] = [known[0][0], known[1][0]]
+                        shape["limits"] = [known[0], known[1]]
                         _write_json(self.shape_path, shape)
             except Exception:
-                known = known or self.get_shape().get("x_range")
+                stored = self.get_shape().get("limits")
+                known = known or ((stored[0], stored[1]) if stored else None)
                 self._limits = (time.time(), known)
         return known
+
+    def x_range(self):
+        known = self.limits()
+        return [known[0][0], known[1][0]] if known else self.get_shape().get("x_range")
+
+    def zone_masks(self, objects, z, width, height):
+        """Phase 4c: (watched, expected) pictures for the monitor with the machine at Z = z (print_zone.py), or None when
+        the calibration cannot be trusted, the bed size is not known or there are no objects."""
+        known = self.limits()
+        if not objects or not known or not self.usable() or self.cv2 is None:
+            return None
+        return print_zone.masks(self.cv2, self.np, self.saved, objects, z, known[0], known[1], width, height)
 
     def monitor_mask(self, positions, width, height):
         """The machine mask for one check of the monitor (positions: where the toolhead was before and after the picture),

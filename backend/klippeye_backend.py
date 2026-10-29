@@ -492,7 +492,7 @@ CONFIG_GROUPS = [
      "note": "Every few seconds the backend compares two camera pictures: if many points of the outer band of the watched area change, and it happens several times, it asks the AI to look at the picture."},
     {"id": "filtro", "title": "False alarms",
      "note": "The filter compares the current picture with a «background» made of several pictures of the last minutes (the passing toolhead is not part of it) and counts only the changes that stay for several checks in a row. It also ignores light changes."},
-    {"id": "area", "title": "Watched area", "note": "The rectangle where the backend looks for suspicious movement. By default it is the central 60% of the picture."},
+    {"id": "area", "title": "Watched area", "note": "The rectangle where the backend looks for suspicious movement. By default it is the central 60% of the picture. With the camera calibrated and the objects of the print known, the whole bed is watched instead (False alarms → Watch the whole bed)."},
     {"id": "tempi", "title": "Pauses and usage", "note": "The AI analysis uses an online service: these pauses avoid calling it too often."},
     {"id": "avvio", "title": "When it starts checking",
      "note": "During heating, mesh or purge the real print has not started yet: the monitor waits."},
@@ -523,6 +523,8 @@ CONFIG_SPEC = [
      "help": "On: only what changes and stays counts (spaghetti, part come off); the passing toolhead, shadows and light changes do not trigger the alarm. Off: the older detection (a movement at the edges is enough)."},
     {"key": "machine_masks", "type": "bool", "default": True, "group": "filtro", "label": "Leave out the toolhead and the gantry",
      "help": "With a good camera calibration (Settings → Camera calibration) the monitor knows where the toolhead and the gantry are at every check and does not look there. Without a calibration, or when the camera has moved, it has no effect."},
+    {"key": "expected_zone", "type": "bool", "default": True, "group": "filtro", "label": "Watch the whole bed, except where the parts are",
+     "help": "With a good camera calibration the monitor knows where the objects of the print are (from Klipper's exclude_object or from the G-code) and watches the whole bed around them, not only the edges of the watched area: plastic that appears where no part should be counts. Without a calibration it has no effect."},
     {"key": "persist_checks", "type": "int", "default": 3, "min": 2, "max": 6, "step": 1, "unit": "", "group": "filtro",
      "label": "Checks in a row the change must stay for",
      "help": "Higher = fewer false alarms but a problem is noticed a few seconds later (checks × interval)."},
@@ -1751,6 +1753,7 @@ import time
 from collections import deque
 from monitor_core import HAS_CV2, cv2, np  # noqa: E402
 from recorder import Recorder  # noqa: E402  (the pictures of the prints, to measure the monitor)
+import print_zone  # noqa: E402  (phase 4c: where the objects of the print are)
 if not HAS_CV2:
     print("[OPENCV] cv2/numpy not installed, detector off - install with: sudo apt install python3-opencv")
 
@@ -1940,6 +1943,9 @@ class LightDetector(FrameJudge):
         self.next_cool_frame = 0.0
         self.cpu_mark = None  # (wall time, process CPU time) at the start of the current measuring window
         self.check_ms = None
+        self.zone = {}  # phase 4c: {"file", "source": "exclude_object" | "gcode" | None, "objects": [...], "why"}
+        self.zone_reading = None  # the file whose G-code is being read for the zone
+        self._zone_cache = (None, None)  # ((objects id, Z), masks)
 
     def _measure(self, judge_seconds):
         """How heavy the monitor is: the time of one check (decoding + judging, averaged) and the CPU the whole backend used
@@ -1969,18 +1975,26 @@ class LightDetector(FrameJudge):
         except Exception as error:
             print(f"[RECORDER] picture during the pause not taken: {error}")
 
+    def _uses_calibration(self):
+        return (self.machine_masks or self.expected_zone) and camera_cal.usable()
+
+    def _position_now(self, key):
+        """Klipper's live position of the toolhead into self.meta[key] (just before / just after the picture)."""
+        try:
+            status = requests.get(f"{MOONRAKER_URL}/printer/objects/query?motion_report=live_position", timeout=2).json()["result"]["status"]
+            live = (status.get("motion_report") or {}).get("live_position") or []
+            self.meta[key] = [round(float(v), 1) for v in live[:3]] if len(live) >= 3 else self.meta.get(key)
+        except Exception:
+            if key == "live2":
+                self.meta[key] = None
+
     def _machine_mask(self):
         """The machine mask of this check (phase 4b): the toolhead and the gantry where they were just before the picture
-        (self.meta["live"]) and just after it (asked now), at the size the monitor looks at. None without a usable calibration."""
+        and just after it (self.meta["live"], ["live2"]), and on the way between, at the size the monitor looks at.
+        None without a usable calibration."""
         self.meta["masked"] = False
         if not self.machine_masks or not camera_cal.usable():
             return None
-        try:
-            status = requests.get(f"{MOONRAKER_URL}/printer/objects/query?motion_report=live_position", timeout=2).json()["result"]["status"]
-            after = (status.get("motion_report") or {}).get("live_position") or []
-            self.meta["live2"] = [round(float(v), 1) for v in after[:3]] if len(after) >= 3 else None
-        except Exception:
-            self.meta["live2"] = None
         try:
             mask = camera_cal.monitor_mask([self.meta.get("live"), self.meta.get("live2")], OPENCV_WIDTH // 2, OPENCV_HEIGHT // 2)
         except Exception as error:
@@ -1988,6 +2002,54 @@ class LightDetector(FrameJudge):
             return None
         self.meta["masked"] = mask is not None
         return mask
+
+    def _update_zone(self, filename, exclude):
+        """Where the objects of this print are (phase 4c, print_zone.py): Klipper's exclude_object when the slicer labels
+        them, otherwise the G-code of the print, read once in the background."""
+        objects = print_zone.objects_from_exclude((exclude or {}).get("objects"))
+        if objects:
+            if self.zone.get("source") != "exclude_object" or self.zone.get("objects") != objects:
+                self.zone = {"file": filename, "source": "exclude_object", "objects": objects}
+                recorder.note_zone(self.zone)
+            return
+        if not filename or self.zone.get("file") == filename or self.zone_reading == filename:
+            return
+        self.zone_reading = filename
+
+        def read():
+            try:
+                with requests.get(f"{MOONRAKER_URL}/server/files/gcodes/" + urllib.parse.quote(filename), timeout=60, stream=True) as r:
+                    r.raise_for_status()
+                    found = print_zone.objects_from_gcode(r.iter_lines(decode_unicode=True))
+                zone = {"file": filename, "source": "gcode" if found else None, "objects": found, "why": "" if found else "the G-code extrudes nothing"}
+            except Exception as error:
+                zone = {"file": filename, "source": None, "objects": [], "why": str(error)[:200]}
+            if self.zone_reading == filename:
+                self.zone = zone
+                self.zone_reading = None
+                recorder.note_zone(zone)
+                print(f"[OPENCV] expected zone of {filename}: {len(zone['objects'])} object(s) from {zone['source'] or 'nothing'}")
+        threading.Thread(target=read, name="print-zone", daemon=True).start()
+
+    def _zone_masks(self):
+        """(watched, expected) pictures of this check, or None (the outer band, as before)."""
+        self.meta["zone"] = False
+        objects = self.zone.get("objects")
+        position = self.meta.get("live") or self.meta.get("pos")
+        if not self.expected_zone or not objects or not position:
+            self.stats["zone"] = None
+            return None
+        key = (id(objects), round(float(position[2]), 1))
+        if self._zone_cache[0] != key:
+            try:
+                self._zone_cache = (key, camera_cal.zone_masks(objects, float(position[2]), OPENCV_WIDTH // 2, OPENCV_HEIGHT // 2))
+            except Exception as error:
+                print(f"[OPENCV] expected zone not made: {error}")
+                self._zone_cache = (key, None)
+        zone = self._zone_cache[1]
+        self.meta["zone"] = zone is not None
+        self.stats["zone"] = self.zone.get("source") if zone is not None else None
+        return zone
 
     def set_roi(self, x, y, w, h):
         self.roi = (x,y,w,h)
@@ -2039,7 +2101,7 @@ class LightDetector(FrameJudge):
                 # Check if printing
                 # === SOLUTION 5 - HYBRID - IS THE REAL PRINT RUNNING ===
                 try:
-                    pr = requests.get(f"{MOONRAKER_URL}/printer/objects/query?print_stats&extruder&display_status&virtual_sdcard&toolhead&heater_bed&motion_report=live_position", timeout=3).json()
+                    pr = requests.get(f"{MOONRAKER_URL}/printer/objects/query?print_stats&extruder&display_status&virtual_sdcard&toolhead&heater_bed&motion_report=live_position&exclude_object=objects", timeout=3).json()
                     status = pr.get("result",{}).get("status",{})
                     ps = status.get("print_stats",{})
                     extr = status.get("extruder",{})
@@ -2053,6 +2115,8 @@ class LightDetector(FrameJudge):
 
                     if state != "printing":
                         self._reset_reference()  # a new print starts with a new background
+                        if state not in ("paused",):
+                            self.zone, self.zone_reading = {}, None  # the next print has its own objects
                         self.stats["status"] = f"idle (state={state})"
                         self.stats["real_print_started"] = False
                         self.stats["real_print_reason"] = f"state={state}"
@@ -2107,6 +2171,8 @@ class LightDetector(FrameJudge):
                                  "live": [round(float(v), 1) for v in live[:3]] if len(live) >= 3 else None,  # where the toolhead really is (phase 4: masks)
                                  "progress": round(float(progress) * 100, 1)}
                     self.stats["real_print_reason"] = "; ".join(reasons) if reasons else "ok - real print"
+                    if self.expected_zone and camera_cal.usable():
+                        self._update_zone(ps.get("filename", ""), status.get("exclude_object"))
                     self.stats["progress"] = progress
                     self.stats["file_progress"] = file_progress
                     self.stats["total_duration"] = total_dur
@@ -2123,7 +2189,12 @@ class LightDetector(FrameJudge):
 
                 # Get snapshot low-res
                 try:
+                    calibrated = self._uses_calibration()
+                    if calibrated:
+                        self._position_now("live")  # where the toolhead is right before the picture...
                     r = requests.get(f"{CAMERA_NGINX_URL}/snapshot", timeout=4)
+                    if calibrated:
+                        self._position_now("live2")  # ...and right after it (it moves while the picture is taken)
                     if not r.ok or len(r.content) < 1000:
                         self._nap(generation, 2)
                         continue
@@ -2141,7 +2212,8 @@ class LightDetector(FrameJudge):
 
                 now = time.time()
                 ignore = self._machine_mask()
-                score, triggered = self.judge(frame, r.content, now, ignore)
+                zone = self._zone_masks()
+                score, triggered = self.judge(frame, r.content, now, ignore, zone)
                 recorder.add_frame(frame, now, dict(self.meta, score=None if score is None else round(score, 2), trig=triggered))
                 self._measure(time.time() - now + decode_seconds)  # decoding, judging and (when on) recording
                 if score is None:  # the comparison is not ready yet, or this check is to be ignored (light change)
@@ -3186,6 +3258,13 @@ def api_camera_overlay():
         overlay = camera_cal.overlay(use_draft=request.args.get("draft") == "1")
         if overlay is None:
             raise ValueError("the camera is not calibrated")
+        # phase 4c: the objects of the print running now (where the part is expected), when they are known
+        objects, known = detector.zone.get("objects"), camera_cal.limits()
+        overlay["zone"] = None
+        if objects and known and camera_cal.saved and request.args.get("draft") != "1":
+            parts = print_zone.outlines(camera_cal.saved, objects, overlay["position"][2], known[0], known[1])
+            overlay["zone"] = {"source": detector.zone.get("source"), "objects": len(objects),
+                               "expected": [[[round(u, 4), round(v, 4)] for u, v in p] for p in parts["expected"]]}
         return overlay
     response = _camera_call(work)
     if isinstance(response, Response):

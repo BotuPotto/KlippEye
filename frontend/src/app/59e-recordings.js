@@ -327,6 +327,11 @@ function MeasureResult({ result }) {
           label: tx("Toolhead and gantry left out"),
           value: total.masks === "on" ? tx("yes, in {count} of {total} pictures", { count: total.masked_frames, total: total.frames }) : total.masks === "off" ? tx("no (switched off)") : tx("no: the camera is not calibrated"),
         }),
+      total.zone &&
+        h(InfoLine, {
+          label: tx("Whole bed watched outside the parts"),
+          value: total.zone === "on" ? tx("yes, in {count} of {total} pictures", { count: total.zoned_frames, total: total.frames }) : total.zone === "off" ? tx("no (switched off)") : tx("no: the camera is not calibrated"),
+        }),
     ),
     h(
       "div",

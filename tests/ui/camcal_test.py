@@ -247,6 +247,13 @@ with sync_playwright() as p:
     ok("gantry switched off: the orange bar goes away", wait(pg, lambda: pg.locator(".cal-gantry").count() == 0) and b.camera_cal.get_shape()["gantry"]["on"] is False)
     pg.locator(".set-switch", has_text="Escludi anche il gantry").click()
     wait(pg, lambda: pg.locator(".cal-gantry").count() == 10)
+    pg.click('[data-size="toolhead.below.minus"]')
+    ok("'below the nozzle tip' goes down to 0 (not refused) and stops there", wait(pg, lambda: pg.locator('[data-value="toolhead.below"]').inner_text().startswith("0")
+       and b.camera_cal.get_shape()["toolhead"]["below"] == 0.0) and pg.locator('[data-size="toolhead.below.minus"]').is_disabled(), b.camera_cal.get_shape()["toolhead"])
+    b.detector.zone = {"file": "two.gcode", "source": "exclude_object", "objects": [{"name": "A", "polygon": [[100, 100], [140, 100], [140, 140], [100, 140]]}, {"name": "B", "polygon": [[200, 200], [240, 200], [240, 240], [200, 240]]}]}
+    ok("during a print: the expected zone of the parts drawn in green, with where it comes from", wait(pg, lambda: pg.locator(".cal-zone").count() == 2 and "exclude_object di Klipper" in body(pg)), body(pg)[-600:])
+    pg.locator(".cal-frame").first.screenshot(path=os.path.join(out, "06_zone.png"))
+    b.detector.zone = {}
     pg.locator(".cal-shape").scroll_into_view_if_needed()
     pg.wait_for_timeout(500)
     pg.locator(".drawer").screenshot(path=os.path.join(out, "05_shape.png"))

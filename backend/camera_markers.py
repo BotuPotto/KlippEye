@@ -70,13 +70,12 @@ class NotSix(ValueError):
 _WORD = re.compile(r"([A-Za-z])\s*(-?\d*\.?\d+)")
 
 
-def extrusions(text):
-    """The extruding moves of a G-code text: (x, y, z) at the end of each. Understands G90/G91, M82/M83, G92 and G2/G3
-    (their end point)."""
+def iter_extrusions(lines):
+    """The extruding moves of G-code lines (any iterable of str): (x, y, z) at the end of each, one by one (a long file is
+    never held in memory). Understands G90/G91, M82/M83, G92 and G2/G3 (their end point)."""
     pos = {"X": 0.0, "Y": 0.0, "Z": 0.0, "E": 0.0}
     absolute, absolute_e = True, True
-    out = []
-    for raw in text.splitlines():
+    for raw in lines:
         line = raw.split(";", 1)[0].strip()
         if not line:
             continue
@@ -109,8 +108,12 @@ def extrusions(text):
                     else:
                         extruded = float(value)
             if extruded > 1e-6:
-                out.append((pos["X"], pos["Y"], pos["Z"]))
-    return out
+                yield (pos["X"], pos["Y"], pos["Z"])
+
+
+def extrusions(text):
+    """The extruding moves of a G-code text: [(x, y, z)] (iter_extrusions on its lines)."""
+    return list(iter_extrusions(text.splitlines()))
 
 
 def read_markers(text, count=MARKER_COUNT):
