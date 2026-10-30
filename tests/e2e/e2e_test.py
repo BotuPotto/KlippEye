@@ -495,7 +495,9 @@ if scenario("no-um"):
     conf = open(os.path.join(w.pd, "config", "moonraker.conf")).read()
     ok("[no-um] [update_manager] is added too, once, before [update_manager klippeye]", r.returncode == 0 and conf.count("[update_manager]") == 1 and conf.index("[update_manager]") < conf.index("[update_manager klippeye]"), out + conf)
     ok("[no-um] Moonraker sees KlippEye", wait(lambda: bool(mr_program()), 60), out)
-    ok("[no-um] notifications not set up: no notifier service and no asvc line", not os.path.exists(os.path.join(w.units, "klippeye-notifier.service")) and "klippeye-notifier" not in open(os.path.join(w.pd, "moonraker.asvc")).read(), out)
+    ok("[no-um] notifications not set up yet (1.20.0): the notifier is installed and runs anyway (automatic actions; ntfy can be turned on from the dashboard)",
+       os.path.exists(os.path.join(w.units, "klippeye-notifier.service")) and "klippeye-notifier" in open(os.path.join(w.pd, "moonraker.asvc")).read() and not os.path.exists(os.path.join(w.data, "notifier.json"))
+       and wait(lambda: w.pid("klippeye-notifier") is not None and "Channels: none" in w.service_log("klippeye-notifier"), 30), out + w.service_log("klippeye-notifier")[-600:])
     w.teardown()
 
 # ----------------------------------------------------------------------------------- printing: Moonraker is not restarted

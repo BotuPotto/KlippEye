@@ -1,5 +1,24 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.20.0
+
+**Notifications without a Firebase of your own** (roadmap phase 5c). Until now push notifications needed your own Firebase
+project and your own build of the app. Now they work with the free **ntfy** app, set up from the dashboard in a minute.
+
+* **Settings → Notifications → Where they arrive**: *Turn on notifications with ntfy* makes a private random topic for this
+  printer; install ntfy (Google Play, F-Droid, App Store), **scan the QR code** (or tap *Open in the ntfy app* on the phone, or
+  type server and topic by hand), then **Send a test notification**: the page says, per channel, whether it went out and why not.
+  *New address* makes another topic; *Turn ntfy off* keeps it for next time; an **ntfy server of your own** (with an optional
+  token) can be used instead of ntfy.sh. Tapping a notification opens the dashboard.
+* **Interchangeable channels**: the notification service sends through every channel set up (ntfy, Firebase, or both). A
+  channel that fails is retried on its own, without sending again through the one that worked. Changes made in the dashboard
+  are picked up without a restart. Firebase keeps working as before.
+* **The notification service always runs** (new installations, and every run of `install.sh`): with no channel it sends
+  nothing but still does the automatic pause / cancel of the AI monitor. `notifier.json` is no longer needed to start. When the
+  service has not shown up, the page shows the command that installs it.
+* `klippeye notify check` reports the channels and whether the ntfy server is reached; `klippeye notify test` tests every channel.
+* The guide (chapter 6) explains the new way step by step.
+
 ## 1.19.0
 
 **The AI monitor, in one place and without contradictions.** A review of everything the AI monitor does, after a real failure

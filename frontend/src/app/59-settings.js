@@ -179,7 +179,7 @@ const SettingsGroup = ({ title, children, note }) => h("section", { className: "
    ------------------------------------------------------------------------- */
 
 /** What the service on the Raspberry says about itself, as one line. */
-function ServiceLine({ status }) {
+function ServiceLine({ status, installCommand }) {
   const now = Date.now() / 1000;
   if (status === undefined) return h("div", { className: "set-status" }, h("span", { className: "set-status__dot" }), tx("Checking the service on the Raspberry…"));
   if (status === null) {
@@ -187,7 +187,19 @@ function ServiceLine({ status }) {
       "div",
       { className: "set-status set-status--warn" },
       h("span", { className: "set-status__dot" }),
-      h("span", null, tx("The notification service has not shown up yet. If you installed it, check with"), " ", h("code", null, "klippeye status"), " ", tx("and restart it from Settings → Updates; if you have not set it up yet, follow the guide"), " (", h("code", null, tx("docs/GUIDE.md")), "). ", tx("Without it these choices have no effect.")),
+      h(
+        "span",
+        { "data-service": "missing" },
+        tx("The notification service has not shown up yet. Run once on the Raspberry"),
+        " ",
+        h("code", null, installCommand || "bash ~/klippeye/scripts/install.sh"),
+        " ",
+        tx("(it installs it), then check with"),
+        " ",
+        h("code", null, "klippeye status"),
+        ". ",
+        tx("Without it these choices have no effect."),
+      ),
     );
   }
   const age = Math.max(0, now - (Number(status.seen) || 0));
@@ -535,10 +547,12 @@ function languageSummary() {
 function NotificationsPage({ active }) {
   const { settings, update } = useSettings();
   const status = useNotifierStatus(active);
+  const channels = useNotifyChannels(active);
   return h(
     React.Fragment,
     null,
-    h(ServiceLine, { status }),
+    h(ServiceLine, { status, installCommand: channels.data && channels.data.install_command }),
+    h(SettingsGroup, { title: tx("Where they arrive") }, h(NotificationChannels, { store: channels })),
     h(
       SettingsGroup,
       { title: tx("Which notifications to receive"), note: tx("They apply to every phone with the app. The text is the one of the notification.") },

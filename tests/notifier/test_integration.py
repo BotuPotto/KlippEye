@@ -143,7 +143,13 @@ ok("--check: everything OK -> exit 0, every line OK", code == 0 and text.count("
 bad = dict(CONFIG, moonraker_url="http://127.0.0.1:9", service_account_file=os.path.join(TMP, "missing.json"), topic="")
 badpath = os.path.join(TMP, "bad.json"); json.dump(bad, open(badpath, "w"))
 code, text = capture(vn.command_check, vn.load_config(badpath))
-ok("--check: wrong Moonraker address, missing key, no topic -> exit 1, each problem said in plain words", code == 1 and text.count("ERROR") == 3 and "Moonraker not reachable" in text and "Firebase key not usable" in text and "has no \"topic\"" in text, text)
+ok("--check: wrong Moonraker address and no channel -> exit 1, each problem said in plain words", code == 1 and text.count("ERROR") == 1 and "Moonraker not reachable" in text and "No notification channel is set up" in text, text)
+bad = dict(CONFIG, service_account_file=os.path.join(TMP, "missing.json"), topic="x"); json.dump(bad, open(badpath, "w"))
+code, text = capture(vn.command_check, vn.load_config(badpath))
+ok("--check: a Firebase topic without its key -> exit 1, said in plain words", code == 1 and "Firebase key not usable" in text, text)
+bad = dict(CONFIG, topic=""); json.dump(bad, open(badpath, "w"))
+code, text = capture(vn.command_check, vn.load_config(badpath))
+ok("--check: a Firebase key without its topic -> exit 1, said in plain words", code == 1 and "has no \"topic\"" in text, text)
 google.token_error = True
 code, text = capture(vn.command_check, vn.load_config(CFG_PATH))
 ok("--check: Google refuses the key -> exit 1 with the reason", code == 1 and "Google sign-in failed" in text and "Invalid JWT Signature" in text, text)
@@ -243,6 +249,42 @@ code, text = capture(vn.command_check, vn.load_config(CFG_PATH))
 ok("--check: a database that is not reachable is a warning, not an error", code == 0 and ("not saved from the menu yet" in text or "WARNING" in text), text)
 mset(db_mode="ok")
 
+# ================================================================================================ 1.6: ntfy
+class FakeNtfy(BaseHTTPRequestHandler):
+    messages = []; auth = []; fail = [0]
+    def log_message(self, *a): pass
+    def do_GET(self):
+        body = json.dumps({"healthy": True}).encode() if self.path == "/v1/health" else b"{}"
+        self.send_response(200 if self.path == "/v1/health" else 404); self.send_header("Content-Type", "application/json"); self.end_headers(); self.wfile.write(body)
+    def do_POST(self):
+        raw = self.rfile.read(int(self.headers.get("Content-Length") or 0))
+        if FakeNtfy.fail[0] > 0:
+            FakeNtfy.fail[0] -= 1
+            self.send_response(503); self.send_header("Content-Type", "application/json"); self.end_headers(); self.wfile.write(b'{"error":"busy"}'); return
+        FakeNtfy.messages.append(json.loads(raw.decode("utf-8"))); FakeNtfy.auth.append(self.headers.get("Authorization"))
+        self.send_response(200); self.send_header("Content-Type", "application/json"); self.end_headers(); self.wfile.write(b'{"id":"x"}')
+NPORT = port + 2
+ntfy_server = ThreadingHTTPServer(("127.0.0.1", NPORT), FakeNtfy); threading.Thread(target=ntfy_server.serve_forever, daemon=True).start()
+NTFY = {"enabled": True, "server": "http://127.0.0.1:%d" % NPORT, "topic": "klippeye-7f3k2m9q4x", "token": "", "click": "http://192.168.1.50:8085/"}
+google.reset(); mock.reset()
+both = dict(CONFIG, ntfy=NTFY); BOTH_PATH = os.path.join(TMP, "both.json"); json.dump(both, open(BOTH_PATH, "w"))
+code, text = capture(vn.command_test, vn.load_config(BOTH_PATH), True)
+answer = json.loads(text.strip().splitlines()[-1])
+ok("--test --json: the test goes out through both channels and says so", code == 0 and [(r["channel"], r["ok"]) for r in answer["results"]] == [("ntfy", True), ("firebase", True)] and google.kinds() == ["test"] and FakeNtfy.messages[-1]["topic"] == NTFY["topic"] and FakeNtfy.messages[-1]["message"] == "Test notification: everything works!", (text, FakeNtfy.messages))
+code, text = capture(vn.command_check, vn.load_config(BOTH_PATH))
+ok("--check: ntfy on and its server reached", code == 0 and "ntfy: on" in text and "ntfy server reached" in text, text)
+NTFY_ONLY = os.path.join(TMP, "ntfy-only.json")
+json.dump({k: v for k, v in dict(CONFIG, ntfy=dict(NTFY, token="tk_secret")).items() if k not in ("service_account_file", "topic")}, open(NTFY_ONLY, "w"))
+google.reset(); mock.reset(); FakeNtfy.messages.clear(); FakeNtfy.fail[0] = 1
+stop3 = threading.Event(); runner3 = threading.Thread(target=lambda: vn.run(vn.load_config(NTFY_ONLY), False, stop3), daemon=True); runner3.start(); quiet(1.0)
+mset(print_state="printing"); quiet(0.5); mset(print_state="complete")
+ok("ntfy only (no Firebase key): the push goes out through ntfy, also after the server first refused it", wait_for(lambda: [m["message"] for m in FakeNtfy.messages] == ["Print completed!"]) and google.kinds() == [], (FakeNtfy.messages, google.kinds()))
+ok("... with the token of a server of your own", FakeNtfy.auth[-1] == "Bearer tk_secret", FakeNtfy.auth)
+data = json.load(open(NTFY_ONLY)); data["ntfy"]["enabled"] = False; time.sleep(0.05); json.dump(data, open(NTFY_ONLY, "w"))
+mset(print_state="printing"); quiet(0.5); mset(print_state="cancelled"); quiet(1.5)
+ok("ntfy switched off from the dashboard while running: nothing more is sent, no restart needed", len(FakeNtfy.messages) == 1, FakeNtfy.messages)
+stop3.set(); runner3.join(timeout=5)
+
 # ================================================================================================ the command line, as the service runs it
 google.reset(); mock.reset()
 proc = subprocess.Popen([sys.executable, os.path.join(HERE, "..", "..", "notifier", "klippeye_notifier.py"), "--config", CFG_PATH], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
@@ -257,8 +299,11 @@ proc = subprocess.Popen([sys.executable, os.path.join(HERE, "..", "..", "notifie
 time.sleep(1.5); mset(print_state="printing"); time.sleep(0.6); mset(print_state="complete"); time.sleep(1.5)
 proc.send_signal(signal.SIGTERM); out, _ = proc.communicate(timeout=8)
 ok("command line --dry-run: prints the notice and sends nothing", "(dry run, not sent) Print completed!" in out and google.kinds() == [] and google.token_requests == 0, (out[-300:], google.kinds()))
-nocfg = subprocess.run([sys.executable, os.path.join(HERE, "..", "..", "notifier", "klippeye_notifier.py"), "--config", os.path.join(TMP, "nope.json")], capture_output=True, text=True)
-ok("command line: missing config file -> clear message, exit 2", nocfg.returncode == 2 and "Cannot read" in nocfg.stdout, nocfg.stdout)
+nocfg = subprocess.run([sys.executable, os.path.join(HERE, "..", "..", "notifier", "klippeye_notifier.py"), "--config", os.path.join(TMP, "nope.json"), "--test"], capture_output=True, text=True)
+ok("command line: no config file yet -> the test says no channel is set up, exit 1", nocfg.returncode == 1 and "no channel is set up" in nocfg.stdout, nocfg.stdout)
+open(os.path.join(TMP, "broken.json"), "w").write("{oops")
+broken = subprocess.run([sys.executable, os.path.join(HERE, "..", "..", "notifier", "klippeye_notifier.py"), "--config", os.path.join(TMP, "broken.json")], capture_output=True, text=True)
+ok("command line: a damaged config file -> clear message, exit 2", broken.returncode == 2 and "Cannot read" in broken.stdout, broken.stdout)
 
 print("\nFAILED: %d %s" % (len(FAILS), FAILS) if FAILS else "\nALL PASS")
 os._exit(1 if FAILS else 0)
