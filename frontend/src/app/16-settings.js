@@ -77,7 +77,8 @@ const SETTINGS_DEFAULTS = {
     flipH: false,
     flipV: false,
   },
-  network: { localIp: "192.168.1.17", externalIp: "172.25.170.177", route: "auto" },
+  // "" = not set: the camera uses the address the dashboard was opened at (1.22: before, the maintainer's own addresses)
+  network: { localIp: "", externalIp: "", route: "auto" },
   zOffset: { steps: [0.01, 0.025, 0.05, 0.1] },
   printer: { brand: "klippeye", name: "" }, // name "": the brand's own
   language: LANG, // of the notifications (shared by every phone): the language of the first device that saves the settings
@@ -95,6 +96,8 @@ const SETTINGS_DEFAULTS = {
     light: { mode: "auto", object: "", onMacro: "", offMacro: "", onGcode: "", offGcode: "", stateFrom: "auto" },
     filament: { sensor: true, macros: [], phrases: [] }, // what tells the notification service that the filament ran out
   },
+  // the guided set-up (59k, 1.22): shown by itself once on a new installation, until it is done or skipped
+  setup: { done: false },
 };
 
 /* ---------------------------------------------------------------------------
@@ -221,6 +224,8 @@ function sanitizeSettings(raw) {
       defects: Object.fromEntries(AI_DEFECTS.map((defect) => [defect.id, asBool(defects[defect.id], true)])),
     },
     functions: cleanFunctions(given.functions),
+    // settings saved before 1.22 (anything stored, without "setup"): an installation already set up, the guide is not forced on it
+    setup: { done: isPlainObject(given.setup) ? asBool(given.setup.done, false) : Object.keys(given).length > 0 },
   };
 }
 
@@ -470,16 +475,18 @@ const networkOf = (host) => (/^\d+\.\d+\.\d+\.\d+$/.test(hostName(host)) ? hostN
 /** { host, side: "local" | "external" } for the page opened at `hostname`. */
 function pickCameraHost(settings, hostname = window.location.hostname) {
   const { localIp, externalIp, route } = settings.network;
-  if (route === "local") return { host: localIp, side: "local" };
-  if (route === "external") return { host: externalIp, side: "external" };
-  const name = hostName(hostname);
-  if (name === hostName(localIp)) return { host: localIp, side: "local" };
-  if (name === hostName(externalIp)) return { host: externalIp, side: "external" };
-  const net = networkOf(name);
-  if (net && net === networkOf(localIp)) return { host: localIp, side: "local" };
-  if (net && net === networkOf(externalIp)) return { host: externalIp, side: "external" };
-  if (name.startsWith("192.168.")) return { host: localIp, side: "local" }; // as before the settings existed
-  return { host: externalIp, side: "external" };
+  const here = hostName(hostname);
+  // an address that is not set is the one the dashboard was opened at (the camera is on the same Raspberry)
+  if (route === "local") return { host: localIp || here, side: "local" };
+  if (route === "external") return { host: externalIp || here, side: "external" };
+  if (!localIp && !externalIp) return { host: here, side: "same" };
+  if (localIp && here === hostName(localIp)) return { host: localIp, side: "local" };
+  if (externalIp && here === hostName(externalIp)) return { host: externalIp, side: "external" };
+  const net = networkOf(here);
+  if (net && localIp && net === networkOf(localIp)) return { host: localIp, side: "local" };
+  if (net && externalIp && net === networkOf(externalIp)) return { host: externalIp, side: "external" };
+  if (localIp && here.startsWith("192.168.")) return { host: localIp, side: "local" }; // as before the settings existed
+  return externalIp ? { host: externalIp, side: "external" } : { host: here, side: "same" };
 }
 
 /** `address` (a path on the printer or a full address) as a full address. */
@@ -502,11 +509,17 @@ function cameraUrl(settings, hostname) {
    ------------------------------------------------------------------------- */
 let lastTold = ""; // the pair of addresses the app was last told, "local|external"
 
+/** The pair the app is told: an address not set is the one the app reached the dashboard at (the app wants both). */
+function appPair(settings) {
+  const local = hostName(settings.network.localIp) || hostName(window.location.hostname);
+  const external = hostName(settings.network.externalIp) || local;
+  return [local, external];
+}
+
 function tellApp(settings) {
   const bridge = nativeBridge();
   if (!APP_KNOWS_ADDRESSES || !bridge || typeof bridge.setAddresses !== "function") return;
-  const local = hostName(settings.network.localIp);
-  const external = hostName(settings.network.externalIp);
+  const [local, external] = appPair(settings);
   if (local + "|" + external === lastTold) return;
   lastTold = local + "|" + external;
   try {
@@ -519,7 +532,7 @@ function appAddressesState(settings) {
   if (!IN_APP_WEBVIEW) return "browser";
   const bridge = nativeBridge();
   if (!APP_KNOWS_ADDRESSES || !bridge || typeof bridge.getAddresses !== "function") return "old";
-  const pair = hostName(settings.network.localIp) + "|" + hostName(settings.network.externalIp);
+  const pair = appPair(settings).join("|");
   if (pair !== lastTold) return "waiting";
   try {
     const app = JSON.parse(bridge.getAddresses());

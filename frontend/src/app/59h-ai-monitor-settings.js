@@ -134,7 +134,7 @@ function AiPage({ active, menu }) {
     h(ServiceLine, { status }),
     h(
       SettingsGroup,
-      { title: tx("How it looks at the print") },
+      { title: tx("How it looks at the print"), help: ["ai", "what"] },
       h("div", { className: cx("set-status", looking.ok ? "set-status--ok" : "set-status--warn"), "data-looking": looking.ok ? "zone" : "band" }, h("span", { className: "set-status__dot" }), looking.text),
       h(
         "div",
@@ -146,7 +146,7 @@ function AiPage({ active, menu }) {
     ),
     h(
       SettingsGroup,
-      { title: tx("When it sees a problem") },
+      { title: tx("When it sees a problem"), help: ["ai", "confidence"] },
       config.phase === "ok" &&
         Number.isFinite(confidence) &&
         h(
@@ -183,12 +183,13 @@ function AiPage({ active, menu }) {
         h(SwitchRow, { title: tx("Pause by itself"), detail: tx("When the AI suggests PAUSE (or CANCEL, if automatic cancel is off)"), checked: ai.autoPause, onChange: (value) => update((draft) => (draft.ai.autoPause = value)) }),
         h(SwitchRow, { title: tx("Cancel by itself"), detail: tx("When the AI suggests CANCEL. A cancelled print cannot be recovered"), danger: true, checked: ai.autoCancel, onChange: (value) => (value ? menu.ask("autoCancel") : update((draft) => (draft.ai.autoCancel = false))) }),
       ),
-      h("p", { className: "set-group__note" }, tx("The Raspberry does them by itself, also with the phone off. The AI can be wrong: a cancel cannot be undone. The notifications are chosen in Settings → Notifications.")),
+      h("p", { className: "set-group__note" }, tx("The Raspberry does them by itself, also with the phone off. The AI can be wrong: a cancel cannot be undone.")),
+      h("button", { type: "button", className: "oui-btn oui-btn--quiet oui-btn--sm set-inline-btn", "data-go": "notifications", onClick: () => menu.goTo("notifications") }, h(Icons.Bell, { size: 16 }), tx("Choose the notifications")),
       last && h("p", { className: "set-group__note" }, last),
     ),
     h(
       SettingsGroup,
-      { title: tx("The AI service") },
+      { title: tx("The AI service"), help: ["ai", "start"] },
       h(AiKeySection, { aiKey }),
       config.phase === "ok" && h("div", { className: "oui-list" }, control("ai_send_reference")),
       config.phase === "ok" && control("ai_model"),

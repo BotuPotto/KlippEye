@@ -99,6 +99,9 @@ def built_dashboard(release):
     return out
 
 
+SETUP_SEEN = "try { localStorage.setItem('ke_setup_offered', '1'); } catch (e) {}"
+
+
 # ------------------------------------------------------------------------------------------------ a fresh world
 class World:
     def __init__(self, name, extra_env=None):
@@ -309,10 +312,14 @@ os.makedirs(WORLDS, exist_ok=True)
 if scenario("install") or scenario("update") or scenario("undo"):
     w = World("main")
     w.build()
+    started = time.time()
     r = w.install()
+    took = time.time() - started
     out = r.stdout + r.stderr
     open(os.path.join(w.root, "install1.out"), "w").write(out)
     ok("[install] exits with 0", r.returncode == 0, out)
+    # roadmap phase 5e: a clean installation, by a user that is not "pi", in well under 15 minutes (the guide's time for a person)
+    ok("[install] a user other than 'pi' (home %s), installed in %d s" % (w.home, took), "/home/pi" not in w.home and took < 300 and "/home/pi" not in out, took)
     ok("[install] the backend answers with release 1.0.0 and serves the repository's dashboard", backend_release() == "1.0.0" and "KlippEye dashboard 1.0.0" in str(http("GET", BACKEND + "/", timeout=5)[1]), out)
     ok("[install] data folder with mode 700", stat.S_IMODE(os.stat(w.data).st_mode) == 0o700, oct(os.stat(w.data).st_mode))
     ai = os.path.join(w.data, "ai.json")
@@ -544,6 +551,7 @@ if scenario("ui") and PLAYWRIGHT:
     with sync_playwright() as p:
         browser = p.chromium.launch()
         ctx = browser.new_context(viewport={"width": 390, "height": 844}, locale="it-IT")
+        ctx.add_init_script(SETUP_SEEN)  # the guided set-up of a new installation is tested in tests/ui/setup_test.py
         pg = ctx.new_page()
         errors = []
         pg.on("pageerror", lambda e: errors.append(str(e)[:300]))
@@ -740,6 +748,7 @@ if scenario("app") and PLAYWRIGHT:
 
         def new_page(script=None):
             ctx = browser.new_context(viewport={"width": 390, "height": 844}, locale="it-IT", accept_downloads=True)
+            ctx.add_init_script(SETUP_SEEN)
             pg = ctx.new_page()
             pg.errors = []
             pg.on("pageerror", lambda e: pg.errors.append(str(e)[:300]))

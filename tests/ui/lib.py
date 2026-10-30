@@ -128,10 +128,14 @@ def norm_req(method, url, body, base):
     return {"m": method, "u": path, "b": body}
 
 class Page:
-    def __init__(self, browser, mock, vw=390, vh=844, tall=2600, locale="it-IT"):
+    def __init__(self, browser, mock, vw=390, vh=844, tall=2600, locale="it-IT", offer_setup=False):
         self.mock = mock; self.vw = vw; self.vh = vh; self.tall = tall
         self.ctx = browser.new_context(viewport={"width": vw, "height": vh}, device_scale_factor=1, timezone_id="Europe/Rome", locale=locale,
                                        permissions=[], accept_downloads=True)
+        # the guided set-up opens by itself on a new installation (1.22): these tests start from an empty database, so it is
+        # marked as already offered on this device; setup_test.py removes the mark to test it
+        if offer_setup is False:
+            self.ctx.add_init_script("try { localStorage.setItem('ke_setup_offered', '1'); } catch (e) {}")
         self.pg = self.ctx.new_page()
         self.errors = []; self.reqs = []; self.dialogs = []
         pg = self.pg

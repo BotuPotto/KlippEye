@@ -53,6 +53,11 @@ function useSettingsMenu() {
       settingsStore.pull(); // another device may have changed something
     },
     close: () => setOpen(false),
+    /** The guided set-up (59k) takes the place of the menu. */
+    startSetup: () => {
+      setOpen(false);
+      openSetupGuide();
+    },
     /** Opens the menu straight on one page (the invitation to set up the notifications of this phone). */
     openPage: (id) => {
       setPage(id);
@@ -177,7 +182,15 @@ function TextSetting({ label, value, validate, onCommit, hint, error, placeholde
   );
 }
 
-const SettingsGroup = ({ title, children, note }) => h("section", { className: "set-group" }, title && h("div", { className: "set-group__label" }, title), children, note && h("p", { className: "set-group__note" }, note));
+/** A group of a settings page; `help` ([page, section]) puts a small "?" next to its title that opens the guide there (59j). */
+const SettingsGroup = ({ title, children, note, help }) =>
+  h(
+    "section",
+    { className: "set-group" },
+    title && h("div", { className: cx("set-group__label", help && "set-group__label--help") }, h("span", null, title), help && h(HelpButton, { page: help[0], section: help[1], className: "help-btn--small" })),
+    children,
+    note && h("p", { className: "set-group__note" }, note),
+  );
 
 /* ---------------------------------------------------------------------------
    Pages
@@ -331,7 +344,7 @@ function MainsailImport({ onPick }) {
   );
 }
 
-function CameraPage() {
+function CameraPage({ menu }) {
   const { settings, update } = useSettings();
   const camera = settings.camera;
   const method = CAMERA_METHODS.find((item) => item.id === camera.method);
@@ -348,7 +361,7 @@ function CameraPage() {
   return h(
     React.Fragment,
     null,
-    h(SettingsGroup, { title: tx("Method") }, h(ChoiceRows, { label: tx("Method"), options: CAMERA_METHODS, value: camera.method, onChange: (id) => update((draft) => (draft.camera.method = id)) })),
+    h(SettingsGroup, { title: tx("Method"), help: ["camera", "method"] }, h(ChoiceRows, { label: tx("Method"), options: CAMERA_METHODS, value: camera.method, onChange: (id) => update((draft) => (draft.camera.method = id)) })),
     h(
       SettingsGroup,
       { title: tx("Address") },
@@ -387,6 +400,12 @@ function CameraPage() {
       ),
     ),
     h(MainsailImport, { onPick: pick }),
+    menu &&
+      h(
+        SettingsGroup,
+        { title: tx("For the AI monitor") },
+        h(SubpageRow, { entry: AI_SUBPAGES[0], meta: tx("Where the bed and the nozzle are in the picture: needed to watch the whole bed"), menu }),
+      ),
     h(
       SettingsGroup,
       null,
@@ -396,6 +415,8 @@ function CameraPage() {
 }
 
 /* ---- Addresses ---- */
+const cleanHostOrEmpty = (value) => (typeof value === "string" && value.trim() === "" ? "" : cleanHost(value));
+
 const APP_ADDRESSES_NOTES = {
   browser: tx("The Android app (version mk218 or newer) connects to these same addresses: every change applies from its next start."),
   old: tx("This version of the app has the addresses built in: from mk218 (or newer) it takes them from here."),
@@ -417,36 +438,36 @@ function NetworkPage() {
   const using = pickCameraHost(settings);
   const routes = [
     { id: "auto", label: tx("Automatic"), detail: tx("The one of the network you opened the dashboard from") },
-    { id: "local", label: tx("Always local"), detail: localIp },
-    { id: "external", label: tx("Always external"), detail: externalIp },
+    { id: "local", label: tx("Always local"), detail: localIp || tx("not set: this address") },
+    { id: "external", label: tx("Always external"), detail: externalIp || tx("not set: this address") },
   ];
   return h(
     React.Fragment,
     null,
     h(
       SettingsGroup,
-      { title: tx("Addresses of the Raspberry"), note: tx("Only the address, without http:// and without port (unless the camera is on a port other than 80).") },
+      { title: tx("Addresses of the Raspberry"), help: ["network", "what"], note: tx("Only the address, without http:// and without port (unless the camera is on a port other than 80). Empty: the address you opened the dashboard at.") },
       h(TextSetting, {
         label: tx("Local IP (home network)"),
         value: localIp,
-        validate: cleanHost,
+        validate: cleanHostOrEmpty,
         error: tx("Not a valid address (example: 192.168.1.17)"),
-        placeholder: SETTINGS_DEFAULTS.network.localIp,
+        placeholder: tx("example: 192.168.1.17"),
         inputMode: "decimal",
         onCommit: (value) => update((draft) => (draft.network.localIp = value)),
       }),
       h(TextSetting, {
         label: tx("External IP (ZeroTier, VPN)"),
         value: externalIp,
-        validate: cleanHost,
+        validate: cleanHostOrEmpty,
         error: tx("Not a valid address (example: 172.25.170.177)"),
-        placeholder: SETTINGS_DEFAULTS.network.externalIp,
+        placeholder: tx("only with ZeroTier, Tailscale or a VPN"),
         inputMode: "decimal",
         onCommit: (value) => update((draft) => (draft.network.externalIp = value)),
       }),
     ),
     h(SettingsGroup, { title: tx("For the camera use") }, h(ChoiceRows, { label: tx("Camera address"), options: routes, value: route, onChange: (id) => update((draft) => (draft.network.route = id)) })),
-    h("div", { className: "set-status set-status--ok" }, h("span", { className: "set-status__dot" }), (using.side === "local" ? tx("The camera now uses the local address {host}", { host: using.host }) : tx("The camera now uses the external address {host}", { host: using.host }))),
+    h("div", { className: "set-status set-status--ok" }, h("span", { className: "set-status__dot" }), using.side === "same" ? tx("The camera now uses the address of this page: {host}", { host: using.host }) : using.side === "local" ? tx("The camera now uses the local address {host}", { host: using.host }) : tx("The camera now uses the external address {host}", { host: using.host })),
     h(AppAddressesNote, { state: appAddressesState(settings) }),
   );
 }
@@ -488,7 +509,7 @@ function ZOffsetPage() {
     null,
     h(
       SettingsGroup,
-      { title: tx("Steps of the Z-offset card"), note: tx("How many millimetres the nozzle moves at each tap of Raise / Lower. Leave a field empty to have fewer than four.") },
+      { title: tx("Steps of the Z-offset card"), help: ["zoffset", "what"], note: tx("How many millimetres the nozzle moves at each tap of Raise / Lower. Leave a field empty to have fewer than four.") },
       h(
         "div",
         { className: "set-grid" },
@@ -557,11 +578,11 @@ function NotificationsPage({ active }) {
     React.Fragment,
     null,
     h(ServiceLine, { status, installCommand: channels.data && channels.data.install_command }),
-    IN_APP_WEBVIEW && h(SettingsGroup, { title: tx("This phone") }, h(PhoneNotifications, { store: channels })),
-    h(SettingsGroup, { title: IN_APP_WEBVIEW ? tx("Other phones (ntfy app, iPhone)") : tx("Where they arrive") }, h(NotificationChannels, { store: channels })),
+    IN_APP_WEBVIEW && h(SettingsGroup, { title: tx("This phone"), help: ["notifications", "app"] }, h(PhoneNotifications, { store: channels })),
+    h(SettingsGroup, { title: IN_APP_WEBVIEW ? tx("Other phones (ntfy app, iPhone)") : tx("Where they arrive"), help: ["notifications", IN_APP_WEBVIEW ? "ntfy" : "how"] }, h(NotificationChannels, { store: channels })),
     h(
       SettingsGroup,
-      { title: tx("Which notifications to receive"), note: tx("They apply to every phone with the app. The text is the one of the notification.") },
+      { title: tx("Which notifications to receive"), help: ["notifications", "which"], note: tx("They apply to every phone with the app. The text is the one of the notification.") },
       h(
         "div",
         { className: "oui-list" },
@@ -618,7 +639,7 @@ function settingsSummary(page, settings, brain) {
     case "camera":
       return CAMERA_METHODS.find((method) => method.id === camera.method).label + (camera.flipH || camera.flipV ? tx(" • flipped") : "");
     case "network":
-      return network.localIp + " • " + network.externalIp;
+      return network.localIp || network.externalIp ? [network.localIp, network.externalIp].filter(Boolean).join(" • ") : tx("Automatic (the address of this page)");
     case "zoffset":
       return zOffset.steps.join(" · ") + " mm";
     case "language":
@@ -632,17 +653,24 @@ function settingsSummary(page, settings, brain) {
   }
 }
 
+/** The menu, in four groups (1.22): what a page is about decides where it is, the most used first. */
+const SETTINGS_GROUPS = [
+  { id: "printer", title: tx("The printer") },
+  { id: "watch", title: tx("Camera and AI monitor") },
+  { id: "phone", title: tx("Phone and network") },
+  { id: "system", title: tx("System") },
+];
 const SETTINGS_ENTRIES = [
-  { id: "printer", title: tx("Printer"), icon: Icons.Cube },
-  { id: "functions", title: tx("Printer functions"), icon: Icons.Bulb },
-  { id: "camera", title: "Camera", icon: Icons.Camera },
-  { id: "network", title: tx("Addresses"), icon: Icons.Network },
-  { id: "zoffset", title: "Z-offset", icon: Icons.Layers },
-  { id: "notifications", title: tx("Notifications"), icon: Icons.Bell },
-  { id: "ai", title: tx("AI monitor"), icon: Icons.Sparkle },
-  { id: "access", title: tx("Access"), icon: Icons.Lock },
-  { id: "software", title: tx("Updates"), icon: Icons.Download },
-  { id: "language", title: tx("Language"), icon: Icons.Language },
+  { id: "printer", group: "printer", title: tx("Name and logo"), icon: Icons.Cube },
+  { id: "functions", group: "printer", title: tx("Printer functions"), icon: Icons.Bulb },
+  { id: "zoffset", group: "printer", title: "Z-offset", icon: Icons.Layers },
+  { id: "camera", group: "watch", title: "Camera", icon: Icons.Camera },
+  { id: "ai", group: "watch", title: tx("AI monitor"), icon: Icons.Sparkle },
+  { id: "notifications", group: "phone", title: tx("Notifications"), icon: Icons.Bell },
+  { id: "network", group: "phone", title: tx("Addresses"), icon: Icons.Network },
+  { id: "access", group: "system", title: tx("Access"), icon: Icons.Lock },
+  { id: "software", group: "system", title: tx("Updates"), icon: Icons.Download },
+  { id: "language", group: "system", title: tx("Language"), icon: Icons.Language },
 ];
 /** The pages inside "AI monitor" (1.19: one entry for everything the monitor does, see 59h-ai-monitor-settings.js). */
 const AI_SUBPAGES = [
@@ -653,6 +681,25 @@ const AI_SUBPAGES = [
 const PAGE_PARENT = Object.fromEntries(AI_SUBPAGES.map((entry) => [entry.id, "ai"]));
 const PAGE_TITLES = Object.fromEntries([...SETTINGS_ENTRIES, ...AI_SUBPAGES].map((entry) => [entry.id, entry.title]));
 
+/** One row of the menu: icon, name, what it is set to now, and a badge when something waits. */
+function SettingsEntry({ entry, settings, brain, menu }) {
+  return h(
+    "button",
+    { type: "button", className: "set-entry", "data-page": entry.id, onClick: () => menu.goTo(entry.id) },
+    h("span", { className: "oui-row__icon oui-row__icon--accent" }, h(entry.icon)),
+    h(
+      "span",
+      { className: "oui-row__text" },
+      h("span", { className: "oui-row__name" }, entry.title),
+      entry.id === "functions" && !settings.functions.reviewed
+        ? h("span", null, h("span", { className: "set-entry__badge set-entry__badge--inline" }, tx("To check"))) // under the name: the long title keeps its room on a narrow phone
+        : h("span", { className: "oui-row__meta set-entry__meta" }, settingsSummary(entry.id, settings, brain)),
+    ),
+    entry.id === "software" && ((brain.update.phase === "ok" && Number(brain.update.raw.commits_behind_count) > 0) || appUpdateWaiting(brain.app, readInstalledApp())) && h("span", { className: "set-entry__badge" }, tx("New")),
+    h("span", { className: "set-entry__go", "aria-hidden": "true" }, h(Icons.Forward)),
+  );
+}
+
 function SettingsHome({ menu }) {
   const { settings, sync } = useSettings();
   const brain = { version: useBrainVersion(true), update: useProgramUpdate(true), app: useAppRelease(true), access: useAccessStatus(true)[0], recordings: useBackendJson("/api/recordings", true, BRAIN_POLL_MS), camcal: useBackendJson("/api/camera/calibration", true, BRAIN_POLL_MS) };
@@ -660,23 +707,22 @@ function SettingsHome({ menu }) {
     React.Fragment,
     null,
     h(
-      "div",
-      { className: "oui-list" },
-      SETTINGS_ENTRIES.map((entry) =>
+      "button",
+      { type: "button", className: "set-entry set-entry--guide", "data-page": "setup", onClick: menu.startSetup },
+      h("span", { className: "oui-row__icon oui-row__icon--accent" }, h(Icons.Sparkle)),
+      h("span", { className: "oui-row__text" }, h("span", { className: "oui-row__name" }, tx("Guided set-up")), h("span", { className: "oui-row__meta set-entry__meta" }, settings.setup.done ? tx("Everything KlippEye needs, step by step: repeat it whenever you want") : tx("Not done yet: everything KlippEye needs, step by step"))),
+      !settings.setup.done && h("span", { className: "set-entry__badge" }, tx("Start")),
+      h("span", { className: "set-entry__go", "aria-hidden": "true" }, h(Icons.Forward)),
+    ),
+    SETTINGS_GROUPS.map((group) =>
+      h(
+        "section",
+        { key: group.id, className: "set-group set-group--menu", "data-group": group.id },
+        h("div", { className: "set-group__label" }, group.title),
         h(
-          "button",
-          { key: entry.id, type: "button", className: "set-entry", "data-page": entry.id, onClick: () => menu.goTo(entry.id) },
-          h("span", { className: "oui-row__icon oui-row__icon--accent" }, h(entry.icon)),
-          h(
-            "span",
-            { className: "oui-row__text" },
-            h("span", { className: "oui-row__name" }, entry.title),
-            entry.id === "functions" && !settings.functions.reviewed
-              ? h("span", null, h("span", { className: "set-entry__badge set-entry__badge--inline" }, tx("To check"))) // under the name: the long title keeps its room on a narrow phone
-              : h("span", { className: "oui-row__meta set-entry__meta" }, settingsSummary(entry.id, settings, brain)),
-          ),
-          entry.id === "software" && ((brain.update.phase === "ok" && Number(brain.update.raw.commits_behind_count) > 0) || appUpdateWaiting(brain.app, readInstalledApp())) && h("span", { className: "set-entry__badge" }, tx("New")),
-          h("span", { className: "set-entry__go", "aria-hidden": "true" }, h(Icons.Forward)),
+          "div",
+          { className: "oui-list" },
+          SETTINGS_ENTRIES.filter((entry) => entry.group === group.id).map((entry) => h(SettingsEntry, { key: entry.id, entry, settings, brain, menu })),
         ),
       ),
     ),
@@ -704,7 +750,7 @@ function SettingsDrawer({ menu, updates, printing, actions }) {
   };
   let body;
   if (page === "printer") body = h(PrinterPage);
-  else if (page === "camera") body = h(CameraPage);
+  else if (page === "camera") body = h(CameraPage, { menu });
   else if (page === "network") body = h(NetworkPage);
   else if (page === "zoffset") body = h(ZOffsetPage);
   else if (page === "notifications") body = h(NotificationsPage, { active: true });
@@ -730,6 +776,7 @@ function SettingsDrawer({ menu, updates, printing, actions }) {
           ? h("button", { type: "button", className: "header-btn drawer__btn", "aria-label": tx("Back"), onClick: menu.back }, h(Icons.Back))
           : h(PrinterLogo, { id: settings.printer.brand, className: "drawer__logo" }),
         h("div", { className: "drawer__title" }, page ? PAGE_TITLES[page] : tx("Settings")),
+        h(HelpButton, { page: page || "home", className: "drawer__help" }),
         h("button", { type: "button", className: "header-btn drawer__btn", "aria-label": tx("Close"), onClick: menu.close }, h(Icons.Close)),
       ),
       h("div", { className: "drawer__body", key: page || "home" }, body),

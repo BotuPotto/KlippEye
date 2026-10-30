@@ -4,6 +4,10 @@ KlippEye is a dashboard, a backend and an AI print monitor for 3D printers runni
 (or any Linux computer next to the printer), with push notifications and an Android app. This guide takes you from the
 installation to everyday use. *Una versione in italiano è in [GUIDA.md](GUIDA.md).*
 
+**Quick start (about 15 minutes):** install with the two lines of [chapter 2](#2-install), open
+`http://<address of the Raspberry>:8085` and follow the **guided set-up** that opens by itself ([chapter 3](#3-first-settings)).
+Everything else in this guide is there when you need it; every page of the dashboard also has its own **?**.
+
 **Contents:** 1. [What you need](#1-what-you-need) · 2. [Install](#2-install) · 3. [First settings](#3-first-settings) ·
 4. [Updates](#4-updates) · 5. [AI monitor](#5-ai-monitor) · 6. [Android app and notifications](#6-android-app-and-notifications) ·
 7. [Password and security](#7-password-and-security) · 8. [After a power cut](#8-after-a-power-cut) ·
@@ -40,8 +44,8 @@ What the installer does:
   Any user works, not only `pi`: the printer's folders (config, logs, `printer_data` or `printer_1_data` with several
   printers, the old `~/klipper_config`) are asked to Moonraker. To choose the folder by hand:
   `KLIPPEYE_PRINTER_DATA=~/printer_2_data bash ~/klippeye/scripts/install.sh`;
-* installs the services **`klippeye`** (backend and dashboard, port **8085**) and **`klippeye-notifier`** (push notifications,
-  only once its keys are there), started at every boot. If the new backend does not answer, it puts everything back as it was;
+* installs the services **`klippeye`** (backend and dashboard, port **8085**) and **`klippeye-notifier`** (push notifications
+  and the automatic pause), started at every boot. If the new backend does not answer, it puts everything back as it was;
 * adds two terminal commands, `klippeye` and `klippeye-notifiche`;
 * connects KlippEye to **Moonraker's update manager** (an `[update_manager klippeye]` entry in `moonraker.conf` and two lines in
   `moonraker.asvc`, with backup copies) and restarts Moonraker, unless the printer is printing.
@@ -54,22 +58,34 @@ Open the dashboard: **`http://<address of the Raspberry>:8085`**. Use the addres
 
 ## 3. First settings
 
-Everything is in the menu **☰ (Settings)**. The settings are saved on the Raspberry and are the same on every device.
+**The first time you open the dashboard the guided set-up starts**: nine steps (name and logo, camera, addresses, printer
+functions, notifications, AI monitor, password) with a couple of lines of explanation each. Every step can be skipped, and the
+last one says what is done and what is left. Repeat it whenever you want from **Settings → Guided set-up**.
 
-* **Printer**: the logo in the top bar (KlippEye, VzBot, Voron, RatRig) and a name of your own, also used as the browser tab
-  title. Official brand logos go in the `logos/` folder of the repository (see [logos/README.md](../logos/README.md)).
-* **Printer functions** (marked *To check* until you confirm it): what the buttons that use your printer's own macros do,
-  see below.
-* **Camera**: the method (WebRTC, MJPEG, MJPEG adaptive or any web page) and its address. **Import from Mainsail** takes them from
-  the webcams already set up in Mainsail.
-* **Addresses**: the Raspberry's local IP and, if you use a VPN such as ZeroTier, its external IP: the camera and the Android app
-  use the right one depending on the network you are on.
-* **Z-offset**: the step sizes of the Z-offset card.
-* **Notifications**: which push notifications to receive and their language (see 6).
-* **AI monitor**: everything of the AI monitor (thresholds, camera calibration, recordings), see 5.
-* **Access**: the optional password (see 7).
-* **Updates**: releases, rollback, restart of the services, the Android app.
-* **Language**: English or Italian, chosen on each device (*Automatic* follows the device's language).
+Every page has a **?** button in its title bar that opens a short guide (with a drawing where it helps: where to tap the nozzle
+in the calibration, what the addresses are for, how the notifications arrive); some groups have their own small **?**.
+
+Everything is in the menu **☰ (Settings)**, in four groups. The settings are saved on the Raspberry and are the same on every
+device.
+
+* **The printer**
+  * **Name and logo**: the logo in the top bar (KlippEye, VzBot, Voron, RatRig) and a name of your own, also used as the browser
+    tab title. Official brand logos go in the `logos/` folder of the repository (see [logos/README.md](../logos/README.md)).
+  * **Printer functions** (marked *To check* until you confirm it): what the buttons that use your printer's own macros do, see
+    below.
+  * **Z-offset**: the step sizes of the Z-offset card.
+* **Camera and AI monitor**
+  * **Camera**: the method (WebRTC, MJPEG, MJPEG adaptive or any web page) and its address. **Import from Mainsail** takes them
+    from the webcams already set up in Mainsail. At the bottom, the way to the camera calibration of the AI monitor.
+  * **AI monitor**: everything of the AI monitor (thresholds, camera calibration, recordings), see 5.
+* **Phone and network**
+  * **Notifications**: where they arrive (the KlippEye app or the ntfy app), which ones and their language (see 6).
+  * **Addresses**: only needed if you open KlippEye from outside your home with ZeroTier, Tailscale or another VPN: the
+    Raspberry's local IP and its external IP. Empty, the camera uses the address you opened the dashboard at.
+* **System**
+  * **Access**: the optional password (see 7).
+  * **Updates**: releases, rollback, restart of the services, the Android app.
+  * **Language**: English or Italian, chosen on each device (*Automatic* follows the device's language).
 
 ### Printer functions
 
