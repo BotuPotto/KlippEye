@@ -11,6 +11,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Environment
 import android.provider.MediaStore
+import android.provider.Settings
 import android.text.InputType
 import android.view.View
 import android.webkit.CookieManager
@@ -77,13 +78,11 @@ class MainActivity : AppCompatActivity() {
         fileChooserCallback = null
     }
 
-    // Android 13+: il permesso per le notifiche va chiesto all'utente (compare una finestra di sistema)
-    private val permessoNotifiche = registerForActivityResult(ActivityResultContracts.RequestPermission()) { concesso ->
-        val preferenze = getSharedPreferences("klippeye", MODE_PRIVATE)
-        if (!concesso && !preferenze.getBoolean("avviso_permesso_mostrato", false)) {
-            preferenze.edit().putBoolean("avviso_permesso_mostrato", true).apply()
-            Toast.makeText(this, "Senza il permesso le notifiche non compaiono. Attivalo da Impostazioni > App > KlippEye > Notifiche.", Toast.LENGTH_LONG).show()
-        }
+    // Android 13+: il permesso per le notifiche va chiesto all'utente (compare una finestra di sistema). Lo chiede la procedura
+    // guidata della dashboard (KlippEyeApp.askNotificationPermission); la risposta torna alla pagina con lo stato aggiornato.
+    private val permessoNotifiche = registerForActivityResult(ActivityResultContracts.RequestPermission()) { _ ->
+        Ascolto.applica(this)
+        dicoStatoNotifiche()
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -108,8 +107,9 @@ class MainActivity : AppCompatActivity() {
         webView.settings.allowUniversalAccessFromFileURLs = true
         // Dice alla dashboard cosa sa fare questa app: 2 = scelta file ("Carica file"), 3 = anche salvare file
         // nella cartella Download, 4 = anche usare gli indirizzi del menu Impostazioni (setAddresses/getAddresses),
-        // 5 = anche aggiornarsi da sola (appInfo/updateApp). Con un numero più basso la dashboard lascia disattivata la funzione.
-        webView.settings.userAgentString = webView.settings.userAgentString + " KlippEyeApp/5"
+        // 5 = anche aggiornarsi da sola (appInfo/updateApp), 6 = anche ricevere le notifiche da sola (notifySetup/notifyState...,
+        // vedi Ascolto.kt). Con un numero più basso la dashboard lascia disattivata la funzione.
+        webView.settings.userAgentString = webView.settings.userAgentString + " KlippEyeApp/6"
 
         // Download: il WebView non scarica da solo. La dashboard chiama window.KlippEyeApp.saveUrl(indirizzo, nome);
         // un collegamento che il WebView trasforma in download passa invece dal listener.
@@ -171,24 +171,19 @@ class MainActivity : AppCompatActivity() {
         Thread { Aggiornamento.pulisci(cartellaAggiornamenti, PULIZIA_APK_DOPO_MS) }.start()
     }
 
-    /** Notifiche push: canali, permesso (Android 13+) e iscrizione all'argomento privato. Vedi Notifiche.kt. */
+    /**
+     * Notifiche: i canali subito (Firebase li usa anche con l'app chiusa) e cio' che era stato scelto su questo telefono (ascolto
+     * ntfy o iscrizione Firebase). Il permesso e la scelta li fa la procedura guidata della dashboard (Impostazioni → Notifiche).
+     */
     private fun avviaNotifiche() {
         Notifiche.creaCanali(this)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
-        ) {
-            permessoNotifiche.launch(Manifest.permission.POST_NOTIFICATIONS)
-        }
-        val configurato = Notifiche.iscrivi(this) { riuscito ->
-            val preferenze = getSharedPreferences("klippeye", MODE_PRIVATE)
-            if (riuscito && !preferenze.getBoolean("notifiche_attivate_mostrato", false)) {
-                preferenze.edit().putBoolean("notifiche_attivate_mostrato", true).apply()
-                Toast.makeText(this, "Notifiche attivate", Toast.LENGTH_SHORT).show()
-            }
-        }
-        if (!configurato) {
-            Toast.makeText(this, "Notifiche non attive: nell'app manca google-services.json (vedi la guida)", Toast.LENGTH_LONG).show()
-        }
+        Ascolto.applica(this)
+    }
+
+    /** Lo stato delle notifiche di questo telefono alla pagina (se e' una dashboard che lo ascolta). */
+    private fun dicoStatoNotifiche() {
+        if (!::webView.isInitialized) return
+        webView.evaluateJavascript("window.klippeyeNotifyState && window.klippeyeNotifyState(${Ascolto.stato(this)})", null)
     }
 
     private fun hostOf(url: String?): String? = try {
@@ -359,6 +354,70 @@ class MainActivity : AppCompatActivity() {
         fun updateApp(path: String?, version: String?, sha256: String?, size: String?) {
             runOnUiThread { aggiornaApp(path, version, sha256, size?.toLongOrNull() ?: 0L) }
         }
+
+        // ---- Notifiche su questo telefono (app 6, vedi Ascolto.kt) ----
+
+        /** Come sono impostate le notifiche dal Raspberry e la scelta della persona: vedi [Ascolto.imposta]. Risponde lo stato. */
+        @JavascriptInterface
+        fun notifySetup(json: String?): String {
+            Ascolto.imposta(applicationContext, json)
+            return Ascolto.stato(applicationContext)
+        }
+
+        /** {permission, battery, receive, chosen, mode, connected, lastMessageAt, ...}: vedi [Ascolto.stato]. */
+        @JavascriptInterface
+        fun notifyState(): String = Ascolto.stato(applicationContext)
+
+        /** Mostra la finestra di Android per il permesso delle notifiche; se Android non la mostra piu', apre le impostazioni dell'app. */
+        @JavascriptInterface
+        fun askNotificationPermission() {
+            runOnUiThread {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !Notifiche.permessoConcesso(this@MainActivity) &&
+                    (shouldShowRequestPermissionRationale(Manifest.permission.POST_NOTIFICATIONS) || !getSharedPreferences("klippeye", MODE_PRIVATE).getBoolean("permesso_chiesto", false))
+                ) {
+                    getSharedPreferences("klippeye", MODE_PRIVATE).edit().putBoolean("permesso_chiesto", true).apply()
+                    permessoNotifiche.launch(Manifest.permission.POST_NOTIFICATIONS)
+                } else {
+                    apriImpostazioniNotifiche()
+                }
+            }
+        }
+
+        /** Chiede ad Android di non addormentare KlippEye (senza, il collegamento a ntfy si interrompe a telefono fermo). */
+        @SuppressLint("BatteryLife") // l'app non e' su Google Play: e' l'unico modo per ricevere senza ritardi
+        @JavascriptInterface
+        fun askBatteryExemption() {
+            runOnUiThread {
+                try {
+                    startActivity(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:$packageName")))
+                } catch (e: Exception) {
+                    try {
+                        startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+                    } catch (e2: Exception) {
+                        Toast.makeText(this@MainActivity, "Apri Impostazioni > App > KlippEye > Batteria e scegli «Senza limitazioni»", Toast.LENGTH_LONG).show()
+                    }
+                }
+            }
+        }
+
+        /** Le impostazioni delle notifiche di KlippEye in Android (per riattivarle o nascondere la notifica fissa). */
+        @JavascriptInterface
+        fun openNotificationSettings() {
+            runOnUiThread { apriImpostazioniNotifiche() }
+        }
+    }
+
+    private fun apriImpostazioniNotifiche() {
+        val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, packageName)
+        } else {
+            Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName"))
+        }
+        try {
+            startActivity(intent)
+        } catch (e: Exception) {
+            Toast.makeText(this, "Apri Impostazioni > App > KlippEye > Notifiche", Toast.LENGTH_LONG).show()
+        }
     }
 
     // ---- Aggiornamento dell'app ----
@@ -430,6 +489,8 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        // Tornati dalle impostazioni di Android (permesso, batteria): la procedura guidata vede subito com'e' andata
+        dicoStatoNotifiche()
         // Tornati dalla pagina dei permessi di Android: se ora KlippEye puo' installare, l'aggiornamento riparte da solo
         val richiesta = inAttesaDelPermesso ?: return
         inAttesaDelPermesso = null

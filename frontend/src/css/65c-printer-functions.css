@@ -29,3 +29,24 @@
 .nt-own summary { cursor: pointer; color: var(--oui-text-2); font-size: 14px; }
 .nt-steps code, .set-group__note code { word-break: break-all; }
 .set-status code { word-break: break-all; }
+
+/* This phone: the guided procedure in the KlippEye app (59i, 1.21) */
+.nt-phone { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.nt-phone-step { display: flex; gap: 12px; align-items: flex-start; opacity: 0.6; }
+.nt-phone-step.is-current, .nt-phone-step.is-done { opacity: 1; }
+.nt-phone-step__mark { flex: none; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font-size: 13px; font-weight: 700; border: 1.5px solid var(--oui-stroke-strong); }
+.nt-phone-step.is-current .nt-phone-step__mark { border-color: var(--oui-accent, #9b87f5); color: var(--oui-accent, #9b87f5); }
+.nt-phone-step.is-done .nt-phone-step__mark { background: var(--oui-ok-soft); border-color: var(--oui-ok); color: var(--oui-ok); }
+.nt-phone-step__body { display: flex; flex-direction: column; gap: 6px; min-width: 0; padding-top: 3px; }
+.nt-phone-step__body .oui-btn { align-self: flex-start; }
+.nt-phone-step__body p { margin: 0; }
+
+/* the invitation, once, in the app */
+.nt-invite { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(var(--oui-nav-h) + 26px + env(safe-area-inset-bottom, 0px)); z-index: 950;
+  width: min(calc(100% - 2 * var(--oui-gutter)), 520px); box-sizing: border-box; display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+  padding: 12px 14px; border-radius: 18px; background: var(--oui-glass); -webkit-backdrop-filter: blur(var(--oui-blur)); backdrop-filter: blur(var(--oui-blur));
+  border: 1px solid var(--oui-stroke-strong); box-shadow: var(--oui-shadow-float); }
+.nt-invite__icon { color: var(--oui-accent, #9b87f5); display: grid; }
+.nt-invite__text { flex: 1 1 180px; font-size: 14px; font-weight: 600; }
+.nt-invite__buttons { display: flex; gap: 8px; margin-left: auto; }
+body:has(.modal, .confirm-overlay, .sheet-overlay, .screen, .drawer) .nt-invite { display: none; }

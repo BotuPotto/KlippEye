@@ -14,10 +14,11 @@ class KlippEyeMessagingService : FirebaseMessagingService() {
         val titolo = notifica?.title ?: message.data["title"] ?: "KlippEye"
         val testo = notifica?.body ?: message.data["body"] ?: return
         Notifiche.mostra(this, message.data["type"], titolo, testo)
+        Ascolto.segnaRicevuta(this, "$titolo: $testo")
     }
 
     /** Il telefono ha ricevuto un nuovo codice da Firebase: l'iscrizione all'argomento va rifatta, e' innocuo se c'e' gia'. */
     override fun onNewToken(token: String) {
-        Notifiche.iscrivi(this)
+        Ascolto.applica(this)
     }
 }

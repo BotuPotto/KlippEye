@@ -3352,6 +3352,12 @@ def api_notify_ntfy():
     return _notify_call(lambda: notify_store.set_ntfy(body if isinstance(body, dict) else {}))
 
 
+@app.route("/api/notifications/app", methods=["GET"])
+def api_notify_app():
+    """For the KlippEye app (1.3.0+): the ntfy topic to listen to and, only where Firebase is set up, the Firebase topic."""
+    return _notify_call(notify_store.for_app)
+
+
 @app.route("/api/notifications/test", methods=["POST"])
 def api_notify_test():
     """Sends a test notification through every channel that is set up: {results: [{channel, ok, error}]}."""

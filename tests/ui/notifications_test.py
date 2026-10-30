@@ -32,12 +32,37 @@ def wait_until(fn, timeout=4.0, step=0.1):
     except Exception: return False
 
 
-def open_notifications(b, width=390, height=844, **st):
+# The KlippEye app 1.3.0 (KlippEyeApp/6), played by a fake bridge that behaves like Ascolto.kt
+APP = """(() => {
+  const ua = navigator.userAgent + ' KlippEyeApp/%d';
+  Object.defineProperty(navigator, 'userAgent', { get: () => ua });
+  const s = { permission: false, askPermission: true, battery: false, receive: false, chosen: false, mode: '', firebaseBuilt: true, ntfyTopic: '', firebaseTopic: '', connected: false, lastMessageAt: 0, lastTitle: '' };
+  const mode = () => (s.firebaseTopic && (s.receive || !s.chosen)) ? 'firebase' : (s.receive && s.ntfyTopic ? 'ntfy' : '');
+  const state = () => { s.mode = mode(); s.connected = s.mode === 'ntfy'; return JSON.stringify(s); };
+  window.__app = { s, setups: [] };
+  window.KlippEyeApp = {
+    appInfo: () => JSON.stringify({ version: '1.3.0', code: 10300, canInstall: true }),
+    notifySetup: (json) => { const d = JSON.parse(json); window.__app.setups.push(d);
+      if ('ricevi' in d) { s.receive = d.ricevi; s.chosen = true; }
+      if ('ntfy' in d) s.ntfyTopic = d.ntfy ? d.ntfy.topic : '';
+      if ('firebaseTopic' in d) s.firebaseTopic = d.firebaseTopic || '';
+      return state(); },
+    notifyState: () => state(),
+    askNotificationPermission: () => { s.permission = true; },
+    askBatteryExemption: () => { s.battery = true; },
+    openNotificationSettings: () => { window.__app.settingsOpened = true; },
+  };
+})();"""
+
+
+def open_notifications(b, width=390, height=844, app=0, page=True, **st):
     mock.reset()
     if st: mock.set(**st)
     P = Page(b, mock, width, height)
     CUR[0] = P
+    if app: P.pg.add_init_script(APP % app)
     P.pg.goto(mock.base + "/"); P.pg.wait_for_timeout(2200)
+    if not page: return P
     P.pg.click('button[aria-label="Impostazioni"]'); P.pg.wait_for_selector(".drawer"); P.settle(450)
     P.pg.locator('.set-entry[data-page="notifications"]').click(); P.settle(900)
     return P
@@ -53,7 +78,6 @@ with sync_playwright() as p:
     P = open_notifications(b)
     text = body(P).lower()
     ok("nothing set up: the page says no channel is on, and offers ntfy first", P.pg.locator('[data-ntfy="off"]').count() == 1 and "nessun canale è attivo" in text and "dove arrivano" in text and P.pg.locator("[data-ntfy-on]").count() == 1, text[:700])
-    ok("... Firebase is only mentioned, as the way of an app built by yourself", P.pg.locator('[data-firebase="off"]').count() == 1 and "appendice a" in text)
     ok("... the group comes before the choice of which notifications", text.index("dove arrivano") < text.index("quali notifiche ricevere"), text[:400])
     P.shot(out + "/off.png")
 
@@ -96,6 +120,56 @@ with sync_playwright() as p:
     # the notification service has not shown up: the page says which command installs it
     P = open_notifications(b)
     ok("no sign of the service: the command that installs it is shown", wait_until(lambda: "bash /home/x/klippeye/scripts/install.sh" in body(P), 10) or P.pg.locator('[data-service="missing"]').count() == 0, body(P)[:500])
+    P.close()
+
+    # ================================================================== the KlippEye app 1.3.0: the guided procedure
+    P = open_notifications(b, app=6, page=False)
+    ok("app: the dashboard tells the app what the Raspberry says, as soon as it opens (no channel yet)", wait_until(lambda: P.pg.evaluate("() => window.__app.setups.length") >= 1) and P.pg.evaluate("() => window.__app.setups[0]") == {"ntfy": None, "firebaseTopic": ""}, P.pg.evaluate("() => window.__app.setups"))
+    invite = P.pg.locator("[data-notify-invite]")
+    ok("app, first time: an invitation to receive the notifications on this phone", invite.count() == 1 and "Vuoi ricevere le notifiche" in invite.inner_text(), invite.count())
+    P.shot(out + "/app_invite.png")
+    invite.locator("button", has_text="Imposta").click(); P.settle(900)
+    text = body(P).lower()
+    ok("... 'Imposta' opens Notifications on the procedure 'Questo telefono', before the ntfy app's", P.pg.locator(".nt-phone-step").count() == 5 and text.index("questo telefono") < text.index("altri telefoni"), text[:600])
+    ok("... and the invitation does not come back", P.pg.locator("[data-notify-invite]").count() == 0 and P.pg.evaluate("() => localStorage.getItem('ke_notify_invite_closed')") == "1")
+    cur = lambda: P.pg.locator(".nt-phone-step.is-current").get_attribute("data-phone-step")
+    ok("step 1 is the current one: allow the notifications", cur() == "1" and P.pg.locator('[data-phone-action="permission"]').count() == 1)
+    P.shot(out + "/app_steps_start.png")
+    P.pg.locator('[data-phone-action="permission"]').click(); P.settle(1800)
+    ok("permission given -> step 2: make the private address", wait_until(lambda: cur() == "2") and P.pg.locator('[data-phone-step="1"]').get_attribute("data-done") == "1")
+    P.pg.locator('[data-phone-action="channel"]').click(); P.settle(1200)
+    topic = state()["ntfy"]["topic"]
+    ok("... the Raspberry turns ntfy on and the app gets the topic", topic and wait_until(lambda: P.pg.evaluate("() => window.__app.s.ntfyTopic") == topic) and cur() == "3", (topic, P.pg.evaluate("() => window.__app.s")))
+    P.pg.locator('[data-phone-action="receive"]').click(); P.settle(1800)
+    ok("'Ricevi qui': the app listens to ntfy (no ntfy app), the page says it is connected", P.pg.evaluate("() => window.__app.s.receive") is True and wait_until(lambda: P.pg.locator('[data-phone="on"]').count() == 1) and "collegato" in body(P) and cur() == "4", body(P)[:400])
+    ok("... step 4 explains the small fixed notification and the battery", "KlippEye in ascolto" in body(P) and "batteria" in body(P))
+    P.pg.locator('[data-phone-action="battery"]').click(); P.settle(1800)
+    ok("battery allowed -> step 5: the test", wait_until(lambda: cur() == "5"))
+    n = state()["ntfy_tests"]
+    P.pg.locator('[data-phone-action="proof"]').click(); P.settle(1500)
+    ok("test: the Raspberry sends it and the page waits for it on this phone", state()["ntfy_tests"] == n + 1 and "In attesa" in body(P))
+    P.pg.evaluate("() => { window.__app.s.lastMessageAt = Date.now(); }")
+    ok("... the app says it arrived: 'Arrivata su questo telefono', every step done", wait_until(lambda: P.pg.locator('[data-proof="arrived"]').count() == 1, 6) and P.pg.locator('.nt-phone-step[data-done="1"]').count() == 5)
+    P.shot(out + "/app_steps_done.png")
+    P.pg.locator('[data-phone-action="stop"]').click(); P.settle(1500)
+    ok("'Non ricevere su questo telefono': the app stops listening", P.pg.evaluate("() => window.__app.s.receive") is False and wait_until(lambda: P.pg.locator('[data-phone="off"]').count() == 1))
+    ok("app: no store links and no ntfy:// button inside the app (the app cannot open them)", P.pg.locator(".nt-links a").count() == 0 and P.pg.locator("[data-ntfy-link]").count() == 0)
+    P.close()
+
+    # the maintainer's installation: Firebase set up on the Raspberry -> the app subscribes to the Firebase topic it is given
+    P = open_notifications(b, app=6, firebase_on=True)
+    ok("Firebase on the Raspberry: the app receives the Firebase topic, and receives without any step (as with app 1.2.0)", wait_until(lambda: P.pg.evaluate("() => window.__app.s.firebaseTopic") == "klippeye-fb-secret0000000000") and wait_until(lambda: P.pg.locator('[data-phone="on"]').count() == 1) and "Firebase" in body(P), body(P)[:400])
+    ok("... no invitation, and only three steps (no private address, no battery)", P.pg.locator("[data-notify-invite]").count() == 0 and P.pg.locator(".nt-phone-step").count() == 3)
+    P.close()
+
+    # an older app (1.2.0, KlippEyeApp/5): asked to update
+    P = open_notifications(b, app=5)
+    ok("app 1.2.0: the page asks to update the app to receive without ntfy", P.pg.locator('[data-phone="old-app"]').count() == 1 and P.pg.locator("[data-notify-invite]").count() == 0)
+    P.close()
+
+    # a browser: Firebase is not mentioned when it is not set up, the KlippEye app is
+    P = open_notifications(b)
+    ok("browser: no word about Firebase when it is not set up; a hint about the KlippEye app", P.pg.locator("[data-firebase]").count() == 0 and "Firebase" not in body(P) and P.pg.locator("[data-app-hint]").count() == 1)
     P.close()
 
     # narrow screen: nothing spills out

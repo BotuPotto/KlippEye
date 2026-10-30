@@ -16,7 +16,7 @@ Security: [SECURITY.md](SECURITY.md) · Contributing: [CONTRIBUTING.md](CONTRIBU
   editor, bed mesh, calibrations, endstops, service and host restarts, software updates.
 * AI print monitor: a local OpenCV filter on the Raspberry; an online AI (Groq or OpenAI, with your own key) only judges
   the pictures that look suspicious. Alerts are kept with their images.
-* Push notifications through the free ntfy app (paired with a QR code, no account) or your own Firebase build of the app, in English or Italian, with optional automatic pause/cancel.
+* Push notifications received by the KlippEye Android app itself (guided set-up, no account, no key) or by the free ntfy app (QR code, also iPhone), in English or Italian, with optional automatic pause/cancel.
 * Self-repair after a power loss: damaged program files are restored from git at every start.
 * English and Italian dashboard (it follows the device's language; *Settings → Language* to choose).
 * Optional password, network checks (host name and origin of requests) and restricted permissions of the secrets.
@@ -71,7 +71,7 @@ key, after the user confirms. Setup (once) and steps: guide, part C. Technical d
 | `~/printer_data/klippeye/monitor.json` | AI monitor thresholds (changed from the dashboard) | the dashboard |
 | `~/printer_data/klippeye/ai.json` | the AI service key (mode 600) | the dashboard |
 | `~/printer_data/klippeye/access.json`, `internal.token` | optional password (hash only) and token of the local services (mode 600) | the dashboard / `klippeye password` |
-| `~/printer_data/klippeye/notifier.json`, `service-account.json` | notification channels (ntfy topic from the dashboard; Firebase key by hand) | the dashboard / you |
+| `~/printer_data/klippeye/notifier.json`, `service-account.json` | notification settings (the private ntfy topic, made from the dashboard) | the dashboard |
 
 The services are **`klippeye`** (backend + dashboard, port 8085) and **`klippeye-notifier`** (notifications). Do not rename
 `klippeye`: it is the service Moonraker restarts after an update.
