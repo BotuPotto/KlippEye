@@ -1,0 +1,119 @@
+/* ============================================================================
+   Help ("?" and the guide sheet, 59j) and the guided set-up (59k), 1.22
+   ========================================================================== */
+
+/* the round "?" */
+.help-btn {
+  flex-shrink: 0;
+  display: inline-grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1.5px solid var(--oui-stroke-strong);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--oui-accent);
+  font: 700 15px/1 var(--oui-font, inherit);
+  cursor: pointer;
+}
+.help-btn:hover,
+.help-btn:focus-visible { background: var(--oui-surface-3); }
+/* small to look at (22 px), big enough to touch (34 px) */
+.help-btn--small { position: relative; width: 34px; height: 34px; margin: -6px -6px -6px -4px; border: 0; font-size: 12px; text-transform: none; letter-spacing: 0; }
+.help-btn--small::before { content: ""; position: absolute; inset: 6px; border: 1.2px solid var(--oui-stroke-strong); border-radius: 50%; }
+.help-btn--small:hover,
+.help-btn--small:focus-visible { background: transparent; }
+.help-btn--small:hover::before,
+.help-btn--small:focus-visible::before { background: var(--oui-surface-3); }
+.drawer__help { width: 34px; height: 34px; }
+.set-group__label--help { display: flex; align-items: center; gap: 8px; }
+
+/* the guide */
+.help-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9996; /* above the menu (9990) and the guided set-up (9992), below the confirmations (9999) */
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.45);
+  animation: oui-fade var(--oui-dur-base) linear;
+}
+.help-sheet {
+  display: flex;
+  flex-direction: column;
+  width: min(560px, 100%);
+  max-height: min(86vh, 760px);
+  box-sizing: border-box;
+  background: var(--oui-glass-solid, #14161c);
+  border: 1px solid var(--oui-stroke-strong);
+  border-bottom: 0;
+  border-radius: 24px 24px 0 0;
+  box-shadow: var(--oui-shadow-float);
+}
+@media (min-width: 700px) {
+  .help-overlay { align-items: center; }
+  .help-sheet { border-bottom: 1px solid var(--oui-stroke-strong); border-radius: 24px; }
+}
+.help-sheet__head { display: flex; align-items: center; gap: 12px; padding: 16px 16px 8px; }
+.help-sheet__mark { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: var(--oui-accent); color: var(--oui-on-accent, #0b0b10); font-weight: 800; }
+.help-sheet__title { flex: 1; min-width: 0; font-size: 20px; font-weight: 700; }
+.help-sheet__body { overflow-y: auto; overscroll-behavior: contain; padding: 4px 18px calc(22px + env(safe-area-inset-bottom, 0)); }
+.help-section { padding: 10px 12px; margin: 0 -12px; border-radius: 14px; }
+.help-section.is-highlight { background: var(--oui-surface-3); }
+.help-section h3 { margin: 0 0 6px; font-size: 15px; font-weight: 700; }
+.help-section p { margin: 0 0 8px; font-size: 14px; line-height: 1.5; color: var(--oui-text-2); }
+.help-steps { margin: 0 0 8px; padding-left: 20px; font-size: 14px; line-height: 1.5; color: var(--oui-text-2); }
+.help-steps li + li { margin-top: 4px; }
+.help-fig { display: block; width: 100%; max-width: 320px; height: auto; margin: 4px auto 10px; color: var(--oui-text-2); }
+
+/* the menu in groups */
+.set-group--menu { gap: 8px; }
+.set-entry--guide { border: 1px solid var(--oui-stroke-strong); }
+
+/* the guided set-up */
+.setup-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9992;
+  display: flex;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  animation: oui-fade var(--oui-dur-base) linear;
+}
+.setup {
+  display: flex;
+  flex-direction: column;
+  width: min(640px, 100%);
+  height: 100%;
+  box-sizing: border-box;
+  background: var(--oui-bg, #040507);
+  border-left: 1px solid var(--oui-stroke);
+  border-right: 1px solid var(--oui-stroke);
+}
+.setup__head { display: flex; align-items: center; gap: 10px; padding: calc(14px + env(safe-area-inset-top, 0)) 16px 6px; }
+.setup__heading { flex: 1; min-width: 0; }
+.setup__count { font-size: 12px; color: var(--oui-text-3); }
+.setup__title { font-size: 22px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.setup__dots { display: flex; gap: 6px; padding: 2px 18px 8px; }
+.setup__dot { flex: 1; height: 4px; border-radius: 2px; background: var(--oui-surface-3); }
+.setup__dot.is-past { background: var(--oui-accent); opacity: 0.5; }
+.setup__dot.is-current { background: var(--oui-accent); }
+.setup__foot { display: flex; justify-content: space-between; gap: 10px; padding: 10px 16px calc(12px + env(safe-area-inset-bottom, 0)); border-top: 1px solid var(--oui-stroke); }
+.setup__foot .oui-btn { min-width: 0; }
+.setup-intro { margin: 0 6px; font-size: 15px; line-height: 1.5; color: var(--oui-text-2); }
+.setup-welcome { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 12px 0 4px; text-align: center; }
+.setup-welcome h2 { margin: 0; font-size: 24px; }
+.setup-welcome__logo { width: 72px; height: 72px; object-fit: contain; }
+.setup-camera { border-radius: 16px; overflow: hidden; }
+.setup-tick { flex: none; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; font-weight: 800; }
+.setup-tick--ok { background: var(--oui-ok-soft); color: var(--oui-ok); }
+.setup-tick--todo { background: var(--oui-warn-soft); color: var(--oui-warn); }
+.setup-tick--optional { background: var(--oui-surface-3); color: var(--oui-text-3); }
+body:has(.setup-overlay) .nt-invite,
+body:has(.setup-overlay) .bottom-nav { display: none; }
+.help-steps { list-style: decimal; }
+.help-steps li { display: list-item; }

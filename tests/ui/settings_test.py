@@ -139,9 +139,9 @@ with sync_playwright() as p:
     ok("it slides in from the left, at most 420 px wide and never covering the whole page", box["x"] == 0 and box["width"] <= 420 and box["width"] <= 390 - 40, box)
     ok("it is a dialog with a name", pg.locator(".drawer").get_attribute("role") == "dialog" and pg.locator(".drawer").get_attribute("aria-label") == "Impostazioni")
     titles = pg.locator(".set-entry .oui-row__name").all_inner_texts()
-    ok("ten groups (1.19: everything of the AI monitor is inside 'Monitor IA'), the printer first, in this order", titles == ["Stampante", "Funzioni della stampante", "Camera", "Indirizzi", "Z-offset", "Notifiche", "Monitor IA", "Accesso", "Aggiornamenti", "Lingua"], titles)
+    ok("the guided set-up first, then ten pages in four groups (1.22), the printer first", titles == ["Configurazione guidata", "Nome e logo", "Funzioni della stampante", "Z-offset", "Camera", "Monitor IA", "Notifiche", "Indirizzi", "Accesso", "Aggiornamenti", "Lingua"], titles)
     summaries = pg.locator(".set-entry__meta").all_inner_texts()
-    ok("each group says what it is set to now", summaries[0] == "KlippEye" and summaries[1] == "WebRTC" and summaries[2] == "192.168.1.17 • 172.25.170.177" and summaries[3] == "0.01 · 0.025 · 0.05 · 0.1 mm" and summaries[4] == "7 su 7 attive" and "Pausa da sola: no" in summaries[5], summaries)
+    ok("each page says what it is set to now (addresses not set: the address of this page)", summaries[1] == "KlippEye" and summaries[2] == "0.01 · 0.025 · 0.05 · 0.1 mm" and summaries[3] == "WebRTC" and "Pausa da sola: no" in summaries[4] and summaries[5] == "7 su 7 attive" and summaries[6] == "Automatico (l'indirizzo di questa pagina)", summaries)
     ok("the page behind cannot scroll while it is open", pg.evaluate("() => document.body.style.overflow") == "hidden")
     ok("the state line says the Raspberry keeps the settings", wait_until(lambda: "Salvate sul Raspberry" in pg.locator(".set-status").first.inner_text()), pg.locator(".set-status").first.inner_text())
     P.shot_vp(f"{out}/menu_home_390.png")
@@ -152,7 +152,7 @@ with sync_playwright() as p:
     open_menu(P); pg.keyboard.press("Escape"); pg.wait_for_selector(".drawer", state="detached")
     ok("Escape closes it", True)
     open_menu(P); go(P, "camera"); pg.keyboard.press("Escape"); P.settle(300)
-    ok("Escape inside a group goes back to the list first, then closes", pg.locator(".set-entry").count() == 10 and pg.locator(".drawer").count() == 1)
+    ok("Escape inside a group goes back to the list first, then closes", pg.locator(".set-entry").count() == 11 and pg.locator(".drawer").count() == 1)
     pg.keyboard.press("Escape"); pg.wait_for_selector(".drawer", state="detached")
     open_menu(P)
     TOUCH = """([sx, ex]) => { const el = document.querySelector('.drawer'); const mk = (type, x) => { const e = new Event(type, { bubbles: true, cancelable: true }); const t = [{ identifier: 1, clientX: x, clientY: 300, target: el }]; e.touches = type === 'touchend' ? [] : t; e.changedTouches = t; return e; }; el.dispatchEvent(mk('touchstart', sx)); el.dispatchEvent(mk('touchend', ex)); }"""
@@ -161,7 +161,7 @@ with sync_playwright() as p:
     pg.evaluate(TOUCH, [300, 120]); pg.wait_for_selector(".drawer", state="detached")
     ok("a swipe to the left closes it", True)
     open_menu(P); go(P, "camera"); close_menu(P); open_menu(P)
-    ok("it always opens on the list of groups", pg.locator(".set-entry").count() == 10)
+    ok("it always opens on the list of groups", pg.locator(".set-entry").count() == 11)
     close_menu(P)
     for tab in ("controllo", "files", "config", "sistema"):
         P.goto(tab, 700)
@@ -228,11 +228,11 @@ with sync_playwright() as p:
     s = settings_now(P)
     ok("a damaged document: wrong method / address / numbers become defaults", s["camera"]["method"] == "webrtc" and s["camera"]["urls"]["webrtc"] == "/webcam/webrtc" and s["camera"]["urls"]["mjpeg"] == "/webcam/?action=stream" and s["camera"]["urls"]["adaptive"] == "/webcam/?action=snapshot" and s["camera"]["fps"] == 30 and s["camera"]["flipH"] is False, s["camera"])
     ok("... an address that is fine is kept", s["camera"]["urls"]["iframe"] == "http://ok.example/cam")
-    ok("... addresses of the Raspberry that are not addresses become the defaults", s["network"] == {"localIp": "192.168.1.17", "externalIp": "172.25.170.177", "route": "auto"}, s["network"])
+    ok("... addresses of the Raspberry that are not addresses become the defaults", s["network"] == {"localIp": "", "externalIp": "", "route": "auto"}, s["network"])
     ok("... step sizes with nothing usable become the defaults", s["zOffset"]["steps"] == [0.01, 0.025, 0.05, 0.1], s["zOffset"])
     ok("... switches that are not real booleans are ignored (notifications on, automatic actions OFF)", all(s["notifications"].values()) and s["ai"]["autoPause"] is False and s["ai"]["autoCancel"] is False and s["ai"]["confirmations"] == 1 and s["ai"]["defects"] == {"spaghetti": False, "empty_bed": True, "layer_shift": True, "warping": True}, s["ai"])
     src = P.pg.locator(".camera-frame iframe").get_attribute("src")
-    ok("... and the page shows the camera as usual", src == "http://172.25.170.177/webcam/webrtc", src)
+    ok("... and the page shows the camera as usual", src == "http://127.0.0.1/webcam/webrtc", src)
     ok("... without errors", not P.errors, P.errors[:3])
     P.close()
     mock.reset()
@@ -241,14 +241,14 @@ with sync_playwright() as p:
     P = fresh(b)
     pg = P.pg
     frame = lambda: pg.locator(".camera-frame")
-    ok("default camera: the WebRTC page of the printer, exactly as before the menu existed", pg.locator(".camera-frame iframe.camera-frame__video").get_attribute("src") == "http://172.25.170.177/webcam/webrtc")
+    ok("default camera: the WebRTC page of the printer, exactly as before the menu existed", pg.locator(".camera-frame iframe.camera-frame__video").get_attribute("src") == "http://127.0.0.1/webcam/webrtc")
     open_menu(P); go(P, "camera")
     P.shot_vp(f"{out}/menu_camera_390.png")
     methods = pg.locator(".set-choice .set-switch__title").all_inner_texts()
     ok("four methods, like Mainsail's webcam page", methods == ["WebRTC", "MJPEG", "MJPEG adaptive", "Pagina web"], methods)
     ok("the chosen one is ticked", pg.locator('.set-choice[aria-checked="true"] .set-switch__title').inner_text() == "WebRTC")
     choice(pg, "MJPEG").click(); P.settle(300)
-    ok("MJPEG: the picture is an <img> of the stream (no iframe any more)", frame().locator("img.camera-img").get_attribute("src") == "http://172.25.170.177/webcam/?action=stream" and frame().locator("iframe").count() == 0, frame().inner_html()[:300])
+    ok("MJPEG: the picture is an <img> of the stream (no iframe any more)", frame().locator("img.camera-img").get_attribute("src") == "http://127.0.0.1/webcam/?action=stream" and frame().locator("iframe").count() == 0, frame().inner_html()[:300])
     ok("... with its own address field, filled with the default", pg.locator(".set-field__input").first.input_value() == "/webcam/?action=stream")
     P.cam.clear()
     # the stream fails: the note, and another try later
@@ -293,7 +293,7 @@ with sync_playwright() as p:
     type_into(field, "javascript:alert(1)"); P.settle(1200); pg.locator(".drawer__title").click(); P.settle(200)
     ok("an address with another protocol (javascript:) never gets in", settings_now(P)["camera"]["urls"]["iframe"] == "http://192.168.9.9:8081/stream.html")
     type_into(field, "webcam2/live"); P.settle(1300)
-    ok("a path without the first slash gets it", settings_now(P)["camera"]["urls"]["iframe"] == "/webcam2/live" and frame().locator("iframe").get_attribute("src") == "http://172.25.170.177/webcam2/live", frame().locator("iframe").get_attribute("src"))
+    ok("a path without the first slash gets it", settings_now(P)["camera"]["urls"]["iframe"] == "/webcam2/live" and frame().locator("iframe").get_attribute("src") == "http://127.0.0.1/webcam2/live", frame().locator("iframe").get_attribute("src"))
     ok("a path that is not the default offers to go back to the default", pg.locator("button:has-text(\"Ripristina l'indirizzo predefinito\")").count() == 1)
     pg.locator("button:has-text(\"Ripristina l'indirizzo predefinito\")").click(); P.settle(400)
     ok("... and does", settings_now(P)["camera"]["urls"]["iframe"] == "/webcam/webrtc" and pg.locator("button:has-text(\"Ripristina l'indirizzo predefinito\")").count() == 0)
@@ -327,7 +327,7 @@ with sync_playwright() as p:
     rows.nth(1).click(); P.settle(400)
     s = settings_now(P)["camera"]
     ok("... choosing one sets the method, the address and the flip as Mainsail has them", s["method"] == "mjpeg" and s["urls"]["mjpeg"] == "/webcam2/?action=stream" and s["flipH"] is True and s["flipV"] is False, s)
-    ok("... and the camera card follows", frame().locator("img.camera-img").get_attribute("src") == "http://172.25.170.177/webcam2/?action=stream")
+    ok("... and the camera card follows", frame().locator("img.camera-img").get_attribute("src") == "http://127.0.0.1/webcam2/?action=stream")
     P.shot_vp(f"{out}/menu_camera_import_390.png")
     mock.set(webcams=[])
     back(P); close_menu(P); open_menu(P); go(P, "camera")
@@ -343,9 +343,9 @@ with sync_playwright() as p:
     # the camera panel of the wide layout follows too
     P = fresh(b, 1440, 900)
     pg = P.pg
-    ok("[1440] camera panel: WebRTC iframe by default", pg.locator(".desk-camera iframe.desk-camera__video").get_attribute("src") == "http://172.25.170.177/webcam/webrtc")
+    ok("[1440] camera panel: WebRTC iframe by default", pg.locator(".desk-camera iframe.desk-camera__video").get_attribute("src") == "http://127.0.0.1/webcam/webrtc")
     open_menu(P); go(P, "camera"); choice(pg, "MJPEG").click(); P.settle(300)
-    ok("[1440] ... and the MJPEG picture when chosen", pg.locator(".desk-camera img.desk-camera__video").get_attribute("src") == "http://172.25.170.177/webcam/?action=stream")
+    ok("[1440] ... and the MJPEG picture when chosen", pg.locator(".desk-camera img.desk-camera__video").get_attribute("src") == "http://127.0.0.1/webcam/?action=stream")
     choice(pg, "MJPEG adaptive").click(); P.settle(700)
     ok("[1440] ... and the adaptive one fills the panel", pg.locator(".desk-camera .camera-snaps.desk-camera__video").count() == 1 and pg.locator(".desk-camera .camera-snaps__img").count() == 2)
     bb, pb = pg.locator(".camera-snaps").bounding_box(), pg.locator(".desk-camera").bounding_box()
@@ -359,10 +359,11 @@ with sync_playwright() as p:
     open_menu(P); go(P, "network")
     P.shot_vp(f"{out}/menu_network_390.png")
     inputs = pg.locator(".set-field__input")
-    ok("the two addresses are filled in", inputs.nth(0).input_value() == "192.168.1.17" and inputs.nth(1).input_value() == "172.25.170.177")
-    ok("the line at the bottom says which one the camera uses now (the page was opened at 127.0.0.1: the external one)", "esterno 172.25.170.177" in pg.locator(".set-status").first.inner_text(), pg.locator(".set-status").first.inner_text())
+    ok("a new installation: the two addresses are empty (1.22: no one else's addresses), with an example", inputs.nth(0).input_value() == "" and inputs.nth(1).input_value() == "" and "192.168" in (inputs.nth(0).get_attribute("placeholder") or ""))
+    ok("the line at the bottom says which one the camera uses now (none set: the address of this page)", "indirizzo di questa pagina: 127.0.0.1" in pg.locator(".set-status").first.inner_text(), pg.locator(".set-status").first.inner_text())
+    type_into(inputs.nth(0), "192.168.1.17"); inputs.nth(0).press("Enter"); P.settle(400)
     type_into(inputs.nth(0), "999.1.1.1"); P.settle(1200)
-    ok("not an address: the field turns red and says why, nothing is saved", pg.locator(".set-field__error").count() == 1 and "valido" in pg.locator(".set-field__error").inner_text() and settings_now(P)["network"]["localIp"] == "192.168.1.17" and stored()["network"]["localIp"] == "192.168.1.17", pg.locator(".set-field__error").all_inner_texts())
+    ok("not an address: the field turns red and says why, nothing is saved", pg.locator(".set-field__error").count() == 1 and "valido" in pg.locator(".set-field__error").inner_text() and settings_now(P)["network"]["localIp"] == "192.168.1.17" and wait_until(lambda: stored()["network"]["localIp"] == "192.168.1.17"), pg.locator(".set-field__error").all_inner_texts())
     pg.locator(".drawer__title").click(); P.settle(300)
     ok("... leaving it puts the last good one back", inputs.nth(0).input_value() == "192.168.1.17")
     type_into(inputs.nth(0), "192.168.1.5")
@@ -394,7 +395,10 @@ with sync_playwright() as p:
              ("klippeye.local", "klippeye.local", "172.25.170.177", "auto", "local klippeye.local"), ("klippeye.local", "192.168.1.17", "172.25.170.177", "auto", "external 172.25.170.177"),
              ("KLIPPEYE.LOCAL", "klippeye.local", "172.25.170.177", "auto", "local klippeye.local"), ("localhost", "192.168.1.17", "172.25.170.177", "auto", "external 172.25.170.177"),
              ("203.0.113.9", "192.168.1.17", "172.25.170.177", "auto", "external 172.25.170.177"), ("172.25.170.177", "192.168.1.17", "172.25.170.177", "local", "local 192.168.1.17"),
-             ("192.168.1.17", "192.168.1.17", "172.25.170.177", "external", "external 172.25.170.177"), ("192.168.1.17", "192.168.1.17:8080", "172.25.170.177", "auto", "local 192.168.1.17:8080")]
+             ("192.168.1.17", "192.168.1.17", "172.25.170.177", "external", "external 172.25.170.177"), ("192.168.1.17", "192.168.1.17:8080", "172.25.170.177", "auto", "local 192.168.1.17:8080"),
+             # 1.22: addresses not set -> the address of the page
+             ("192.168.3.4", "", "", "auto", "same 192.168.3.4"), ("pi.local", "", "", "auto", "same pi.local"), ("10.1.1.1", "", "", "local", "local 10.1.1.1"),
+             ("172.25.9.9", "192.168.1.17", "", "auto", "same 172.25.9.9"), ("192.168.1.17", "", "172.25.170.177", "auto", "external 172.25.170.177")]
     got = [pg.evaluate(PICK, [PICK_SRC] + list(c[:4])) for c in cases]
     bad = [(c, g) for c, g in zip(cases, got) if g != c[4]]
     ok("which address the camera is asked at, for %d addresses the browser could be at" % len(cases), not bad, bad)
@@ -531,7 +535,7 @@ with sync_playwright() as p:
     ok("restore: 'Annulla' changes nothing", settings_now(P)["camera"]["method"] == "mjpeg" and settings_now(P)["notifications"]["complete"] is False)
     pg.locator('button:has-text("Ripristina i valori iniziali")').click(); pg.wait_for_selector(".confirm-overlay"); pg.locator(".confirm-card button:has-text('Ripristina')").click(); P.settle(600)
     ok("restore: everything is back to the start, here and on the Raspberry", settings_now(P) == DEFAULTS and wait_until(lambda: {k: v for k, v in stored().items() if k != "_t"} == DEFAULTS), (settings_now(P), stored()))
-    ok("... the camera too", pg.locator(".camera-frame iframe").get_attribute("src") == "http://172.25.170.177/webcam/webrtc")
+    ok("... the camera too", pg.locator(".camera-frame iframe").get_attribute("src") == "http://127.0.0.1/webcam/webrtc")
     P.close()
 
     # ============================================================================================ the Android app (addresses)
@@ -565,12 +569,12 @@ with sync_playwright() as p:
 
     P = fresh(b, init=app_init(4))
     pg = P.pg
-    ok("app mk218, first start (nothing stored yet): the app is told the addresses once, as they are", wait_until(lambda: calls(P) == [["192.168.1.17", "172.25.170.177"]]), calls(P))
+    ok("app mk218, first start (nothing stored yet, 1.22: no addresses set): the app is told the address it reached the dashboard at", wait_until(lambda: calls(P) == [["127.0.0.1", "127.0.0.1"]]), calls(P))
     open_menu(P); go(P, "network")
     ok("... and the menu says the app will use them (green)", wait_until(lambda: "userà questi indirizzi" in app_note(P)) and "set-status--ok" in pg.locator(".drawer__body .set-status").last.get_attribute("class"), app_note(P))
     inputs = pg.locator(".set-field__input")
     type_into(inputs.nth(0), "192.168.1.50"); inputs.nth(0).press("Enter"); P.settle(400)
-    ok("a new local address in the menu: the app has it at once", calls(P)[-1] == ["192.168.1.50", "172.25.170.177"] and len(calls(P)) == 2, calls(P))
+    ok("a new local address in the menu: the app has it at once (also as the external one, until that is set)", calls(P)[-1] == ["192.168.1.50", "192.168.1.50"] and len(calls(P)) == 2, calls(P))
     ok("... and the menu still says it will use them", "userà questi indirizzi" in app_note(P), app_note(P))
     type_into(inputs.nth(1), "http://10.9.8.7:8080/"); inputs.nth(1).press("Enter"); P.settle(400)
     ok("an address typed with http:// and a port: the app gets the plain address", calls(P)[-1] == ["192.168.1.50", "10.9.8.7"], calls(P))
@@ -599,7 +603,7 @@ with sync_playwright() as p:
     ok("... the menu waits instead of claiming anything", "riceve appena sono noti" in app_note(P), app_note(P))
     pg = P.pg
     type_into(pg.locator(".set-field__input").nth(0), "192.168.1.60"); pg.locator(".set-field__input").nth(0).press("Enter"); P.settle(400)
-    ok("... once the person changes an address the app gets the pair", calls(P) == [["192.168.1.60", "172.25.170.177"]], calls(P))
+    ok("... once the person changes an address the app gets the pair", calls(P) == [["192.168.1.60", "192.168.1.60"]], calls(P))
     P.close()
 
     mock.reset()
@@ -664,7 +668,7 @@ with sync_playwright() as p:
     ok("... the choice stays on this device only (the notifications' language, shared, does not change)", pg.evaluate("() => localStorage.getItem('ke_lang')") == "en" and (settings_now(P) or {}).get("language") == "it", (pg.evaluate("() => localStorage.getItem('ke_lang')"), (settings_now(P) or {}).get("language")))
     pg.click('button[aria-label="Settings"]'); pg.wait_for_selector(".drawer"); P.settle(450)
     titles = pg.locator(".set-entry .oui-row__name").all_inner_texts()
-    ok("... the menu is in English", titles == ["Printer", "Printer functions", "Camera", "Addresses", "Z-offset", "Notifications", "AI monitor", "Access", "Updates", "Language"] and meta() == "English", (titles, meta()))
+    ok("... the menu is in English", titles == ["Guided set-up", "Name and logo", "Printer functions", "Z-offset", "Camera", "AI monitor", "Notifications", "Addresses", "Access", "Updates", "Language"] and meta() == "English", (titles, meta()))
     go(P, "language"); choice(pg, "Automatic").click(); pg.wait_for_load_state("load"); P.settle(1500)
     ok("back to automatic: Italian again, and nothing kept", pg.evaluate("() => document.documentElement.lang") == "it" and pg.evaluate("() => localStorage.getItem('ke_lang')") is None)
     ok("no errors in the page", not P.errors, P.errors[:3])

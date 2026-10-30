@@ -1,5 +1,29 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.22.0
+
+**Guided and universal** (roadmap phase 5e): a new user sets KlippEye up from the dashboard, step by step, with a guide at hand
+on every page.
+
+* **Guided set-up**: the first time the dashboard is opened on a new installation it opens by itself: welcome (and the language
+  of the device), name and logo, camera (with a live preview), addresses, printer functions, notifications, AI monitor (key and
+  camera calibration), password, and a last step that says what is done, what is to do and what is optional, each leading
+  back to its step. Every step can be skipped, the whole guide too; it is repeated from **Settings → Guided set-up**, where it
+  restarts from the step it was left at. Installations set up with an earlier release are not asked again.
+* **"?" everywhere**: every settings page has a **?** in its title bar that opens a short guide of that page, with a drawing
+  where it helps (where to tap the nozzle in the camera calibration, what the addresses are for, what the AI monitor watches, the
+  Z-offset gap, how the notifications travel). The groups that need a word more have their own small **?**, which opens the
+  guide at their part.
+* **The settings menu in four groups**: *The printer* (Name and logo, Printer functions, Z-offset), *Camera and AI monitor*,
+  *Phone and network* (Notifications, Addresses), *System* (Access, Updates, Language), with *Guided set-up* on top.
+  "Printer" is now "Name and logo" (it was easy to mistake for "Printer functions"). Camera leads to the camera calibration;
+  the AI monitor's automatic actions lead to the notifications.
+* **No one else's addresses**: a new installation no longer starts with the maintainer's IP addresses. Not set, the camera (and
+  the Android app) use the address the dashboard was opened at, which is right in most homes; the addresses are only needed with
+  ZeroTier, Tailscale or a VPN.
+* Guides: a *Quick start* at the top (install, open, follow the guided set-up: about 15 minutes) and chapter 3 rewritten for the
+  new menu. The end-to-end test checks a clean installation by a user other than `pi`.
+
 ## 1.21.0
 
 **The KlippEye app receives the notifications by itself** (roadmap phase 5d, Android app 1.3.0). No ntfy app, no account, no
