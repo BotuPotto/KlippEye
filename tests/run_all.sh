@@ -21,7 +21,7 @@ step() {
   else
     echo "=== FAILED"; failed=$((failed+1))
     if [ -n "${GITHUB_ACTIONS:-}" ]; then   # readable on the pull request page without downloading the logs
-      lines="$(grep -E "^FAIL |^Traceback|^[A-Za-z]*Error: " "$log" | head -4 | cut -c1-500 | tr '\n' ' ')"
+      lines="$(grep -E "^ *FAIL |^Traceback|^[A-Za-z]*Error: " "$log" | head -4 | cut -c1-500 | tr '\n' ' ')"
       echo "::error title=$name::${lines:-exit code without FAIL lines, see the log}"
     fi
   fi
