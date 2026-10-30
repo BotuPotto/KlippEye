@@ -13,7 +13,20 @@ ROOT="$(dirname "$HERE")"
 QUICK=""; UI=1
 for a in "$@"; do case "$a" in --quick) QUICK="--quick";; --no-ui) UI=0;; esac; done
 failed=0
-step() { echo; echo "=== $1"; shift; if "$@"; then echo "=== ok"; else echo "=== FAILED"; failed=$((failed+1)); fi; }
+step() {
+  local name="$1"; shift
+  echo; echo "=== $name"
+  local log; log="$(mktemp)"
+  if "$@" 2>&1 | tee "$log"; [ "${PIPESTATUS[0]}" = 0 ]; then echo "=== ok"
+  else
+    echo "=== FAILED"; failed=$((failed+1))
+    if [ -n "${GITHUB_ACTIONS:-}" ]; then   # readable on the pull request page without downloading the logs
+      lines="$(grep -E "^ *FAIL |^Traceback|^[A-Za-z]*Error: " "$log" | head -4 | cut -c1-500 | tr '\n' ' ')"
+      echo "::error title=$name::${lines:-exit code without FAIL lines, see the log}"
+    fi
+  fi
+  rm -f "$log"
+}
 step "frontend build is reproducible" bash -c "cp '$ROOT/frontend/klippeye_frontend.html' /tmp/klippeye-committed.html && python3 '$ROOT/frontend/build.py' /tmp/klippeye-rebuilt.html >/dev/null && cmp /tmp/klippeye-committed.html /tmp/klippeye-rebuilt.html"
 step "dashboard translations" python3 "$ROOT/frontend/tools/i18n.py" check
 step "no fixed home folders" python3 "$HERE/test_no_fixed_paths.py"

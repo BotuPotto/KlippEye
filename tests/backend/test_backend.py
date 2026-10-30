@@ -16,6 +16,8 @@ import sys
 import tempfile
 import time
 import types
+import subprocess
+import urllib.parse
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
@@ -1792,6 +1794,54 @@ j = _ca.get("/api/notifications/app").get_json()
 _saved = json.load(open(os.path.join(_da, "notifier.json")))
 check("app: with the key, the old PUBLIC topic is replaced by a secret one, saved for the notification service", j["firebaseTopic"].startswith("klippeye-fb-") and len(j["firebaseTopic"]) == 28 and _saved["topic"] == j["firebaseTopic"] and _saved["ntfy"]["token"] == "tk_x", (j, _saved))
 check("... and stays the same the next time", _ca.get("/api/notifications/app").get_json()["firebaseTopic"] == j["firebaseTopic"])
+
+print("== 1.23.0: snapshot address, dependencies")
+import camera_snapshot as _cs  # noqa: E402
+_auto = [("webrtc", "/webcam/webrtc", "/webcam/?action=snapshot"), ("webrtc", "/webcam2/webrtc", "/webcam2/?action=snapshot"),
+         ("mjpeg", "/webcam/?action=stream", "/webcam/?action=snapshot"), ("mjpeg", "http://10.0.0.9:8080/?action=stream", "http://10.0.0.9:8080/?action=snapshot"),
+         ("mjpeg", "/webcam/stream", "/webcam/?action=snapshot"), ("adaptive", "/webcam/?action=snapshot", "/webcam/?action=snapshot"),
+         ("adaptive", "/cam/shot.jpg", "/cam/shot.jpg"), ("iframe", "/webcam/webrtc", "/webcam/?action=snapshot"), ("iframe", "http://x.lan/page.html", "/webcam/?action=snapshot"),
+         ("webrtc", "", "/webcam/?action=snapshot"), ("webrtc", "javascript:alert(1)", "/webcam/?action=snapshot")]
+_bad = [(m, a, e, _cs.automatic(m, a)) for m, a, e in _auto if _cs.automatic(m, a) != e]
+check("automatic snapshot address for %d camera addresses (the dashboard's defaultSnapshot has the same rules)" % len(_auto), not _bad, _bad)
+check("the chosen one wins; nonsense is the automatic one; nothing saved: the crowsnest default",
+      _cs.chosen({"camera": {"method": "webrtc", "urls": {"webrtc": "/webcam2/webrtc"}, "snapshot": "/snap/now.jpg"}}) == "/snap/now.jpg"
+      and _cs.chosen({"camera": {"method": "webrtc", "urls": {"webrtc": "/webcam2/webrtc"}, "snapshot": "ftp://x"}}) == "/webcam2/?action=snapshot"
+      and _cs.chosen({}) == "/webcam/?action=snapshot" and _cs.chosen(None) == "/webcam/?action=snapshot")
+check("a path is asked to the Raspberry's own nginx, a full address as it is", _cs.absolute("/webcam/?action=snapshot") == "http://127.0.0.1/webcam/?action=snapshot" and _cs.absolute("http://10.0.0.9:8080/snap") == "http://10.0.0.9:8080/snap")
+_ds = tmp()
+_bs = load_brain(NEW_BRAIN, _ds, fake, brain_json={"values": {"enabled": False}})
+_csc = _bs.app.test_client()
+r = _csc.get("/api/camera/snapshot")
+check("«Try»: the photo exactly as the Raspberry gets it, from the default crowsnest address", r.status_code == 200 and r.mimetype == "image/jpeg" and len(r.data) > 1000 and r.headers["X-Snapshot-Url"].endswith("/webcam/?action=snapshot"), (r.status_code, r.headers.get("X-Snapshot-Url")))
+r = _csc.get("/api/camera/snapshot?url=" + urllib.parse.quote("/webcam/nothing-here"))
+check("... an address that gives no photo: why, in plain words", r.status_code == 502 and "did not send a photo" in r.get_json()["error"] and "404" in r.get_json()["error"], r.get_json())
+check("... an address that is not one is refused", _csc.get("/api/camera/snapshot?url=javascript:x").status_code == 400)
+check("the monitor takes its photos from the chosen address", _bs.snapshot_url().endswith("/webcam/?action=snapshot") and _bs.snapshot_url().startswith(fake.url))
+_calls = []
+def _old_flask(path, **options):
+    _calls.append(sorted(options))
+    if "download_name" in options or "max_age" in options:
+        raise TypeError("send_file() got an unexpected keyword argument 'download_name'")
+    return "sent"
+_real = _bs._flask_send_file
+_bs._flask_send_file = _old_flask
+_res = _bs.send_file("/x", as_attachment=True, download_name="a.apk", max_age=0)
+_bs._flask_send_file = _real
+check("Flask 1.x (Debian 11): downloads still work (attachment_filename / cache_timeout)", _res == "sent" and _calls[-1] == ["as_attachment", "attachment_filename", "cache_timeout"], _calls)
+_probe = subprocess.run([sys.executable, "-c", """
+import builtins, importlib.util, os, sys
+real = builtins.__import__
+def hide(name, *a, **k):
+    if name.split('.')[0] in ('numpy', 'cv2'): raise ImportError(name)
+    return real(name, *a, **k)
+builtins.__import__ = hide
+spec = importlib.util.spec_from_file_location('kb', sys.argv[1]); m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+c = m.app.test_client()
+print('RESULT', c.get('/api/version').status_code, c.get('/api/camera/calibration').get_json().get('has_numpy'), c.get('/api/camera/overlay').status_code, flush=True)
+os._exit(0)
+""", NEW_BRAIN], capture_output=True, text=True, timeout=90, env=dict(os.environ, KLIPPEYE_DATA=tmp()))
+check("without numpy and OpenCV the backend starts (1.23.0); the calibration says what to install", "RESULT 200 False 409" in _probe.stdout, (_probe.stdout[-300:], _probe.stderr[-300:]))
 
 stop_all()
 fake.close()

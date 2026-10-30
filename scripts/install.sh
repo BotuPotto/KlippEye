@@ -5,10 +5,13 @@
 #   bash ~/klippeye/scripts/install.sh --no-moonraker   do not touch Moonraker's configuration
 #   bash ~/klippeye/scripts/install.sh --undo           take KlippEye off (services, commands, update manager entry)
 #   bash ~/klippeye/scripts/install.sh --channel=dev    updates: every change (dev) instead of the tested releases (stable, default)
+#   bash ~/klippeye/scripts/install.sh --no-ai          do not install OpenCV (the AI monitor stays off, less to download)
+#   bash ~/klippeye/scripts/install.sh --no-packages    install nothing with apt (only say what is missing)
 #   (the Italian options of older releases still work: --senza-moonraker, --annulla, --aiuto)
 #
 # What it does, in this order:
-#   1. checks Python, git and the modules the backend needs
+#   1. checks Python, git and the modules KlippEye needs, and installs the missing ones with apt (asking the password once):
+#      python3-flask, python3-requests, python3-numpy (the backend), python3-opencv (the AI monitor), git (updates)
 #   2. creates the DATA folder (~/printer_data/klippeye: settings, AI key, notifications)
 #   3. installs the services "klippeye" (backend + dashboard) and "klippeye-notifier" (notifications), started at every boot;
 #      if the new backend does not answer, they are taken off again
@@ -61,10 +64,12 @@ note() { printf '           %s\n' "$*"; }
 warn() { printf '   WARNING %s\n' "$*"; }
 stop() { printf '\n   ERROR   %s\n\n' "$*"; exit 1; }
 
-usage() { sed -n '2,9p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; }
+usage() { sed -n '2,11p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; }
 
 MODE=install
 WITH_MOONRAKER=1
+WITH_AI=1        # 0: OpenCV is not installed (--no-ai)
+WITH_PACKAGES=1  # 0: nothing is installed with apt (--no-packages)
 CHANNEL=stable   # update channel of a new [update_manager klippeye] entry: tagged releases only
 CHANNEL_GIVEN=0
 for arg in "$@"; do
@@ -72,6 +77,8 @@ for arg in "$@"; do
     --channel=stable|--channel=dev) CHANNEL="${arg#--channel=}"; CHANNEL_GIVEN=1 ;;
     --undo|--annulla) MODE=undo ;;
     --no-moonraker|--senza-moonraker) WITH_MOONRAKER=0 ;;
+    --no-ai) WITH_AI=0 ;;
+    --no-packages) WITH_PACKAGES=0 ;;
     -h|--help|--aiuto) usage; exit 0 ;;
     *) stop "Unknown option: $arg   (try:  bash $0 --help)" ;;
   esac
@@ -82,6 +89,8 @@ sudo_run() { if [ -n "$SUDO" ]; then $SUDO "$@"; else "$@"; fi; }
 RELEASE="$(tr -d '[:space:]' < "$REPO/VERSION" 2>/dev/null || true)"
 RELEASE="${RELEASE:-unknown}"
 say "KlippEye $RELEASE - installation on the Raspberry"
+WORK_EARLY="$(mktemp "${TMPDIR:-/tmp}/klippeye-apt.XXXXXX")" || WORK_EARLY=/dev/null
+trap 'rm -f "$WORK_EARLY"' EXIT
 
 # --- 1. checks --------------------------------------------------------------------------------------------------------
 step "1/6  Checking the Raspberry"
@@ -96,30 +105,65 @@ PYTHON="${KLIPPEYE_PYTHON:-$(command -v python3 || true)}"
 good "$("$PYTHON" --version 2>&1) ($PYTHON)"
 case "$REPO$DATA" in *" "*) stop "Folder names must not contain spaces ($REPO, $DATA)." ;; esac
 [ -f "$REPO/backend/klippeye_backend.py" ] || stop "$REPO/backend/klippeye_backend.py not found: this does not look like the KlippEye folder."
-command -v git >/dev/null 2>&1 || warn "git is missing: without it updates do not work. Install it with:  sudo apt install -y git"
-
+# What KlippEye needs, as Debian / Raspberry Pi OS packages (the same names on MainsailOS, Bullseye, Bookworm, Trixie):
+#   the backend: flask, requests, numpy (1.23.0: the camera calibration is numpy-only and part of the backend)
+#   the AI monitor: OpenCV (python3-opencv) - left out with --no-ai
+#   updates and self-repair: git
+missing_packages() {
+  local list=""
+  command -v git >/dev/null 2>&1 || list="$list git"
+  "$PYTHON" -c 'import flask' 2>/dev/null || list="$list python3-flask"
+  "$PYTHON" -c 'import requests' 2>/dev/null || list="$list python3-requests"
+  "$PYTHON" -c 'import numpy' 2>/dev/null || list="$list python3-numpy"
+  if [ "$WITH_AI" = 1 ]; then "$PYTHON" -c 'import cv2' 2>/dev/null || list="$list python3-opencv"; fi
+  printf '%s' "${list# }"
+}
+APT="${KLIPPEYE_APT:-apt-get}"
+# apt installs the modules for the system's python3: with another Python (a virtual environment) it would not help
+system_python() { [ -n "${KLIPPEYE_APT_ANY_PYTHON:-}" ] || case "$(readlink -f "$PYTHON")" in /usr/bin/*) return 0 ;; *) return 1 ;; esac; }
+NEEDED="$(missing_packages)"
+if [ -n "$NEEDED" ] && [ "$MODE" = install ]; then
+  say "   ...     KlippEye needs: $NEEDED"
+  if [ "$WITH_PACKAGES" = 1 ] && command -v "$APT" >/dev/null 2>&1 && system_python; then
+    note "Installing them with apt (the administrator password may be asked; it takes a few minutes with OpenCV)."
+    if sudo_run env DEBIAN_FRONTEND=noninteractive "$APT" update >"$WORK_EARLY" 2>&1 \
+       && sudo_run env DEBIAN_FRONTEND=noninteractive "$APT" install -y $NEEDED >>"$WORK_EARLY" 2>&1; then
+      good "Installed: $NEEDED"
+    else
+      warn "apt could not install everything. Its last lines:"
+      tail -n 6 "$WORK_EARLY" | sed 's/^/           /'
+    fi
+  elif [ "$WITH_PACKAGES" = 1 ] && ! system_python; then
+    note "Python is $PYTHON, not the system's: install them in it (pip install flask requests numpy opencv-python-headless)."
+  else
+    note "Install them with:   sudo apt install -y $NEEDED"
+  fi
+fi
+command -v git >/dev/null 2>&1 && good "git" || warn "git is missing: without it updates and self-repair do not work. Install it with:  sudo apt install -y git"
 MISSING=""
-for module in flask requests; do   # flask_cors is optional since 1.2.0 (development only)
+for module in flask requests numpy; do   # flask_cors is optional since 1.2.0 (development only)
   "$PYTHON" -c "import $module" 2>/dev/null || MISSING="$MISSING $module"
 done
 if [ -n "$MISSING" ]; then
   warn "The backend is missing these Python modules:$MISSING"
-  note "Install them with:   sudo apt install -y python3-flask python3-requests"
+  note "Install them with:   sudo apt install -y python3-flask python3-requests python3-numpy"
   note "then run this command again."
   if [ -z "${KLIPPEYE_IGNORE_MISSING:-}" ]; then stop "Without those modules the backend does not start."; fi
 else
-  good "Backend modules: flask, requests"
+  good "Backend modules: flask $("$PYTHON" -c 'import importlib.metadata as m; print(m.version("flask"))' 2>/dev/null || "$PYTHON" -c 'import flask; print(flask.__version__)' 2>/dev/null), requests, numpy"
 fi
-if "$PYTHON" -c 'import cv2, numpy' 2>/dev/null; then
-  good "OpenCV and numpy (for the AI monitor)"
+if "$PYTHON" -c 'import cv2' 2>/dev/null; then
+  good "OpenCV $("$PYTHON" -c 'import cv2; print(cv2.__version__)' 2>/dev/null) (for the AI monitor)"
+elif [ "$WITH_AI" = 0 ]; then
+  note "OpenCV not installed (--no-ai): the AI monitor stays off. To add it later run this command again without --no-ai."
 else
-  warn "OpenCV/numpy are missing: the backend starts anyway, but the AI monitor cannot look at the camera."
-  note "If you want it:   sudo apt install -y python3-opencv python3-numpy"
+  warn "OpenCV is missing: the backend starts anyway, but the AI monitor cannot look at the camera."
+  note "Install it with:   sudo apt install -y python3-opencv"
 fi
 [ -f "$REPO/frontend/klippeye_frontend.html" ] || warn "$REPO/frontend/klippeye_frontend.html is missing: the backend starts, but the dashboard page does not open."
 
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/klippeye-install.XXXXXX")" || stop "Cannot create a temporary folder."
-trap 'rm -rf "$WORK"' EXIT
+trap 'rm -rf "$WORK"; rm -f "$WORK_EARLY"' EXIT
 
 # --- shared functions --------------------------------------------------------------------------------------------------
 BK=""

@@ -74,6 +74,7 @@ const SETTINGS_DEFAULTS = {
     method: "webrtc",
     urls: { webrtc: "/webcam/webrtc", mjpeg: "/webcam/?action=stream", adaptive: "/webcam/?action=snapshot", iframe: "/webcam/webrtc" },
     fps: 5, // "adaptive": photos per second
+    snapshot: "", // the single photo (AI monitor, calibration, later the timelapse): "" = automatic, see defaultSnapshot (1.23)
     flipH: false,
     flipV: false,
   },
@@ -134,6 +135,25 @@ function cleanCameraAddress(value) {
   if (/^[A-Za-z][A-Za-z0-9+.-]*:/.test(text)) return null; // javascript:, data:, ftp: ...
   return text.charAt(0) === "/" ? text : "/" + text;
 }
+
+/**
+ * The snapshot that goes with the camera when none is chosen (the same rules as backend/camera_snapshot.py, keep them equal):
+ * "/webcam2/webrtc" -> "/webcam2/?action=snapshot", "...?action=stream" -> "...?action=snapshot", the adaptive method's own
+ * address; anything else -> "/webcam/?action=snapshot", which every streamer of crowsnest answers.
+ */
+const SNAPSHOT_DEFAULT = "/webcam/?action=snapshot";
+function defaultSnapshot(camera) {
+  const address = cleanCameraAddress(camera.urls[camera.method]) || "";
+  if (!address) return SNAPSHOT_DEFAULT;
+  if (camera.method === "adaptive") return address;
+  if (address.indexOf("action=stream") >= 0) return address.replace("action=stream", "action=snapshot");
+  const match = /^(.*\/)(webrtc|stream)\/?(\?.*)?$/.exec(address);
+  if (match && (camera.method === "webrtc" || camera.method === "mjpeg" || match[2] === "webrtc")) return match[1] + "?action=snapshot";
+  return SNAPSHOT_DEFAULT;
+}
+
+/** The snapshot address in use: the chosen one, or the automatic one. */
+const snapshotAddress = (camera) => camera.snapshot || defaultSnapshot(camera);
 
 /** Up to Z_STEP_SLOTS different step sizes in mm, smallest first; at least one. */
 function cleanZSteps(value) {
@@ -204,6 +224,7 @@ function sanitizeSettings(raw) {
       method: pickOne(camera.method, CAMERA_METHOD_IDS, d.camera.method),
       urls: Object.fromEntries(CAMERA_METHOD_IDS.map((id) => [id, cleanCameraAddress(urls[id]) || d.camera.urls[id]])),
       fps: Math.round(asNumber(camera.fps, CAMERA_FPS_MIN, CAMERA_FPS_MAX, d.camera.fps)),
+      snapshot: cleanCameraAddress(camera.snapshot) || "",
       flipH: asBool(camera.flipH, d.camera.flipH),
       flipV: asBool(camera.flipV, d.camera.flipV),
     },

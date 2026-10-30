@@ -17,7 +17,8 @@ Groq's 404 and 413) with what release 1.0 and later added:
     offers it to the phone (/api/app/version says which version, /app/KlippEye.apk is the file);
   * texts for people are in English and translated with the dashboard's dictionaries (bt()).
 """
-from flask import Flask, request, Response, jsonify, send_file
+from flask import Flask, request, Response, jsonify
+from flask import send_file as _flask_send_file
 import gzip
 try:  # optional since 1.2.0: only needed with KLIPPEYE_CORS (development)
     from flask_cors import CORS
@@ -65,6 +66,20 @@ def _read_release():
 
 
 RELEASE = _read_release()
+
+
+def send_file(path, **options):
+    """Flask's send_file, also with Flask 1.x (Debian 11 «Bullseye», Raspberry Pi OS before 2023), where download_name was
+    called attachment_filename and max_age cache_timeout."""
+    try:
+        return _flask_send_file(path, **options)
+    except TypeError:
+        old = dict(options)
+        if "download_name" in old:
+            old["attachment_filename"] = old.pop("download_name")
+        if "max_age" in old:
+            old["cache_timeout"] = old.pop("max_age")
+        return _flask_send_file(path, **old)
 
 
 def _default_data_dir():
@@ -248,6 +263,30 @@ def shared_language():
         except Exception:
             pass
     return _SHARED_LANGUAGE["value"]
+
+
+import camera_snapshot  # noqa: E402
+
+_SNAPSHOT = {"value": camera_snapshot.DEFAULT, "at": float("-inf")}
+
+
+def _camera_origin():
+    """Where the Raspberry's own nginx answers (the origin of CAMERA_NGINX_URL: http://127.0.0.1)."""
+    return re.sub(r"/webcam/?$", "", CAMERA_NGINX_URL)
+
+
+def snapshot_url(fresh=False):
+    """The address the camera's photo is taken from (Settings -> Camera -> Snapshot in the dashboard, see camera_snapshot.py).
+    Read from Moonraker's database at most every 30 seconds; the usual crowsnest address until a dashboard has saved one."""
+    now = time.time()
+    if fresh or now - _SNAPSHOT["at"] >= 30:
+        _SNAPSHOT["at"] = now
+        try:
+            answer = requests.get(MOONRAKER_URL + "/server/database/item?namespace=klippeye&key=settings", timeout=2).json()
+            _SNAPSHOT["value"] = camera_snapshot.chosen((answer.get("result") or {}).get("value") or {})
+        except Exception:
+            pass
+    return camera_snapshot.absolute(_SNAPSHOT["value"], _camera_origin())
 
 
 def _text(key, **values):
@@ -889,7 +928,7 @@ def health():
     except Exception as e:
         out["moonraker"] = f"fail {e}"
     try:
-        r = requests.get(f"{CAMERA_NGINX_URL}/snapshot", timeout=2, stream=True)
+        r = requests.get(snapshot_url(), timeout=2, stream=True)
         out["camera_snapshot"] = f"ok ({r.status_code})"
     except Exception as e:
         out["camera_snapshot"] = f"fail {e}"
@@ -1979,7 +2018,7 @@ class LightDetector(FrameJudge):
             return
         self.next_cool_frame = now + self.check_interval
         try:
-            r = requests.get(f"{CAMERA_NGINX_URL}/snapshot", timeout=4)
+            r = requests.get(snapshot_url(), timeout=4)
             frame = cv2.imdecode(np.frombuffer(r.content, np.uint8), cv2.IMREAD_COLOR) if r.ok and len(r.content) >= 1000 else None
             if frame is not None:
                 recorder.add_frame(frame, now, dict(self.meta, score=None, trig=False, cool=True))
@@ -2203,7 +2242,7 @@ class LightDetector(FrameJudge):
                     calibrated = self._uses_calibration()
                     if calibrated:
                         self._position_now("live")  # where the toolhead is right before the picture...
-                    r = requests.get(f"{CAMERA_NGINX_URL}/snapshot", timeout=4)
+                    r = requests.get(snapshot_url(), timeout=4)
                     if calibrated:
                         self._position_now("live2")  # ...and right after it (it moves while the picture is taken)
                     if not r.ok or len(r.content) < 1000:
@@ -2238,7 +2277,7 @@ class LightDetector(FrameJudge):
                         prune_alert_images(keep=20)  # old alert pictures do not pile up for ever (now + before)
                         full_path = f"/tmp/klippeye_alert_{int(time.time())}.jpg"
                         # download again and resize to 1080x720 for the AI - V17 against false positives
-                        r_full = requests.get(f"{CAMERA_NGINX_URL}/snapshot", timeout=5)
+                        r_full = requests.get(snapshot_url(), timeout=5)
                         if r_full.ok:
                             try:
                                 # resize to 1080x720, quality 85%, for the detail of the bed
@@ -3071,6 +3110,31 @@ def api_measure_start():
 # === end RECORDINGS ===================================================================================================
 
 
+# === SNAPSHOT (1.23.0): the camera's photo, as the Raspberry itself gets it ==================================================
+SNAPSHOT_MESSAGES = (btn("the camera did not send a photo ({detail})"), btn("not a camera address"))
+
+
+@app.route("/api/camera/snapshot", methods=["GET"])
+def api_camera_snapshot():
+    """The photo the AI monitor would take now (?url= tries an address before saving it): the "Try" of Settings -> Camera."""
+    given = request.args.get("url")
+    if given is not None and not camera_snapshot.clean(given):
+        return jsonify({"ok": False, "error": bt("not a camera address", _lang())}), 400
+    url = camera_snapshot.absolute(camera_snapshot.clean(given), _camera_origin()) if given else snapshot_url(fresh=True)
+    try:
+        r = requests.get(url, timeout=8)
+        content_type = r.headers.get("Content-Type", "")
+        if not r.ok or len(r.content) < 500 or not content_type.startswith("image/"):
+            detail = "HTTP %s, %s, %d bytes" % (r.status_code, content_type or "?", len(r.content))
+            return jsonify({"ok": False, "url": url, "error": bt("the camera did not send a photo ({detail})", _lang(), detail=detail)}), 502
+    except requests.RequestException as error:
+        return jsonify({"ok": False, "url": url, "error": bt("the camera did not send a photo ({detail})", _lang(), detail=str(error)[:160])}), 502
+    response = Response(r.content, mimetype=content_type)
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["X-Snapshot-Url"] = url
+    return response
+
+
 # === CAMERA CALIBRATION (phase 4): camera_calibration.py, camera_model.py, camera_watch.py ===========================
 import camera_calibration as _camcal  # noqa: E402
 
@@ -3092,7 +3156,7 @@ def _klipper_gcode(script, timeout):
 
 
 def _camera_snapshot():
-    r = requests.get(f"{CAMERA_NGINX_URL}/snapshot", timeout=5)
+    r = requests.get(snapshot_url(), timeout=5)
     return r.content if r.ok and len(r.content) > 1000 else None
 
 
@@ -3132,9 +3196,11 @@ camera_cal = _camcal.CameraCalibration(DATA_DIR, _klipper_query, _klipper_gcode,
                                        files=_gcode_files, read_file=_read_gcode)
 
 
-def _camera_call(work):
+def _camera_call(work, needs_numpy=True):
     """Runs one calibration step: 409 when the printer cannot do it now, 400 when the request is wrong, 502 when Klipper or
     the camera do not answer."""
+    if needs_numpy and _camcal.camera_model.np is None:  # numpy missing (1.23.0: the backend starts anyway)
+        return jsonify({"ok": False, "error": bt("numpy is not installed on the Raspberry: run  bash ~/klippeye/scripts/install.sh  again (it installs it)", _lang())}), 409
     try:
         return jsonify(dict(work() or {}, ok=True))
     except _camcal.NotReady as error:
@@ -3165,8 +3231,9 @@ def api_camera_calibration():
             out["printer_error"] = str(error)[:200]
             out["targets"] = []
         out["has_cv2"] = HAS_CV2
+        out["has_numpy"] = _camcal.camera_model.np is not None
         return out
-    response = _camera_call(work)
+    response = _camera_call(work, needs_numpy=False)
     if isinstance(response, Response):
         response.headers["Cache-Control"] = "no-store"
     return response
@@ -3413,7 +3480,7 @@ import io
 def api_print_snapshot():
     """Proxy snapshot raw"""
     try:
-        r = requests.get(f"{CAMERA_NGINX_URL}/snapshot", timeout=5, stream=True)
+        r = requests.get(snapshot_url(), timeout=5, stream=True)
         return Response(r.iter_content(chunk_size=8192), status=r.status_code, content_type=r.headers.get('Content-Type','image/jpeg'))
     except Exception as e:
         return jsonify({"error": str(e)}), 502
@@ -3433,12 +3500,12 @@ def api_print_analyze():
         img_b64 = None
         img_resized_bytes = None
         try:
-            r = requests.get(f"{CAMERA_NGINX_URL}/snapshot", timeout=6)
+            r = requests.get(snapshot_url(), timeout=6)
             content = None
             if r.ok and len(r.content) > 1000:
                 content = r.content
             else:
-                r2 = requests.get(f"{CAMERA_NGINX_URL}/?action=snapshot", timeout=6)
+                r2 = requests.get(f"{CAMERA_NGINX_URL}/snapshot", timeout=6)  # camera-streamer's own path, as before 1.23.0
                 if r2.ok and len(r2.content) > 1000:
                     content = r2.content
             

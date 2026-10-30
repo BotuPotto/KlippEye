@@ -117,3 +117,4 @@ body:has(.setup-overlay) .nt-invite,
 body:has(.setup-overlay) .bottom-nav { display: none; }
 .help-steps { list-style: decimal; }
 .help-steps li { display: list-item; }
+.set-snapshot { display: block; width: 100%; max-height: 260px; object-fit: contain; border-radius: 14px; background: #000; }

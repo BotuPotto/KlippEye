@@ -1,5 +1,24 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.23.0
+
+**Installing on any Raspberry, and the camera's snapshot.**
+
+* **The installer installs what is missing** with `apt` (asking the password once): `python3-flask`, `python3-requests`,
+  `python3-numpy`, `python3-opencv` (the AI monitor; `--no-ai` leaves it out) and `git`. `--no-packages` only says what is
+  missing. Without flask, requests or numpy it stops before touching anything, with the command to type.
+* **numpy is really needed**, and the installer said it was optional: since the camera calibration (1.13.0) the backend did not
+  start without it. Now the backend starts anyway (the calibration says what to install), and the installer installs it.
+* **Debian 11 "Bullseye"** (Raspberry Pi OS before 2023, MainsailOS 1.x): with its Flask 1.1 the downloads (configuration files,
+  the Android app, logos, recording pictures) failed; now they work there too.
+* **Snapshot address** (Settings → Camera → Snapshot), like Mainsail's "Snapshot URL": the single photo the AI monitor, the
+  camera calibration and the recordings take (later also the timelapse). Empty = automatic from the camera's address
+  (`/webcam/?action=snapshot`, which every crowsnest streamer answers; `/webcam2/webrtc` → `/webcam2/?action=snapshot`; the
+  adaptive method's own address). **Import from Mainsail** takes Mainsail's snapshot too. **Try: take a photo** shows the photo
+  exactly as the Raspberry gets it, or why there is none. Before, the backend always asked `/webcam/snapshot`, which mjpg-streamer
+  does not have.
+* Guides: what is needed and what KlippEye installs by itself, the install lines (also for a Raspberry without git), the options.
+
 ## 1.22.0
 
 **Guided and universal** (roadmap phase 5e): a new user sets KlippEye up from the dashboard, step by step, with a guide at hand

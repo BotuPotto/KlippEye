@@ -18,29 +18,50 @@ A. [Building your own Android app](#a-building-your-own-android-app)
 
 ## 1. What you need
 
-* A printer with **Klipper and Moonraker** (installed with KIAUH, MainsailOS, FluiddPi or by hand). Mainsail or Fluidd can stay:
-  KlippEye works next to them.
-* **Python 3.7+**, **git** and the Python modules `flask` and `requests` (the installer tells you how to install
-  whatever is missing). **OpenCV** (`python3-opencv`) is only needed by the AI monitor.
-* SSH access to the Raspberry, **once**, for the installation. Everything after that happens in the dashboard.
-* Optional: a camera (crowsnest / camera-streamer, as for Mainsail), an AI service key (Groq is free, OpenAI is paid) for the
-  AI monitor, an Android phone.
+**Already there:**
+
+* a printer with **Klipper and Moonraker** on a Raspberry Pi (or any Linux computer next to the printer), installed with
+  MainsailOS, FluiddPi, KIAUH or by hand. Mainsail or Fluidd can stay: KlippEye works next to them;
+* **SSH access** to the Raspberry, **once**, for the installation (with your user: it does not have to be `pi`). Everything after
+  that happens in the dashboard;
+* internet on the Raspberry (to install, for updates, notifications and the AI monitor).
+
+**Optional:** a **camera** with crowsnest (as for Mainsail: MainsailOS and KIAUH install it already), an **AI service key** for the
+AI monitor (Groq is free), a **phone** for notifications (Android with the KlippEye app, or any phone with the ntfy app).
+
+**What KlippEye installs by itself** (with `apt`, asking the password once, only if missing):
+
+| Package | What for |
+|---|---|
+| `git` | updates and self-repair after a power cut |
+| `python3-flask`, `python3-requests` | the backend and the dashboard |
+| `python3-numpy` | the camera calibration (and the AI monitor) |
+| `python3-opencv` | the AI monitor: looking at the camera's photos (left out with `--no-ai`) |
+
+It works on every recent Raspberry Pi OS and MainsailOS (Debian 11 "Bullseye", 12 "Bookworm", 13 "Trixie") with Python 3.7 or
+newer. Nothing is installed on your computer: a browser is enough.
 
 ## 2. Install
 
-Connect to the Raspberry with SSH (`ssh pi@<address of the Raspberry>`, with your user) and paste these two lines, one at a time:
+Connect to the Raspberry with SSH (`ssh <user>@<address of the Raspberry>`; on MainsailOS the user is usually `pi`) and paste these
+lines, one at a time:
 
 ```
+sudo apt update && sudo apt install -y git
 git clone https://github.com/BotuPotto/KlippEye.git ~/klippeye
 bash ~/klippeye/scripts/install.sh
 ```
 
-It takes about a minute. Every step says `OK`; if something is wrong it says so in plain words (`WARNING` or `ERROR`) and tells
-you what to do. At the end it shows the dashboard address and `Moonraker sees KlippEye`.
+The first line is only needed when `git` is not there yet (MainsailOS has it: it does no harm). The installer checks what is
+missing and installs it by itself: the first time, with OpenCV, it takes a few minutes; after that about a minute. Every step says
+`OK`; if something is wrong it says so in plain words (`WARNING` or `ERROR`) and tells you what to do. At the end it shows the
+dashboard address and `Moonraker sees KlippEye`.
 
 What the installer does:
 
-* creates the **data folder** `~/printer_data/klippeye` (your settings, AI key, notification keys): updates never touch it.
+* checks **Python, git and the modules** KlippEye needs and **installs the missing ones** (table above). Without `flask`,
+  `requests` or `numpy` it stops before touching anything and tells you the command to type;
+* creates the **data folder** `~/printer_data/klippeye` (your settings, AI key, notifications): updates never touch it.
   Any user works, not only `pi`: the printer's folders (config, logs, `printer_data` or `printer_1_data` with several
   printers, the old `~/klipper_config`) are asked to Moonraker. To choose the folder by hand:
   `KLIPPEYE_PRINTER_DATA=~/printer_2_data bash ~/klippeye/scripts/install.sh`;
@@ -50,11 +71,22 @@ What the installer does:
 * connects KlippEye to **Moonraker's update manager** (an `[update_manager klippeye]` entry in `moonraker.conf` and two lines in
   `moonraker.asvc`, with backup copies) and restarts Moonraker, unless the printer is printing.
 
-It can be run again at any time: it repairs without breaking anything. Options: `--no-moonraker` (do not touch Moonraker's
-configuration), `--channel=dev` (every change instead of the tested releases, see 4), `--undo` (remove the services, the
-commands and the Moonraker entry; your folders stay), `--help`.
+It can be run again at any time: it repairs without breaking anything. Options:
 
-Open the dashboard: **`http://<address of the Raspberry>:8085`**. Use the address that works for Mainsail, with port 8085.
+* `--no-ai`: does not install OpenCV (the AI monitor stays off; add it later by running it again without `--no-ai`);
+* `--no-packages`: installs nothing with `apt`, only says what is missing;
+* `--no-moonraker`: does not touch Moonraker's configuration;
+* `--channel=dev`: every change instead of the tested releases (see 4);
+* `--undo`: removes the services, the commands and the Moonraker entry (your folders and the packages stay);
+* `--help`.
+
+Open the dashboard: **`http://<address of the Raspberry>:8085`** (the address of Mainsail, with port 8085). The **guided set-up**
+opens (chapter 3).
+
+**The camera and the AI monitor.** The AI monitor and the calibration take one photo at a time from the camera (the *snapshot*).
+Usually there is nothing to do: with crowsnest the address is `/webcam/?action=snapshot` and KlippEye works it out by itself. To
+check it: **Settings → Camera → Snapshot → Try: take a photo** shows the photo exactly as the Raspberry gets it. With another camera
+write there the same "Snapshot URL" you use in Mainsail.
 
 ## 3. First settings
 

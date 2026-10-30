@@ -18,7 +18,10 @@ picture (0..1), which is what the dashboard and the monitor (which shrinks the p
 """
 import math
 
-import numpy as np
+try:
+    import numpy as np
+except ImportError:  # the backend still starts without it (1.23.0): the calibration says what to install
+    np = None
 
 MODELS = ("fisheye", "pinhole")
 MIN_POINTS = 8

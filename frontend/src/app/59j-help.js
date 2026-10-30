@@ -158,6 +158,14 @@ const HELP = {
         ],
       },
       { id: "address", title: tx("The address"), text: [tx("Usually a path on the Raspberry, like /webcam/webrtc or /webcam/?action=stream: the right address of the Raspberry is added by itself (see Addresses). A full address http://… is used as it is.")] },
+      {
+        id: "snapshot",
+        title: tx("The snapshot"),
+        text: [
+          tx("A single photo of the camera, taken by the Raspberry itself: the AI monitor and the camera calibration use it, and later the timelapse. Leave it empty: KlippEye works it out from the address above (/webcam/?action=snapshot for crowsnest)."),
+          tx("Write it only if «Try» gives no photo, or to use another camera: the same «Snapshot URL» you see in Mainsail's webcam settings."),
+        ],
+      },
       { id: "image", title: tx("Upside down or mirrored?"), text: [tx("Use the two switches of «Image»: they turn the picture of the dashboard, not the camera.")] },
       { id: "ai", title: tx("For the AI monitor"), text: [tx("To watch the whole bed the AI monitor needs the camera calibrated: Settings → AI monitor → Camera calibration.")] },
     ],

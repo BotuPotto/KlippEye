@@ -1,0 +1,10 @@
+#!/bin/sh
+# Fake apt-get: writes what it was asked into $FAKE_SYSTEMD_STATE/apt.log; "install" makes the packages appear
+# ($FAKE_SYSTEMD_STATE/apt_installed, read by tests/e2e/hide/sitecustomize.py). FAKE_APT_FAIL=1: it fails like a broken apt.
+echo "apt-get $*" >> "$FAKE_SYSTEMD_STATE/apt.log"
+[ -n "${FAKE_APT_FAIL:-}" ] && { echo "E: Unable to locate package (fake)"; exit 100; }
+if [ "$1" = install ]; then
+  shift
+  for p in "$@"; do case "$p" in -*) ;; *) echo "$p" >> "$FAKE_SYSTEMD_STATE/apt_installed"; echo "Setting up $p (fake) ...";; esac; done
+fi
+exit 0
