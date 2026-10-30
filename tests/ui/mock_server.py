@@ -303,6 +303,17 @@ def _channels():
     link = ("ntfy://%s/%s?display=KlippEye%s" % (host, n["topic"], "" if n["server"].startswith("https://") else "&secure=false")) if n["topic"] else ""
     return jsonify(ok=True, ntfy=dict(n, default_server=n["server"] == "https://ntfy.sh", link=link, web=n["server"] + "/" + n["topic"] if n["topic"] else ""),
                    firebase={"on": S["firebase_on"], "topic_set": S["firebase_on"], "key_found": S["firebase_on"]}, install_command="bash /home/x/klippeye/scripts/install.sh")
+# --- the camera's photo as the Raspberry gets it (backend /api/camera/snapshot, 1.23): a tiny PNG for "snapshot" addresses
+_PNG = bytes.fromhex("89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000d4944415478da63f8cfc0f01f0005000201a5a9d5e70000000049454e44ae426082")
+@app.route("/api/camera/snapshot", methods=["GET"])
+def camera_snapshot():
+    url = request.args.get("url") or "/webcam/?action=snapshot"
+    S.setdefault("snapshot_tries", []).append(url)
+    if "snapshot" not in url and not url.endswith(".jpg"):
+        return jsonify(ok=False, error="la camera non ha mandato una foto (HTTP 404, text/html, 12 bytes)"), 502
+    resp = Response(_PNG * 10, mimetype="image/png")
+    resp.headers["X-Snapshot-Url"] = "http://127.0.0.1" + url if url.startswith("/") else url
+    return resp
 @app.route("/api/notifications/channels", methods=["GET"])
 def notify_channels():
     return _channels()

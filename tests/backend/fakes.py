@@ -50,9 +50,11 @@ class Fake:
 
             def do_GET(self):
                 s = fake.state
-                if self.path.startswith("/webcam/snapshot") and s.get("render"):
+                # the camera's photo: camera-streamer's own path, or the one every crowsnest streamer answers (1.23.0's default)
+                is_snapshot = self.path.startswith("/webcam/snapshot") or self.path.startswith("/webcam/?action=snapshot")
+                if is_snapshot and s.get("render"):
                     return self._send(200, s["render"](s), "image/jpeg")
-                if self.path.startswith("/webcam/snapshot"):
+                if is_snapshot:
                     with fake.lock:
                         i = min(fake.snapshots, len(s["frames"]) - 1)
                         fake.snapshots += 1

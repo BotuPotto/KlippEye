@@ -21,6 +21,20 @@ Security: [SECURITY.md](SECURITY.md) · Contributing: [CONTRIBUTING.md](CONTRIBU
 * English and Italian dashboard (it follows the device's language; *Settings → Language* to choose).
 * Optional password, network checks (host name and origin of requests) and restricted permissions of the secrets.
 
+## Install
+
+On the Raspberry (SSH, with your user):
+
+```
+sudo apt update && sudo apt install -y git
+git clone https://github.com/BotuPotto/KlippEye.git ~/klippeye
+bash ~/klippeye/scripts/install.sh
+```
+
+The installer adds what is missing by itself (`python3-flask`, `python3-requests`, `python3-numpy`, `python3-opencv`), then open
+`http://<address of the Raspberry>:8085` and follow the guided set-up. Step by step: [docs/GUIDE.md](docs/GUIDE.md)
+(Italian: [docs/GUIDA.md](docs/GUIDA.md)).
+
 ## How updates work
 
 ```

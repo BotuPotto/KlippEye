@@ -12,7 +12,7 @@ Each scenario builds a fresh world in tests/e2e/.work/worlds/<scenario>:
   * a bare git repository playing GitHub, and the "developer's computer" that pushes releases to it (tagged vX.Y.Z, as the
     release workflow does);
   * the program cloned from that GitHub into ~/klippeye, as the guide says, then scripts/install.sh.
-Scenarios: install, update, undo, channel, fails, no-um, printing, ui, app, blackout, safety.
+Scenarios: install, update, undo, channel, fails, no-um, deps, printing, ui, app, blackout, safety.
 "ui" and "app" need Playwright with Chromium (pip install playwright; playwright install chromium) and are skipped
 without it; the Kotlin part of "app" also needs kotlinc and java (KOTLINC_HOME or kotlinc on the PATH).
 """
@@ -505,6 +505,43 @@ if scenario("no-um"):
     ok("[no-um] notifications not set up yet (1.20.0): the notifier is installed and runs anyway (automatic actions; ntfy can be turned on from the dashboard)",
        os.path.exists(os.path.join(w.units, "klippeye-notifier.service")) and "klippeye-notifier" in open(os.path.join(w.pd, "moonraker.asvc")).read() and not os.path.exists(os.path.join(w.data, "notifier.json"))
        and wait(lambda: w.pid("klippeye-notifier") is not None and "Channels: none" in w.service_log("klippeye-notifier"), 30), out + w.service_log("klippeye-notifier")[-600:])
+    w.teardown()
+
+# ----------------------------------------------------------------------------------- deps: what is missing gets installed
+if scenario("deps"):
+    HIDE = os.path.join(HERE, "hide")
+    w = World("deps", {"PYTHONPATH": HIDE, "KLIPPEYE_TEST_HIDE": "cv2 numpy", "KLIPPEYE_APT_ANY_PYTHON": "1"})
+    w.build(notifier=False)
+    r = w.install()
+    out = r.stdout + r.stderr
+    apt = open(os.path.join(w.state, "apt.log")).read() if os.path.exists(os.path.join(w.state, "apt.log")) else ""
+    ok("[deps] numpy and OpenCV missing: the installer says so and installs them with apt (update, then install -y)",
+       r.returncode == 0 and "KlippEye needs: python3-numpy python3-opencv" in out and "apt-get update" in apt and "apt-get install -y python3-numpy python3-opencv" in apt and "Installed: python3-numpy python3-opencv" in out, out + apt)
+    ok("[deps] ... then finds them and goes on: the backend answers", "Backend modules: flask" in out and "OpenCV" in out and backend_release() == "1.0.0", out)
+    r = w.install()
+    ok("[deps] run again: nothing to install, apt is not called again", r.returncode == 0 and "KlippEye needs" not in r.stdout and open(os.path.join(w.state, "apt.log")).read() == apt, r.stdout)
+    w.teardown()
+    w = World("deps", {"PYTHONPATH": HIDE, "KLIPPEYE_TEST_HIDE": "cv2 numpy", "KLIPPEYE_APT_ANY_PYTHON": "1"})
+    w.build(notifier=False)
+    r = w.install("--no-ai")
+    out = r.stdout + r.stderr
+    apt = open(os.path.join(w.state, "apt.log")).read()
+    ok("[deps] --no-ai: only numpy is installed, OpenCV is left out and the installer says the AI monitor stays off",
+       r.returncode == 0 and "apt-get install -y python3-numpy\n" in apt and "opencv" not in apt and "--no-ai" in out, out + apt)
+    w.teardown()
+    w = World("deps", {"PYTHONPATH": HIDE, "KLIPPEYE_TEST_HIDE": "numpy", "KLIPPEYE_APT_ANY_PYTHON": "1", "FAKE_APT_FAIL": "1"})
+    w.build(notifier=False)
+    r = w.install()
+    out = r.stdout + r.stderr
+    ok("[deps] apt fails and numpy is still missing: it stops with the command to type, before touching any service",
+       r.returncode != 0 and "apt could not install everything" in out and "sudo apt install -y python3-flask python3-requests python3-numpy" in out and not os.path.exists(os.path.join(w.units, "klippeye.service")), out)
+    w.teardown()
+    w = World("deps", {"PYTHONPATH": HIDE, "KLIPPEYE_TEST_HIDE": "cv2", "KLIPPEYE_APT_ANY_PYTHON": "1"})
+    w.build(notifier=False)
+    r = w.install("--no-packages")
+    out = r.stdout + r.stderr
+    ok("[deps] --no-packages: apt is never called, the command to type is shown, the backend still starts without OpenCV",
+       r.returncode == 0 and not os.path.exists(os.path.join(w.state, "apt.log")) and "sudo apt install -y python3-opencv" in out and backend_release() == "1.0.0", out)
     w.teardown()
 
 # ----------------------------------------------------------------------------------- printing: Moonraker is not restarted

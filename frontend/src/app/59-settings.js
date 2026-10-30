@@ -309,7 +309,7 @@ async function loadMainsailWebcams() {
     .map((cam) => {
       const method = MAINSAIL_SERVICES[String(cam.service || "").toLowerCase()] || "";
       const address = cleanCameraAddress(method === "adaptive" ? cam.snapshot_url || cam.stream_url : cam.stream_url);
-      return { name: String(cam.name || "Camera"), service: String(cam.service || ""), method: address ? method : "", address, flipH: cam.flip_horizontal === true, flipV: cam.flip_vertical === true, fps: Number(cam.target_fps) || 0 };
+      return { name: String(cam.name || "Camera"), service: String(cam.service || ""), method: address ? method : "", address, snapshot: cleanCameraAddress(cam.snapshot_url) || "", flipH: cam.flip_horizontal === true, flipV: cam.flip_vertical === true, fps: Number(cam.target_fps) || 0 };
     });
 }
 
@@ -344,6 +344,55 @@ function MainsailImport({ onPick }) {
   );
 }
 
+/**
+ * The camera's single photo (1.23): the AI monitor, the camera calibration and the recordings take it (later the timelapse
+ * too). Automatic from the camera's address, or chosen like in Mainsail; "Try" shows the photo exactly as the Raspberry gets it.
+ */
+function SnapshotSetting({ camera, update }) {
+  const automatic = defaultSnapshot(camera);
+  const [trial, setTrial] = useState(null); // null | { phase: "loading" | "ok" | "error", src, text }
+  const tryIt = async () => {
+    const address = snapshotAddress(camera);
+    setTrial({ phase: "loading" });
+    try {
+      const response = await fetchFresh("/api/camera/snapshot?url=" + encodeURIComponent(address), { timeout: 12000 });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        return setTrial({ phase: "error", text: data.error || "HTTP " + response.status });
+      }
+      const blob = await response.blob();
+      setTrial({ phase: "ok", src: URL.createObjectURL(blob), text: response.headers.get("X-Snapshot-Url") || address });
+    } catch (error) {
+      setTrial({ phase: "error", text: tx("the backend does not answer") });
+    }
+  };
+  useEffect(() => () => trial && trial.src && URL.revokeObjectURL(trial.src), [trial]);
+  return h(
+    SettingsGroup,
+    { title: tx("Snapshot (single photo)"), help: ["camera", "snapshot"], note: tx("The photo the AI monitor and the camera calibration take (later also the timelapse). Empty: automatic, from the address above.") },
+    h(TextSetting, {
+      key: camera.method + "|" + (camera.urls[camera.method] || ""),
+      label: tx("Snapshot address"),
+      value: camera.snapshot,
+      validate: (text) => (typeof text === "string" && text.trim() === "" ? "" : cleanCameraAddress(text)),
+      error: tx("Write a path that starts with / (like /webcam/?action=snapshot) or a full address http://…"),
+      placeholder: automatic,
+      inputMode: "url",
+      onCommit: (value) => update((draft) => (draft.camera.snapshot = value)),
+    }),
+    h("p", { className: "set-group__note", "data-snapshot-now": snapshotAddress(camera) }, camera.snapshot ? tx("In use: {address} (chosen)", { address: camera.snapshot }) : tx("In use: {address} (automatic)", { address: automatic })),
+    h(
+      "div",
+      { className: "oui-btn-row" },
+      h("button", { type: "button", className: "oui-btn oui-btn--sm", "data-snapshot-try": "1", disabled: trial && trial.phase === "loading", onClick: tryIt }, h(Icons.Camera, { size: 16 }), trial && trial.phase === "loading" ? tx("Taking the photo…") : tx("Try: take a photo")),
+      camera.snapshot && h("button", { type: "button", className: "oui-btn oui-btn--sm oui-btn--quiet", onClick: () => update((draft) => (draft.camera.snapshot = "")) }, h(Icons.RotateCcw, { size: 16 }), tx("Back to automatic")),
+    ),
+    trial && trial.phase === "ok" && h("img", { className: "set-snapshot", src: trial.src, alt: tx("The photo taken by the Raspberry"), "data-snapshot-ok": "1" }),
+    trial && trial.phase === "ok" && h("div", { className: "set-status set-status--ok" }, h("span", { className: "set-status__dot" }), tx("The Raspberry gets the photo: the AI monitor will see this.")),
+    trial && trial.phase === "error" && h("p", { className: "set-field__error", role: "alert", "data-snapshot-error": "1" }, tx("No photo: {error}", { error: trial.text })),
+  );
+}
+
 function CameraPage({ menu }) {
   const { settings, update } = useSettings();
   const camera = settings.camera;
@@ -354,6 +403,7 @@ function CameraPage({ menu }) {
     update((draft) => {
       draft.camera.method = cam.method;
       draft.camera.urls[cam.method] = cam.address;
+      draft.camera.snapshot = cam.snapshot; // Mainsail's own snapshot address ("" = automatic)
       draft.camera.flipH = cam.flipH;
       draft.camera.flipV = cam.flipV;
       if (cam.method === "adaptive" && cam.fps) draft.camera.fps = cam.fps;
@@ -399,6 +449,7 @@ function CameraPage({ menu }) {
         h(SwitchRow, { title: tx("Flip (vertical)"), detail: tx("Top and bottom swapped"), checked: camera.flipV, onChange: (value) => update((draft) => (draft.camera.flipV = value)) }),
       ),
     ),
+    h(SnapshotSetting, { camera, update }),
     h(MainsailImport, { onPick: pick }),
     menu &&
       h(
