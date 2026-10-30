@@ -22,8 +22,7 @@ android/
 ## Nome dell'app
 
 Il nome interno è `com.klippeye.app` e il ponte con la dashboard si chiama `KlippEyeApp` (`KlippEyeApp/5` nell'user agent).
-L'argomento delle notifiche (`vzbot-pp3zt27qxb49fw3fsbvv`) ha ancora il nome di quando il progetto si chiamava VzBot: è scritto anche
-in `notifier.json` sul Raspberry, quindi non cambia.
+Dalla 1.3.0 l'app non contiene più nessun argomento delle notifiche (vedi «Notifiche push»).
 
 ## Versione
 
@@ -102,12 +101,25 @@ a connettersi. `setAddresses` accetta solo reti private (10.x, 172.16-31.x, 192.
 
 ## Notifiche push
 
-Arrivano da Firebase Cloud Messaging anche con app chiusa e schermo spento. Il Raspberry (`notifier/`) manda il messaggio a Firebase, Firebase lo porta al telefono (serve solo internet, non ZeroTier).
+Dalla 1.3.0 l'app non ha **nessun argomento scritto dentro**: chiede al Raspberry a cui è collegata come riceverle
+(`GET /api/notifications/app`, dalla dashboard, ponte `KlippEyeApp.notifySetup`) e la persona lo sceglie con la procedura guidata
+della dashboard (Impostazioni → Notifiche → Questo telefono). Tutto in `Ascolto.kt`:
 
-* **`app/google-services.json`** (console Firebase, app Android `com.klippeye.app`). Per l'APK di GitHub: segreto `GOOGLE_SERVICES_JSON`. Senza, l'app funziona ma dice «Notifiche non attive».
-* **Argomento privato**: `notification_topic` in `res/values/notifiche.xml` dev'essere uguale a `topic` in `~/printer_data/klippeye/notifier.json` (l'installer del Raspberry lo scrive uguale).
-* Tre canali (Impostazioni → App → KlippEye → Notifiche): `allarmi`, `avvisi`, `stampa`. Si creano a ogni avvio, prima che arrivi il primo messaggio. Con l'app aperta le mostra `KlippEyeMessagingService`.
-* Android 13+: alla prima apertura chiede il permesso. Non arrivano se l'app è «Arrestata forzatamente»: basta riaprirla.
+* **ntfy** (tutti): `AscoltoNtfy` è un servizio in primo piano (`specialUse`, notifica fissa «KlippEye in ascolto» sul canale
+  `ascolto`, il meno visibile) che legge `<server>/<argomento>/json` riga per riga, si ricollega da solo (5 s → 60 s) e recupera i
+  messaggi persi con `since=<ultimo id>`. Riparte all'accensione del telefono e dopo un aggiornamento (`RiavvioAscolto`). Il canale
+  Android viene dalla priorità ntfy (5 allarmi, 4 avvisi, 3 stampa: la stessa tabella di `KIND_NTFY` nel notifier).
+* **Firebase** (solo l'installazione di chi mantiene il progetto): il Raspberry dà l'argomento Firebase **solo se ha la chiave**
+  (`service-account.json`); l'app vi si iscrive (anche prima della procedura, come con la 1.2.0) e se ne cancella quando non c'è più.
+  L'argomento scritto nelle app fino alla 1.2.0 era pubblico: l'app se ne cancella sempre e il Raspberry lo sostituisce con uno
+  segreto (`klippeye-fb-…`) la prima volta che una app 1.3.0 lo chiede.
+  Per chi mantiene il progetto: `google-services.json` del progetto Firebase (app Android `com.klippeye.app`) nel segreto
+  `GOOGLE_SERVICES_JSON`; la chiave del service account dello stesso progetto è `~/printer_data/klippeye/service-account.json` sul
+  proprio Raspberry, con `"topic"` in `notifier.json`. Senza Firebase l'app si costruisce lo stesso e usa ntfy.
+* Ponte (app 6): `notifySetup(json)`, `notifyState()`, `askNotificationPermission()`, `askBatteryExemption()`,
+  `openNotificationSettings()`; l'app avvisa la pagina con `window.klippeyeNotifyState(stato)`.
+* Canali (Impostazioni → App → KlippEye → Notifiche): `allarmi`, `avvisi`, `stampa`, `ascolto`. Con l'app aperta le notifiche
+  Firebase le mostra `KlippEyeMessagingService`.
 
 ## Icona e splash
 

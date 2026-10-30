@@ -26,6 +26,9 @@ TOPIC = re.compile(r"^[-_A-Za-z0-9]{1,64}$")
 SERVER = re.compile(r"^https?://[A-Za-z0-9.\-]+(:\d{1,5})?(/[A-Za-z0-9._~\-/]*)?$")
 TOKEN = re.compile(r"^[A-Za-z0-9._~+/=\-]{0,200}$")
 TEST_TIMEOUT_S = 45
+# the Firebase topic built into the Android app up to 1.2.0, public in the repository: replaced by a secret one the first time
+# an app of 1.3.0 or later asks for the settings (it no longer has a topic of its own: it takes the one of its Raspberry)
+PUBLIC_FIREBASE_TOPICS = ("vzbot-pp3zt27qxb49fw3fsbvv",)
 
 
 class ChannelError(ValueError):
@@ -91,6 +94,24 @@ class NotifyChannels:
             "web": server + "/" + topic if topic else "",
         }
         return {"ntfy": ntfy, "firebase": self._firebase(raw), "install_command": "bash " + os.path.join(self.repo_dir, "scripts", "install.sh")}
+
+    def for_app(self):
+        """What the KlippEye app (1.3.0+) needs to receive on its own: the ntfy server, topic and token (when ntfy is on) and,
+        only where Firebase is set up (the key is on this Raspberry), the Firebase topic. A topic that was public is replaced."""
+        raw = self._raw()
+        one = raw.get("ntfy") if isinstance(raw.get("ntfy"), dict) else {}
+        topic = str(one.get("topic") or "")
+        ntfy = None
+        if one.get("enabled") and TOPIC.match(topic):
+            ntfy = {"server": str(one.get("server") or NTFY_DEFAULT_SERVER).rstrip("/"), "topic": topic, "token": str(one.get("token") or "")}
+        firebase_topic = ""
+        if self._firebase(raw)["on"]:
+            firebase_topic = str(raw.get("topic"))
+            if firebase_topic in PUBLIC_FIREBASE_TOPICS or not TOPIC.match(firebase_topic):
+                firebase_topic = "klippeye-fb-" + new_topic()[len(TOPIC_PREFIX):]
+                raw["topic"] = firebase_topic
+                self.write_json(self.path, raw, private=True)
+        return {"ntfy": ntfy, "firebaseTopic": firebase_topic}
 
     def set_ntfy(self, body):
         """{enabled: bool, new_topic: bool, server: str, token: str | null, click: str}: only the keys given change.

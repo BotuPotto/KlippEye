@@ -243,33 +243,37 @@ L'app Android è una finestra a tutto schermo sulla dashboard, con notifiche pus
   una finestra *Indirizzi*.
 
 Le **notifiche push** (stampa completata, errore, pausa, filamento finito, allarmi dell'IA) le manda il servizio
-`klippeye-notifier`, sempre acceso dal 1.20.0 (fa anche la pausa / l'annullamento automatici scelti nel monitor IA). Arrivano
-al telefono attraverso un **canale**:
+`klippeye-notifier`, sempre acceso dal 1.20.0 (fa anche la pausa / l'annullamento automatici scelti nel monitor IA). Le
+notifiche viaggiano su [ntfy](https://ntfy.sh), un servizio gratuito: nessun account e nessuna chiave. KlippEye crea un
+indirizzo privato (`klippeye-` + 16 lettere e cifre) che conoscono solo i tuoi telefoni.
 
-**ntfy (consigliato, nessun account, nessuna chiave).** L'app gratuita [ntfy](https://ntfy.sh) (Android e iPhone) ascolta un
-indirizzo privato creato da KlippEye:
+**Con l'app KlippEye (Android, dalla 1.3.0) non serve altro.** Alla prima apertura l'app chiede *«Vuoi ricevere le notifiche
+della stampante su questo telefono?»*: **Imposta** apre la procedura guidata (**Impostazioni → Notifiche → Questo telefono**):
 
-1. **Impostazioni → Notifiche → Attiva le notifiche con ntfy**. KlippEye crea un argomento casuale (`klippeye-` + 16 lettere e
-   cifre) che conoscono solo i tuoi telefoni.
-2. Installa l'app **ntfy** (Google Play, F-Droid o App Store: i pulsanti sono nella pagina).
-3. **Inquadra il codice QR** con la fotocamera del telefono: si apre ntfy e si iscrive da sola. Dal browser del telefono basta
-   toccare **Apri nell'app ntfy**; oppure aggiungilo a mano nell'app (pulsante +) con il server e l'argomento mostrati.
-4. **Invia una notifica di prova**: la pagina dice per ogni canale se è partita.
+1. **Consenti le notifiche** (la finestra di Android).
+2. **Crea l'indirizzo privato sul Raspberry** (un tocco).
+3. **Ricevi su questo telefono**: l'app ascolta da sola, anche chiusa e dopo un riavvio del telefono. Una piccola notifica fissa
+   *«KlippEye in ascolto»* segnala il collegamento aperto: tienila premuta per nasconderla.
+4. **Lascia KlippEye sveglia**: consenti a KlippEye di funzionare senza limiti di batteria, altrimenti Android la addormenta e le
+   notifiche arrivano in ritardo.
+5. **Controlla che arrivi**: KlippEye manda una prova e la pagina conferma da sola quando arriva sul telefono.
 
-Più telefoni possono inquadrare lo stesso codice. Chi conosce l'argomento può leggere le notifiche: non condividere il codice;
-**Nuovo indirizzo** ne crea un altro (i telefoni vanno abbinati di nuovo). Se su Android arrivano in ritardo, nell'app ntfy apri
-l'argomento e attiva *Consegna istantanea*. Con un **server ntfy tuo** scrivi il suo indirizzo (e un token, se lo chiede) in
-*Un server ntfy tuo*. Non serve riavviare niente: il servizio legge da solo la modifica.
+*Non ricevere su questo telefono* la spegne solo su quel telefono. Se cambi indirizzo dalla dashboard, le app KlippEye si
+aggiornano da sole la volta dopo che le apri.
 
-**Firebase (solo con un'app KlippEye compilata da te).** La strada delle release precedenti funziona come prima: serve un progetto
-Firebase comune all'app e al Raspberry (`service-account.json` e `topic` in `~/printer_data/klippeye/notifier.json`, e il
-`google-services.json` dello stesso progetto dentro l'app; vedi l'appendice A). Se ntfy e Firebase sono entrambi attivi, ogni
-notifica parte da tutti e due.
+**Altri telefoni (iPhone, o chi preferisce l'app ntfy).** Nella stessa pagina, dal browser o sotto *Altri telefoni*:
+installa l'app gratuita **ntfy** (Google Play, F-Droid, App Store), **inquadra il codice QR** con la fotocamera (dal browser del
+telefono basta toccare *Apri nell'app ntfy*, oppure aggiungi a mano server e argomento) e **invia una notifica di prova**. Più
+telefoni possono inquadrare lo stesso codice.
 
-Se la pagina dice che il servizio delle notifiche non si è fatto vivo (installazioni precedenti al 1.20.0 senza Firebase),
-esegui una volta sul Raspberry il comando che la pagina mostra (`bash ~/klippeye/scripts/install.sh`). Dal terminale:
-`klippeye notify test` (prova) e `klippeye notify check` (controllo). La lingua delle notifiche si sceglie in **Impostazioni →
-Notifiche**; in `notifier.json` puoi anche scrivere testi tuoi (`"messages": {"complete": "Fatto!"}`).
+Chi conosce l'indirizzo può leggere le notifiche: non condividere il codice; **Nuovo indirizzo** ne crea un altro (i telefoni con
+l'app ntfy vanno abbinati di nuovo). Con un **server ntfy tuo** scrivi il suo indirizzo (e un token, se lo chiede) in *Un server
+ntfy tuo*. Non serve riavviare niente: il servizio legge da solo la modifica.
+
+Se la pagina dice che il servizio delle notifiche non si è fatto vivo (installazioni precedenti al 1.20.0), esegui una volta sul
+Raspberry il comando che la pagina mostra (`bash ~/klippeye/scripts/install.sh`). Dal terminale: `klippeye notify test` (prova) e
+`klippeye notify check` (controllo). La lingua delle notifiche si sceglie in **Impostazioni → Notifiche**; in `notifier.json` puoi
+anche scrivere testi tuoi (`"messages": {"complete": "Fatto!"}`).
 
 ## 7. Password e sicurezza
 
@@ -343,21 +347,16 @@ I nomi italiani delle release precedenti (`stato`, `riavvia`, `aggiorna`…) fun
 
 ## A. Costruire la propria app Android
 
-Serve solo per le notifiche via Firebase (sezione 6: ntfy non ha bisogno di niente di questo) o per modificare l'app. GitHub costruisce l'app gratis per i repository pubblici.
+Serve solo per modificare l'app (le notifiche non ne hanno bisogno: sezione 6). GitHub costruisce l'app gratis per i repository pubblici.
 
 1. Fai un **fork** del repository su GitHub e installa KlippEye dal tuo fork (`git clone https://github.com/<tu>/KlippEye.git`).
 2. **Password della chiave di firma**: Android aggiorna un'app solo se è firmata sempre con la stessa chiave. GitHub crea la chiave
    la prima volta e la cifra con una password che scegli tu: nel repository **Settings → Secrets and variables → Actions → New
    repository secret**, nome **`KLIPPEYE_CHIAVE_PASSWORD`**, valore una frase lunga (almeno 16 caratteri, su una riga). Conservala.
-3. **Firebase** (per le notifiche): crea un progetto Firebase, aggiungi un'app Android con nome del pacchetto `com.klippeye.app`,
-   scarica il suo `google-services.json` e metti tutto il suo contenuto in un secondo segreto, **`GOOGLE_SERVICES_JSON`**. Nello
-   stesso progetto crea una chiave del service account (*Impostazioni progetto → Account di servizio → Genera nuova chiave privata*):
-   quel file è il `service-account.json` del Raspberry. Scegli un tuo argomento privato in
-   `android/app/src/main/res/values/notifiche.xml` e usa lo stesso in `notifier.json`.
-4. **Settings → Actions → General → Workflow permissions → Read and write permissions** (il workflow salva l'app in `apk/`).
-5. **Actions → App Android → Run workflow**. Dopo 5–10 minuti l'app è in `apk/`; aggiorna KlippEye dalla dashboard e installa l'app da
+3. **Settings → Actions → General → Workflow permissions → Read and write permissions** (il workflow salva l'app in `apk/`).
+4. **Actions → App Android → Run workflow**. Dopo 5–10 minuti l'app è in `apk/`; aggiorna KlippEye dalla dashboard e installa l'app da
    Impostazioni → Aggiornamenti → App Android (prima disinstalla un'app firmata con un'altra chiave).
-6. **Una versione nuova dell'app**: alza il numero in `android/VERSION` (tre numeri, per esempio `1.2.1`); GitHub la costruisce da solo.
+5. **Una versione nuova dell'app**: alza il numero in `android/VERSION` (tre numeri, per esempio `1.2.1`); GitHub la costruisce da solo.
 
 Quando il workflow si ferma spiega a parole cosa non va (segreto mancante, password corta, chiave diversa da quella dell'app
 pubblicata…). Dettagli tecnici: [android/README.md](../android/README.md).

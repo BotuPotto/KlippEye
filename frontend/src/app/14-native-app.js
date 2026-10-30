@@ -19,6 +19,7 @@ const APP_CAN_PICK_FILES = !IN_APP_WEBVIEW || APP_VERSION >= 2;
 const APP_CAN_SAVE_FILES = !IN_APP_WEBVIEW || APP_VERSION >= 3;
 const APP_KNOWS_ADDRESSES = APP_VERSION >= 4;
 const APP_CAN_UPDATE = APP_VERSION >= 5;
+const APP_CAN_NOTIFY = APP_VERSION >= 6; // receives the notifications by itself (app 1.3.0: notifySetup / notifyState, 59i)
 
 /**
  * Saves a file of the Raspberry as `name`. `url` is an address on this server ("/server/files/config/printer.cfg").

@@ -53,6 +53,11 @@ function useSettingsMenu() {
       settingsStore.pull(); // another device may have changed something
     },
     close: () => setOpen(false),
+    /** Opens the menu straight on one page (the invitation to set up the notifications of this phone). */
+    openPage: (id) => {
+      setPage(id);
+      setOpen(true);
+    },
     goTo: setPage,
     back: () => setPage((current) => PAGE_PARENT[current] || null),
     ask: setQuestion,
@@ -552,7 +557,8 @@ function NotificationsPage({ active }) {
     React.Fragment,
     null,
     h(ServiceLine, { status, installCommand: channels.data && channels.data.install_command }),
-    h(SettingsGroup, { title: tx("Where they arrive") }, h(NotificationChannels, { store: channels })),
+    IN_APP_WEBVIEW && h(SettingsGroup, { title: tx("This phone") }, h(PhoneNotifications, { store: channels })),
+    h(SettingsGroup, { title: IN_APP_WEBVIEW ? tx("Other phones (ntfy app, iPhone)") : tx("Where they arrive") }, h(NotificationChannels, { store: channels })),
     h(
       SettingsGroup,
       { title: tx("Which notifications to receive"), note: tx("They apply to every phone with the app. The text is the one of the notification.") },

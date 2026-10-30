@@ -18,10 +18,10 @@ import com.google.firebase.FirebaseApp
 import com.google.firebase.messaging.FirebaseMessaging
 
 /**
- * Notifiche push (Firebase Cloud Messaging): canali, iscrizione all'argomento privato e notifiche ricevute con l'app aperta.
+ * Le notifiche mostrate dall'app: canali, iscrizione Firebase e notifiche ricevute (da Firebase con l'app aperta, o da ntfy).
  *
- * Il Raspberry (klippeye_notifier.py) manda a Firebase un messaggio per l'argomento `notification_topic`; Firebase lo recapita
- * a tutti i telefoni iscritti. Con l'app chiusa la notifica la mostra il telefono da solo, usando il canale scritto nel
+ * Firebase (solo l'installazione di chi mantiene il progetto, vedi [Ascolto]): il Raspberry (klippeye_notifier.py) manda a
+ * Firebase un messaggio per l'argomento privato che ha dato all'app; Firebase lo recapita a tutti i telefoni iscritti. Con l'app chiusa la notifica la mostra il telefono da solo, usando il canale scritto nel
  * messaggio (per questo i canali vanno creati subito, appena l'app parte). Con l'app aperta Android non la mostra:
  * arriva a [KlippEyeMessagingService], che la mostra qui con [mostra].
  */
@@ -32,6 +32,7 @@ object Notifiche {
     const val CANALE_ALLARMI = "allarmi" // stampante in errore, filamento esaurito, difetti gravi
     const val CANALE_AVVISI = "avvisi" //   pausa, stampa interrotta, difetti rilevati
     const val CANALE_STAMPA = "stampa" //   stampa completata, prova
+    const val CANALE_ASCOLTO = "ascolto" //  la notifica fissa "KlippEye in ascolto" (ntfy), la meno visibile possibile
 
     /** Il canale di un tipo di notifica (il campo "type" del messaggio). */
     fun canalePer(tipo: String?): String = when (tipo) {
@@ -40,7 +41,14 @@ object Notifiche {
         else -> CANALE_AVVISI
     }
 
-    /** Crea i tre canali (Android 8+). Si puo' chiamare quante volte si vuole: se esistono gia' non cambia nulla. */
+    /** Il tipo di una notifica ntfy dalla sua priorita' (le stesse di KIND_NTFY in klippeye_notifier.py): 5 allarme, 4 avviso. */
+    fun tipoDaPriorita(priorita: Int): String = when {
+        priorita >= 5 -> "error"
+        priorita == 4 -> "paused"
+        else -> "complete"
+    }
+
+    /** Crea i canali (Android 8+). Si puo' chiamare quante volte si vuole: se esistono gia' non cambia nulla. */
     fun creaCanali(context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val manager = context.getSystemService(NotificationManager::class.java) ?: return
@@ -58,27 +66,51 @@ object Notifiche {
                 description = "Fine stampa e notifiche di prova"
                 lockscreenVisibility = Notification.VISIBILITY_PUBLIC
             }
-            manager.createNotificationChannels(listOf(allarmi, avvisi, stampa))
+            val ascolto = NotificationChannel(CANALE_ASCOLTO, "KlippEye in ascolto", NotificationManager.IMPORTANCE_MIN).apply {
+                description = "La notifica fissa che tiene aperto il collegamento per ricevere le notifiche. Si puo' nascondere."
+                setShowBadge(false)
+            }
+            manager.createNotificationChannels(listOf(allarmi, avvisi, stampa, ascolto))
         }
     }
 
+    /** L'app e' stata costruita con google-services.json (Firebase configurato). */
+    fun firebasePronto(context: Context): Boolean = try {
+        FirebaseApp.getApps(context).isNotEmpty()
+    } catch (e: Exception) {
+        false
+    }
+
+    fun permessoConcesso(context: Context): Boolean =
+        Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+
     /**
-     * Si iscrive all'argomento privato. Firebase ricorda l'iscrizione e, se ora manca la rete, la completa appena torna.
-     * Restituisce false se l'app e' stata costruita senza google-services.json (Firebase non e' configurato).
+     * Iscrive il telefono all'argomento Firebase `argomento` ("" = a nessuno), togliendo quello di prima e quello scritto dentro
+     * le app fino alla 1.2.0. Firebase ricorda le iscrizioni e, senza rete, le completa appena torna.
      */
-    fun iscrivi(context: Context, alTermine: ((Boolean) -> Unit)? = null): Boolean {
-        if (FirebaseApp.getApps(context).isEmpty()) return false
-        FirebaseMessaging.getInstance().subscribeToTopic(context.getString(R.string.notification_topic))
-            .addOnCompleteListener { task ->
-                if (!task.isSuccessful) Log.w(TAG, "Iscrizione non riuscita", task.exception)
-                alTermine?.invoke(task.isSuccessful)
+    fun iscriviFirebase(context: Context, argomento: String) {
+        if (!firebasePronto(context)) return
+        val preferenze = context.getSharedPreferences("klippeye_notifiche", Context.MODE_PRIVATE)
+        val prima = preferenze.getString("firebase_iscritto", "") ?: ""
+        val messaging = FirebaseMessaging.getInstance()
+        if (!preferenze.getBoolean("vecchio_tolto", false)) {
+            messaging.unsubscribeFromTopic(Ascolto.ARGOMENTO_VECCHIO).addOnCompleteListener { task ->
+                if (task.isSuccessful) preferenze.edit().putBoolean("vecchio_tolto", true).apply()
             }
-        return true
+        }
+        if (prima.isNotEmpty() && prima != argomento) messaging.unsubscribeFromTopic(prima)
+        if (argomento.isNotEmpty()) {
+            messaging.subscribeToTopic(argomento).addOnCompleteListener { task ->
+                if (!task.isSuccessful) Log.w(TAG, "Iscrizione non riuscita", task.exception)
+            }
+        }
+        preferenze.edit().putString("firebase_iscritto", argomento).apply()
     }
 
     /** Mostra una notifica (usata con l'app aperta). Una nuova notifica dello stesso tipo prende il posto della precedente. */
     @SuppressLint("MissingPermission") // il permesso e' controllato qui sotto
-    fun mostra(context: Context, tipo: String?, titolo: String, testo: String) {
+    fun mostra(context: Context, tipo: String?, titolo: String, testo: String, etichetta: String? = null) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
         ) {
@@ -102,6 +134,6 @@ object Notifiche {
             .setAutoCancel(true)
             .setContentIntent(apriApp)
             .build()
-        NotificationManagerCompat.from(context).notify(tipo ?: "klippeye", 1, notifica)
+        NotificationManagerCompat.from(context).notify(if (etichetta.isNullOrEmpty()) tipo ?: "klippeye" else etichetta, 1, notifica)
     }
 }

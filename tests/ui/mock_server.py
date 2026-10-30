@@ -240,7 +240,7 @@ def mock_reset():
     S.clear(); S.update(default_state()); return jsonify(ok=True)
 @app.route("/__mock/state")
 def mock_state():
-    return jsonify({k: v for k, v in S.items() if k in ("light", "light_cmds", "light_reads", "actions", "webhooks", "webhooks_msg", "disconnected", "moonraker_down", "host_off", "services", "update_log", "brain_cfg_log", "brain_release", "brain_started", "klippeye_info", "pending_release", "logos", "app_apk_hits", "app_apk_downloads", "update_channel", "channel_posts", "rec_posts", "measure_starts", "recordings", "alerts", "pm_macros", "pm_wraps", "pm_posts", "gcode_log", "ntfy", "ntfy_posts", "ntfy_tests")})
+    return jsonify({k: v for k, v in S.items() if k in ("light", "light_cmds", "light_reads", "actions", "webhooks", "webhooks_msg", "disconnected", "moonraker_down", "host_off", "services", "update_log", "brain_cfg_log", "brain_release", "brain_started", "klippeye_info", "pending_release", "logos", "app_apk_hits", "app_apk_downloads", "update_channel", "channel_posts", "rec_posts", "measure_starts", "recordings", "alerts", "pm_macros", "pm_wraps", "pm_posts", "gcode_log", "ntfy", "ntfy_posts", "ntfy_tests", "ntfy_app_reads")})
 @app.route("/__mock/print_actions")
 def mock_print_actions():
     return jsonify(S.get("print_actions", []))
@@ -322,6 +322,12 @@ def notify_ntfy():
     if body.get("new_topic") or (n["enabled"] and not n["topic"]):
         n["topic"] = "klippeye-%016d" % len(S["ntfy_posts"])
     return _channels()
+@app.route("/api/notifications/app", methods=["GET"])
+def notify_app():
+    n = S["ntfy"]
+    S["ntfy_app_reads"] = S.get("ntfy_app_reads", 0) + 1
+    ntfy = {"server": n["server"], "topic": n["topic"], "token": ""} if n["enabled"] and n["topic"] else None
+    return jsonify(ok=True, ntfy=ntfy, firebaseTopic="klippeye-fb-secret0000000000" if S["firebase_on"] else "")
 @app.route("/api/notifications/test", methods=["POST"])
 def notify_test():
     S["ntfy_tests"] += 1

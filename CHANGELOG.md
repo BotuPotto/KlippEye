@@ -1,5 +1,24 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.21.0
+
+**The KlippEye app receives the notifications by itself** (roadmap phase 5d, Android app 1.3.0). No ntfy app, no account, no
+key: open the app, follow the guided procedure, done.
+
+* **Settings → Notifications → This phone** (in the app): five guided steps (allow the notifications, make the private address,
+  receive on this phone, let KlippEye stay awake, check that it arrives). The page confirms by itself when the test notification
+  reaches the phone. The first time the app opens it asks whether to set them up. *Do not receive on this phone* turns them off
+  on that phone only.
+* The app listens to the private ntfy topic itself, also when closed and after the phone restarts (a small fixed notification
+  "KlippEye in ascolto", which can be hidden), and catches up with the messages missed while offline. The dashboard keeps the app
+  in step with the Raspberry (a new address, ntfy turned off) every time it is opened.
+* **Firebase is only for the installation where its key is**: the app no longer has a Firebase topic built in (the one of the
+  apps up to 1.2.0 was public in the repository, so anyone installing the published app could receive those notifications). The
+  app takes the topic from its Raspberry, which gives it only when it has the Firebase key, and replaces the old public topic with
+  a secret one the first time. The guides no longer explain Firebase; the maintainer's notes are in `android/README.md`.
+* Phones without the KlippEye app (iPhone, or the ntfy app by choice) keep the QR-code procedure, under *Other phones*.
+* Every pull request now compiles the Android app (before, only the merge did).
+
 ## 1.20.0
 
 **Notifications without a Firebase of your own** (roadmap phase 5c). Until now push notifications needed your own Firebase
