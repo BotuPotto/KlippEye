@@ -693,7 +693,7 @@ with sync_playwright() as p:
     close_menu(P); P.settle(800)
     other = [r for r in P.reqs if r["m"] != "GET" and "/server/database/item" not in r["u"]]
     ok("looking at every page of the menu sends nothing to the printer (no G-code, no commands)", not other and mock.gcode() == [], (other, mock.gcode()))
-    ok("... and reads only the settings, the service's key and the update channel", all("/server/database/item" in r["u"] or r["u"].split("?")[0].startswith(POLL_PATHS + ("/api/update/channel", "/api/ai/config")) or r["u"].startswith("EXT") for r in P.reqs if r["m"] == "GET"), [r["u"] for r in P.reqs if r["m"] == "GET" and "/server/database/item" not in r["u"] and not r["u"].split("?")[0].startswith(POLL_PATHS)][:5])
+    ok("... and reads only the settings, the service's key, the notification channels and the update channel", all("/server/database/item" in r["u"] or r["u"].split("?")[0].startswith(POLL_PATHS + ("/api/update/channel", "/api/ai/config", "/api/notifications/channels")) or r["u"].startswith("EXT") for r in P.reqs if r["m"] == "GET"), [r["u"] for r in P.reqs if r["m"] == "GET" and "/server/database/item" not in r["u"] and not r["u"].split("?")[0].startswith(POLL_PATHS)][:5])
     ok("no errors in the page", not P.errors, P.errors[:3])
     P.close()
     b.close()

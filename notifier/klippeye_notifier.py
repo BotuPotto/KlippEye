@@ -2,8 +2,14 @@
 """
 KlippEye push notifications.
 
-Runs on the Raspberry next to Klipper and Moonraker and sends a push notification to the phone (through Firebase
-Cloud Messaging, the service every Android app uses for push) when something happens:
+Runs on the Raspberry next to Klipper and Moonraker and sends a push notification to the phone when something happens.
+From version 1.6 (KlippEye 1.20.0) a notification goes out through every "channel" that is set up:
+    ntfy       the free ntfy app (Android and iPhone) listening to a private random topic, on ntfy.sh or on a server of your
+               own. Set up from the dashboard (Settings -> Notifications), nothing to build or sign up for.
+    Firebase   Firebase Cloud Messaging to a KlippEye app built for your own Firebase project (service-account.json): the
+               way of the releases before 1.20.0, still working as it was.
+With no channel the service runs anyway: it still does the automatic pause / cancel chosen in the dashboard.
+The events:
 
     error      Klipper in shutdown / error, or a print ending in error
     complete   print finished
@@ -58,7 +64,7 @@ import urllib.request
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-__version__ = "1.5"
+__version__ = "1.6"
 
 LOG = logging.getLogger("klippeye-notifier")
 
@@ -135,6 +141,9 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "message_ttl_seconds": 6 * 3600,  # Google keeps a message this long when the phone is switched off / offline
     "retry_give_up_seconds": 3 * 3600,
     "retry_seconds": 5,  # first wait before sending again after a failure (then doubles, up to 60)
+    # ntfy (1.6): the private topic the ntfy app listens to. Written by the dashboard (Settings -> Notifications) through
+    # the backend; "token" is only for a server of your own that wants one; "click" is the page opened by tapping a notification
+    "ntfy": {"enabled": False, "server": "https://ntfy.sh", "topic": "", "token": "", "click": ""},
     # for tests only
     "fcm_url": "https://fcm.googleapis.com/v1/projects/{project}/messages:send",
 }
@@ -153,6 +162,20 @@ KIND_CHANNEL = {
 }
 
 
+# ntfy: the priority (5 urgent ... 3 default) and the emoji tags of each kind of notification
+KIND_NTFY = {
+    "error": (5, "rotating_light"),
+    "runout": (5, "warning"),
+    "ai_cancel": (5, "x"),
+    "ai_pause": (4, "pause_button"),
+    "paused": (4, "pause_button"),
+    "cancelled": (4, "stop_sign"),
+    "complete": (3, "white_check_mark"),
+    "test": (3, "bell"),
+}
+NTFY_TOPIC = re.compile(r"^[-_A-Za-z0-9]{1,64}$")
+
+
 def merge(defaults: Dict[str, Any], given: Dict[str, Any]) -> Dict[str, Any]:
     """`given` over `defaults`, one level of dictionaries deep (so a config may list only the messages it changes)."""
     result = dict(defaults)
@@ -165,8 +188,14 @@ def merge(defaults: Dict[str, Any], given: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def load_config(path: str) -> Dict[str, Any]:
-    with open(path, "r", encoding="utf-8") as handle:
-        given = json.load(handle)
+    """The settings of notifier.json over the defaults. No file yet (1.6): the defaults, so the service runs with no channel."""
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            given = json.load(handle)
+    except FileNotFoundError:
+        given = {}
+    if not isinstance(given, dict):
+        raise ValueError("the file does not hold a JSON object")
     unknown = [key for key in given if key not in DEFAULT_CONFIG and not key.startswith("_")]
     if unknown:
         LOG.warning("Unknown entries in %s (ignored): %s", path, ", ".join(unknown))
@@ -175,6 +204,7 @@ def load_config(path: str) -> Dict[str, Any]:
     if not os.path.isabs(config["service_account_file"]):
         config["service_account_file"] = os.path.join(base, config["service_account_file"])
     config["_token_file"] = os.path.join(base, "internal.token")  # written by the backend (1.2.0): needed when the password is on
+    config["_path"] = os.path.abspath(path)
     return config
 
 
@@ -199,6 +229,7 @@ def brain_headers(config: Dict[str, Any]) -> Dict[str, str]:
 class Notice:
     kind: str
     text: str
+    sent_to: set = field(default_factory=set, compare=False, repr=False)  # the channels that already have it (retries skip them)
 
 
 @dataclass
@@ -906,6 +937,126 @@ class FcmSender:
             raise SendError("Firebase ha risposto %s: %s" % (status, detail or answer), retry=retry)
 
 
+def firebase_ready(config: Dict[str, Any]) -> bool:
+    """Firebase is set up: a topic and the key file it signs in with."""
+    return bool(config.get("topic")) and os.path.isfile(config.get("service_account_file") or "")
+
+
+def ntfy_ready(config: Dict[str, Any]) -> bool:
+    one = config.get("ntfy") or {}
+    return bool(one.get("enabled")) and bool(NTFY_TOPIC.match(str(one.get("topic") or ""))) and bool(one.get("server"))
+
+
+def build_ntfy(config: Dict[str, Any], notice: Notice) -> Dict[str, Any]:
+    """The ntfy message (JSON publishing: the texts may have any letter, which headers could not carry)."""
+    one = config["ntfy"]
+    priority, tag = KIND_NTFY.get(notice.kind, (3, "bell"))
+    message = {"topic": one["topic"], "title": config["title"], "message": notice.text, "priority": priority, "tags": [tag]}
+    if one.get("click"):
+        message["click"] = one["click"]
+    return message
+
+
+class NtfySender:
+    """Sends to an ntfy server (https://ntfy.sh by default): POST of a JSON message to the server's root."""
+
+    def __init__(self, config: Dict[str, Any]) -> None:
+        if not ntfy_ready(config):
+            raise ValueError("ntfy is not set up (no topic)")
+        self.config = config
+        self.url = str(config["ntfy"]["server"]).rstrip("/") + "/"
+
+    def send(self, notice: Notice) -> None:
+        headers = {"User-Agent": "KlippEye-notifier/" + __version__}
+        if self.config["ntfy"].get("token"):
+            headers["Authorization"] = "Bearer " + str(self.config["ntfy"]["token"])
+        try:
+            status, answer = http_json(self.url, "POST", build_ntfy(self.config, notice), headers, timeout=20)
+        except OSError as error:
+            raise SendError("ntfy not reachable (%s)" % error)
+        if 200 <= status < 300:
+            return
+        detail = answer.get("error", "") if isinstance(answer, dict) else str(answer)[:200]
+        raise SendError("ntfy answered %s: %s" % (status, detail), retry=status in (429, 500, 502, 503, 504))
+
+
+CHANNEL_NAMES = ("ntfy", "firebase")
+
+
+def make_senders(config: Dict[str, Any]) -> List[Tuple[str, Callable[[Notice], None]]]:
+    """[(channel name, send)] for every channel that is set up. A channel set up wrongly is logged and left out."""
+    senders: List[Tuple[str, Callable[[Notice], None]]] = []
+    for name, ready, make in (("ntfy", ntfy_ready, NtfySender), ("firebase", firebase_ready, FcmSender)):
+        if not ready(config):
+            continue
+        try:
+            senders.append((name, make(config).send))
+        except (OSError, ValueError) as error:
+            LOG.error("The %s channel cannot be used: %s", name, error)
+    return senders
+
+
+class Channels:
+    """Sends a notice through every channel that is set up. notifier.json is read again when it changes (the dashboard
+    turns ntfy on or makes a new topic while the service runs). A notice already sent through a channel is not sent
+    through it again when another channel fails and the outbox retries."""
+
+    def __init__(self, config: Dict[str, Any]) -> None:
+        self.config = config
+        self.path = config.get("_path")
+        self.stamp = self._stamp()
+        self.senders = make_senders(config)
+        self._said_none = False
+        self._log_channels()
+
+    def _stamp(self) -> Any:
+        try:
+            info = os.stat(self.path) if self.path else None
+            return (info.st_mtime, info.st_size) if info else None
+        except OSError:
+            return None
+
+    def _log_channels(self) -> None:
+        names = [name for name, _ in self.senders]
+        LOG.info("Channels: %s", ", ".join(names) if names else "none (notifications are set up in the dashboard: Settings -> Notifications)")
+
+    def refresh(self) -> None:
+        stamp = self._stamp()
+        if stamp == self.stamp or not self.path:
+            return
+        self.stamp = stamp
+        try:
+            fresh = load_config(self.path)
+        except (OSError, ValueError) as error:
+            LOG.error("notifier.json changed but cannot be read (%s): the channels stay as they were", error)
+            return
+        for key in ("ntfy", "topic", "title", "service_account_file", "project_id", "message_ttl_seconds", "fcm_url"):
+            self.config[key] = fresh[key]
+        self.senders = make_senders(self.config)
+        self._said_none = False
+        self._log_channels()
+
+    def send(self, notice: Notice) -> None:
+        self.refresh()
+        if not self.senders:
+            if not self._said_none:
+                LOG.warning("No channel is set up: notifications are not sent (Settings -> Notifications in the dashboard)")
+                self._said_none = True
+            return
+        failures: List[SendError] = []
+        for name, send in self.senders:
+            if name in notice.sent_to:
+                continue
+            try:
+                send(notice)
+                notice.sent_to.add(name)
+            except SendError as error:
+                LOG.warning("%s: %s", name, error)
+                failures.append(SendError("%s: %s" % (name, error), retry=error.retry))
+        if failures:
+            raise SendError("; ".join(str(error) for error in failures), retry=any(error.retry for error in failures))
+
+
 class Outbox:
     """Sends notices in the background, so a slow or missing internet never stops the watching; retries for a while."""
 
@@ -1043,7 +1194,7 @@ class SelfWatch:
 def run(config: Dict[str, Any], dry_run: bool, stop: threading.Event, outbox_sender: Optional[Callable[[Notice], None]] = None, watch_file: Optional[str] = None) -> Outbox:
     sender = outbox_sender
     if sender is None and not dry_run:
-        sender = FcmSender(config).send
+        sender = Channels(config).send
     outbox = Outbox(sender or (lambda notice: None), float(config["retry_give_up_seconds"]), dry_run)
     outbox.retry_first = float(config["retry_seconds"])
     outbox.start()
@@ -1103,12 +1254,22 @@ def command_check(config: Dict[str, Any]) -> int:
 
     print("Checking the KlippEye notifier %s" % __version__)
     token: Optional[GoogleToken] = None
-    try:
-        token = GoogleToken(config["service_account_file"])
-        report(True, "Firebase key found (project: %s)" % (config["project_id"] or token.project_id), "")
-    except (OSError, ValueError) as error:
-        report(False, "", "Firebase key not usable: %s (file: %s)" % (error, config["service_account_file"]))
-    report(bool(config["topic"]), "Topic set: %s" % config["topic"], "notifier.json has no \"topic\" (it must be the same as the app's)")
+    channels = 0
+    if ntfy_ready(config):
+        channels += 1
+        report(True, "ntfy: on (server %s, private topic set)" % config["ntfy"]["server"], "")
+    elif (config.get("ntfy") or {}).get("enabled"):
+        report(False, "", "ntfy is on but its topic or server is not valid: turn it on again from the dashboard (Settings -> Notifications)")
+    if config["topic"] or os.path.isfile(config["service_account_file"]):
+        try:
+            token = GoogleToken(config["service_account_file"])
+            report(True, "Firebase key found (project: %s)" % (config["project_id"] or token.project_id), "")
+        except (OSError, ValueError) as error:
+            report(False, "", "Firebase key not usable: %s (file: %s)" % (error, config["service_account_file"]))
+        report(bool(config["topic"]), "Firebase topic set: %s" % config["topic"], "notifier.json has no \"topic\" for Firebase (it must be the same as the app's)")
+        channels += 1 if token is not None and config["topic"] else 0
+    if channels == 0 and problems == 0:
+        report(False, "", "No notification channel is set up: turn ntfy on in the dashboard (Settings -> Notifications). The automatic pause / cancel work anyway.", required=False)
     try:
         status, info = http_json(config["moonraker_url"].rstrip("/") + "/printer/info")
         ok = status == 200 and isinstance(info, dict)
@@ -1133,6 +1294,13 @@ def command_check(config: Dict[str, Any]) -> int:
             report(False, "", "Moonraker's database answers %s: the choices of the dashboard menu will not arrive" % status, required=False)
     except OSError:
         pass  # Moonraker's own problem is reported above
+    if ntfy_ready(config):
+        server = str(config["ntfy"]["server"]).rstrip("/")
+        try:
+            status, _ = http_json(server + "/v1/health", timeout=10)
+            report(status == 200, "ntfy server reached (%s)" % server, "The ntfy server answers %s at %s" % (status, server), required=False)
+        except OSError as error:
+            report(False, "", "ntfy server not reachable at %s (%s): does the Raspberry have internet?" % (server, error), required=False)
     if token is not None:
         try:
             token.get(force=True)
@@ -1156,15 +1324,35 @@ def dashboard_language(config: Dict[str, Any]) -> Optional[str]:
     return None
 
 
-def command_test(config: Dict[str, Any]) -> int:
-    try:
-        sender = FcmSender(config)
-        sender.send(Notice("test", message_text(config, dashboard_language(config), "test")))
-    except (OSError, ValueError, SendError) as error:
-        print("Test notification NOT sent: %s" % error)
+def send_test(config: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Sends the test notification through every channel that is set up: [{"channel", "ok", "error"}] ([] when there is none)."""
+    notice = Notice("test", message_text(config, dashboard_language(config), "test"))
+    results = []
+    for name, ready, make in (("ntfy", ntfy_ready, NtfySender), ("firebase", firebase_ready, FcmSender)):
+        if not ready(config):
+            continue
+        try:
+            make(config).send(notice)
+            results.append({"channel": name, "ok": True, "error": ""})
+        except (OSError, ValueError, SendError) as error:
+            results.append({"channel": name, "ok": False, "error": str(error)})
+    return results
+
+
+def command_test(config: Dict[str, Any], as_json: bool = False) -> int:
+    results = send_test(config)
+    if as_json:  # for the backend (the dashboard's "Send a test notification")
+        print(json.dumps({"results": results}))
+        return 0 if results and all(one["ok"] for one in results) else 1
+    if not results:
+        print("Test notification NOT sent: no channel is set up (turn ntfy on in the dashboard: Settings -> Notifications)")
         return 1
-    print("Test notification handed to Google. It should appear on the phone within a few seconds.")
-    return 0
+    for one in results:
+        if one["ok"]:
+            print("%s: test notification sent. It should appear on the phone within a few seconds." % one["channel"])
+        else:
+            print("%s: test notification NOT sent: %s" % (one["channel"], one["error"]))
+    return 0 if all(one["ok"] for one in results) else 1
 
 
 def main(argv: Optional[List[str]] = None) -> int:
@@ -1172,6 +1360,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     parser.add_argument("--config", default=os.path.join(os.path.dirname(os.path.abspath(__file__)), "notifier.json"))
     parser.add_argument("--check", action="store_true", help="check the configuration and the connections")
     parser.add_argument("--test", action="store_true", help="send a test notification")
+    parser.add_argument("--json", action="store_true", help="with --test: print the result as JSON")
     parser.add_argument("--dry-run", action="store_true", help="watch, but print the notifications instead of sending them")
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s", datefmt="%H:%M:%S", stream=sys.stdout)
@@ -1183,7 +1372,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     if args.check:
         return command_check(config)
     if args.test:
-        return command_test(config)
+        return command_test(config, args.json)
     stop = threading.Event()
     for name in ("SIGINT", "SIGTERM"):
         signal.signal(getattr(signal, name), lambda *_: stop.set())

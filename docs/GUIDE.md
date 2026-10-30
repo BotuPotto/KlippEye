@@ -239,28 +239,33 @@ The Android app is a full-screen window on the dashboard, with push notification
 * **Addresses**: the app looks for the Raspberry at the addresses of **Settings → Addresses**; when it cannot connect it shows
   an *Addresses* window.
 
-**Push notifications** (print completed, error, pause, filament runout, AI alerts) are sent by the `klippeye-notifier` service
-through **Firebase Cloud Messaging**. They need a Firebase project shared by the app and the Raspberry:
+**Push notifications** (print completed, error, pause, filament runout, AI alerts) are sent by the `klippeye-notifier` service,
+always on from 1.20.0 (it also does the automatic pause / cancel chosen in the AI monitor). They reach the phone through a
+**channel**:
 
-* on the Raspberry, `~/printer_data/klippeye/notifier.json` and the Firebase service-account key `service-account.json`;
-* in the app, the `google-services.json` of the **same** Firebase project, built in.
+**ntfy (recommended, no account, no key).** The free [ntfy](https://ntfy.sh) app (Android and iPhone) listens to a private
+address made by KlippEye:
 
-The app published in this repository is built for its maintainer's Firebase project. **To receive notifications on your own
-printer you currently build your own app** from a fork of the repository (GitHub does the building: see appendix A). A simpler
-way that works with the published app is planned.
+1. **Settings → Notifications → Turn on notifications with ntfy**. KlippEye makes a random topic (`klippeye-` + 16 letters and
+   digits) that only your phones know.
+2. Install the **ntfy** app (Google Play, F-Droid or App Store: the buttons are on the page).
+3. **Scan the QR code** with the phone's camera: ntfy opens and subscribes by itself. In the phone's browser just tap **Open in
+   the ntfy app**; or add it by hand in the app (+ button) with the server and topic shown.
+4. **Send a test notification**: the page says for each channel whether it went out.
 
-Minimal `notifier.json` (the `topic` must be the one built into your app, `notification_topic` in
-`android/app/src/main/res/values/notifiche.xml`):
+Several phones can scan the same code. Whoever knows the topic can read the notifications: do not share the code; **New
+address** makes another one (the phones must be paired again). If they arrive late on Android, open the topic in the ntfy app
+and turn on *Instant delivery*. With an **ntfy server of your own** write its address (and a token, if it wants one) under
+*Your own ntfy server*. Nothing needs restarting: the service reads the change by itself.
 
-```json
-{
-  "service_account_file": "service-account.json",
-  "topic": "your-private-topic"
-}
-```
+**Firebase (only with a KlippEye app you build).** The way of earlier releases works as before: it needs a Firebase project
+shared by the app and the Raspberry (`service-account.json` and `topic` in `~/printer_data/klippeye/notifier.json`, and the
+`google-services.json` of the same project inside the app; see appendix A). With ntfy and Firebase both on, every notification
+goes out through both.
 
-Then run `bash ~/klippeye/scripts/install.sh` again (it starts the notifier once the keys are there) and test with
-`klippeye notify test`. The language of the notifications is chosen in **Settings → Notifications**; you can also write your
+If the page says the notification service has not shown up (installations before 1.20.0 without Firebase), run once on the
+Raspberry the command the page shows (`bash ~/klippeye/scripts/install.sh`). From the terminal: `klippeye notify test` and
+`klippeye notify check`. The language of the notifications is chosen in **Settings → Notifications**; you can also write your
 own texts in `notifier.json` (`"messages": {"complete": "Done!"}`).
 
 ## 7. Password and security
@@ -333,7 +338,7 @@ Terminal commands: `klippeye status`, `version`, `log [notifier]`, `restart [bac
 
 ## A. Building your own Android app
 
-Needed only for your own notifications (section 6) or your own changes to the app. GitHub builds the app for free on public
+Needed only for notifications through Firebase (section 6: ntfy needs none of this) or your own changes to the app. GitHub builds the app for free on public
 repositories.
 
 1. **Fork** the repository on GitHub and install KlippEye from your fork (`git clone https://github.com/<you>/KlippEye.git`).

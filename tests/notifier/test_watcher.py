@@ -430,7 +430,46 @@ time.sleep(0.02)
 open(watched, "w").write("y = 2\n")
 runner.join(5)
 ok("run(): file replaced -> the service ends by itself (systemd restarts it)", not runner.is_alive() and stop.is_set())
-ok("version is 1.5", vn.__version__ == "1.5", vn.__version__)
+ok("version is 1.6", vn.__version__ == "1.6", vn.__version__)
+
+# ---- 1.6: ntfy and the channels
+import tempfile
+cfg = vn.merge(vn.DEFAULT_CONFIG, {"ntfy": {"enabled": True, "topic": "klippeye-abc_DEF-123", "click": "http://pi.local/"}})
+ok("ntfy: ready with a topic and enabled", vn.ntfy_ready(cfg))
+ok("ntfy: not ready when switched off, or with a topic ntfy would refuse", not vn.ntfy_ready(vn.merge(vn.DEFAULT_CONFIG, {"ntfy": {"enabled": False, "topic": "abc"}})) and not vn.ntfy_ready(vn.merge(vn.DEFAULT_CONFIG, {"ntfy": {"enabled": True, "topic": "a/b"}})))
+m = vn.build_ntfy(cfg, vn.Notice("error", "Errore della stampante: è in shutdown"))
+ok("ntfy message: topic, title, text as given, urgent priority, a tag, the page to open", m == {"topic": "klippeye-abc_DEF-123", "title": "KlippEye", "message": "Errore della stampante: è in shutdown", "priority": 5, "tags": ["rotating_light"], "click": "http://pi.local/"}, m)
+ok("ntfy message: a completed print has the default priority", vn.build_ntfy(cfg, vn.Notice("complete", "x"))["priority"] == 3)
+ok("every kind of notification has an ntfy priority", all(kind in vn.KIND_NTFY for kind in vn.KIND_CHANNEL))
+d = tempfile.mkdtemp()
+cfg_path = os.path.join(d, "notifier.json")
+none = vn.load_config(cfg_path)
+ok("no notifier.json: the defaults, no channel", vn.make_senders(none) == [] and none["_path"] == cfg_path)
+channels = vn.Channels(none)
+channels.send(vn.Notice("complete", "x"))
+ok("no channel: sending does nothing and raises nothing", channels.senders == [])
+json.dump({"ntfy": {"enabled": True, "topic": "klippeye-test"}}, open(cfg_path, "w"))
+channels.refresh()
+ok("notifier.json written while running: the new channel is used without a restart", [name for name, _ in channels.senders] == ["ntfy"], channels.senders)
+calls = []
+def good(notice): calls.append(("good", notice.kind))
+def bad(notice):
+    calls.append(("bad", notice.kind))
+    raise vn.SendError("down", retry=True)
+channels.senders = [("ntfy", good), ("firebase", bad)]
+channels.stamp = channels._stamp()
+n = vn.Notice("complete", "x")
+try:
+    channels.send(n); raised = None
+except vn.SendError as error:
+    raised = error
+ok("one channel failing: the error says which, and is to be retried", raised is not None and raised.retry and "firebase" in str(raised), raised)
+try: channels.send(n)
+except vn.SendError: pass
+ok("... the retry does not send it again through the channel that had it", calls == [("good", "complete"), ("bad", "complete"), ("bad", "complete")], calls)
+json.dump([1], open(cfg_path, "w"))
+channels.refresh()
+ok("a damaged notifier.json while running: the channels stay as they were", [name for name, _ in channels.senders] == ["ntfy", "firebase"])
 
 print("\nFAILED: %d %s" % (len(FAILS), FAILS) if FAILS else "\nALL PASS")
 sys.exit(1 if FAILS else 0)

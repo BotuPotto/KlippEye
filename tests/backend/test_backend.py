@@ -1732,6 +1732,48 @@ _was = _ck.get("/api/ai/config").get_json()["configured"]
 r = _ck.post("/api/ai/config", json={"delete": True})
 check("the AI key can be deleted from the dashboard", _was is True and r.status_code == 200 and _ck.get("/api/ai/config").get_json()["configured"] is False)
 
+print("== 1.20.0: notifications without Firebase (ntfy)")
+import threading as _th
+from http.server import BaseHTTPRequestHandler as _BH, ThreadingHTTPServer as _TS
+_ntfy_got = []
+class _Ntfy(_BH):
+    def log_message(self, *a): pass
+    def do_POST(self):
+        _ntfy_got.append(json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)).decode()))
+        self.send_response(200); self.send_header("Content-Type", "application/json"); self.end_headers(); self.wfile.write(b'{"id":"1"}')
+_ns = _TS(("127.0.0.1", 0), _Ntfy); _th.Thread(target=_ns.serve_forever, daemon=True).start()
+_dn = tmp()
+_bn = load_brain(NEW_BRAIN, _dn, fake, brain_json={"values": {"enabled": False}})
+_cn = _bn.app.test_client()
+j = _cn.get("/api/notifications/channels").get_json()
+check("no notifier.json yet: ntfy off, Firebase off, the command that installs the service", j["ok"] and j["ntfy"]["enabled"] is False and j["ntfy"]["topic"] == "" and j["firebase"]["on"] is False and j["install_command"].endswith("scripts/install.sh"), j)
+r = _cn.post("/api/notifications/ntfy", json={"enabled": True, "click": "http://192.168.1.50:8085/"})
+j = r.get_json()
+_topic = j["ntfy"]["topic"]
+check("ntfy turned on: a private random topic, on ntfy.sh, and the link that subscribes the ntfy app", r.status_code == 200 and j["ntfy"]["enabled"] and _topic.startswith("klippeye-") and len(_topic) == 25
+      and j["ntfy"]["server"] == "https://ntfy.sh" and j["ntfy"]["link"] == "ntfy://ntfy.sh/%s?display=KlippEye" % _topic, j)
+_file = json.load(open(os.path.join(_dn, "notifier.json")))
+check("... written into notifier.json for the service, readable only by its user", _file["ntfy"]["topic"] == _topic and _file["ntfy"]["enabled"] is True and _file["ntfy"]["click"] == "http://192.168.1.50:8085/" and (os.stat(os.path.join(_dn, "notifier.json")).st_mode & 0o077) == 0, _file)
+check("two installations never get the same topic", _cn.post("/api/notifications/ntfy", json={"new_topic": True}).get_json()["ntfy"]["topic"] not in (_topic, ""))
+json.dump(dict(json.load(open(os.path.join(_dn, "notifier.json"))), topic="my-firebase-topic", title="Voron"), open(os.path.join(_dn, "notifier.json"), "w"))
+r = _cn.post("/api/notifications/ntfy", json={"enabled": False})
+_file = json.load(open(os.path.join(_dn, "notifier.json")))
+check("turned off: the topic stays (the phone does not need pairing again), the other entries of the file are kept", _file["ntfy"]["enabled"] is False and _file["ntfy"]["topic"] and _file["topic"] == "my-firebase-topic" and _file["title"] == "Voron" and r.get_json()["firebase"]["topic_set"] is True and r.get_json()["firebase"]["on"] is False, _file)
+_cn.set_cookie("klippeye_lang", "it")
+r = _cn.post("/api/notifications/ntfy", json={"server": "ftp://x"})
+check("a server address that is not http(s) is refused, in Italian", r.status_code == 400 and "http://" in r.get_json()["error"] and r.get_json()["error"] != "the server address must start with http:// or https://", r.get_json())
+_cn.delete_cookie("klippeye_lang")
+r = _cn.post("/api/notifications/ntfy", json={"enabled": True, "server": "http://127.0.0.1:%d/" % _ns.server_address[1], "token": "tk_abc"})
+j = r.get_json()
+check("a server of your own (http): the link asks the app for http, the token is never sent back", j["ntfy"]["server"] == "http://127.0.0.1:%d" % _ns.server_address[1] and j["ntfy"]["link"].endswith("&secure=false") and j["ntfy"]["has_token"] is True and "tk_abc" not in json.dumps(j), j)
+r = _cn.post("/api/notifications/test")
+j = r.get_json()
+check("test notification: sent by the notification service's own code through ntfy (Firebase without its key: not tried)", r.status_code == 200 and [(x["channel"], x["ok"]) for x in j["results"]] == [("ntfy", True)] and _ntfy_got and _ntfy_got[-1]["topic"] == json.load(open(os.path.join(_dn, "notifier.json")))["ntfy"]["topic"], (j, _ntfy_got))
+open(os.path.join(_dn, "notifier.json"), "w").write("{broken")
+r = _cn.post("/api/notifications/ntfy", json={"enabled": True})
+check("a damaged notifier.json is not overwritten: the dashboard says so", r.status_code == 400 and "damaged" in r.get_json()["error"] and open(os.path.join(_dn, "notifier.json")).read() == "{broken", r.get_json())
+_ns.shutdown()
+
 stop_all()
 fake.close()
 print("\n%d PASS, %d FAIL" % (passed, failed))

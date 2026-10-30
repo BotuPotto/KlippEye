@@ -14,3 +14,18 @@
 .fn-confidence { display: flex; flex-direction: column; gap: 6px; }
 .fn-fallback.is-unused { opacity: 0.55; }
 .rec-alert__under { color: var(--oui-warn, #f5b041); font-size: 12px; font-weight: 600; }
+
+/* Settings → Notifications → where they arrive (59i, 1.20) */
+.nt-steps { margin: 8px 0 0; padding-left: 22px; display: flex; flex-direction: column; gap: 14px; }
+.nt-steps > li { display: flex; flex-direction: column; gap: 8px; }
+.nt-links { display: flex; flex-wrap: wrap; gap: 8px; }
+.nt-pair { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.nt-qr { display: block; max-width: 100%; height: auto; border-radius: 8px; }
+.nt-results { margin: 0; padding-left: 18px; font-size: 14px; }
+.nt-ok { color: var(--oui-ok, #2ecc71); }
+.nt-bad { color: var(--oui-danger, #e74c3c); }
+.nt-own { margin-top: 10px; display: flex; flex-direction: column; gap: 8px; }
+.nt-own[open] > * + * { margin-top: 8px; }
+.nt-own summary { cursor: pointer; color: var(--oui-text-2); font-size: 14px; }
+.nt-steps code, .set-group__note code { word-break: break-all; }
+.set-status code { word-break: break-all; }

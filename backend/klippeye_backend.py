@@ -3320,6 +3320,44 @@ def api_printer_macros_wraps():
     return _macros_call(lambda: printer_macros_store.set_wraps(names if isinstance(names, list) else []))
 
 
+# === NOTIFICATION CHANNELS (phase 5c): ntfy set up from the dashboard, Firebase shown =====================================
+import notify_channels  # noqa: E402
+
+NOTIFY_MESSAGES = (  # what notify_channels.py may answer, for the dictionaries (bt translates them)
+    btn("notifier.json is damaged: fix it or delete it ({error})"), btn("the server address must start with http:// or https://"),
+    btn("the access token has characters that are not allowed"), btn("the address of the dashboard must start with http:// or https://"),
+)
+notify_store = notify_channels.NotifyChannels(DATA_DIR, REPO_DIR, write_json_atomic)
+
+
+def _notify_call(work):
+    try:
+        return jsonify(dict(work() or {}, ok=True))
+    except notify_channels.ChannelError as error:
+        return jsonify({"ok": False, "error": bt(str(error), _lang(), **error.values)}), 400
+    except OSError as error:
+        return jsonify({"ok": False, "error": str(error)}), 500
+
+
+@app.route("/api/notifications/channels", methods=["GET"])
+def api_notify_channels():
+    """Where the notifications go: ntfy (server, private topic, the link that subscribes the ntfy app) and Firebase."""
+    return _notify_call(notify_store.summary)
+
+
+@app.route("/api/notifications/ntfy", methods=["POST"])
+def api_notify_ntfy():
+    """{enabled, new_topic, server, token, click}: only the keys given change. The service picks the change up by itself."""
+    body = request.get_json(silent=True) or {}
+    return _notify_call(lambda: notify_store.set_ntfy(body if isinstance(body, dict) else {}))
+
+
+@app.route("/api/notifications/test", methods=["POST"])
+def api_notify_test():
+    """Sends a test notification through every channel that is set up: {results: [{channel, ok, error}]}."""
+    return _notify_call(notify_store.send_test)
+
+
 @app.route("/api/camera/shape", methods=["POST"])
 def api_camera_shape():
     """The size of the toolhead and of the gantry around the nozzle (mm): {"toolhead": {left, right, front, back, top, below},

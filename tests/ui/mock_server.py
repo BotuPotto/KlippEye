@@ -55,6 +55,8 @@ def default_state():
         "light_fail": False,        # the macro runs but the variable never changes
         "light_cmds": [],           # (script, time) of every luci_* command received
         "pm_macros": {}, "pm_wraps": [], "pm_posts": [],   # KlippEye's own macros (/api/printer-macros)
+        "ntfy": {"enabled": False, "server": "https://ntfy.sh", "topic": "", "has_token": False, "click": ""},   # notifier.json (/api/notifications)
+        "firebase_on": False, "ntfy_posts": [], "ntfy_tests": 0, "ntfy_test_fail": "",
         "extra_commands": [],       # commands Klipper knows besides the usual ones (a macro KlippEye made)
         "light_reads": 0,
         # --- Klipper / Moonraker / Raspberry outages and restarts
@@ -238,7 +240,7 @@ def mock_reset():
     S.clear(); S.update(default_state()); return jsonify(ok=True)
 @app.route("/__mock/state")
 def mock_state():
-    return jsonify({k: v for k, v in S.items() if k in ("light", "light_cmds", "light_reads", "actions", "webhooks", "webhooks_msg", "disconnected", "moonraker_down", "host_off", "services", "update_log", "brain_cfg_log", "brain_release", "brain_started", "klippeye_info", "pending_release", "logos", "app_apk_hits", "app_apk_downloads", "update_channel", "channel_posts", "rec_posts", "measure_starts", "recordings", "alerts", "pm_macros", "pm_wraps", "pm_posts", "gcode_log")})
+    return jsonify({k: v for k, v in S.items() if k in ("light", "light_cmds", "light_reads", "actions", "webhooks", "webhooks_msg", "disconnected", "moonraker_down", "host_off", "services", "update_log", "brain_cfg_log", "brain_release", "brain_started", "klippeye_info", "pending_release", "logos", "app_apk_hits", "app_apk_downloads", "update_channel", "channel_posts", "rec_posts", "measure_starts", "recordings", "alerts", "pm_macros", "pm_wraps", "pm_posts", "gcode_log", "ntfy", "ntfy_posts", "ntfy_tests")})
 @app.route("/__mock/print_actions")
 def mock_print_actions():
     return jsonify(S.get("print_actions", []))
@@ -294,6 +296,39 @@ def printer_macros_wraps():
     S["pm_posts"].append(("wraps", body.get("names")))
     S["pm_wraps"] = list(body.get("names") or [])
     return printer_macros_get()
+# --- where the notifications go (backend /api/notifications: notifier.json), in memory
+def _channels():
+    n = S["ntfy"]
+    host = n["server"].split("://", 1)[1]
+    link = ("ntfy://%s/%s?display=KlippEye%s" % (host, n["topic"], "" if n["server"].startswith("https://") else "&secure=false")) if n["topic"] else ""
+    return jsonify(ok=True, ntfy=dict(n, default_server=n["server"] == "https://ntfy.sh", link=link, web=n["server"] + "/" + n["topic"] if n["topic"] else ""),
+                   firebase={"on": S["firebase_on"], "topic_set": S["firebase_on"], "key_found": S["firebase_on"]}, install_command="bash /home/x/klippeye/scripts/install.sh")
+@app.route("/api/notifications/channels", methods=["GET"])
+def notify_channels():
+    return _channels()
+@app.route("/api/notifications/ntfy", methods=["POST"])
+def notify_ntfy():
+    body = request.get_json(force=True, silent=True) or {}
+    S["ntfy_posts"].append(body)
+    n = S["ntfy"]
+    if "server" in body:
+        server = (body["server"] or "").strip().rstrip("/") or "https://ntfy.sh"
+        if not server.startswith(("http://", "https://")):
+            return jsonify(ok=False, error="l'indirizzo del server deve iniziare con http:// o https://"), 400
+        n["server"] = server
+    if "token" in body: n["has_token"] = bool(body["token"])
+    if "click" in body: n["click"] = body["click"]
+    if body.get("enabled") in (True, False): n["enabled"] = body["enabled"]
+    if body.get("new_topic") or (n["enabled"] and not n["topic"]):
+        n["topic"] = "klippeye-%016d" % len(S["ntfy_posts"])
+    return _channels()
+@app.route("/api/notifications/test", methods=["POST"])
+def notify_test():
+    S["ntfy_tests"] += 1
+    results = []
+    if S["ntfy"]["enabled"]: results.append({"channel": "ntfy", "ok": not S["ntfy_test_fail"], "error": S["ntfy_test_fail"]})
+    if S["firebase_on"]: results.append({"channel": "firebase", "ok": True, "error": ""})
+    return jsonify(ok=True, results=results)
 @app.route("/printer/objects/list")
 def obj_list():
     return jsonify(result={"objects": OBJECTS})

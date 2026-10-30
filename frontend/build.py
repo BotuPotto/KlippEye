@@ -9,6 +9,7 @@ Builds the dashboard: one self-contained HTML file, served as is by the Flask ba
     src/css/*.css           the application stylesheet, in file-name order
     vendor/tailwind-*.css   compiled Tailwind, reduced by tools/tailwind_purge.py to the classes in use
     vendor/react-dom-*.js   React 18 + ReactDOM client, third-party code, kept unmodified
+    vendor/qrcode-generator-*.js  QR codes (Kazuhiko Arase, MIT licence), kept unmodified: the code that pairs a phone (1.20)
     src/app/*.js            the application, in file-name order (99-main.js starts it)
     src/i18n/<lang>.json    translations of the English texts (English text -> translation), see app/02-i18n.js
 
@@ -93,6 +94,8 @@ def script():
     """Vendor React first (the app calls into it), then the application, 99-main.js last."""
     parts = [banner("VENDOR: React + ReactDOM client 18.3.1 (minified, unmodified). The application starts below.")]
     parts += [read(path) for path in files("vendor/react-dom-*.js")]
+    parts.append("\n" + banner("VENDOR: qrcode-generator 2.0.4 by Kazuhiko Arase (MIT licence, unmodified)"))
+    parts += [read(path) for path in files("vendor/qrcode-generator-*.js")]
     parts.append("\n" + banner("APPLICATION"))
     parts += [read(path) for path in files("src/app/*.js")]
     code = "\n".join(parts)

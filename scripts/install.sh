@@ -191,21 +191,6 @@ install_command() {  # name: writes /usr/local/bin/<name>, which runs the script
   if [ -f "$BIN_DIR/$name" ] && cmp -s "$tmp" "$BIN_DIR/$name"; then return 0; fi
   sudo_run install -m 755 "$tmp" "$BIN_DIR/$name" || { warn "Cannot write $BIN_DIR/$name"; return 1; }
 }
-notifier_ready() {  # 0 when notifier.json and the Firebase key it points to are there
-  [ -f "$DATA/notifier.json" ] || return 1
-  "$PYTHON" - "$DATA" <<'PY'
-import json, os, sys
-d = sys.argv[1]
-try:
-    conf = json.load(open(os.path.join(d, "notifier.json"), encoding="utf-8"))
-    key = conf.get("service_account_file") or "service-account.json"
-    if not os.path.isabs(key):
-        key = os.path.join(d, key)
-    sys.exit(0 if os.path.isfile(key) else 1)
-except Exception:
-    sys.exit(1)
-PY
-}
 
 # ====================================================================================================================
 #  --undo
@@ -281,7 +266,7 @@ fi
 if [ -f "$DATA/notifier.json" ]; then
   good "Notifications: configuration already in the data folder"
 else
-  note "Notifications: not set up (done once with the guide; see docs/GUIDE.md)"
+  note "Notifications: not set up yet (from the dashboard: Settings -> Notifications -> Turn on notifications with ntfy)"
 fi
 
 # --- 3. services -------------------------------------------------------------------------------------------------------
@@ -291,8 +276,9 @@ for need in "$REPO/systemd/klippeye.service" "$REPO/systemd/klippeye-notifier.se
 done
 [ -d "$UNIT_DIR" ] || stop "The system services folder ($UNIT_DIR) was not found."
 
-NOTIFIER_ON=0
-if notifier_ready; then NOTIFIER_ON=1; fi
+# 1.20.0: the notification service always runs. With no channel set up it sends nothing, but it does the automatic
+# pause / cancel of the AI monitor, and it starts sending as soon as ntfy is turned on in the dashboard (no restart needed).
+NOTIFIER_ON=1
 BRAIN_CHANGED=0
 if install_unit klippeye; then BRAIN_CHANGED=1; fi
 # the self-repair drop-in (klippeye.service.d/repair.conf, ripara.conf before 1.3.0, added by the backend) is no longer needed:
@@ -335,8 +321,6 @@ if [ "$NOTIFIER_ON" = 1 ]; then
     warn "The notification check reports something (see below). The backend and the dashboard work anyway."
     sed 's/^/           /' "$WORK/check.out" | tail -n 8
   fi
-else
-  note "Notifications: the service starts only after the Firebase key is put in $DATA (guide: docs/GUIDE.md)"
 fi
 
 # --- 4. commands -------------------------------------------------------------------------------------------------------
