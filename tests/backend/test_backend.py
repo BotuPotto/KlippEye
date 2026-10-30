@@ -1838,7 +1838,7 @@ def hide(name, *a, **k):
 builtins.__import__ = hide
 spec = importlib.util.spec_from_file_location('kb', sys.argv[1]); m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
 c = m.app.test_client()
-print('RESULT', c.get('/api/version').status_code, c.get('/api/camera/calibration').get_json().get('has_numpy'), c.get('/api/camera/overlay').status_code)
+print('RESULT', c.get('/api/version').status_code, c.get('/api/camera/calibration').get_json().get('has_numpy'), c.get('/api/camera/overlay').status_code, flush=True)
 os._exit(0)
 """, NEW_BRAIN], capture_output=True, text=True, timeout=90, env=dict(os.environ, KLIPPEYE_DATA=tmp()))
 check("without numpy and OpenCV the backend starts (1.23.0); the calibration says what to install", "RESULT 200 False 409" in _probe.stdout, (_probe.stdout[-300:], _probe.stderr[-300:]))
