@@ -188,13 +188,8 @@ with sync_playwright() as p:
     ok("switching the monitor off (AI monitor page) is sent", wait_until(lambda: last_post() == {"enabled": False}, 3.0), cfg_log()[-2:])
     pg.click(".set-switch:has-text('Monitor attivo')"); P.settle(300)
     ok("... and on again", wait_until(lambda: last_post() == {"enabled": True}, 3.0))
-    # the model (1.19: on the AI monitor page, 'Il servizio IA')
-    model = pg.locator("input[placeholder='predefinito']")
-    type_into(model, "gpt 4o")
-    P.settle(1300)
-    ok("a model name with a space is refused and not sent", "ai_model" not in sent_keys() and "niente spazi" in pg.locator(".set-field__error").first.inner_text(), sent_keys())
-    type_into(model, "llama-3.3-70b")
-    ok("a good model name is sent", wait_until(lambda: last_post() == {"ai_model": "llama-3.3-70b"}, 3.0), cfg_log()[-2:])
+    # the model: 1.27 chooses it from the service's list (ai_services_test.py); the free-text field is gone
+    ok("1.27: no free-text model field any more on the AI monitor page", pg.locator("input[placeholder='predefinito']").count() == 0 and pg.locator('[data-ai-use="monitor"]').count() == 1)
     pg.locator(".drawer__title").click(); P.settle(300)
     pg.click('.set-entry[data-page="detector"]'); P.settle(900)
 
