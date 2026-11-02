@@ -17,7 +17,11 @@
 
 const SETTINGS_PAGES = ["printer", "camera", "network", "zoffset", "notifications", "ai", "detector", "camcal", "recordings", "software"];
 const SETTINGS_TYPING_MS = 800; // a typed value is taken when the typing stops (and when the field is left or the menu closed)
-const SWIPE_CLOSE_PX = 70; // a swipe to the left at least this long closes the menu
+// a swipe to the left closes the menu: at least this long, mostly sideways, quick, and never started on a control
+// (1.24: it was too easy to close it while moving a slider or scrolling)
+const SWIPE_CLOSE_PX = 110;
+const SWIPE_CLOSE_MAX_MS = 600;
+const SWIPE_IGNORE = "input, textarea, select, .set-num, .cal-frame, .cal-loupe, .set-snapshot, .rec-viewer, [data-no-swipe]";
 /** The notification service writes its sign of life this often; one not seen for longer than this is not running. */
 const NOTIFIER_ALIVE_S = 360;
 
@@ -30,41 +34,64 @@ function useSettingsMenu() {
   const [open, setOpen] = useState(false);
   const [page, setPage] = useState(null); // null: the list of groups
   const [question, setQuestion] = useState(null); // "reset" | "autoCancel" while a confirmation is open
+  // the pages that led here (1.24): "back" returns to the page it came from (Camera -> Camera calibration -> back = Camera),
+  // not to the parent or to the start
+  const history = useRef([]);
+
+  const goTo = (next) => {
+    if (next !== page) history.current.push(page);
+    setPage(next);
+  };
+  const back = () => setPage(history.current.length ? history.current.pop() : PAGE_PARENT[page] || null);
+  const close = () => {
+    history.current = [];
+    setOpen(false);
+  };
 
   useEffect(() => {
     if (!open) return undefined;
     const onKey = (event) => {
-      if (event.key !== "Escape") return;
+      if (event.key !== "Escape" || document.querySelector(".help-overlay")) return;
       if (question) return setQuestion(null);
-      if (page) setPage(PAGE_PARENT[page] || null);
-      else setOpen(false);
+      if (page) back();
+      else close();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [open, page, question]);
+
+  // the phone's back button (KlippEye app): the confirmation, then the page before, then the menu itself
+  useBackHandler(() => {
+    if (question) setQuestion(null);
+    else if (page) back();
+    else close();
+    return true;
+  }, open);
 
   return {
     open,
     page,
     question,
     show: () => {
+      history.current = [];
       setPage(null);
       setOpen(true);
       settingsStore.pull(); // another device may have changed something
     },
-    close: () => setOpen(false),
+    close,
     /** The guided set-up (59k) takes the place of the menu. */
     startSetup: () => {
-      setOpen(false);
+      close();
       openSetupGuide();
     },
     /** Opens the menu straight on one page (the invitation to set up the notifications of this phone). */
     openPage: (id) => {
+      history.current = [];
       setPage(id);
       setOpen(true);
     },
-    goTo: setPage,
-    back: () => setPage((current) => PAGE_PARENT[current] || null),
+    goTo,
+    back,
     ask: setQuestion,
   };
 }
@@ -789,7 +816,8 @@ function SettingsDrawer({ menu, updates, printing, actions }) {
   const touch = useRef(null);
   const onTouchStart = (event) => {
     const point = event.touches[0];
-    touch.current = { x: point.clientX, y: point.clientY };
+    const onControl = event.target && event.target.closest && event.target.closest(SWIPE_IGNORE);
+    touch.current = event.touches.length === 1 && !onControl ? { x: point.clientX, y: point.clientY, t: Date.now() } : null;
   };
   const onTouchEnd = (event) => {
     const start = touch.current;
@@ -797,7 +825,7 @@ function SettingsDrawer({ menu, updates, printing, actions }) {
     if (!start) return;
     const point = event.changedTouches[0];
     const dx = point.clientX - start.x;
-    if (dx < -SWIPE_CLOSE_PX && Math.abs(dx) > Math.abs(point.clientY - start.y) * 1.5) menu.close();
+    if (dx < -SWIPE_CLOSE_PX && Math.abs(dx) > Math.abs(point.clientY - start.y) * 2 && Date.now() - start.t < SWIPE_CLOSE_MAX_MS) menu.close();
   };
   let body;
   if (page === "printer") body = h(PrinterPage);

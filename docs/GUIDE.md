@@ -284,8 +284,11 @@ The Android app is a full-screen window on the dashboard, with push notification
 * **Install it**: open the dashboard in the phone's browser → **Settings → Updates → Android app → Download the app**, open the
   downloaded file and allow installing from this source. From then on the app updates itself: **Settings → Updates → Android
   app → Update the app** (Android always asks you to confirm).
-* **Addresses**: the app looks for the Raspberry at the addresses of **Settings → Addresses**; when it cannot connect it shows
-  an *Addresses* window.
+* **Addresses**: the first time the app asks for the Raspberry's address (the one of Mainsail, e.g. `192.168.1.20` or
+  `mainsailos.local`) and, if you use ZeroTier or a VPN, the external one. It tries each twice, in turn; when none answers it
+  shows *Retry* and *Addresses*. They can also be changed in **Settings → Addresses**.
+* **Back button**: closes the guide or the open dialog and goes back to the previous page of the menu or the previous step of
+  the guided set-up. Links to websites, stores and the ntfy app open outside the app.
 
 **Push notifications** (print completed, error, pause, filament runout, AI alerts) are sent by the `klippeye-notifier` service,
 always on from 1.20.0 (it also does the automatic pause / cancel chosen in the AI monitor). They travel over

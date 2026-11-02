@@ -287,8 +287,11 @@ L'app Android è una finestra a tutto schermo sulla dashboard, con notifiche pus
 * **Installarla**: apri la dashboard nel browser del telefono → **Impostazioni → Aggiornamenti → App Android → Scarica l'app**,
   apri il file scaricato e consenti l'installazione da questa fonte. Da lì l'app si aggiorna da sola: **Impostazioni →
   Aggiornamenti → App Android → Aggiorna l'app** (Android chiede sempre conferma).
-* **Indirizzi**: l'app cerca il Raspberry agli indirizzi di **Impostazioni → Indirizzi**; quando non riesce a collegarsi mostra
-  una finestra *Indirizzi*.
+* **Indirizzi**: al primo avvio l'app chiede l'indirizzo del Raspberry (lo stesso di Mainsail, per esempio `192.168.1.20` o
+  `mainsailos.local`) e, se usi ZeroTier o una VPN, quello esterno. Poi li prova due volte ciascuno, alternandoli; se nessuno
+  risponde mostra *Riprova* e *Indirizzi*. Si cambiano anche da **Impostazioni → Indirizzi**.
+* **Tasto indietro**: chiude la guida o il dialogo aperto e torna alla pagina precedente del menu o al passo precedente della
+  configurazione guidata. I collegamenti a siti, store e all'app ntfy si aprono fuori dall'app.
 
 Le **notifiche push** (stampa completata, errore, pausa, filamento finito, allarmi dell'IA) le manda il servizio
 `klippeye-notifier`, sempre acceso dal 1.20.0 (fa anche la pausa / l'annullamento automatici scelti nel monitor IA). Le

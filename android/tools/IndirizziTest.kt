@@ -30,23 +30,25 @@ fun main() {
     for (h in privati) prova("privato($h)", Indirizzi.privato(h))
     for (h in pubblici) prova("NON privato($h)", !Indirizzi.privato(h))
 
-    // controlla: "ok" o il motivo
-    prova("controlla: i due di fabbrica sono ok", Indirizzi.controlla("192.168.1.17", "172.25.170.177") == "ok")
+    // controlla: "ok" o il motivo; l'esterno e' facoltativo (1.4.0)
+    prova("controlla: locale ed esterno ok", Indirizzi.controlla("192.168.1.17", "172.25.170.177") == "ok")
+    prova("controlla: senza esterno e' ok", Indirizzi.controlla("192.168.1.17", "") == "ok" && Indirizzi.controlla("pi.local", null) == "ok")
     prova("controlla: con http:// e porta e' ok", Indirizzi.controlla("http://192.168.1.50:8080/", "10.1.2.3") == "ok")
     prova("controlla: locale sbagliato", Indirizzi.controlla("999.1.1.1", "10.1.2.3").contains("IP locale"))
     prova("controlla: esterno sbagliato", Indirizzi.controlla("10.1.2.3", "boh boh").contains("IP esterno"))
     prova("controlla: pubblico rifiutato", Indirizzi.controlla("8.8.8.8", "10.1.2.3").contains("rete privata") && Indirizzi.controlla("10.1.2.3", "example.com").contains("rete privata"))
-    prova("controlla: null", Indirizzi.controlla(null, "10.1.2.3") != "ok" && Indirizzi.controlla("10.1.2.3", null) != "ok")
+    prova("controlla: senza locale", Indirizzi.controlla(null, "10.1.2.3") != "ok" && Indirizzi.controlla("", "10.1.2.3") != "ok")
 
-    // candidati: locale, esterno, poi quelli di fabbrica, senza ripetizioni
+    // candidati e tentativi: niente indirizzi di fabbrica; due giri, locale ed esterno alternati
     fun hosts(c: Indirizzi.Coppia) = Indirizzi.candidati(c).map { it.host }
-    prova("candidati di fabbrica: due tentativi, come prima", hosts(Indirizzi.DI_FABBRICA) == listOf("192.168.1.17", "172.25.170.177"), hosts(Indirizzi.DI_FABBRICA).toString())
-    prova("candidati cambiati: quattro, in ordine", hosts(Indirizzi.Coppia("192.168.1.50", "172.25.9.9")) == listOf("192.168.1.50", "172.25.9.9", "192.168.1.17", "172.25.170.177"))
-    prova("candidati: solo il locale cambiato", hosts(Indirizzi.Coppia("192.168.1.50", "172.25.170.177")) == listOf("192.168.1.50", "172.25.170.177", "192.168.1.17"))
-    prova("candidati: locale e esterno uguali non si ripetono", hosts(Indirizzi.Coppia("10.0.0.9", "10.0.0.9")) == listOf("10.0.0.9", "192.168.1.17", "172.25.170.177"))
-    prova("candidati: il primo e' sempre il locale scelto", Indirizzi.candidati(Indirizzi.Coppia("pi.local", "172.25.1.1")).first().let { it.host == "pi.local" && it.etichetta == "rete locale" })
+    fun prove(c: Indirizzi.Coppia) = Indirizzi.tentativi(c).map { it.host }
+    prova("nessun indirizzo: niente da provare (si chiede all'utente)", hosts(Indirizzi.NESSUNA).isEmpty() && prove(Indirizzi.NESSUNA).isEmpty() && Indirizzi.NESSUNA.vuota)
+    prova("locale ed esterno: L, E, L, E", prove(Indirizzi.Coppia("192.168.1.50", "172.25.9.9")) == listOf("192.168.1.50", "172.25.9.9", "192.168.1.50", "172.25.9.9"), prove(Indirizzi.Coppia("192.168.1.50", "172.25.9.9")).toString())
+    prova("solo il locale: due tentativi", prove(Indirizzi.Coppia("192.168.1.50", "")) == listOf("192.168.1.50", "192.168.1.50"))
+    prova("locale e esterno uguali non si ripetono nel giro", hosts(Indirizzi.Coppia("10.0.0.9", "10.0.0.9")) == listOf("10.0.0.9"))
+    prova("candidati: il primo e' sempre il locale", Indirizzi.candidati(Indirizzi.Coppia("pi.local", "172.25.1.1")).first().let { it.host == "pi.local" && it.etichetta == "rete locale" })
     prova("candidato: indirizzo con la porta del Brain", Indirizzi.Candidato("192.168.1.17", "x").url == "http://192.168.1.17:8085/")
-    prova("comeJson", Indirizzi.comeJson(Indirizzi.DI_FABBRICA) == "{\"local\":\"192.168.1.17\",\"external\":\"172.25.170.177\"}")
+    prova("comeJson", Indirizzi.comeJson(Indirizzi.Coppia("192.168.1.17", "")) == "{\"local\":\"192.168.1.17\",\"external\":\"\"}")
 
     println(if (errori == 0) "ALL PASS" else "FAILS: $errori")
     if (errori != 0) System.exit(1)

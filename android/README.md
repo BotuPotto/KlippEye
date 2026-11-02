@@ -88,10 +88,19 @@ da installare a mano, una volta sola.
 
 ## Indirizzi del Raspberry
 
-L'app prova in ordine: IP locale, IP esterno (ZeroTier), poi quelli di fabbrica (`192.168.1.17`, `172.25.170.177`); il primo che risponde (1,2 s a testa) vince. Gli indirizzi si
-scelgono dal menu Impostazioni → *Indirizzi* della dashboard (che li comunica all'app con `setAddresses`), o dalla finestra «Indirizzi» che l'app mostra quando non riesce
-a connettersi. `setAddresses` accetta solo reti private (10.x, 172.16-31.x, 192.168.x, 100.64-127.x, nomi `.local`/`.lan`...): una pagina qualsiasi in un riquadro della dashboard
+Dalla 1.4.0 non ci sono indirizzi «di fabbrica»: al primo avvio l'app chiede l'IP locale del Raspberry (lo stesso di Mainsail) e, facoltativo, quello esterno
+(ZeroTier, VPN). Poi prova due giri, locale ed esterno alternati (2,5 s a tentativo); il primo che risponde vince, altrimenti mostra «Riprova» e «Indirizzi». Gli indirizzi si
+scelgono anche dal menu Impostazioni → *Indirizzi* della dashboard (che li comunica all'app con `setAddresses`). `setAddresses` accetta solo reti private (10.x, 172.16-31.x, 192.168.x, 100.64-127.x, nomi `.local`/`.lan`...): una pagina qualsiasi in un riquadro della dashboard
 (la camera «Pagina web») non deve poter dirottare l'app su un sito esterno. La porta è sempre 8085.
+
+## Collegamenti esterni e tasto indietro (app 7)
+
+* Solo le pagine del Raspberry restano nella finestra: un collegamento a un altro sito, a uno store, a `ntfy://` o `intent://` si apre
+  nell'app di Android giusta (`shouldOverrideUrlLoading`, solo per la pagina principale: la camera nei riquadri resta dentro).
+* Il tasto indietro del telefono chiede prima alla dashboard (`window.klippeyeBack()`): chiude la guida o il dialogo aperto, torna alla
+  pagina precedente del menu o al passo precedente della configurazione guidata; solo se non c'è niente da chiudere torna indietro nel
+  WebView o esce.
+* `allowBackup="false"`: i dati dell'app (indirizzi, cookie di accesso) non finiscono nei backup di Google.
 
 ## Scelta e salvataggio dei file
 

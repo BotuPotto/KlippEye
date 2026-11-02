@@ -132,15 +132,15 @@ function NtfyPairing({ ntfy, store, onPhone }) {
         "li",
         null,
         h("b", null, tx("Install the free ntfy app on the phone")),
-        IN_APP_WEBVIEW
+        IN_APP_WEBVIEW && !APP_OPENS_LINKS
           ? h("p", { className: "set-group__note" }, tx("Look for «ntfy» in Google Play, F-Droid or the App Store."))
           : h("div", { className: "nt-links" }, NTFY_APPS.map((app) => h("a", { key: app.id, className: "oui-btn oui-btn--sm", href: app.href, target: "_blank", rel: "noopener noreferrer" }, app.label))),
       ),
       h(
         "li",
         null,
-        h("b", null, onPhone && !IN_APP_WEBVIEW ? tx("Tap «Open in the ntfy app»: it subscribes by itself") : tx("Scan this code with the phone's camera: the ntfy app opens and subscribes")),
-        h("div", { className: "nt-pair" }, h(QrCode, { text: ntfy.link }), onPhone && !IN_APP_WEBVIEW && h("a", { className: "oui-btn oui-btn--primary", href: ntfy.link, "data-ntfy-link": "1" }, tx("Open in the ntfy app"))),
+        h("b", null, onPhone && (!IN_APP_WEBVIEW || APP_OPENS_LINKS) ? tx("Tap «Open in the ntfy app»: it subscribes by itself") : tx("Scan this code with the phone's camera: the ntfy app opens and subscribes")),
+        h("div", { className: "nt-pair" }, h(QrCode, { text: ntfy.link }), onPhone && (!IN_APP_WEBVIEW || APP_OPENS_LINKS) && h("a", { className: "oui-btn oui-btn--primary", href: ntfy.link, "data-ntfy-link": "1" }, tx("Open in the ntfy app"))),
         h(
           "p",
           { className: "set-group__note" },

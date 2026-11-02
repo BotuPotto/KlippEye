@@ -567,8 +567,8 @@ if (APP_KNOWS_ADDRESSES) {
   // called by the KlippEye app
   window.klippeyeSetAddresses = async (local, external) => {
     const cleanLocal = cleanHost(local);
-    const cleanExternal = cleanHost(external);
-    if (!cleanLocal || !cleanExternal) return;
+    const cleanExternal = typeof external === "string" && external.trim() === "" ? "" : cleanHost(external); // app 1.4.0: the external one is optional
+    if (!cleanLocal || cleanExternal === null) return;
     await settingsStore.pull(); // the Raspberry's settings first: the new addresses go on top of them, not of the defaults
     settingsStore.update((draft) => {
       draft.network.localIp = cleanLocal;

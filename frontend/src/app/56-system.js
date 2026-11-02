@@ -23,6 +23,7 @@ const WS_CALL_TIMEOUT_MS = 12000;
 const WS_RETRY_AFTER_MS = 60000;
 /** The system page asks Moonraker for more than the live pollers do (update status can be slow). */
 const SYSTEM_READ_TIMEOUT_MS = 15000;
+const SYSTEM_STATS_POLL_MS = 5000;
 
 /* ---------------------------------------------------------------------------
    Moonraker access
@@ -778,6 +779,15 @@ function useSystemData() {
     return () => {
       updateSocket.onRefreshed = noop;
     };
+  }, []);
+
+  // CPU and memory change all the time: read again every 5 seconds while the page is open (only those, 1.24)
+  useEffect(() => {
+    const stop = startPolling(async () => {
+      const proc = await fetchResult("/machine/proc_stats");
+      if (proc) setData((current) => (current ? { ...current, proc } : current));
+    }, SYSTEM_STATS_POLL_MS);
+    return stop;
   }, []);
 
   const checkForUpdates = async () => {
