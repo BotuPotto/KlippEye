@@ -919,6 +919,8 @@ def mock_recording(sid):
         return jsonify(ok=True)
     history = {a["id"]: a for a in S["alerts"]}  # as the backend: image and label from the alert history
     alerts = [dict(a, image=history.get(a.get("id"), {}).get("image") or a.get("image"), label=history.get(a.get("id"), {}).get("label", a.get("label"))) for a in r.get("alerts") or []]
+    for a in alerts:   # 1.26.1: the picture to show (the history's, else the recorded frame of the alarm)
+        a["picture"] = "/api/print/alerts/image/" + a["image"] if a.get("image") else ("/api/recordings/%s/frames/%d.jpg" % (sid, a["frame"]) if isinstance(a.get("frame"), int) else None)
     return jsonify(ok=True, session=dict(r, alerts=alerts), frames=S["rec_frames"].get(sid, []))
 
 

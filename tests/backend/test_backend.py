@@ -1169,6 +1169,28 @@ _alerts = cr.get("/api/recordings/" + sid).get_json()["session"]["alerts"]
 _mine = [x for x in _alerts if x.get("id") == aid]
 check("1.26 /api/recordings/<id>: its alarms carry the label (and the picture, when saved) of the alert history", len(_mine) == 1 and _mine[0]["label"] == "right"
       and _mine[0].get("image") == _hist_entry.get("image") and _mine[0].get("frame") == 3, _mine)
+check("1.26.1 an alarm without a picture shows the recorded frame of the alarm", _mine[0].get("picture") == "/api/recordings/%s/frames/3.jpg" % sid, _mine[0].get("picture"))
+_pic = mr.recorder.frame_path(sid, 2)
+time.sleep(1.1)   # alarm ids are the second they happened
+mr.recorder.last_trigger = (sid, time.time(), 2, time.time())
+_ev = mr.record_alert({"outcome": "AI error 429", "score": 1.0, "error": "too many"}, _pic)
+_got = [x for x in cr.get("/api/recordings/" + sid).get_json()["session"]["alerts"] if x.get("id") == _ev["id"]]
+check("1.26.1 the recording keeps its own copy of the alarm's picture (alert-<id>.jpg) and serves it", _got and _got[0].get("picture") == "/api/print/alerts/image/" + _ev["image"]
+      and mr.recorder.alert_picture_path(sid, _ev["id"]) and cr.get("/api/recordings/%s/alerts/%s.jpg" % (sid, _ev["id"])).status_code == 200
+      and cr.get("/api/recordings/%s/alerts/20990101-000000.jpg" % sid).status_code == 404 and _got[0].get("error") == "too many", _got)
+os.remove(os.path.join(mr.ALERT_HISTORY_DIR, _ev["image"]))
+_hist_lines = open(os.path.join(mr.ALERT_HISTORY_DIR, "history.jsonl")).read().splitlines()
+open(os.path.join(mr.ALERT_HISTORY_DIR, "history.jsonl"), "w").write("\n".join(l for l in _hist_lines if _ev["id"] not in l) + "\n")
+_got = [x for x in cr.get("/api/recordings/" + sid).get_json()["session"]["alerts"] if x.get("id") == _ev["id"]]
+check("1.26.1 ... when the history has forgotten it, the recording's copy is shown", _got and _got[0].get("picture") == "/api/recordings/%s/alerts/%s.jpg" % (sid, _ev["id"]), _got)
+class _R429:
+    def __init__(self, headers, text):
+        self.headers, self.text = headers, text
+    def json(self):
+        return json.loads(self.text)
+check("1.26.1 a 429: the wait asked (Retry-After, or 'try again in 1m2.5s' in the text)", mr._retry_after_s(_R429({"retry-after": "7"}, "")) == 7.0
+      and mr._retry_after_s(_R429({}, "Please try again in 1m2.5s.")) == 62.5 and mr._retry_after_s(_R429({}, "no")) is None)
+check("1.26.1 ... and the service's words, without the account id", mr._ai_error_detail(_R429({}, json.dumps({"error": {"message": "Rate limit in organization org_ABC123 on tokens per day"}}))) == "Rate limit in organization org_… on tokens per day")
 cr.post("/api/print/alerts/%s/label" % aid, json={"label": None})
 
 # --- the replay (scripts/replay.py) on that recording

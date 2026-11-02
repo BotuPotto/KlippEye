@@ -272,11 +272,13 @@ Instead of guessing whether a change of the thresholds helps, measure it:
 1. **Settings → AI monitor → Recordings → Record the prints**. During every print the backend keeps the pictures the monitor looked at
    (small, about 150 MB for a four-hour print) with layer, position and score, in `~/printer_data/klippeye/recordings/`. The
    oldest prints are deleted when the chosen space is full, and nothing is recorded with less than 1 GB free on the disk.
-2. After each print, open it in the same page. At the top are its **alarms**, each with the picture the AI saw (tap to
-   enlarge): **Print OK** if the print was fine (a false alarm: the AI was wrong), **Print KO** if there really was a problem
-   (the AI was right). *See it among the pictures* jumps to that moment. Then say **It went fine**, or, if it failed, move to the
-   first picture where the problem shows and press **It failed from here**. Alarms of prints that were not recorded are folded
-   at the bottom of the page (*Alarms outside the recordings*).
+2. After each print, open it in the same page: look through its pictures and say **It went fine**, or, if it failed, move to
+   the first picture where the problem shows and press **It failed from here**. Below, **Alarms of this print** lists its
+   alarms, each with the picture the AI saw (tap to enlarge) and its response. You judge whether the AI's response matches the
+   real state of the print: **Correct result** if it does, **Wrong result** if not (a pause for a print that was fine, or
+   "continue" while something went wrong). An alarm the AI could
+   not judge (an error of the AI service) asks **There was a problem** or **No problem**. *See it among the pictures* goes back
+   to the print at that moment. Alarms of prints that were not recorded are folded at the bottom of the page.
 3. **Measure now** runs the monitor again on the recorded prints ticked under *Prints to use* (all of them unless you untick
    some: a print with another camera or a test can be left out), with the thresholds in use now, and shows the alarms per
    hour, how many were false and whether each failure was caught (and how long it took). From the terminal, to compare other
@@ -286,6 +288,12 @@ Instead of guessing whether a change of the thresholds helps, measure it:
    (which keep the objects) the whole bed is watched outside the parts, `--set expected_zone=off` compares with the outer band only.
 
 The page also shows the **monitor load**: the time of one check and the CPU the backend used in the last minute.
+
+**"AI error 429"** on an alarm means the AI service refused the request: too many requests or too much data (pictures) for
+the limits of its plan, per minute or per day; the alarm shows the service's own words. Since 1.26.1 the backend waits and asks
+once more when the service asks to wait a few seconds. If it keeps happening (a daily limit), raise *Pause between two AI
+analyses* (Monitor thresholds), turn off *Also send the earlier picture to the AI* (one picture per request instead of two), choose a model with
+higher limits, or use a paid plan of the service.
 
 ## 6. Android app and notifications
 

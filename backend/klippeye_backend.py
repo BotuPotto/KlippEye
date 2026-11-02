@@ -1813,6 +1813,36 @@ ALERT_HISTORY_KEEP = 40  # events with pictures
 _history_lock = threading.Lock()
 
 
+AI_RATE_RETRY_MAX_S = 30  # a 429 that asks to wait longer than this is not retried (the alarm says the AI was busy)
+
+
+def _retry_after_s(response):
+    """How long an AI service that answered 429 asks to wait, in seconds (Retry-After, or "try again in 20s" in the text)."""
+    try:
+        header = response.headers.get("retry-after")
+        if header:
+            return max(0.0, float(header))
+    except (TypeError, ValueError):
+        pass
+    match = re.search(r"try again in (?:(\d+)m)?([\d.]+)s", response.text or "")
+    if match:
+        return int(match.group(1) or 0) * 60 + float(match.group(2))
+    return None
+
+
+def _ai_error_detail(response):
+    """The AI service's own words about an error (for the alarm), without account ids."""
+    text = ""
+    try:
+        data = response.json()
+        error = data.get("error") if isinstance(data, dict) else None
+        text = error.get("message", "") if isinstance(error, dict) else str(error or "")
+    except ValueError:
+        text = response.text or ""
+    text = re.sub(r"\b(org|user|proj)_[A-Za-z0-9]+", r"\1_…", str(text))
+    return re.sub(r"\s+", " ", text).strip()[:300]
+
+
 def record_alert(event, image_path=None, reference_path=None):
     """Adds an event to <data>/alerts/history.jsonl and copies the pictures next to it. Must never make the monitor fail."""
     try:
@@ -1820,15 +1850,17 @@ def record_alert(event, image_path=None, reference_path=None):
             os.makedirs(ALERT_HISTORY_DIR, exist_ok=True)
             stamp = time.strftime("%Y%m%d-%H%M%S")
             event = dict(event, time=time.strftime("%Y-%m-%d %H:%M:%S"), id=stamp)
-            try:
-                recorder.attach_alert(event)  # the recording of the print this alarm belongs to, if it is being recorded
-            except Exception as error:
-                print(f"[RECORDER] alert not linked: {error}")
             for key, path, suffix in (("image", image_path, "now"), ("reference", reference_path, "before")):
                 if path and os.path.isfile(path):
                     name = "%s-%s.jpg" % (stamp, suffix)
                     shutil.copyfile(path, os.path.join(ALERT_HISTORY_DIR, name))
                     event[key] = name
+            try:
+                # the recording of the print this alarm belongs to, if it is being recorded; it keeps its own copy of the
+                # picture (1.26.1: the history keeps only the last ALERT_HISTORY_KEEP, the recording all of them)
+                recorder.attach_alert(event, image_path)
+            except Exception as error:
+                print(f"[RECORDER] alert not linked: {error}")
             log = os.path.join(ALERT_HISTORY_DIR, "history.jsonl")
             lines = []
             try:
@@ -2419,14 +2451,22 @@ class LightDetector(FrameJudge):
 
             used_reference = bool(ref_b64)
             r = ask(used_reference)
-            if not r.ok and used_reference:
+            if r.status_code == 429:
+                # 1.26.1: too many requests (the limits of the AI service's plan, per minute or per day). A short wait asked
+                # by the service: wait it and ask once more; a long one (daily limit): give up, the alarm says why
+                wait = _retry_after_s(r)
+                if wait is not None and wait <= AI_RATE_RETRY_MAX_S:
+                    print(f"[OPENCV] the AI service asks to wait {wait:.0f}s (429): asking again")
+                    time.sleep(wait + 1)
+                    r = ask(used_reference)
+            if not r.ok and used_reference and r.status_code != 429:
                 # some services/models accept one picture only (or have a data limit): try again with the current picture only
                 print(f"[OPENCV] the AI refused two pictures ({r.status_code}): trying with one")
                 used_reference = False
                 r = ask(False)
             if not r.ok:
                 print(f"[OPENCV] IA error {r.status_code}: {r.text[:500]}")
-                record_alert({"outcome": f"AI error {r.status_code}", "score": score, "model": final_model}, img_path, ref_path)
+                record_alert({"outcome": f"AI error {r.status_code}", "score": score, "model": final_model, "error": _ai_error_detail(r)}, img_path, ref_path)
                 return
             j = r.json()
             answer = j["choices"][0]["message"]["content"] if "choices" in j else str(j)
@@ -3074,11 +3114,25 @@ def api_recording(sid):
     frames = [{k: f.get(k) for k in ("n", "t", "score", "trig", "cool", "layer", "layers", "progress")} for f in recorder.frames(sid)]
     # 1.26: the alarms of this print with their pictures and labels as the alert history has them (the recording keeps a
     # copy made before the pictures were saved), so they can be judged right here
+    # 1.26.1: "picture" is the address of the picture to show: the one in the history, else the recording's copy, else the
+    # recorded frame of the alarm (alarms recorded before 1.26.1 whose picture left the history)
     history = {entry.get("id"): entry for entry in read_alert_history(ALERT_HISTORY_KEEP)}
     alerts = []
     for alert in session.get("alerts") or []:
         known = history.get(alert.get("id")) or {}
-        alerts.append(dict(alert, image=known.get("image") or alert.get("image"), label=known.get("label", alert.get("label"))))
+        merged = dict(alert, image=known.get("image") or alert.get("image"), label=known.get("label", alert.get("label")))
+        for key in ("summary", "observation", "action", "original_action", "confidence", "outcome", "error"):
+            if merged.get(key) in (None, "") and known.get(key) not in (None, ""):
+                merged[key] = known[key]
+        if merged.get("image"):
+            merged["picture"] = "/api/print/alerts/image/" + merged["image"]
+        elif recorder.alert_picture_path(sid, str(alert.get("id") or "")):
+            merged["picture"] = "/api/recordings/%s/alerts/%s.jpg" % (sid, alert.get("id"))
+        elif isinstance(alert.get("frame"), int) and recorder.frame_path(sid, alert["frame"]):
+            merged["picture"] = "/api/recordings/%s/frames/%d.jpg" % (sid, alert["frame"])
+        else:
+            merged["picture"] = None
+        alerts.append(merged)
     session = dict(session, alerts=alerts)
     return _no_store(jsonify({"ok": True, "session": session, "frames": frames}))
 
@@ -3086,6 +3140,15 @@ def api_recording(sid):
 @app.route("/api/recordings/<sid>/frames/<int:n>.jpg", methods=["GET"])
 def api_recording_frame(sid, n):
     path = recorder.frame_path(sid, n)
+    if path is None:
+        return jsonify({"ok": False, "error": "no such picture"}), 404
+    return send_file(path, mimetype="image/jpeg", max_age=3600)
+
+
+@app.route("/api/recordings/<sid>/alerts/<aid>.jpg", methods=["GET"])
+def api_recording_alert_picture(sid, aid):
+    """The picture the AI saw for one alarm of a recording (1.26.1)."""
+    path = recorder.alert_picture_path(sid, aid)
     if path is None:
         return jsonify({"ok": False, "error": "no such picture"}), 404
     return send_file(path, mimetype="image/jpeg", max_age=3600)

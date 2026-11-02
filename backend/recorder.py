@@ -25,6 +25,7 @@ JPEG_QUALITY = 80
 MIN_FREE_BYTES = 1024 ** 3  # never fill the disk: below 1 GB free nothing is recorded
 SAVE_EVERY = 20  # session.json is written again every N pictures (and at every event)
 ID_RE = re.compile(r"^\d{8}-\d{6}(-[A-Za-z0-9._-]{1,40})?$")
+ALERT_ID_RE = re.compile(r"^\d{8}-\d{6}$")
 OUTCOMES = ("ok", "failed")
 ACTIVE_STATES = ("printing", "paused")  # a paused print is the same recording
 ALERT_LINK_SECONDS = 600  # an AI verdict belongs to the recording of the alarm that caused it
@@ -213,9 +214,10 @@ class Recorder:
             if self.session:
                 self.session["cpu"] = {"check_ms": round(check_ms, 1), "cpu_percent": round(cpu_percent, 1)}
 
-    def attach_alert(self, event):
+    def attach_alert(self, event, image_path=None):
         """An entry of the alert history (AI verdict): linked to the recording of the alarm that caused it. Adds "session"
-        and "frame" to `event` when there is one."""
+        and "frame" to `event` when there is one. 1.26.1: the picture the AI saw is kept in the recording too
+        (alert-<id>.jpg), since the alert history keeps only the last pictures."""
         with self.lock:
             if not self.last_trigger or time.time() - self.last_trigger[3] > ALERT_LINK_SECONDS:
                 return
@@ -226,6 +228,17 @@ class Recorder:
             session = self.session if self.session and self.session["id"] == sid else self.load(sid)
             if session is None:
                 return
+            if image_path and os.path.isfile(image_path) and ALERT_ID_RE.match(str(event.get("id") or "")):
+                name = "alert-%s.jpg" % event["id"]
+                try:
+                    shutil.copyfile(image_path, os.path.join(self.root, sid, name))
+                    copy["picture"] = name
+                    size = os.path.getsize(os.path.join(self.root, sid, name))
+                    session["bytes"] = session.get("bytes", 0) + size
+                    if self._sizes is not None and sid in self._sizes:
+                        self._sizes[sid] = session["bytes"]
+                except OSError:
+                    pass
             session["alerts"].append(copy)
             self._save(session)
 
@@ -283,6 +296,13 @@ class Recorder:
         if not ID_RE.match(sid or "") or not (isinstance(n, int) and n > 0):
             return None
         path = os.path.join(self.root, sid, "%06d.jpg" % n)
+        return path if os.path.isfile(path) else None
+
+    def alert_picture_path(self, sid, alert_id):
+        """The picture the AI saw for one alarm of a recording (1.26.1), or None."""
+        if not ID_RE.match(sid or "") or not ALERT_ID_RE.match(alert_id or ""):
+            return None
+        path = os.path.join(self.root, sid, "alert-%s.jpg" % alert_id)
         return path if os.path.isfile(path) else None
 
     def ids(self):

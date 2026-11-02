@@ -52,9 +52,7 @@ function useSettingsMenu() {
     if (!open) return undefined;
     const onKey = (event) => {
       if (event.key !== "Escape" || document.querySelector(".help-overlay")) return;
-      if (question) return setQuestion(null);
-      if (page) back();
-      else close();
+      goBack(); // 1.26.1: the same "back" as the phone's (a page may have a level of its own, e.g. one recording)
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -852,7 +850,7 @@ function SettingsDrawer({ menu, updates, printing, actions }) {
         "div",
         { className: "drawer__head" },
         page
-          ? h("button", { type: "button", className: "header-btn drawer__btn", "aria-label": tx("Back"), onClick: menu.back }, h(Icons.Back))
+          ? h("button", { type: "button", className: "header-btn drawer__btn", "aria-label": tx("Back"), onClick: () => goBack() }, h(Icons.Back))
           : h(PrinterLogo, { id: settings.printer.brand, className: "drawer__logo" }),
         h("div", { className: "drawer__title" }, page ? PAGE_TITLES[page] : tx("Settings")),
         h(HelpButton, { page: page || "home", className: "drawer__help" }),
