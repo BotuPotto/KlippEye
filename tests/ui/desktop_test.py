@@ -201,7 +201,7 @@ with sync_playwright() as p:
 
     # ------------------------------------------------------------------ sistema + calibrazione smoke
     P = fresh(tab="sistema")
-    ok("sistema: three columns with host, logs, AI monitor", P.pg.locator(".desk-system > .desk-col").count() == 3, P.pg.locator(".desk-system > .desk-col").count())
+    ok("sistema: two columns with host and logs (1.25: the AI monitor is the panel of the AI badge)", P.pg.locator(".desk-system > .desk-col").count() == 2, P.pg.locator(".desk-system > .desk-col").count())
     P.pg.screenshot(path=f"{out}/sistema.png", animations="disabled")
     ok("no errors on Sistema", not errs(P), errs(P)[:3]); P.close()
     P = fresh(tab="controllo")

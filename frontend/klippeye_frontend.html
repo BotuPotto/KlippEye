@@ -3379,7 +3379,8 @@ input[type="range"] { touch-action: pan-y; }
 .desk-split--files { grid-template-columns: minmax(0, 1fr) 420px; }
 .desk-split--config { grid-template-columns: 380px minmax(0, 1fr); }
 .desk-split--config > .desk-col > .oui-card { flex: 1 0 auto; } /* the list card runs down to the editor's bottom edge */
-.desk-system { display: grid; flex: 1; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; min-height: 0; }
+/* 1.25: two columns (the AI monitoring card became the panel of the AI badge) */
+.desk-system { display: grid; flex: 1; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; min-height: 0; }
 
 /* ---- Dispositivo ---- */
 .desk-device { display: grid; flex: 1; grid-template-columns: minmax(0, 1fr) 440px; gap: 16px; min-height: 0; }
