@@ -44,10 +44,10 @@ def _pyramid(cx, cy, base, height):
     return [(a, b, tip), (b, c, tip), (c, d, tip), (d, a, tip), (a, c, b), (a, d, c)]
 
 
-def markers_stl(minimum, maximum, base=PYRAMID_BASE, height=PYRAMID_HEIGHT):
-    """A binary STL with six pyramids at marker_positions(), in the printer's coordinates."""
+def markers_stl(minimum, maximum, base=PYRAMID_BASE, height=PYRAMID_HEIGHT, positions=None):
+    """A binary STL with six pyramids at `positions` (default marker_positions()), in the printer's coordinates."""
     triangles = []
-    for x, y in marker_positions(minimum, maximum):
+    for x, y in positions or marker_positions(minimum, maximum):
         triangles += _pyramid(x, y, base, height)
     out = [b"KlippEye camera calibration markers".ljust(80, b" "), struct.pack("<I", len(triangles))]
     for p1, p2, p3 in triangles:

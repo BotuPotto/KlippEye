@@ -59,3 +59,4 @@
 .cal-auto { display: flex; flex-direction: column; gap: 8px; margin: 8px 0; }
 .cal-target.is-proposed { box-shadow: inset 0 0 0 2px #4da3ff; color: #4da3ff; }
 .cal-cross--proposal line { stroke: #4da3ff; }
+.cal-risks ul { margin: 6px 0 4px; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; line-height: 1.4; }

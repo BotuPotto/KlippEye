@@ -3255,6 +3255,7 @@ CAMERA_MESSAGES = (  # what camera_calibration.py and camera_model.py may answer
     btn("the points must be at two heights at least 10 mm apart"), btn("the points are all on one plane"),
     btn("no camera fits these points: check that each tap is on the nozzle tip"), btn("the camera is not calibrated"),
     btn("Klipper refused the command: {message}"),
+    btn("homing could hit the markers on the bed"),
     btn("tap the nozzle by hand at one point first: KlippEye then finds it at the others"), btn("only the nozzle points can be found by themselves"),
 )
 def _gcode_files():
@@ -3310,6 +3311,7 @@ def api_camera_calibration():
             out["printer"] = printer
             out["targets"] = camera_cal.target_list(printer)
             out["guess"] = camera_cal.guess() if not camera_cal.z_moves() else None
+            out["homing"] = camera_cal.homing_summary(printer) if camera_cal.z_moves() == "bed" else None   # 1.29.1
         except Exception as error:
             out["printer"] = None
             out["printer_error"] = str(error)[:200]
@@ -3331,7 +3333,18 @@ def api_camera_options():
 
 @app.route("/api/camera/calibration/home", methods=["POST"])
 def api_camera_home():
-    return _camera_call(lambda: camera_cal.home())
+    """G28. With the markers on the bed (Z moving the bed) homing could hit one: 409 with "risks" (homing_safety.py) unless
+    {"force": true} (the person checked)."""
+    force = _camera_body().get("force") is True
+    try:
+        camera_cal.home(force)
+    except _camcal.HomingRisk as risk:
+        return jsonify({"ok": False, "error": bt(risk.text, _lang()), "risks": risk.risks}), 409
+    except _camcal.NotReady as error:
+        return jsonify({"ok": False, "error": bt(error.text, _lang(), **error.values)}), 409
+    except requests.RequestException as error:
+        return jsonify({"ok": False, "error": bt("Klipper does not answer: {error}", _lang(), error=error)}), 502
+    return jsonify({"ok": True})
 
 
 @app.route("/api/camera/calibration/goto", methods=["POST"])

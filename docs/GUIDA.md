@@ -249,6 +249,12 @@ si muove da sola: tieni lontane le mani.
    A ogni punto la pagina mostra un piccolo disegno di cosa toccare. I numeri verdi sono fatti; tocca un numero per vederlo
    o rifarlo. La croce gialla è il tuo tocco, quella verde un punto già tenuto.
 
+   **Homing con i segni sul piatto.** Dopo la stampa dei segni molte stampanti spengono i motori, quindi la pagina rifà
+   l'homing. KlippEye legge da Klipper dove fa l'homing di Z e mette le piramidi dell'STL lontane da lì (la pagina dice
+   dove); **Fai l'homing** chiede prima se un segno potrebbe stare sotto la testina o la sonda in quel punto (una stampa
+   vecchia, una macro `[homing_override]`, niente `z_hop`). Durante la calibrazione i motori restano accesi (il timeout
+   di inattività viene allungato e poi rimesso com'era).
+
    **Più veloce: l'ugello trovato da solo.** Dopo aver toccato l'ugello in un punto, KlippEye può trovarlo negli altri punti
    dell'ugello: **Trova l'ugello da solo negli altri N punti** va in ognuno, sposta per un attimo la testina di lato (per
    vedere dov'è) e cerca la punta che hai toccato (circa 15 secondi a punto; tieni le mani lontane). I punti trovati sono

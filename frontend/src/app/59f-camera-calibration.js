@@ -16,6 +16,8 @@
    1.29, "automatic": after the nozzle is tapped by hand once, KlippEye finds it by itself at the other nozzle points
    (backend/nozzle_finder.py: the toolhead moves aside for a moment, the tapped picture is looked for where it was); the
    person accepts the proposals, «Calculate» shows any that does not fit, to redo by hand.
+   1.29.1: homing with the markers on the bed (backend/homing_safety.py): the STL keeps them clear of where homing Z touches,
+   «Home» asks first when it could hit one, and the motors stay on during the calibration.
    The calibration is valid until the camera moves: the backend compares the picture with the one taken at calibration
    every ten minutes and, when the camera has moved, says so here and stops using the calibration.
    ========================================================================== */
@@ -417,6 +419,7 @@ function MarkersStep({ state, run, busy }) {
           "div",
           { className: "cal-marks" },
           h("a", { className: "oui-btn oui-btn--block", href: "/api/camera/markers.stl", download: "klippeye-camera-markers.stl", "data-stl": "1" }, h(Icons.Download, { size: 18 }), tx("Download the markers (STL)")),
+          h(HomingNote, { homing: state.homing }),
           h("p", { className: "set-group__note" }, tx("Six small pyramids sized for your bed. Slice the file with your usual settings (no supports, a colour that stands out on the bed), print it and leave it on the bed. Then choose here the file you printed: KlippEye reads where the pyramids ended up.")),
           files === null
             ? h("p", { className: "set-group__note" }, tx("Reading the files on the printer…"))
@@ -460,6 +463,69 @@ function MarkersStep({ state, run, busy }) {
         markers.source === "file" ? tx("6 markers found in {file}. Leave them on the bed until the calibration is saved.", { file: markers.file }) : tx("6 blobs made. Leave them on the bed until the calibration is saved."),
       ),
   );
+}
+
+/** 1.29.1: what could go wrong when homing with the markers on the bed, in words (backend/homing_safety.py). */
+function homingRiskText(risk) {
+  const where = risk.at ? tx("X {x}, Y {y}", { x: formatNumber(risk.at[0]), y: formatNumber(risk.at[1]) }) : "";
+  const before = risk.expected ? tx("If the printed markers are on the bed: ") : "";
+  if (risk.kind === "hit")
+    return (
+      before +
+      (risk.what === "probe"
+        ? tx("homing Z brings the bed up under the probe (homing at {where}) and the marker at X {x}, Y {y} is right there.", { where, x: formatNumber(risk.x), y: formatNumber(risk.y) })
+        : tx("homing Z brings the bed up under the toolhead at {where} and the marker at X {x}, Y {y} is right there.", { where, x: formatNumber(risk.x), y: formatNumber(risk.y) })) +
+      " " +
+      tx("Take that marker off before homing (the markers printed from the STL of this version stay clear of the homing point).")
+    );
+  if (risk.kind === "override") return before + tx("your printer homes with its own macro ([homing_override]): KlippEye cannot know where Z is homed. Check that no marker is under the toolhead or the probe there.");
+  if (risk.kind === "unknown") return before + tx("KlippEye could not work out where Z is homed: check that no marker is under the toolhead there.");
+  if (risk.kind === "no_hop") return tx("Z is not homed and Klipper does not lift the nozzle before homing (no z_hop in [safe_z_home]): make sure the nozzle is well above the markers (more than 10 mm) before homing.");
+  return "";
+}
+
+/** «Home the printer», which first asks the backend whether homing could hit the markers on the bed. */
+function SafeHomeButton({ run, busy }) {
+  const [risks, setRisks] = useState(null);
+  const [problem, setProblem] = useState("");
+  const home = async (force) => {
+    setProblem("");
+    const reply = await run("calibration/home", force ? { force: true } : {}, true);
+    if (reply.ok) return setRisks(null);
+    if (reply.data && Array.isArray(reply.data.risks)) return setRisks(reply.data.risks);
+    setProblem(reply.message);
+  };
+  return h(
+    React.Fragment,
+    null,
+    risks
+      ? h(
+          "div",
+          { className: "set-confirm cal-risks", role: "alertdialog", "aria-label": tx("Homing could hit the markers"), "data-risks": risks.map((r) => r.kind).join(",") },
+          h("strong", null, tx("Before homing")),
+          h("ul", null, risks.map((risk, index) => h("li", { key: index }, homingRiskText(risk)))),
+          h(
+            "div",
+            { className: "set-confirm__buttons" },
+            h("button", { type: "button", className: "oui-btn", onClick: () => setRisks(null) }, tx("Cancel")),
+            h("button", { type: "button", className: "oui-btn oui-btn--danger", "data-home-anyway": "1", disabled: busy, onClick: () => home(true) }, tx("Checked: home")),
+          ),
+        )
+      : h("button", { type: "button", className: "oui-btn oui-btn--block", "data-home": "1", disabled: busy, onClick: () => home(false) }, h(Icons.House, { size: 16 }), tx("Home the printer (G28)")),
+    problem && h("p", { className: "set-field__error", role: "alert" }, problem),
+  );
+}
+
+/** 1.29.1: where homing Z touches the bed, and that the markers of the STL stay clear of it. */
+function HomingNote({ homing }) {
+  if (!homing) return null;
+  const at = homing.xy ? tx("X {x}, Y {y}", { x: formatNumber(homing.xy[0]), y: formatNumber(homing.xy[1]) }) : "";
+  let text;
+  if (homing.how === "top") text = tx("Your printer homes Z with the bed going down: homing never comes near the markers.");
+  else if (homing.how === "override") text = tx("Your printer homes with its own macro ([homing_override]): before homing, check that no marker is where Z is homed.");
+  else if (!homing.xy) text = tx("Where Z is homed is not known: before homing, check that no marker is under the toolhead there.");
+  else text = (homing.layout_moved ? tx("Homing Z touches the bed at {at}: the pyramids of the STL are placed further out, so that the toolhead and the probe do not hit them.", { at }) : tx("Homing Z touches the bed at {at}: the pyramids of the STL are out of the way of the toolhead and the probe.", { at })) + (homing.probe ? " " + tx("Probe: {name}, {dx} / {dy} mm from the nozzle.", { name: homing.probe.name, dx: formatNumber(homing.probe.x_offset), dy: formatNumber(homing.probe.y_offset) }) : "");
+  return h("p", { className: "set-group__note", "data-homing": homing.how + (homing.layout_moved ? "-moved" : "") }, text);
 }
 
 function PointsStep({ state, camera, run, busy }) {
@@ -520,8 +586,9 @@ function PointsStep({ state, camera, run, busy }) {
       SettingsGroup,
       { title: tx("Before starting"), note: tx("Clean bed (only the markers on it); the light as during prints; the printer idle. The printer moves by itself: keep your hands out.") },
       !state.printer || !/x/.test(state.printer.homed) || !/z/.test(state.printer.homed)
-        ? h("button", { type: "button", className: "oui-btn oui-btn--block", disabled: busy, onClick: () => run("calibration/home") }, h(Icons.House, { size: 16 }), tx("Home the printer (G28)"))
+        ? h(SafeHomeButton, { run, busy })
         : h("p", { className: "set-group__note" }, tx("Printer homed.")),
+      h("p", { className: "set-group__note" }, tx("During the calibration the motors stay on (Klipper's idle timeout is made longer, and put back at the end), so the printer does not lose its homing.")),
     ),
     needsMarks && h(MarkersStep, { state, run, busy }),
     target &&

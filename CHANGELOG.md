@@ -1,5 +1,22 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.29.1
+
+**Camera calibration: homing with the markers on the bed** (after the markers are printed many printers switch the motors
+off, so the calibration homes again with six 10 mm pyramids on the bed).
+
+* **The STL keeps the pyramids clear of where homing Z touches**: KlippEye reads from Klipper where Z is homed
+  (`[safe_z_home] home_xy_position`, a Beacon / Cartographer home position, or where X and Y end their homing) and the
+  probe's offsets; when the usual grid would put a pyramid under the toolhead or the probe there, it uses another
+  symmetric grid (a slicer that centres the object keeps it in place). The page says where Z is homed.
+* **«Home the printer» asks first** when homing could hit a marker: a pyramid under the toolhead or the probe at the
+  homing point (take it off), a `[homing_override]` whose place cannot be known, or no `z_hop` with Z not homed (the
+  nozzle may be low). *Checked: home* goes on. Blobs (0.6 mm) are no risk; a Z endstop at the top is never a risk.
+* **The motors stay on during the calibration**: Klipper's idle timeout is made 1 hour long and put back at the end (save
+  or start again), so the printer does not lose its homing halfway.
+* Backend: `backend/homing_safety.py`; `/api/camera/calibration` has `homing`; `/home` answers 409 with `risks` unless
+  `{"force": true}`.
+
 ## 1.29.0
 
 **Camera calibration: the nozzle found by itself, the toolhead resized by dragging** (roadmap phase 6a, last part).
