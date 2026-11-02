@@ -149,6 +149,23 @@ r = ai.chat(ai.resolve(cfg2, "monitor"), [{"role": "user", "content": "x"}], tem
 check("... any other refusal is not repeated (the monitor tries one picture itself)", not r.ok and len(CALLS) == 1)
 check("the answer's text, also when it comes in parts", ai.answer_text(Resp(200, {"choices": [{"message": {"content": [{"type": "text", "text": "a"}, {"type": "text", "text": "b"}]}}]})) == "ab")
 
+print("== ai_precision: the AI's response against the real print")
+import ai_precision as ap  # noqa: E402
+A = [{"id": "1", "action": "PAUSE", "confidence": 85, "label": "right"}, {"id": "2", "action": "PAUSE", "confidence": 72, "label": "false"},
+     {"id": "3", "action": "CONTINUE", "original_action": "PAUSE", "confidence": 60, "label": "right"}, {"id": "4", "action": "CONTINUE", "confidence": 10, "label": "false"},
+     {"id": "5", "outcome": "AI error 429", "label": "right"}, {"id": "6", "action": "PAUSE", "confidence": 90}]
+p = ap.precision(A, 70)
+check("the four cases: stop right, false stop, problem missed, continue right; an AI error apart; an unjudged alarm left out",
+      (p["judged"], p["no_verdict"], p["stop_right"], p["stop_wrong"], p["continue_wrong"], p["continue_right"]) == (4, 1, 1, 1, 1, 1) and p["correct_pct"] == 50 and not p["enough"], p)
+rows = {r["threshold"]: (r["false_stops"], r["missed"]) for r in p["thresholds"]}
+check("each minimum confidence on the same alarms (a stop kept when proposed and confident enough)", rows == {50: (1, 0), 60: (1, 0), 70: (1, 1), 80: (0, 1), 90: (0, 2), 95: (0, 2)}, rows)
+check("the advice: the value that misses fewest, then fewest false stops, nearest to the one in use", p["advice"] == {"kind": "lower", "threshold": 60, "false_stops": 1, "missed": 0}, p["advice"])
+check("... keep when the one in use is as good", ap.precision(A, 60)["advice"]["kind"] == "keep" and ap.precision([], 70)["advice"] is None)
+check("a threshold in use outside the list is added to it", 75 in [r["threshold"] for r in ap.precision(A, 75)["thresholds"]])
+m = ap.merge([{"id": "a", "action": "PAUSE"}, {"id": "b", "action": "PAUSE", "label": "false"}], [{"alerts": [{"id": "a", "label": "right", "t": 5}, {"id": "b", "label": "right"}, {"id": "c", "label": "false"}]}])
+m = {x["id"]: x for x in m}
+check("history and recordings once each: the history's label wins when it has one, else the recording's", m["a"]["label"] == "right" and m["a"]["t"] == 5 and m["b"]["label"] == "false" and m["c"]["label"] == "false" and len(m) == 3, m)
+
 print("== the backend")
 sys.path.insert(0, HERE)
 data = tempfile.mkdtemp()

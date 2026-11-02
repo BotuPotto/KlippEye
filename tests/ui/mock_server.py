@@ -905,6 +905,8 @@ def mock_measure():
             return jsonify(ok=False, error="choose at least one recording"), 400
         S["measure"] = {"state": "running", "started": int(time.time())}
         result = S.get("measure_result")
+        if body.get("compare") and result:   # 1.28: the variants
+            result = dict(result, compare=S.get("measure_compare") or [])
         def finish():
             S["measure"] = {"state": "done", "started": int(time.time()), "result": result}
         later(1.5, finish)
@@ -959,6 +961,14 @@ def mock_camera_calibration():
 @app.route("/api/print/alerts/image/<name>")
 def mock_alert_image(name):
     return Response('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 90 60"><rect width="90" height="60" fill="#555"/></svg>', mimetype="image/svg+xml")
+
+
+@app.route("/api/print/alerts/precision")
+def mock_alert_precision():
+    """1.28: the same computation as the backend (ai_precision.py) on the mock's alarms and recordings."""
+    import ai_precision
+    current = (S.get("brain_cfg") or {}).get("ai_min_confidence", 70)
+    return jsonify(dict(ai_precision.precision(ai_precision.merge(S["alerts"], S["recordings"]), current), ok=True))
 
 
 @app.route("/api/print/alerts/history")

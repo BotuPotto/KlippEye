@@ -59,3 +59,14 @@
 .rec-choose__text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .rec-choose__name { display: block; font-size: 14px; overflow-wrap: anywhere; }
 .rec-choose__meta { display: block; color: var(--oui-text-3); font-size: 12px; }
+
+/* 1.28: the comparison of the options, the minimum confidence table */
+.rec-compare { margin-top: 12px; }
+.rec-compare__head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.rec-thresholds { display: flex; flex-direction: column; margin-top: 4px; background: var(--oui-surface-2); border-radius: var(--oui-r-field); overflow: hidden; }
+.rec-thresholds__row { display: grid; grid-template-columns: 1.6fr 1fr 1fr; gap: 8px; padding: 8px 14px; font-size: 13px; font-variant-numeric: tabular-nums; }
+.rec-thresholds__row + .rec-thresholds__row { border-top: 1px solid var(--oui-stroke); }
+.rec-thresholds__row--head { color: var(--oui-text-3); font-size: 12px; }
+.rec-thresholds__row.is-current { font-weight: 600; background: var(--oui-accent-soft, rgba(183, 156, 255, 0.12)); }
+.rec-thresholds__row.is-best { box-shadow: inset 3px 0 0 var(--oui-ok); }
+.rec-thresholds__warn { color: var(--oui-warn, #f5a524); }

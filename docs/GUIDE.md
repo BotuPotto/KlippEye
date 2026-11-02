@@ -294,6 +294,14 @@ Instead of guessing whether a change of the thresholds helps, measure it:
    KlippEye 1.13 or later, which keep the toolhead position); `--set machine_masks=off` compares without them; on prints recorded with 1.16 or later
    (which keep the objects) the whole bed is watched outside the parts, `--set expected_zone=off` compares with the outer band only.
 
+**How precise is it?** In the same page:
+* **Precision of the AI**: on the alarms you judged, how often the AI's response matched the real print (pauses that were
+  right, problems stopped, false stops, problems missed), and a table of what each **minimum AI confidence** would have given
+  on the same alarms; when another value is better the page says so and, with at least 10 judged alarms, offers to use it.
+* **Measure and compare the options**: the replay also without the G-code zone, without the masks, less and more sensitive,
+  each marked better, worse or the same: what the G-code weighs and whether the thresholds have margin (a few minutes;
+  from the terminal `klippeye replay --current --compare`).
+
 The page also shows the **monitor load**: the time of one check and the CPU the backend used in the last minute.
 
 **"AI error 429"** on an alarm means the AI service refused the request: too many requests or too much data (pictures) for

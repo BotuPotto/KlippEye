@@ -7,6 +7,9 @@
        here", delete; below, «Alarms of this print» opens the list of its alarms to judge (with their pictures);
      · "Measure the monitor": the backend runs the monitor again on the recordings chosen (scripts/replay.py) and the
        page shows how many alarms, how many false, whether the failures were caught;
+     · "Precision of the AI" (1.28): on the judged alarms, how often the AI's response matched the real print and what each
+       minimum confidence would have given (/api/print/alerts/precision);
+     · "Measure and compare" (1.28): the replay also without the G-code zone, without the masks and with other thresholds;
      · the alarms that are in no recording, folded at the bottom.
    An alarm is judged against the AI's verdict (1.26.1): "Correct result" or "Wrong result". What is saved is whether the
    print really had a problem ("right") or not ("false"), so the two buttons swap meaning when the AI said to go on. An
@@ -469,6 +472,136 @@ function MeasureResult({ result }) {
   );
 }
 
+/* ---------------------------------------------------------------------------
+   1.28 (roadmap 6a part 4): what weighs and where there is margin
+   ------------------------------------------------------------------------- */
+const COMPARE_TEXTS = {
+  no_zone: { title: tx("Without the G-code zone"), detail: tx("only the outer band of the picture, as without the objects of the print") },
+  no_masks: { title: tx("Without leaving out toolhead and gantry"), detail: tx("as with a camera that is not calibrated") },
+  less_sensitive: { title: tx("Less sensitive"), detail: tx("change threshold {value}%") },
+  more_sensitive: { title: tx("More sensitive"), detail: tx("change threshold {value}%") },
+  more_checks: { title: tx("One more check in a row"), detail: tx("{value} checks in a row before an alarm") },
+};
+
+/** One line of numbers: alarms per hour, false alarms per hour, problems caught. */
+function measureNumbers(total) {
+  const parts = [tx("{rate} alarms per hour", { rate: total.per_hour === null || total.per_hour === undefined ? "–" : formatNumber(total.per_hour) })];
+  parts.push(total.known_hours > 0 ? tx("{rate} false per hour", { rate: formatNumber(total.false_per_hour) }) : tx("false: ?"));
+  if (total.failures) parts.push(tx("problems caught {seen} of {count}", { seen: total.seen, count: total.failures }));
+  return parts.join(" • ");
+}
+
+/** Compared with the settings in use: "better" (fewer false alarms, no problem lost), "worse", or "same". */
+function compareVerdict(now, other) {
+  const seenNow = now.seen || 0;
+  const seenOther = other.seen || 0;
+  if (seenOther < seenNow) return "worse";
+  const falseNow = now.known_hours > 0 ? now.false_per_hour : null;
+  const falseOther = other.known_hours > 0 ? other.false_per_hour : null;
+  if (falseNow === null || falseOther === null) return other.alarms < now.alarms ? "fewer" : other.alarms > now.alarms ? "more" : "same";
+  if (falseOther < falseNow - 0.005 || seenOther > seenNow) return "better";
+  if (falseOther > falseNow + 0.005) return "worse";
+  return "same";
+}
+
+const VERDICT_BADGES = {
+  better: ["ok", tx("better")],
+  worse: ["danger", tx("worse")],
+  same: ["", tx("same")],
+  fewer: ["", tx("fewer alarms")],
+  more: ["", tx("more alarms")],
+};
+
+function CompareResult({ result }) {
+  const now = result.total || {};
+  const rows = Array.isArray(result.compare) ? result.compare : [];
+  return h(
+    "div",
+    { className: "rec-compare", "data-compare": rows.length },
+    h("div", { className: "set-field__label fn-subtitle" }, tx("What weighs, and where there is margin")),
+    h(
+      "div",
+      { className: "rec-measure" },
+      h("div", { className: "rec-measure__row", "data-variant": "now" }, h("div", { className: "rec-measure__file" }, tx("As in use now")), h("div", { className: "rec-measure__meta" }, measureNumbers(now))),
+      rows.map((row) => {
+        const text = COMPARE_TEXTS[row.id] || { title: row.id, detail: "" };
+        const value = Object.values(row.overrides || {})[0];
+        const verdict = VERDICT_BADGES[compareVerdict(now, row.total || {})];
+        return h(
+          "div",
+          { key: row.id, className: "rec-measure__row", "data-variant": row.id },
+          h("div", { className: "rec-compare__head" }, h("span", { className: "rec-measure__file" }, text.title), h("span", { className: cx("oui-badge", verdict[0] && "oui-badge--" + verdict[0]) }, verdict[1])),
+          h("div", { className: "rec-measure__meta" }, i18nFill(text.detail, { value: typeof value === "number" ? formatNumber(value) : value })),
+          h("div", { className: "rec-measure__meta" }, measureNumbers(row.total || {})),
+        );
+      }),
+    ),
+    h("p", { className: "set-group__note" }, tx("«Better»: fewer false alarms and no problem lost. The G-code zone and the masks weigh as much as the difference with their line; a threshold with «better» has margin (Monitor thresholds).")),
+  );
+}
+
+/** How often the AI's verdict matched the real print, on the alarms you judged (1.28). */
+function AiPrecisionGroup({ active }) {
+  const data = useBackendJson("/api/print/alerts/precision", active, RECORDINGS_POLL_MS * 3);
+  const config = useBrainConfig(active);
+  if (data.phase !== "ok") return null;
+  const p = data.data;
+  const pct = (value) => (value === null || value === undefined ? "–" : value + "%");
+  const current = p.current;
+  const advice = p.advice;
+  return h(
+    SettingsGroup,
+    { title: tx("Precision of the AI"), help: ["recordings", "precision"] },
+    p.judged === 0
+      ? h("p", { className: "set-group__note", "data-precision": "empty" }, tx("No alarm judged yet. Judge the alarms (in each recorded print, or in the print card during a print): this is where you see how often the AI was right."))
+      : h(
+          React.Fragment,
+          null,
+          h(
+            "div",
+            { className: "oui-list set-info-list", "data-precision": p.judged },
+            h(InfoLine, { label: tx("Alarms judged"), value: String(p.judged) + (p.no_verdict ? " • " + tx("{count} without a response of the AI", { count: p.no_verdict }) : "") }),
+            h(InfoLine, { label: tx("Response matching the print"), value: pct(p.correct_pct) }),
+            h(InfoLine, { label: tx("Pauses that were right"), value: tx("{right} of {count}", { right: p.stop_right, count: p.stop_right + p.stop_wrong }) + " • " + pct(p.stop_pct) }),
+            h(InfoLine, { label: tx("Problems it stopped"), value: tx("{right} of {count}", { right: p.stop_right, count: p.stop_right + p.continue_wrong }) + " • " + pct(p.caught_pct), warn: p.continue_wrong > 0 }),
+            h(InfoLine, { label: tx("False stops"), value: String(p.stop_wrong), warn: p.stop_wrong > 0 }),
+            h(InfoLine, { label: tx("Problems missed («continue»)"), value: String(p.continue_wrong), warn: p.continue_wrong > 0 }),
+          ),
+          !p.enough && h("p", { className: "set-group__note", "data-precision-few": "1" }, tx("Only {count} alarms judged: a first idea. With at least 10 the numbers start to mean something.", { count: p.judged })),
+          p.thresholds && p.thresholds.length > 0 && p.thresholds[0].judged > 0 &&
+            h(
+              React.Fragment,
+              null,
+              h("div", { className: "set-field__label fn-subtitle" }, tx("Minimum AI confidence: what each value would have given")),
+              h(
+                "div",
+                { className: "rec-thresholds", role: "table" },
+                h("div", { className: "rec-thresholds__row rec-thresholds__row--head", role: "row" }, h("span", null, tx("Minimum")), h("span", null, tx("False stops")), h("span", null, tx("Missed"))),
+                p.thresholds.map((row) =>
+                  h(
+                    "div",
+                    { key: row.threshold, role: "row", className: cx("rec-thresholds__row", row.threshold === current && "is-current", advice && advice.kind !== "keep" && advice.threshold === row.threshold && "is-best"), "data-threshold": row.threshold },
+                    h("span", null, row.threshold + "%" + (row.threshold === current ? " • " + tx("in use") : "")),
+                    h("span", null, String(row.false_stops)),
+                    h("span", { className: row.missed ? "rec-thresholds__warn" : "" }, String(row.missed)),
+                  ),
+                ),
+              ),
+              advice &&
+                h(
+                  "p",
+                  { className: "set-group__note", "data-advice": advice.kind },
+                  advice.kind === "keep"
+                    ? tx("On your alarms the minimum in use ({value}%) is as good as any other: no change needed.", { value: current })
+                    : tx("On your alarms {value}% would have given {missed} problems missed and {false} false stops: better than the one in use.", { value: advice.threshold, missed: advice.missed, false: advice.false_stops }),
+                ),
+              advice && advice.kind !== "keep" && p.enough && config.phase === "ok" &&
+                h("button", { type: "button", className: "oui-btn oui-btn--sm", "data-use-threshold": advice.threshold, onClick: () => config.set({ ai_min_confidence: advice.threshold }) }, tx("Use {value}%", { value: advice.threshold })),
+            ),
+        ),
+  );
+}
+
 const MEASURE_SKIP_KEY = "ke_measure_skip"; // the recordings left out of the measurement, on this device
 
 function readSkipped() {
@@ -512,9 +645,11 @@ function MeasureGroup({ sessions }) {
       stop();
     };
   }, [running]);
-  const start = async () => {
+  const start = async (compare) => {
     setStarting(true);
-    const reply = await brainPost("/api/recordings/measure", chosen.length === usable.length ? {} : { ids: chosen.map((session) => session.id) });
+    const body = chosen.length === usable.length ? {} : { ids: chosen.map((session) => session.id) };
+    if (compare === true) body.compare = true;
+    const reply = await brainPost("/api/recordings/measure", body);
     setStarting(false);
     setState(reply.ok ? { phase: "running" } : { phase: "error", result: { error: reply.message } });
   };
@@ -544,9 +679,12 @@ function MeasureGroup({ sessions }) {
           ),
         ),
       ),
-    h("button", { type: "button", className: "oui-btn oui-btn--primary oui-btn--block", disabled: running || starting || !count, "data-measure": "start", onClick: start }, h(Icons.Play, { size: 18 }), running ? tx("Measuring…") : tx("Measure now")),
+    h("button", { type: "button", className: "oui-btn oui-btn--primary oui-btn--block", disabled: running || starting || !count, "data-measure": "start", onClick: () => start(false) }, h(Icons.Play, { size: 18 }), running ? tx("Measuring…") : tx("Measure now")),
+    h("button", { type: "button", className: "oui-btn oui-btn--block", disabled: running || starting || !count, "data-measure": "compare", onClick: () => start(true) }, tx("Measure and compare the options")),
+    h("p", { className: "set-group__note" }, tx("«Measure and compare» also replays the prints without the G-code zone, without the masks and with other thresholds, to show what each weighs: it takes a few minutes.")),
     state.phase === "error" && state.result && state.result.error && h("p", { className: "set-field__error", role: "alert" }, state.result.error),
     state.phase === "done" && state.result && h(MeasureResult, { result: state.result }),
+    state.phase === "done" && state.result && Array.isArray(state.result.compare) && h(CompareResult, { result: state.result }),
   );
 }
 
@@ -606,6 +744,7 @@ function RecordingsPage({ active }) {
         ? h("p", { className: "set-group__note" }, data.enabled ? tx("No print recorded yet: the next one will be.") : tx("No print recorded. Turn on «Record the prints» below."))
         : h("div", { className: "oui-list" }, sessions.map((session) => h(RecordingRow, { key: session.id, session, onOpen: () => setOpenId(session.id) }))),
     ),
+    h(AiPrecisionGroup, { active }),
     h(MeasureGroup, { sessions }),
     h(
       SettingsGroup,

@@ -298,6 +298,15 @@ Invece di indovinare se una soglia diversa aiuta, misuralo:
    con KlippEye 1.13 o successivo, che tengono la posizione della testina); `--set machine_masks=off` confronta senza; sulle stampe registrate con la 1.16 o successiva
    (che tengono gli oggetti) si guarda tutto il piatto fuori dai pezzi, `--set expected_zone=off` confronta con la sola fascia esterna.
 
+**Quanto è preciso?** Nella stessa pagina:
+* **Precisione dell'IA**: sugli allarmi che hai giudicato, quanto spesso il responso dell'IA corrispondeva alla stampa reale
+  (pause giuste, problemi fermati, fermate sbagliate, problemi non visti), e una tabella di cosa avrebbe dato ogni **fiducia
+  minima dell'IA** sugli stessi allarmi; se un altro valore è migliore la pagina lo dice e, con almeno 10 allarmi giudicati,
+  propone di usarlo.
+* **Misura e confronta le opzioni**: il replay anche senza la zona del G-code, senza le maschere, meno e più sensibile, ognuno
+  segnato meglio, peggio o uguale: quanto pesa il G-code e se le soglie hanno margine (alcuni minuti; da terminale
+  `klippeye replay --current --compare`).
+
 La pagina mostra anche il **carico del monitor**: il tempo di un controllo e la CPU usata dal backend nell'ultimo minuto.
 
 **"AI error 429"** su un allarme vuol dire che il servizio IA ha rifiutato la richiesta: troppe richieste o troppi dati (foto)

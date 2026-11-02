@@ -241,6 +241,50 @@ with sync_playwright() as p:
     ok("no JavaScript error", P.errors == [], P.errors)
     P.ctx.close()
 
+    # --- 1.28: precision of the AI, comparison of the options
+    def precision_alerts(times):
+        out = []
+        for i in range(times):
+            out += [
+                {"id": "202610%02d-100001" % (i + 1), "time": "x", "action": "PAUSE", "confidence": 85, "label": "right", "summary": "a"},
+                {"id": "202610%02d-100002" % (i + 1), "time": "x", "action": "PAUSE", "confidence": 72, "label": "false", "summary": "b"},
+                {"id": "202610%02d-100003" % (i + 1), "time": "x", "action": "CONTINUE", "original_action": "PAUSE", "confidence": 60, "label": "right", "summary": "c"},
+                {"id": "202610%02d-100004" % (i + 1), "time": "x", "action": "CONTINUE", "confidence": 10, "label": "false", "summary": "d"},
+            ]
+        return out + [{"id": "20261030-100005", "time": "x", "outcome": "AI error 429", "label": "right"}]
+    COMPARE = [{"id": "no_zone", "overrides": {"expected_zone": False}, "total": {"alarms": 9, "per_hour": 7.8, "known_hours": 0.02, "false_per_hour": 50.0, "failures": 1, "seen": 1}},
+               {"id": "less_sensitive", "overrides": {"score_threshold": 3.8}, "total": {"alarms": 2, "per_hour": 1.7, "known_hours": 0.02, "false_per_hour": 0.0, "failures": 1, "seen": 1}},
+               {"id": "more_sensitive", "overrides": {"score_threshold": 1.9}, "total": {"alarms": 5, "per_hour": 4.3, "known_hours": 0.02, "false_per_hour": 0.0, "failures": 1, "seen": 0}}]
+    P = fresh(b, recordings=SESSIONS[1:], alerts=precision_alerts(1), measure_result=RESULT, measure_compare=COMPARE)
+    open_recordings(P)
+    prec = P.pg.locator("[data-precision]")
+    ok("1.28 'Precisione dell'IA': the judged alarms against the AI's response", wait_until(lambda: prec.count() == 1 and prec.get_attribute("data-precision") == "4") and "Allarmi giudicati" in body(P)
+       and "1 senza responso dell'IA" in body(P) and "50%" in prec.inner_text() and "Pause giuste" in prec.inner_text(), body(P)[:900])
+    ok("... with few alarms it says the numbers are a first idea, and offers no change", P.pg.locator("[data-precision-few]").count() == 1 and P.pg.locator("[data-use-threshold]").count() == 0)
+    rows = P.pg.locator(".rec-thresholds__row[data-threshold]")
+    ok("... the table of the minimum confidence: each value with false stops and problems missed, the one in use marked",
+       rows.count() == 6 and "in uso" in P.pg.locator('[data-threshold="70"]').inner_text() and P.pg.locator('[data-threshold="60"]').inner_text().split() == ["60%", "1", "0"]
+       and P.pg.locator('[data-threshold="80"]').inner_text().split() == ["80%", "0", "1"], [rows.nth(i).inner_text() for i in range(rows.count())])
+    ok("... and the advice: 60% misses nothing", "60% avrebbe dato 0 problemi non visti e 1 fermate sbagliate" in body(P) and P.pg.locator('.is-best[data-threshold="60"]').count() == 1, body(P)[:1500])
+    P.pg.locator('[data-measure="compare"]').click()
+    ok("'Misura e confronta' asks the backend for the variants", wait_until(lambda: state()["measure_bodies"][-1:] == [{"compare": True}]), state()["measure_bodies"])
+    comp = P.pg.locator("[data-compare]")
+    ok("... and shows each variant against the settings in use", wait_until(lambda: comp.count() == 1, 8) and "Come in uso adesso" in comp.inner_text() and "Senza la zona del G-code" in comp.inner_text()
+       and "soglia di cambiamento 3,8%" in comp.inner_text(), comp.inner_text() if comp.count() else body(P)[-600:])
+    badge = lambda v: P.pg.locator('[data-variant="%s"] .oui-badge' % v).inner_text()
+    ok("... the G-code zone weighs (without it: worse), less sensitive: same, more sensitive loses a problem: worse", badge("no_zone") == "peggio" and badge("less_sensitive") == "uguale" and badge("more_sensitive") == "peggio",
+       [badge(v) for v in ("no_zone", "less_sensitive", "more_sensitive")])
+    P.pg.screenshot(path=os.path.join(out, "06_precision.png"), full_page=True)
+    ok("no JavaScript error", P.errors == [], P.errors)
+    P.ctx.close()
+    P = fresh(b, recordings=SESSIONS[1:], alerts=precision_alerts(3))
+    open_recordings(P)
+    use = P.pg.locator('[data-use-threshold="60"]')
+    ok("with 12 judged alarms the page offers to use 60%", wait_until(lambda: use.count() == 1) and P.pg.locator("[data-precision-few]").count() == 0)
+    use.click()
+    ok("... which sets the minimum AI confidence", wait_until(lambda: any(e.get("ai_min_confidence") == 60 for e in state()["brain_cfg_log"]), 4), state()["brain_cfg_log"][-2:])
+    P.ctx.close()
+
     # --- 360 px
     P = fresh(b, w=360, h=740, recordings=SESSIONS, rec_frames={SESSIONS[0]["id"]: FRAMES}, alerts=ALERTS[1:])   # 1.26.2: the alarm of the print has left the history
     open_recordings(P)
