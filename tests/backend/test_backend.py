@@ -1188,6 +1188,11 @@ check("1.26.2 an alarm that left the history is labelled in its recording", r.st
 r = cr.post("/api/print/alerts/%s/label" % _ev["id"], json={"label": None})
 check("1.26.2 ... also without saying which recording (it is looked for)", r.status_code == 200 and [x for x in mr.recorder.load(sid)["alerts"] if x["id"] == _ev["id"]][0]["label"] is None, r.get_json())
 check("1.26.2 ... an alarm that is nowhere: 404", cr.post("/api/print/alerts/20990101-000000/label", json={"label": "false", "session": sid}).status_code == 404)
+cr.post("/api/print/alerts/%s/label" % _ev["id"], json={"label": "right", "session": sid})
+_pr = cr.get("/api/print/alerts/precision").get_json()
+check("1.28 /api/print/alerts/precision: the judged alarms of history and recordings, an AI error counted apart, the table of the minimum confidence",
+      _pr["ok"] and _pr["no_verdict"] >= 1 and isinstance(_pr["thresholds"], list) and _pr["current"] == mr.detector.ai_min_confidence, _pr)
+cr.post("/api/print/alerts/%s/label" % _ev["id"], json={"label": None, "session": sid})
 class _R429:
     def __init__(self, headers, text):
         self.headers, self.text = headers, text
@@ -1215,6 +1220,14 @@ rp3 = _sub2.run([sys.executable, REPLAY, "--data", drec, "--json", out_json], ca
 res3 = json.load(open(out_json))
 check("replay: a print failed from the start, its first alarm caught it (with the delay)", res3["sessions"][0]["seen"] is True and res3["sessions"][0]["false"] == 0
       and res3["total"]["failures"] == 1 and res3["total"]["seen"] == 1 and res3["sessions"][0]["delay_s"] >= 0, res3["sessions"][0])
+rpc = _sub2.run([sys.executable, REPLAY, "--data", drec, "--json", out_json, "--current", "--compare"], capture_output=True, text=True, timeout=300)
+resc = json.load(open(out_json))
+_variants = {v["id"]: v for v in resc.get("compare") or []}
+check("1.28 replay --compare: less and more sensitive (1.5x and 0.75x the change threshold in use), each with its totals, and a table",
+      rpc.returncode == 0 and {"less_sensitive", "more_sensitive"} <= set(_variants) and _variants["less_sensitive"]["overrides"]["score_threshold"] > _variants["more_sensitive"]["overrides"]["score_threshold"]
+      and "alarms" in _variants["less_sensitive"]["total"] and _variants["less_sensitive"]["total"]["alarms"] <= resc["total"]["alarms"] <= _variants["more_sensitive"]["total"]["alarms"]
+      and "less sensitive" in rpc.stdout, (rpc.stdout[-600:], rpc.stderr[-300:], list(_variants)))
+check("... no G-code zone or mask variant without a calibration (nothing to compare)", "no_zone" not in _variants and "no_masks" not in _variants)
 mr.recorder.set_label(sid, None)
 _sub2.run([sys.executable, REPLAY, "--data", drec, "--json", out_json], capture_output=True, timeout=120)
 row4 = json.load(open(out_json))["sessions"][0]
@@ -1250,6 +1263,20 @@ mr._measure["process"] = None
 check("1.26 measure: the chosen recordings go to replay.py as --session", r.status_code == 200 and _popen_seen and _popen_seen[-1][-2:] == ["--session", sid], _popen_seen)
 r = cr.post("/api/recordings/measure")
 check("POST /api/recordings/measure starts the replay", r.status_code == 200 and r.get_json()["state"] == "running", r.get_json())
+_seen_cmd = []
+_real_popen2 = mr.subprocess.Popen
+wait_for(lambda: cr.get("/api/recordings/measure").get_json()["state"] != "running", 90)
+class _FakeMeasure2:
+    def __init__(self, command, **kw):
+        _seen_cmd.append(command)
+    def poll(self):
+        return 0
+mr.subprocess.Popen = _FakeMeasure2
+cr.post("/api/recordings/measure", json={"compare": True})
+mr.subprocess.Popen = _real_popen2
+mr._measure["process"] = None
+check("1.28 measure {compare: true}: replay.py --compare", _seen_cmd and "--compare" in _seen_cmd[-1], _seen_cmd)
+r = cr.post("/api/recordings/measure")
 wait_for(lambda: cr.get("/api/recordings/measure").get_json()["state"] != "running", 90)
 j = cr.get("/api/recordings/measure").get_json()
 check("GET: done, with the result (one print, the thresholds in use now)", j["state"] == "done" and j["result"]["settings"] == "current" and j["result"]["total"]["recordings"] == 1, j)

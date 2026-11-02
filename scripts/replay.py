@@ -8,6 +8,7 @@ code the backend uses live) again on the pictures kept by the recorder (backend/
     klippeye replay --set sensitivity=45 --set persist_checks=4      what if: other thresholds
     klippeye replay --session 20261028-101500-benchy                 only that recording (repeatable)
     klippeye replay --json result.json       also writes the result as JSON (the dashboard uses this)
+    klippeye replay --current --compare      also without the G-code zone, without the masks, less / more sensitive (1.28)
 
 An alarm is the moment the monitor would call the AI. Whether it was false comes from your labels (Settings → Recordings):
   * a print marked "went fine": every alarm is false;
@@ -242,6 +243,36 @@ def measure(data_dir, ids=None, current=False, overrides=None):
             "sessions": sessions, "total": summary}
 
 
+def compare_variants(data_dir, ids=None, current=False, overrides=None, base=None):
+    """1.28: the same recordings again with one thing changed at a time, to see what it weighs (--compare):
+      no_zone         without the expected zone from the G-code (the outer band only), when some print had its objects;
+      no_masks        without leaving out the toolhead and the gantry, when the camera is calibrated;
+      less_sensitive  a change threshold 1.5 times the one in use (fewer alarms: is there margin?);
+      more_sensitive  three quarters of it (more alarms: are failures caught earlier?);
+      more_checks     one check in a row more before an alarm (the filter that wants a change to stay).
+    -> [{"id", "overrides", "total"}] (the totals as in measure())."""
+    base = base or measure(data_dir, ids, current, overrides)
+    now_values = (read_json(os.path.join(data_dir, "monitor.json"), {}) or {}).get("values") or {}
+    defaults = FrameJudge()
+    values = dict(now_values, **(overrides or {}))
+    score = float(values.get("score_threshold", defaults.score_threshold))
+    persist = int(values.get("persist_checks", defaults.persist_checks))
+    variants = []
+    if base["total"].get("zoned_frames"):
+        variants.append(("no_zone", {"expected_zone": False}))
+    if base["total"].get("masked_frames"):
+        variants.append(("no_masks", {"machine_masks": False}))
+    variants.append(("less_sensitive", {"score_threshold": round(min(30.0, score * 1.5), 1)}))
+    variants.append(("more_sensitive", {"score_threshold": round(max(0.5, score * 0.75), 1)}))
+    if persist < 6 and values.get("persistent_filter", defaults.persistent_filter) is not False:
+        variants.append(("more_checks", {"persist_checks": persist + 1}))
+    out = []
+    for name, change in variants:
+        result = measure(data_dir, ids, current, dict(overrides or {}, **change))
+        out.append({"id": name, "overrides": change, "total": result["total"]})
+    return out
+
+
 def fmt(value, suffix=""):
     return "-" if value is None else "%s%s" % (value, suffix)
 
@@ -281,6 +312,24 @@ def table(result):
     return out
 
 
+COMPARE_NAMES = {"no_zone": "without the G-code zone", "no_masks": "without toolhead/gantry masks", "less_sensitive": "less sensitive",
+                 "more_sensitive": "more sensitive", "more_checks": "one more check in a row"}
+
+
+def compare_table(result):
+    rows = [("Variant", "Changed", "Alarms", "/hour", "False/hour", "Problems caught")]
+    t = result["total"]
+    rows.append(("in use now", "-", str(t["alarms"]), fmt(t["per_hour"]), fmt(t["false_per_hour"]), "%d of %d" % (t["seen"], t["failures"]) if t["failures"] else "-"))
+    for v in result["compare"]:
+        t = v["total"]
+        rows.append((COMPARE_NAMES.get(v["id"], v["id"]), ", ".join("%s=%s" % kv for kv in v["overrides"].items()), str(t["alarms"]), fmt(t["per_hour"]),
+                     fmt(t["false_per_hour"]), "%d of %d" % (t["seen"], t["failures"]) if t["failures"] else "-"))
+    widths = [max(len(r[i]) for r in rows) for i in range(len(rows[0]))]
+    lines = ["  ".join(cell.ljust(widths[i]) for i, cell in enumerate(r)).rstrip() for r in rows]
+    lines.insert(1, "-" * len(lines[0]))
+    return "\n".join(lines)
+
+
 def minutes(seconds):
     if seconds is None:
         return "-"
@@ -294,6 +343,7 @@ def main(argv=None):
     parser.add_argument("--current", action="store_true", help="the thresholds in use now instead of those of each recording")
     parser.add_argument("--set", action="append", default=[], metavar="KEY=VALUE", help="another value for a threshold (repeatable)")
     parser.add_argument("--json", metavar="FILE", help="also write the result as JSON")
+    parser.add_argument("--compare", action="store_true", help="also measure without the G-code zone, without the masks and with other thresholds")
     args = parser.parse_args(argv)
     if not monitor_core.HAS_CV2:
         message = "OpenCV is missing (sudo apt install python3-opencv): the monitor cannot be replayed."
@@ -309,6 +359,8 @@ def main(argv=None):
         overrides[key.strip()] = parse_value(value)
     try:
         result = measure(args.data, args.session, args.current, overrides)
+        if args.compare and result["sessions"]:
+            result["compare"] = compare_variants(args.data, args.session, args.current, overrides, result)
     except Exception as error:  # the dashboard must get an answer
         if args.json:
             write_result(args.json, {"ok": False, "error": str(error)})
@@ -319,6 +371,8 @@ def main(argv=None):
         print("No recordings in %s. Turn on Settings → Recordings → Record the prints, print, and run this again." % os.path.join(args.data, "recordings"))
         return 0
     print(table(result))
+    if result.get("compare"):
+        print("\n" + compare_table(result))
     return 0
 
 

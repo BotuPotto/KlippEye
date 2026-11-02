@@ -253,6 +253,16 @@ const HELP = {
           tx("«See it among the pictures» goes back to the print at the moment of the alarm. «How did the print go?» marks the whole print."),
         ],
       },
+      {
+        id: "precision",
+        title: tx("Precision of the AI"),
+        steps: [
+          tx("It counts only the alarms you judged: how often the AI's response (continue, pause, cancel) matched the real state of the print."),
+          tx("«False stops»: the AI asked to pause but the print was fine. «Problems missed»: it said continue while something was going wrong — the worse of the two."),
+          tx("The table shows what each minimum AI confidence would have given on the same alarms: if another value misses fewer problems, or gives fewer false stops with none missed, the page says so and offers to use it."),
+          tx("With fewer than 10 judged alarms the numbers are only a first idea."),
+        ],
+      },
       { id: "measure", title: tx("Measuring"), text: [tx("Choose under «Prints to use» which recordings count (a print with a different camera or a test can be left out), then «Measure now». The more alarms are judged, the more the numbers mean.")] },
     ],
   },

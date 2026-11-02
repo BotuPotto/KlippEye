@@ -3036,6 +3036,18 @@ def api_alert_label(alert_id):
     return jsonify({"ok": True, "alert": entry})
 
 
+import ai_precision  # noqa: E402  (1.28: how often the AI's verdict matches the real print)
+
+
+@app.route("/api/print/alerts/precision", methods=["GET"])
+def api_alert_precision():
+    """The judged alarms (alert history and recordings) against the AI's verdicts: right and wrong stops, problems missed,
+    and what each minimum confidence would have given (ai_precision.py)."""
+    sessions = [recorder.load(sid) for sid in recorder.ids()]
+    alerts = ai_precision.merge(read_alert_history(ALERT_HISTORY_KEEP), [s for s in sessions if s])
+    return _no_store(jsonify(dict(ai_precision.precision(alerts, detector.ai_min_confidence), ok=True)))
+
+
 # === RECORDINGS: the pictures of the prints, to measure the monitor (recorder.py, scripts/replay.py) ================
 REPLAY_SCRIPT = os.path.join(REPO_DIR, "scripts", "replay.py")
 MEASURE_PATH = os.path.join(RECORDINGS_DIR, "measure.json")
@@ -3146,9 +3158,12 @@ def api_measure_get():
 @app.route("/api/recordings/measure", methods=["POST"])
 def api_measure_start():
     """Runs the monitor again on the recordings with the thresholds in use, at low priority (it takes a minute or two).
-    {"ids": [...]} (1.26): only those recordings; none given: all of them. The answer comes with GET."""
+    {"ids": [...]} (1.26): only those recordings; none given: all of them. {"compare": true} (1.28): also the variants that
+    show what the G-code zone and the masks weigh and whether the thresholds have margin (several replays: a few minutes).
+    The answer comes with GET."""
     body = request.get_json(silent=True)
     ids = body.get("ids") if isinstance(body, dict) else None
+    compare = isinstance(body, dict) and body.get("compare") is True
     if ids is not None:
         if not isinstance(ids, list) or not ids or len(ids) > 500 or any(not isinstance(i, str) or recorder.load(i) is None for i in ids):
             return jsonify({"ok": False, "error": bt("choose at least one recording", _lang())}), 400
@@ -3166,6 +3181,8 @@ def api_measure_start():
             command = [sys.executable, REPLAY_SCRIPT, "--data", DATA_DIR, "--current", "--json", MEASURE_PATH]
             for sid in ids or []:
                 command += ["--session", sid]
+            if compare:
+                command.append("--compare")
             if shutil.which("nice"):
                 command = ["nice", "-n", "15"] + command
             _measure["process"] = subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)

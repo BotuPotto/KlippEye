@@ -1,5 +1,22 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.28.0
+
+**How precise the monitor is, what weighs and where there is margin** (roadmap phase 6a, fourth part).
+
+* **Precision of the AI** (Recordings): on the alarms you judged, how often the AI's response matched the real print: the pauses
+  that were right, the problems it stopped, the false stops and the problems it missed by saying «continue». Alarms with no
+  response of the AI (an error of the service) are counted apart. With fewer than 10 judged alarms it says the numbers are a
+  first idea.
+* **The minimum AI confidence, tried on your alarms**: a table shows what each value (50–95%) would have given — false stops
+  and problems missed — with the one in use marked; when another value is better the page says so and, with enough alarms,
+  offers to use it.
+* **Measure and compare**: besides *Measure now*, the replay also runs without the G-code zone, without leaving out toolhead
+  and gantry, less and more sensitive and with one more check in a row, and marks each one better, worse or the same as the
+  settings in use: how much the G-code weighs against the real print, and whether the thresholds have margin. From the
+  terminal: `klippeye replay --current --compare`.
+* Backend: `GET /api/print/alerts/precision` (`backend/ai_precision.py`), `POST /api/recordings/measure {"compare": true}`.
+
 ## 1.27.0
 
 **Any AI service, the model chosen from a list, one for the monitor and one for the logs** (roadmap phase 6a, third part).
