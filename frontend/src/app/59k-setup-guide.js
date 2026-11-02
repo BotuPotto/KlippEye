@@ -44,7 +44,7 @@ function SetupIntro({ children }) {
 /** The AI step: switch, key and the way to the camera calibration (the whole AI page is too much for a first set-up). */
 function SetupAi({ onCalibrate }) {
   const config = useBrainConfig(true);
-  const aiKey = useAiKey(true);
+  const aiServices = useAiServices(true);
   const data = useMemo(() => (config.data ? localizeBrainSchema(config.data) : null), [config.data]);
   const spec = data ? data.spec.find((item) => item.key === "enabled") : null;
   const calibration = useBackendJson("/api/camera/calibration", true, BRAIN_POLL_MS);
@@ -54,7 +54,7 @@ function SetupAi({ onCalibrate }) {
     null,
     config.phase !== "ok" && h(BrainNotice, { phase: config.phase }),
     spec && config.values.enabled !== undefined && h("div", { className: "oui-list" }, h(BrainSettingControl, { spec, config })),
-    h(SettingsGroup, { title: tx("The AI service"), help: ["ai", "start"] }, h(AiKeySection, { aiKey }), h("p", { className: "set-group__note" }, tx("Groq gives a free key: console.groq.com → API Keys → Create API Key. Copy it and paste it here."))),
+    h(SettingsGroup, { title: tx("The AI service"), help: ["ai", "start"] }, h(AiServicesPanel, { use: "monitor", ai: aiServices }), h("p", { className: "set-group__note" }, tx("Groq and Google Gemini give a free key: open «Keys of the AI services», tap «Get a key» next to the service, create the key there, copy it and paste it here."))),
     h(
       SettingsGroup,
       { title: tx("Camera calibration"), help: ["camcal", "tap"] },

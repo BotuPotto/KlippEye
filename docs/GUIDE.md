@@ -182,8 +182,15 @@ Everything is in **Settings → AI monitor**, one page, top to bottom:
 3. **When it sees a problem**: the **minimum AI confidence** (the only one: 70% is the usual value; above 85% a failed print may
    not be stopped), which defects count, how many AI verdicts in a row, and the **automatic actions** (pause or cancel by
    itself, both off by default; the AI can be wrong and a cancelled print cannot be recovered).
-4. **The AI service**: the **AI key** (Groq is free; the same key is used for the log analysis, saved in
-   `~/printer_data/klippeye/ai.json`, readable only by the service), whether the earlier picture is sent too, the model.
+4. **The AI service**: the **service** and **model** of the monitor and the **keys** of the AI services. KlippEye works with
+   Groq, Google Gemini, OpenAI, Anthropic (Claude), Mistral, OpenRouter, Meta Llama, Together, Fireworks and any other
+   OpenAI-compatible server (for example a model on your network: its address, a key only if it asks for one). Groq, Google
+   Gemini and Mistral have a free plan: in **Keys of the AI services** tap **Get a key** next to the service, create it there
+   and paste it. The model list is read from the service with your key; the monitor needs a model that **sees pictures**
+   (listed first; **Default** is one KlippEye knows works). The keys stay in `~/printer_data/klippeye/ai.json`, readable only
+   by the service; the page shows only their last 4 characters. Also here: whether the earlier picture is sent too.
+   The **log analysis** has its own service and model: the gear next to **Error analysis and suggestions** in the
+   System logs card (Config page); the keys are the same.
 
 **During a print.** The **AI** badge in the top bar is grey with no print, green while all is well, amber or red with an alarm; a
 tap opens the **AI monitoring panel** (status, score, the last verdict with its picture to enlarge). When the AI sees a problem,

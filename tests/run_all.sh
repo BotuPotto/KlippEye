@@ -1,6 +1,7 @@
 #!/bin/bash
 # Runs the automatic tests of KlippEye. Usage: bash tests/run_all.sh [--quick] [--no-ui]
 #   backend   tests/backend/test_backend.py   (Flask test client, real OpenCV on synthetic pictures, fake Moonraker)
+#             tests/backend/test_ai_services.py (the AI services, keys and models; no network)
 #   notifier  tests/notifier/                 (pure logic + integration with a fake Moonraker and a fake Google)
 #   app CI    tests/app/app_ci_test.py        (the steps of the Android build workflow, with fake Android tools)
 #   frontend  rebuilds frontend/klippeye_frontend.html from frontend/src and checks it is the committed one
@@ -31,6 +32,7 @@ step "frontend build is reproducible" bash -c "cp '$ROOT/frontend/klippeye_front
 step "dashboard translations" python3 "$ROOT/frontend/tools/i18n.py" check
 step "no fixed home folders" python3 "$HERE/test_no_fixed_paths.py"
 step "backend" python3 "$HERE/backend/test_backend.py" $QUICK
+step "backend: AI services" python3 "$HERE/backend/test_ai_services.py"
 step "notifier: logic" python3 "$HERE/notifier/test_watcher.py"
 step "notifier: integration" python3 "$HERE/notifier/test_integration.py" "$ROOT/frontend/klippeye_frontend.html" 9701
 step "app CI" python3 "$HERE/app/app_ci_test.py"

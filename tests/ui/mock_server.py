@@ -26,6 +26,10 @@ def default_state():
         "calib_selected": ["PARK_TEST", "SHAPER_CALIBRATE"],
         "long_macro": False,        # adds a macro with a very long name and parameters (the parameter form must fit its buttons)
         "ai_key_ok": True,
+        "ai_cfg": None,             # ai.json of the backend (1.27, ai_services); None: a Groq key when ai_key_ok
+        "ai_posts": [],             # the bodies of POST /api/ai/config
+        "ai_models_fail": "",       # a service whose list of models cannot be read
+        "ai_model_reads": [],       # the services whose models were asked for
         "deleted": [], "delete_error": "",
         "detector_status": "scanning",
         "has_analysis": True,
@@ -242,7 +246,7 @@ def mock_reset():
     S.clear(); S.update(default_state()); return jsonify(ok=True)
 @app.route("/__mock/state")
 def mock_state():
-    return jsonify({k: v for k, v in S.items() if k in ("light", "light_cmds", "light_reads", "actions", "webhooks", "webhooks_msg", "disconnected", "moonraker_down", "host_off", "services", "update_log", "brain_cfg_log", "brain_release", "brain_started", "klippeye_info", "pending_release", "logos", "app_apk_hits", "app_apk_downloads", "update_channel", "channel_posts", "rec_posts", "measure_starts", "measure_bodies", "recordings", "alerts", "pm_macros", "pm_wraps", "pm_posts", "gcode_log", "ntfy", "ntfy_posts", "ntfy_tests", "ntfy_app_reads", "ai_answers", "ai_answer")})
+    return jsonify({k: v for k, v in S.items() if k in ("light", "light_cmds", "light_reads", "actions", "webhooks", "webhooks_msg", "disconnected", "moonraker_down", "host_off", "services", "update_log", "brain_cfg_log", "brain_release", "brain_started", "klippeye_info", "pending_release", "logos", "app_apk_hits", "app_apk_downloads", "update_channel", "channel_posts", "rec_posts", "measure_starts", "measure_bodies", "ai_cfg", "ai_posts", "ai_model_reads", "recordings", "alerts", "pm_macros", "pm_wraps", "pm_posts", "gcode_log", "ntfy", "ntfy_posts", "ntfy_tests", "ntfy_app_reads", "ai_answers", "ai_answer")})
 @app.route("/__mock/print_actions")
 def mock_print_actions():
     return jsonify(S.get("print_actions", []))
@@ -1170,9 +1174,45 @@ def logs_analyze():
     if request.args.get("file"):
         return jsonify(analysis=SINGLE_MD, used_files=[request.args.get("file")], model="openai/gpt-oss-20b", provider="groq")
     return jsonify(analysis=ALL_MD, used_files=["klippy.log", "moonraker.log", "crowsnest.log", "telegram.log", "mainsail.log", "KlipperScreen.log", "webrtc.log", "sonar.log"], model="openai/gpt-oss-20b", provider="groq")
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "backend"))
+import ai_services  # noqa: E402  (the same rules as the real backend)
+
+AI_MODELS = {
+    "groq": [{"id": "qwen/qwen3.8-27b", "vision": True}, {"id": "openai/gpt-oss-20b", "vision": None}, {"id": "llama-3.1-8b-instant", "vision": False}],
+    "gemini": [{"id": "gemini-3.8-flash", "vision": True}, {"id": "gemini-3.8-flash-lite", "vision": True}],
+}
+
+
+def ai_cfg():
+    if S["ai_cfg"] is None:
+        S["ai_cfg"] = {"keys": {"groq": "gsk_" + "x" * 40 + "AB12"}} if S["ai_key_ok"] else {}
+    return S["ai_cfg"]
+
+
 @app.route("/api/ai/config", methods=["GET", "POST"])
 def ai_config():
-    return jsonify(ok=True)
+    if S["brain"] == "old":
+        return jsonify(configured=S["ai_key_ok"], provider="groq", model="", key_preview="…AB12")
+    if request.method == "GET":
+        return jsonify(ai_services.summary(ai_cfg()))
+    body = request.get_json(silent=True) or {}
+    S["ai_posts"].append(body)
+    cfg, problem = ai_services.apply(ai_cfg(), body)
+    if problem:
+        return jsonify(ok=False, error={"key_short": "chiave API troppo corta"}.get(problem, problem)), 400
+    S["ai_cfg"] = cfg
+    return jsonify(dict(ai_services.summary(cfg), ok=True))
+
+
+@app.route("/api/ai/models")
+def ai_models():
+    provider = request.args.get("provider", "")
+    S["ai_model_reads"].append(provider)
+    if not ai_services.normalize(ai_cfg())["keys"].get(provider):
+        return jsonify(ok=False, code="no_key", error="nessuna chiave salvata per questo servizio"), 400
+    if S["ai_models_fail"] == provider:
+        return jsonify(ok=False, code="http_401", error="Invalid API Key"), 502
+    return jsonify(ok=True, provider=provider, models=AI_MODELS.get(provider, [{"id": provider + "-model-1", "vision": None}]))
 @app.route("/api/print/detector/status")
 def det_status():
     return jsonify(ok=True, enabled=True, running=True, stats=dict({"status": S["detector_status"], "last_score": 12, "frames_checked": 34}, **S["detector_extra"]),

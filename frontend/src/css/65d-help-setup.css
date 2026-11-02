@@ -121,3 +121,23 @@ body:has(.setup-overlay) .bottom-nav { display: none; }
 
 /* sliders: a vertical drag scrolls the page instead of moving them (1.24, with 15a-back.js) */
 input[type="range"] { touch-action: pan-y; }
+
+/* ============================================================================
+   The AI services (app/59l-ai-services.js, 1.27): service and model of a use, the keys
+   ========================================================================== */
+.ai-use { display: flex; flex-direction: column; gap: 10px; margin: 10px 0; }
+.ai-use .set-field { display: flex; flex-direction: column; gap: 6px; }
+.ai-use__typed { display: flex; gap: 8px; align-items: center; }
+.ai-use__typed .oui-field { flex: 1 1 auto; min-width: 0; }
+.ai-keys { margin-top: 6px; background: var(--oui-surface-2); border-radius: var(--oui-r-field); }
+.ai-keys > summary { display: flex; align-items: center; min-height: 44px; padding: 0 14px; font-size: 14px; font-weight: 600; cursor: pointer; }
+.ai-keys > .set-group__note { margin: 0 14px 6px; }
+.ai-key { display: flex; flex-direction: column; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--oui-stroke); }
+.ai-key__head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 10px; }
+.ai-key__name { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; }
+.ai-key__free { font-size: 10px; }
+.ai-key__status { color: var(--oui-text-3); font-size: 12px; overflow-wrap: anywhere; }
+.ai-key.is-set .ai-key__status { color: var(--oui-ok); }
+.ai-key__actions { flex-wrap: wrap; }
+.logs-settings { display: flex; flex-direction: column; gap: 6px; margin: 12px 0; padding: 12px 14px; background: var(--oui-surface-2); border-radius: var(--oui-r-field); }
+.logs-settings__head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }

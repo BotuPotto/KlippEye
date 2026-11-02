@@ -185,8 +185,15 @@ Tutto sta in **Impostazioni → Monitor IA**, una pagina sola, dall'alto in bass
 3. **Quando vede un problema**: la **fiducia minima dell'IA** (l'unica: 70% è il valore consigliato; sopra l'85% una stampa
    fallita potrebbe non essere fermata), quali difetti contano, quante analisi dell'IA di fila, e le **azioni automatiche**
    (pausa o cancellazione da sole, spente di serie: l'IA può sbagliare e una stampa cancellata non si recupera).
-4. **Il servizio IA**: la **chiave dell'IA** (Groq è gratis; è la stessa dell'analisi dei log, resta in
-   `~/printer_data/klippeye/ai.json`, leggibile solo dal servizio), se mandare anche la foto di prima, il modello.
+4. **Il servizio IA**: il **servizio** e il **modello** del monitor e le **chiavi** dei servizi IA. KlippEye funziona con
+   Groq, Google Gemini, OpenAI, Anthropic (Claude), Mistral, OpenRouter, Meta Llama, Together, Fireworks e qualsiasi altro
+   server compatibile con OpenAI (per esempio un modello sulla tua rete: il suo indirizzo, una chiave solo se la chiede).
+   Groq, Google Gemini e Mistral hanno un piano gratuito: in **Chiavi dei servizi IA** tocca **Ottieni una chiave** accanto
+   al servizio, creala lì e incollala. L'elenco dei modelli viene letto dal servizio con la tua chiave; il monitor ha bisogno
+   di un modello che **veda le immagini** (elencati per primi; **Predefinito** è uno che KlippEye sa che funziona). Le chiavi
+   restano in `~/printer_data/klippeye/ai.json`, leggibile solo dal servizio; la pagina ne mostra solo gli ultimi 4
+   caratteri. Qui c'è anche se mandare la foto di prima. L'**analisi dei log** ha il suo servizio e modello: l'ingranaggio
+   accanto ad **Analisi errori e suggerimenti** nella scheda Log di sistema (pagina Config); le chiavi sono le stesse.
 
 **Durante la stampa.** Il badge **AI** nella barra in alto è grigio senza stampa, verde quando va tutto bene, arancione o rosso con
 un allarme; toccandolo si apre il **pannello del monitoraggio IA** (stato, punteggio, ultimo giudizio con la foto da ingrandire). Quando

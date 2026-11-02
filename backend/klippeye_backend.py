@@ -1493,19 +1493,28 @@ import json
 
 AI_CONFIG_PATH = os.path.join(DATA_DIR, "ai.json")  # release 1.0: in the data folder, mode 600 (it is a password)
 
-def load_ai_config():
-    """The AI provider and key ({"provider", "api_key", "model"}), or None when none was entered."""
+import ai_services  # noqa: E402  (1.27: the AI services, their keys and models)
+
+
+def _read_ai_file():
     try:
         with open(AI_CONFIG_PATH, "r") as f:
-            j = json.load(f)
-        if "api_key" in j or "key" in j:
-            j["api_key"] = j.get("api_key") or j.get("key")
-            j["provider"] = j.get("provider", "openai")
-            j["model"] = j.get("model", "gpt-4o-mini")
-            return j
+            return json.load(f)
     except Exception:
-        pass
-    return None
+        return {}
+
+
+def load_ai_config():
+    """The AI settings (ai_services, version 2: keys per service, a service and model for the logs and for the monitor),
+    with the fields of before 1.27 for the logs' service ("provider", "api_key", "model"). None when no key was entered."""
+    cfg = ai_services.normalize(_read_ai_file())
+    if not cfg["keys"] and not cfg["custom_base"]:
+        return None
+    logs = cfg["logs"]
+    return dict(cfg, provider=logs["provider"], api_key=cfg["keys"].get(logs["provider"], ""), model=logs["model"])
+
+
+AI_SETUP_HINT = btn("No AI service set up: enter a key in Settings → AI monitor → The AI service (or the gear of System logs).")
 
 def get_logs_combined(max_files=25, lines_per_file=400, max_chars=12000):
     """Takes ALL the .log files (not *.log.*), klippy and moonraker first"""
@@ -1602,49 +1611,61 @@ def get_logs_combined(max_files=25, lines_per_file=400, max_chars=12000):
     print(f"[LOGS] Combinati {len(used)} file: {used} - tot chars {len(combined)}")
     return combined, used
 
-@app.route("/api/ai/config", methods=["GET","POST"])
+@app.route("/api/ai/config", methods=["GET", "POST"])
 def api_ai_config():
+    """GET: the AI services with whether their key is saved (never the key) and the service and model of each use.
+    POST: see ai_services.apply (a key, the service and model of the logs or of the monitor, the address of "custom")."""
+    if request.method == "GET":
+        out = ai_services.summary(_read_ai_file())
+        if not out["monitor"]["model"] and detector.ai_model:   # chosen before 1.27 in Monitor thresholds
+            out["monitor"]["model"] = detector.ai_model
+        if not out["configured"]:
+            out["message"] = bt(AI_SETUP_HINT, _lang())
+        return _no_store(jsonify(out))
+    body = request.get_json(force=True, silent=True) or {}
+    cfg, problem = ai_services.apply(_read_ai_file(), body if isinstance(body, dict) else {})
+    if problem:
+        return jsonify({"ok": False, "error": bt(AI_CONFIG_ERRORS.get(problem, AI_CONFIG_ERRORS["unknown"]), _lang())}), 400
     try:
-        if request.method=="GET":
-            cfg=load_ai_config()
-            if not cfg:
-                return jsonify({"configured": False, "message": bt("No configuration found. Enter the key from the dashboard (Config > System logs > gear) or create {path} with {\"api_key\": \"...\", \"provider\": \"openai\"}", _lang(), path=AI_CONFIG_PATH)})
-            # never show the whole key
-            safe={"provider":cfg.get("provider"),"model":cfg.get("model"),"key_preview": ("…"+cfg.get("api_key","")[-4:]) if cfg.get("api_key") else "", "configured": True}
-            return jsonify(safe)
-        else:
-            body=request.get_json(force=True,silent=True) or {}
-            key=body.get("api_key") or body.get("key") or ""
-            if body.get("delete") is True:   # "Delete the key" in the dashboard
-                try:
-                    os.remove(AI_CONFIG_PATH)
-                except FileNotFoundError:
-                    pass
-                return jsonify({"ok": True, "deleted": True})
-            provider=body.get("provider","openai")
-            model=body.get("model","gpt-4o-mini")
-            if not key or len(key)<20:
-                return jsonify({"error": bt("API key too short", _lang())}), 400
-            cfg={"provider":provider,"api_key":key,"model":model}
-            # release 1.0: one place only (data folder), readable only by the service user
-            try:
-                write_json_atomic(AI_CONFIG_PATH, cfg, private=True)
-            except OSError as e:
-                return jsonify({"error": bt("cannot save the key in {path}: {error}", _lang(), path=AI_CONFIG_PATH, error=e)}), 500
-            return jsonify({"ok":True,"saved_to":[AI_CONFIG_PATH]})
-    except Exception as e:
-        return jsonify({"error":str(e)}),500
+        write_json_atomic(AI_CONFIG_PATH, cfg, private=True)   # readable only by the service user: it holds passwords
+    except OSError as e:
+        return jsonify({"ok": False, "error": bt("cannot save the key in {path}: {error}", _lang(), path=AI_CONFIG_PATH, error=e)}), 500
+    if isinstance(body.get("monitor"), dict) and detector.ai_model:
+        set_brain_config({"ai_model": ""})   # the model of before 1.27 (Monitor thresholds) gives way to the one chosen here
+    return jsonify(dict(ai_services.summary(cfg), ok=True, saved_to=[AI_CONFIG_PATH]))
+
+
+AI_CONFIG_ERRORS = {
+    "key_short": btn("API key too short"),
+    "unknown": btn("unknown AI service"),
+    "bad_base": btn("the address must start with http:// or https://"),
+    "bad_model": btn("the model name has characters that are not allowed"),
+}
+
+
+@app.route("/api/ai/models", methods=["GET"])
+def api_ai_models():
+    """?provider=gemini: the models of that service, read from it with the saved key ([{id, vision}], kept 10 minutes)."""
+    provider = ai_services.provider_id(request.args.get("provider"))
+    try:
+        models = ai_services.list_models(_read_ai_file(), provider)
+    except ai_services.AiError as error:
+        if error.code == "no_key":
+            return jsonify({"ok": False, "code": "no_key", "error": bt("no key saved for this service", _lang())}), 400
+        return jsonify({"ok": False, "code": error.code, "error": str(error)}), 502
+    except (requests.RequestException, ValueError) as error:
+        return jsonify({"ok": False, "code": "down", "error": bt("the AI service does not answer: {error}", _lang(), error=str(error)[:200])}), 502
+    return _no_store(jsonify({"ok": True, "provider": provider, "models": models}))
+
 
 @app.route("/api/logs/analyze", methods=["POST","GET"])
 def api_logs_analyze():
     try:
-        cfg=load_ai_config()
-        if not cfg or not cfg.get("api_key"):
-            return jsonify({
-                "error": bt("API key not set", _lang()),
-                "howto": bt("Enter the key from the dashboard (Config > System logs > gear) or create the file {path} with: {\"api_key\": \"sk-...\", \"provider\": \"openai\", \"model\": \"gpt-4o-mini\"}, or POST {\"api_key\": \"...\"} to /api/ai/config", _lang(), path=AI_CONFIG_PATH),
-                "configured": False
-            }), 400
+        cfg = _read_ai_file()
+        try:
+            ai_services.resolve(cfg, "logs")
+        except ai_services.AiError:
+            return jsonify({"error": bt("API key not set", _lang()), "howto": bt(AI_SETUP_HINT, _lang()), "configured": False}), 400
 
         # Supporto singolo file ?file=klippy.log
         single_file = request.args.get('file') or (request.json.get('file') if request.is_json else None)
@@ -1712,72 +1733,16 @@ Task:
 Answer in {LANGUAGE_NAMES.get(language, "English")}, technical but clear, with bullet points and commands ready to copy. If you see no critical errors, say so explicitly.
 """
 
-        provider=cfg.get("provider","openai").lower()
-        model=cfg.get("model","gpt-4o-mini")
-        api_key=cfg.get("api_key")
-
-        # AI call - openai, meta, groq, together, openrouter, etc. (all OpenAI-compatible)
-        provider = provider.lower()
-        # Fix: a GPT model saved while using Groq/Meta is corrected automatically
-        if provider in ["groq","meta","llama","llama.com","together","openrouter","fireworks"]:
-            if model and "gpt-" in model.lower():
-                print(f"[AI-FIX] Model {model} not valid for {provider}, using the default Llama")
-                model = None
-
-        # Mappa provider -> endpoint base e modello default
-        provider_map = {
-            "openai": ("https://api.openai.com/v1/chat/completions", model or "gpt-4o-mini"),
-            "meta": ("https://api.llama.com/compat/v1/chat/completions", model or "Llama-4-Maverick-17B-128E-Instruct-FP8"),
-            "llama": ("https://api.llama.com/compat/v1/chat/completions", model or "Llama-4-Maverick-17B-128E-Instruct-FP8"),
-            "llama.com": ("https://api.llama.com/compat/v1/chat/completions", model or "Llama-4-Maverick-17B-128E-Instruct-FP8"),
-            "groq": ("https://api.groq.com/openai/v1/chat/completions", model or "openai/gpt-oss-20b"),  # FIX 413: gpt-oss-120b has a TPM of 8000, too low: a model with a higher TPM
-            "together": ("https://api.together.xyz/v1/chat/completions", model or "meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo"),
-            "openrouter": ("https://openrouter.ai/api/v1/chat/completions", model or "meta-llama/llama-3.3-70b-instruct"),
-            "fireworks": ("https://api.fireworks.ai/inference/v1/chat/completions", model or "accounts/fireworks/models/llama-v3p3-70b-instruct"),
-        }
-        endpoint, final_model = provider_map.get(provider, (f"https://api.openai.com/v1/chat/completions", model or "gpt-4o-mini"))
-        # extra safety: a gpt model with groq becomes llama
-        if provider=="groq" and final_model.lower() in ["llama-3.1-8b-instant","llama3-70b-8192","llama3-8b-8192"]:
-            final_model="openai/gpt-oss-20b"
-        # an old llama on groq becomes the new one
-        if provider=="groq" and "gpt-oss" in final_model:
-            final_model="openai/gpt-oss-20b"  # FIX 413
-        if provider in ["meta","llama"] and "gpt" in final_model.lower():
-            final_model="Llama-4-Maverick-17B-128E-Instruct-FP8"
-
-
-        # the Meta API needs another base_url with api.meta.ai (new)
-        if provider in ["meta","llama"] and "api.meta.ai" in endpoint:
-            endpoint = "https://api.meta.ai/v1/chat/completions"
-
+        target = ai_services.resolve(cfg, "logs")   # 1.27: the service and model chosen for the logs
+        provider, final_model, endpoint = target["provider"], target["model"], target["endpoint"]
         try:
-            headers = {"Authorization": f"Bearer {api_key}", "Content-Type":"application/json"}
-            # Alcuni provider vogliono extra header
-            if provider=="openrouter":
-                headers["HTTP-Referer"]="https://klippeye.local"
-                headers["X-Title"]="KlippEye Logs Analyzer"
-
-            r=requests.post(endpoint,
-                headers=headers,
-                json={
-                    "model": final_model,
-                    "messages":[
-                        {"role":"system","content":"You are an expert in Klipper, Moonraker and Crowsnest."},
-                        {"role":"user","content":prompt}
-                    ],
-                    "temperature":0.3,
-                    "max_tokens":2000
-                },
-                timeout=35
-            )
+            r = ai_services.chat(target, [
+                {"role": "system", "content": "You are an expert in Klipper, Moonraker and Crowsnest."},
+                {"role": "user", "content": prompt},
+            ], temperature=0.3, max_tokens=2000, timeout=60)
             if not r.ok:
-                return jsonify({"error": f"{provider} API error {r.status_code}: {r.text[:800]}", "used_files": used_files, "endpoint": endpoint, "model": final_model}), 500
-            j=r.json()
-            # both choices[0].message.content and other shapes
-            try:
-                answer=j["choices"][0]["message"]["content"]
-            except:
-                answer=str(j)[:2000]
+                return jsonify({"error": f"{target['name']} API error {r.status_code}: {ai_services.error_detail(r) or r.text[:800]}", "used_files": used_files, "endpoint": endpoint, "model": final_model}), 500
+            answer = ai_services.answer_text(r)
             return jsonify({
                 "ok": True,
                 "provider": provider,
@@ -1788,7 +1753,7 @@ Answer in {LANGUAGE_NAMES.get(language, "English")}, technical but clear, with b
                 "analysis": answer
             })
         except Exception as e:
-            return jsonify({"error": f"{provider} call failed: {e}", "used_files": used_files, "endpoint": endpoint}), 500
+            return jsonify({"error": f"{target['name']} call failed: {e}", "used_files": used_files, "endpoint": endpoint}), 500
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -1830,17 +1795,7 @@ def _retry_after_s(response):
     return None
 
 
-def _ai_error_detail(response):
-    """The AI service's own words about an error (for the alarm), without account ids."""
-    text = ""
-    try:
-        data = response.json()
-        error = data.get("error") if isinstance(data, dict) else None
-        text = error.get("message", "") if isinstance(error, dict) else str(error or "")
-    except ValueError:
-        text = response.text or ""
-    text = re.sub(r"\b(org|user|proj)_[A-Za-z0-9]+", r"\1_…", str(text))
-    return re.sub(r"\s+", " ", text).strip()[:300]
+_ai_error_detail = ai_services.error_detail  # the service's own words about an error (1.26.1)
 
 
 def record_alert(event, image_path=None, reference_path=None):
@@ -2412,23 +2367,14 @@ class LightDetector(FrameJudge):
             progress = display.get("progress",0)*100
             temp_h = extruder.get("temperature",0)
 
-            cfg = load_ai_config()
-            if not cfg.get("api_key"):
+            # 1.27: the service and model chosen for the monitor (the model of Monitor thresholds, before 1.27, if none)
+            try:
+                target = ai_services.resolve(_read_ai_file(), "monitor", self.ai_model)
+            except ai_services.AiError:
                 print("[OPENCV] No API key for the AI call")
                 record_alert({"outcome": "skipped: no AI key", "score": score}, img_path, ref_path)
                 return
-
-            provider = cfg.get("provider","groq").lower()
-            api_key = cfg.get("api_key")
-            endpoint = "https://api.groq.com/openai/v1/chat/completions"
-            final_model = "qwen/qwen3.8-27b"
-            if provider == "openai":
-                endpoint = "https://api.openai.com/v1/chat/completions"
-                final_model = "gpt-4o-mini"
-            if self.ai_model:  # chosen in the dashboard (Monitor thresholds): wins over the service's default
-                final_model = self.ai_model
-
-            headers = {"Authorization": f"Bearer {api_key}", "Content-Type":"application/json"}
+            final_model = target["model"]
 
             language = shared_language()
 
@@ -2437,17 +2383,10 @@ class LightDetector(FrameJudge):
                 content = [{"type": "text", "text": prompt}]
                 for b64 in ([ref_b64, img_b64] if with_reference else [img_b64]):
                     content.append({"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}})
-                payload = {
-                    "model": final_model,
-                    "messages": [
-                        {"role": "system", "content": "You are a careful 3D printing expert: you report a defect only when you see it clearly. Answer ONLY with valid JSON as asked."},
-                        {"role": "user", "content": content},
-                    ],
-                    "temperature": 0.1,
-                    "max_tokens": 900,
-                    "response_format": {"type": "json_object"},
-                }
-                return requests.post(endpoint, headers=headers, json=payload, timeout=40)
+                return ai_services.chat(target, [
+                    {"role": "system", "content": "You are a careful 3D printing expert: you report a defect only when you see it clearly. Answer ONLY with valid JSON as asked."},
+                    {"role": "user", "content": content},
+                ], temperature=0.1, max_tokens=900, json_mode=True, timeout=40)
 
             used_reference = bool(ref_b64)
             r = ask(used_reference)
@@ -2466,10 +2405,9 @@ class LightDetector(FrameJudge):
                 r = ask(False)
             if not r.ok:
                 print(f"[OPENCV] IA error {r.status_code}: {r.text[:500]}")
-                record_alert({"outcome": f"AI error {r.status_code}", "score": score, "model": final_model, "error": _ai_error_detail(r)}, img_path, ref_path)
+                record_alert({"outcome": f"AI error {r.status_code}", "score": score, "model": final_model, "error": ai_services.error_detail(r)}, img_path, ref_path)
                 return
-            j = r.json()
-            answer = j["choices"][0]["message"]["content"] if "choices" in j else str(j)
+            answer = ai_services.answer_text(r)
             print(f"[OPENCV] AI answer: {answer[:500]}")
 
             # Parsa JSON
@@ -3620,9 +3558,10 @@ def api_print_analyze():
     (the same approach as the logs, with vision)
     """
     try:
-        cfg = load_ai_config()
-        if not cfg.get("api_key"):
-            return jsonify({"error": bt("API key not set: go to System logs > ⚙️ and enter a Groq/OpenAI key", _lang()), "howto": bt("Use the same key as the logs", _lang())}), 401
+        try:
+            target = ai_services.resolve(_read_ai_file(), "monitor", detector.ai_model)   # 1.27: the monitor's service and model
+        except ai_services.AiError:
+            return jsonify({"error": bt("API key not set", _lang()), "howto": bt(AI_SETUP_HINT, _lang())}), 401
 
         # 1. camera snapshot - V17: resized to 1080x720 for the detail of an empty bed
         img_b64 = None
@@ -3758,63 +3697,27 @@ Structured JSON + a short explanation:
 Then add a markdown section with a detailed explanation.
 """
 
-        provider = cfg.get("provider","openai").lower()
-        model = cfg.get("model","gpt-4o-mini")
-        api_key = cfg.get("api_key")
+        provider, final_model = target["provider"], target["model"]
+        messages = [
+            {"role": "system", "content": "You are an expert in detecting failed 3D prints. Always answer with JSON + markdown."},
+            {"role": "user", "content": [
+                {"type": "text", "text": prompt_text},
+                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img_b64}"}},
+            ]},
+        ]
 
-        # Mappa provider -> endpoint vision
-        # Groq vision: meta-llama/llama-4-scout-17b-16e-instruct or llama-4-maverick
-        # OpenAI: gpt-4o-mini supporta vision
-        provider_map_vision = {
-            "openai": ("https://api.openai.com/v1/chat/completions", model if "vision" in model.lower() or "gpt-4o" in model.lower() or "gpt-4" in model.lower() else "gpt-4o-mini"),
-            "groq": ("https://api.groq.com/openai/v1/chat/completions", "qwen/qwen3.8-27b"),  # FIX 2026-10: Llama-4 Scout removed from Groq, now only Qwen 3.8 vision
-            "meta": ("https://api.llama.com/compat/v1/chat/completions", "Llama-4-Scout-17B-16E-Instruct"),
-            "llama": ("https://api.llama.com/compat/v1/chat/completions", "Llama-4-Scout-17B-16E-Instruct"),
-        }
-        endpoint, final_model = provider_map_vision.get(provider, (f"https://api.openai.com/v1/chat/completions", "gpt-4o-mini"))
-
-        headers = {"Authorization": f"Bearer {api_key}", "Content-Type":"application/json"}
-        if provider=="openrouter":
-            headers["HTTP-Referer"]="https://klippeye.local"
-            endpoint = "https://openrouter.ai/api/v1/chat/completions"
-            final_model = "meta-llama/llama-4-scout-17b-16e-instruct"
-        if detector.ai_model:  # chosen in the dashboard (Monitor thresholds): wins over the service's default
-            final_model = detector.ai_model
-
-        payload = {
-            "model": final_model,
-            "messages":[
-                {"role":"system","content":"You are an expert in detecting failed 3D prints. Always answer with JSON + markdown."},
-                {"role":"user","content":[
-                    {"type":"text","text":prompt_text},
-                    {"type":"image_url","image_url":{"url": f"data:image/jpeg;base64,{img_b64}"}}
-                ]}
-            ],
-            "temperature":0.2,
-            "max_tokens": 1800
-        }
-
-        # providers that do not take an array as content (old ones): text only after an error
+        # a model that cannot see pictures (or a service that refuses them): the telemetry only, saying so
         try:
-            r = requests.post(endpoint, headers=headers, json=payload, timeout=40)
-            if not r.ok:
-                # try without the picture, with a note
+            r = ai_services.chat(target, messages, temperature=0.2, max_tokens=1800, timeout=60)
+            if not r.ok and r.status_code not in (401, 403, 429):
                 print(f"[PRINT-AI] vision failed {r.status_code}: {r.text[:500]}")
-                # fallback: telemetry only
-                payload_fallback = {
-                    "model": final_model,
-                    "messages":[
-                        {"role":"system","content":"3D printing expert"},
-                        {"role":"user","content": f"{prompt_text}\n\n[NOTE: the picture is not available with this provider: analyse the telemetry only and suggest using OpenAI gpt-4o-mini for vision]"}
-                    ],
-                    "temperature":0.3,
-                    "max_tokens":1200
-                }
-                r = requests.post(endpoint, headers=headers, json=payload_fallback, timeout=30)
-            j = r.json()
+                r = ai_services.chat(target, [
+                    {"role": "system", "content": "3D printing expert"},
+                    {"role": "user", "content": f"{prompt_text}\n\n[NOTE: the picture could not be sent to this model: analyse the telemetry only and say that a model that sees pictures is needed (Settings > AI monitor > The AI service)]"},
+                ], temperature=0.3, max_tokens=1200, timeout=40)
             if not r.ok:
-                return jsonify({"error": f"{provider} API error {r.status_code}: {r.text[:1000]}", "model": final_model}), 500
-            answer = j["choices"][0]["message"]["content"] if "choices" in j else str(j)[:2000]
+                return jsonify({"error": f"{target['name']} API error {r.status_code}: {ai_services.error_detail(r) or r.text[:1000]}", "model": final_model}), 500
+            answer = ai_services.answer_text(r)
             return jsonify({
                 "ok": True,
                 "provider": provider,

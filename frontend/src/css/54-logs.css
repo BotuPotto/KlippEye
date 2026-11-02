@@ -20,6 +20,7 @@
 
 /* ---- analysis area ---- */
 .logs-analysis { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--oui-stroke); }
+.logs-analysis__buttons { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 .logs-analysis__head { display: flex; align-items: center; justify-content: space-between; gap: 12px; cursor: pointer; -webkit-user-select: none; user-select: none; }
 .logs-analysis__toggle svg { transition: transform var(--oui-dur-base) var(--oui-ease); }
 .logs-analysis__toggle.is-collapsed svg { transform: rotate(-90deg); }
