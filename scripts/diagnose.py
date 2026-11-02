@@ -195,7 +195,12 @@ def backend(url, token):
             (recordings.get("max_bytes") or 0) // 1024 ** 2, recordings.get("status", "?")))
     ai, _ = get_json(url + "/api/ai/config", headers)
     if isinstance(ai, dict):
-        line("AI service:     %s" % ("%s, model %s" % (ai.get("provider", "?"), ai.get("model") or "default") if ai.get("configured") else "no key"))
+        if isinstance(ai.get("monitor"), dict):   # 1.27: a service and model for each use
+            for use in ("monitor", "logs"):
+                one = ai[use]
+                line("AI %-12s%s" % (use + ":", "%s, model %s" % (one.get("provider") or "?", one.get("model") or "default (%s)" % one.get("default_model")) if one.get("usable") else "no key"))
+        else:
+            line("AI service:     %s" % ("%s, model %s" % (ai.get("provider", "?"), ai.get("model") or "default") if ai.get("configured") else "no key"))
     app, _ = get_json(url + "/api/app/version", headers)
     if isinstance(app, dict):
         line("android app:    %s" % (app.get("version") if app.get("available") else "not offered (%s)" % app.get("reason", "?")))

@@ -125,7 +125,7 @@ ai.list_models(cfg_an, "anthropic")
 check("Anthropic: its own headers too (x-api-key, anthropic-version)", GOT[-1]["headers"].get("x-api-key") == "sk-ant-" + "z" * 40 and GOT[-1]["headers"].get("anthropic-version"))
 requests.get = fake_get(Resp(401, {"error": {"message": "Invalid API Key in org_ABC123"}}))
 try:
-    ai.list_models(cfg_or, "openrouter", now=10 ** 9)
+    ai.list_models(cfg_or, "openrouter", now=10 ** 10)
     check("a refused key: AiError with the service's words", False)
 except ai.AiError as error:
     check("a refused key: AiError with the service's words (no account id)", error.code == "http_401" and str(error) == "Invalid API Key in org_…", str(error))

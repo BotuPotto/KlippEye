@@ -1,5 +1,26 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.27.0
+
+**Any AI service, the model chosen from a list, one for the monitor and one for the logs** (roadmap phase 6a, third part).
+
+* **More services**: Groq, Google Gemini, OpenAI, Anthropic (Claude), Mistral, OpenRouter, Meta Llama, Together, Fireworks and
+  any other OpenAI-compatible server (a model on the home network: its address, a key only if it asks). One key per service,
+  in one list (**Keys of the AI services**), each with a **Get a key** link to the page where the service gives it; only the
+  last 4 characters are ever shown. Groq, Google Gemini and Mistral have a free plan: with Gemini the monitor has another free
+  service when Groq answers 429.
+* **The model from a list**: the models are read from the service with your key (kept 10 minutes) instead of typed; for the
+  monitor the ones that see pictures come first, and a text-only model is flagged. *Another model* still takes a typed name;
+  *Default* is a model KlippEye knows works.
+* **Separate for the monitor and the logs**: Settings → AI monitor → *The AI service* chooses the monitor's service and model
+  (also used by *Analyse the print*); the logs have their own, under the gear now next to **Error analysis and
+  suggestions** in the System logs card, which opens the settings right there (also by itself when the key is missing).
+  The free-text model of *Monitor thresholds* is replaced (a model chosen there before keeps working until one is chosen here).
+* **Backend**: `backend/ai_services.py` (services, `ai.json` version 2 with `keys`, `logs`, `monitor`; the file of before
+  is read as before), `GET /api/ai/models?provider=`, `/api/ai/config` takes `{key}`, `{logs}`, `{monitor}`, `{custom_base}`
+  (the old `{api_key, provider}` still works). Anthropic gets no JSON mode or temperature (its OpenAI layer refuses them); a
+  service that refuses the JSON mode is asked again without it.
+
 ## 1.26.2
 
 * **Judging an older alarm no longer says "Not saved: no such alarm"**: the alert history keeps only its last 40 alarms, so
