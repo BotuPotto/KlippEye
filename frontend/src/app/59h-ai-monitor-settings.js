@@ -6,7 +6,8 @@
      1. is it on?                      the switch, the notification service, the AI key;
      2. how does it look at the print?  all the bed outside the parts (calibrated camera) or the old rectangle;
      3. what happens when it sees a problem?  ONE confidence threshold, the defects, checks in a row, automatic actions;
-     4. the AI service: key, model, the earlier picture;
+     4. the AI service: which service and model (1.27: any of several, the model chosen from the service's own list),
+        the keys, the earlier picture (59l-ai-services.js);
    and leads to the three pages inside it: Camera calibration, Monitor thresholds (the fine numbers), Recordings.
    The values live where they are used: the backend's thresholds (monitor.json, useBrainConfig) and the dashboard's shared
    settings (automatic actions, defects, checks in a row: read by the notification service).
@@ -31,61 +32,6 @@ function useAiKey(active) {
     if (active) load();
   }, [active]);
   return { ...state, reload: load };
-}
-
-function AiKeySection({ aiKey }) {
-  const [editing, setEditing] = useState(false);
-  const [key, setKey] = useState("");
-  const [provider, setProvider] = useState("groq");
-  const [problem, setProblem] = useState("");
-  const [busy, setBusy] = useState(false);
-  const post = async (body) => {
-    setBusy(true);
-    try {
-      const response = await fetch("/api/ai/config", { method: "POST", headers: JSON_HEADERS, body: JSON.stringify(body) });
-      const data = await response.json().catch(() => ({}));
-      setBusy(false);
-      if (!response.ok || data.error) return setProblem(data.error || "HTTP " + response.status);
-      setProblem("");
-      setEditing(false);
-      setKey("");
-      aiKey.reload();
-    } catch (error) {
-      setBusy(false);
-      setProblem(tx("the backend does not answer"));
-    }
-  };
-  const save = () => {
-    const trimmed = key.trim();
-    if (trimmed.length < KEY_MIN_LENGTH) return setProblem(tx("Key too short"));
-    post({ api_key: trimmed, provider: providerForKey(trimmed, provider) });
-  };
-  const line =
-    aiKey.phase !== "ok"
-      ? tx("Reading the AI key…")
-      : aiKey.configured
-        ? tx("AI key saved ({provider}, ends with {end}).", { provider: aiKey.provider || "?", end: aiKey.preview || "?" })
-        : tx("No AI key: the monitor sees the problems but nobody judges them. Groq has a free key.");
-  return h(
-    React.Fragment,
-    null,
-    h("div", { className: cx("set-status", aiKey.configured ? "set-status--ok" : "set-status--warn"), "data-ai-key": aiKey.configured ? "yes" : "no" }, h("span", { className: "set-status__dot" }), line),
-    editing
-      ? h(
-          "div",
-          { className: "fn-key" },
-          h("select", { className: "oui-field", value: provider, onChange: (event) => setProvider(event.target.value) }, AI_PROVIDERS.map((option) => h("option", { key: option.id, value: option.id }, option.label))),
-          h("input", { className: "oui-field oui-mono", value: key, placeholder: tx("Paste the key here..."), "data-ai-key-input": "1", onChange: (event) => setKey(event.target.value) }),
-          h("div", { className: "oui-btn-row" }, h("button", { type: "button", className: "oui-btn oui-btn--primary", disabled: busy, onClick: save }, tx("Save the key")), h("button", { type: "button", className: "oui-btn", onClick: () => setEditing(false) }, tx("Cancel"))),
-        )
-      : h(
-          "div",
-          { className: "oui-btn-row" },
-          h("button", { type: "button", className: "oui-btn oui-btn--sm", "data-ai-key-edit": "1", onClick: () => setEditing(true) }, aiKey.configured ? tx("Change the key") : tx("Enter the key")),
-          aiKey.configured && h("button", { type: "button", className: "oui-btn oui-btn--sm oui-btn--quiet", disabled: busy, onClick: () => window.confirm(tx("Delete the key?")) && post({ delete: true }) }, txc("key", "Delete")),
-        ),
-    problem && h("p", { className: "set-field__error", role: "alert" }, problem),
-  );
 }
 
 /** How the monitor looks at the print now, in one sentence (from the calibration and the two switches). */
@@ -117,7 +63,7 @@ function AiPage({ active, menu }) {
   const config = useBrainConfig(active);
   const calibration = useBackendJson("/api/camera/calibration", active, BRAIN_POLL_MS);
   const recordings = useBackendJson("/api/recordings", active, BRAIN_POLL_MS);
-  const aiKey = useAiKey(active);
+  const aiServices = useAiServices(active);
   const data = useMemo(() => (config.data ? localizeBrainSchema(config.data) : null), [config.data]);
   const spec = (key) => (data ? data.spec.find((item) => item.key === key) : null);
   const control = (key) => (spec(key) && config.values[key] !== undefined ? h(BrainSettingControl, { key, spec: spec(key), config }) : null);
@@ -189,10 +135,9 @@ function AiPage({ active, menu }) {
     ),
     h(
       SettingsGroup,
-      { title: tx("The AI service"), help: ["ai", "start"] },
-      h(AiKeySection, { aiKey }),
+      { title: tx("The AI service"), help: ["ai", "service"] },
+      h(AiServicesPanel, { use: "monitor", ai: aiServices }),
       config.phase === "ok" && h("div", { className: "oui-list" }, control("ai_send_reference")),
-      config.phase === "ok" && control("ai_model"),
     ),
   );
 }

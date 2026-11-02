@@ -2,29 +2,14 @@
    54 · SYSTEM LOGS
    Lists the Klipper / Moonraker / crowsnest logs of the Raspberry Pi. Each can
    be read in the editor, downloaded or analysed by the AI; "Analizza
-   automaticamente" analyses all of them at once. The AI provider's API key is
-   asked for when the backend reports it is missing or rejected.
+   automaticamente" analyses all of them at once. The gear next to «Error
+   analysis and suggestions» opens the AI settings of the logs right under it
+   (1.27: service, model, keys; 59l); they open by themselves when the backend
+   reports the key missing or rejected.
    ========================================================================== */
 
 const KEY_ERROR_WORDS = ["api key", "configurata", "invalid", "unauthorized", "authentication"];
 const KEY_MIN_LENGTH = 10;
-const KEY_SAVED_ANALYSIS_DELAY_MS = 600;
-
-const AI_PROVIDERS = [
-  { id: "groq", label: tx("Groq (free, recommended) - gsk_...") },
-  { id: "openai", label: "OpenAI - sk-..." },
-  { id: "meta", label: "Meta Llama - LLM-..." },
-  { id: "openrouter", label: "OpenRouter - sk-or-..." },
-];
-
-/** The provider a key belongs to, judging by its prefix (falls back to `chosen`). */
-function providerForKey(key, chosen) {
-  if (key.startsWith("gsk_")) return "groq";
-  if (key.startsWith("LLM-")) return "meta";
-  if (key.startsWith("sk-or-")) return "openrouter";
-  if (key.startsWith("sk-")) return "openai";
-  return chosen;
-}
 
 const looksLikeKeyProblem = (message) => KEY_ERROR_WORDS.some((word) => message.toLowerCase().includes(word));
 const looksLikeAuthFailure = (message) => message.toLowerCase().includes("api key") || message.includes("401") || message.includes("403");
@@ -46,9 +31,6 @@ const logsApi = {
   async analyze(name) {
     const response = await fetchFresh("/api/logs/analyze" + (name ? "?file=" + encodeURIComponent(name) : ""), { method: "POST" });
     return { ok: response.ok, status: response.status, json: await response.json() };
-  },
-  async saveKey(key, provider) {
-    return fetchJson("/api/ai/config", { method: "POST", headers: JSON_HEADERS, body: JSON.stringify({ api_key: key, provider }) });
   },
   download: (name) => downloadFile("/api/logs/download?file=" + encodeURIComponent(name), name),
 };
@@ -123,43 +105,15 @@ function useLogs() {
 }
 
 /* ---------------------------------------------------------------------------
-   API key form
+   The key is missing or refused (1.27: the AI settings are at the top of the card, under the gear)
    ------------------------------------------------------------------------- */
-function ApiKeyForm({ message, onSaved, onCleared }) {
-  const [provider, setProvider] = useState("groq");
-  const [key, setKey] = useState("");
-
-  // Native browser dialogs, as in the original (an Android WebView without a WebChromeClient
-  // shows none of them: alert() does nothing and confirm() answers "no").
-  const save = async () => {
-    const trimmed = key.trim();
-    if (trimmed.length < KEY_MIN_LENGTH) return window.alert(tx("Key too short"));
-    const json = await logsApi.saveKey(trimmed, providerForKey(trimmed, provider));
-    if (json.ok) onSaved();
-    else window.alert(tx("Error: ") + (json.error || "unknown"));
-  };
-  const clear = async () => {
-    if (!window.confirm(tx("Delete the key?"))) return;
-    await logsApi.saveKey("", "openai");
-    onCleared();
-  };
-
+function ApiKeyNotice({ message }) {
   return h(
     "div",
-    { className: "oui-tile logs-key" },
+    { className: "oui-tile logs-key", "data-logs-key": "1" },
     h("div", { className: "flex items-center gap-2 mb-2" }, h("span", { className: "logs-key__icon" }, "!"), h("span", { className: "logs-key__title" }, tx("API key missing or wrong"))),
-    h("div", { className: "logs-key__message" }, message),
-    h(
-      "div",
-      { className: "logs-key__form" },
-      h(
-        "select",
-        { value: provider, onChange: (e) => setProvider(e.target.value), className: "oui-field" },
-        AI_PROVIDERS.map((option) => h("option", { key: option.id, value: option.id }, option.label)),
-      ),
-      h("input", { value: key, onChange: (e) => setKey(e.target.value), placeholder: tx("Paste the key here..."), className: "oui-field oui-mono" }),
-      h("div", { className: "oui-btn-row" }, h("button", { onClick: save, className: "oui-btn oui-btn--primary" }, tx("Save and analyse")), h("button", { onClick: clear, className: "oui-btn" }, txc("key", "Delete"))),
-    ),
+    message && h("div", { className: "logs-key__message" }, message),
+    h("div", { className: "logs-key__message mt-2" }, tx("Choose the service and enter its key in the AI settings just above (the gear next to «Error analysis and suggestions»), then tap «Analyse automatically».")),
   );
 }
 
@@ -202,7 +156,7 @@ function AnalysisDone({ scope, name, json }) {
   );
 }
 
-function AnalysisResult({ logs, onKeySaved, onKeyCleared }) {
+function AnalysisResult({ logs }) {
   const { result } = logs;
   switch (result.kind) {
     case "busy":
@@ -219,11 +173,7 @@ function AnalysisResult({ logs, onKeySaved, onKeyCleared }) {
         onChangeKey: () => logs.askForKey(),
       });
     case "key":
-      return h(ApiKeyForm, { message: result.message, onSaved: onKeySaved, onCleared: onKeyCleared });
-    case "keySaved":
-      return h("div", { className: "oui-tile oui-tile--ok logs-saved" }, h("span", null, "✓"), tx(" Key saved! Starting the analysis..."));
-    case "keyCleared":
-      return h("div", { className: "logs-key__message" }, tx("Key deleted."));
+      return h(ApiKeyNotice, { message: result.message });
     default:
       return h("div", { className: "oui-caption" }, tx("No analysis yet. Tap Analyse automatically for a direct AI analysis."));
   }
@@ -285,10 +235,16 @@ function LogsCard({ onEditFile }) {
       window.alert(tx("Error opening: ") + error.message);
     }
   };
-  const keySaved = () => {
-    logs.setResult({ kind: "keySaved" });
-    setTimeout(() => logs.analyze(), KEY_SAVED_ANALYSIS_DELAY_MS);
-  };
+  // the AI settings of the logs (1.27): at the top of the card, opened by the gear or when the key is missing
+  const [showSettings, setShowSettings] = useState(false);
+  const ai = useAiServices(showSettings);
+  const settingsRef = useRef(null);
+  useEffect(() => {
+    if (logs.result.kind === "key") setShowSettings(true);
+  }, [logs.result]);
+  useEffect(() => {
+    if (showSettings && settingsRef.current && settingsRef.current.scrollIntoView) settingsRef.current.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }, [showSettings]);
 
   const listNotice = logsListNotice(list);
 
@@ -301,7 +257,6 @@ function LogsCard({ onEditFile }) {
       { className: "logs-toolbar" },
       h("button", { onClick: logs.refresh, className: "oui-btn oui-btn--sm" }, h(Icons.Refresh, { size: 16 }), tx("Refresh")),
       h("button", { onClick: () => logs.analyze(), className: "oui-btn oui-btn--sm oui-btn--primary logs-toolbar__main" }, tx("Analyse automatically")),
-      h("button", { onClick: () => logs.askForKey(tx("Change the existing API key:")), title: "API key", "aria-label": "API key", className: "oui-btn oui-btn--sm oui-btn--icon" }, h(Icons.Gear, { size: 18 })),
     ),
     listNotice ? h("div", { className: "mt-3" }, listNotice) : h("div", { className: "oui-list log-list" }, list.files.map((file) => h(LogRow, { key: file.name, file, onAnalyze: logs.analyze, onOpen: openLog }))),
     h(
@@ -316,10 +271,39 @@ function LogsCard({ onEditFile }) {
           h(SectionTitle, null, tx("Error analysis and suggestions")),
           h("span", { className: cx("oui-badge oui-badge--ok", !badge && "hidden") }, badge || tx("Overview")),
         ),
-        h("span", { className: cx("oui-btn oui-btn--sm oui-btn--icon logs-analysis__toggle", collapsed && "is-collapsed"), "aria-hidden": "true" }, h(Icons.Chevron, { size: 18 })),
+        h(
+          "div",
+          { className: "logs-analysis__buttons" },
+          // 1.27: the AI settings of the logs, next to the analysis they are for
+          h(
+            "button",
+            {
+              type: "button",
+              onClick: (event) => {
+                event.stopPropagation();
+                setShowSettings((value) => !value);
+              },
+              title: tx("AI settings for the logs"),
+              "aria-label": tx("AI settings for the logs"),
+              "aria-expanded": showSettings,
+              "data-logs-gear": "1",
+              className: cx("oui-btn oui-btn--sm oui-btn--icon", showSettings && "is-active"),
+            },
+            h(Icons.Gear, { size: 18 }),
+          ),
+          h("span", { className: cx("oui-btn oui-btn--sm oui-btn--icon logs-analysis__toggle", collapsed && "is-collapsed"), "aria-hidden": "true" }, h(Icons.Chevron, { size: 18 })),
+        ),
       ),
+      showSettings &&
+        h(
+          "div",
+          { ref: settingsRef, className: "logs-settings", "data-logs-settings": "1" },
+          h("div", { className: "logs-settings__head" }, h(SectionTitle, null, tx("AI for the logs")), h("button", { type: "button", className: "oui-btn oui-btn--sm oui-btn--quiet", onClick: () => setShowSettings(false) }, tx("Close"))),
+          h("p", { className: "oui-caption" }, tx("The service and model that analyse the logs; the AI monitor has its own (Settings → AI monitor). The keys are the same for both.")),
+          h(AiServicesPanel, { use: "logs", ai }),
+        ),
       hint && h("div", { className: "logs-hint logs-hint--" + hint.tone }, h("span", { className: "oui-dot" }), hint.text),
-      h("div", { ref: resultRef, className: cx("logs-result", logs.result.kind === "done" && "logs-result--report", collapsed && "log-result--collapsed") }, h(AnalysisResult, { logs, onKeySaved: keySaved, onKeyCleared: () => logs.setResult({ kind: "keyCleared" }) })),
+      h("div", { ref: resultRef, className: cx("logs-result", logs.result.kind === "done" && "logs-result--report", collapsed && "log-result--collapsed") }, h(AnalysisResult, { logs })),
     ),
   );
 }
