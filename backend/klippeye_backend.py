@@ -3041,16 +3041,22 @@ def api_last_analysis_answer():
     return jsonify({"ok": True, "answer": answer, "alert_id": la.get("alert_id")})
 
 
-def label_alert(alert_id, label):
+def recorder_id_ok(sid):
+    return bool(re.fullmatch(r"\d{8}-\d{6}(-[A-Za-z0-9._-]{1,40})?", sid or ""))
+
+
+def label_alert(alert_id, label, session=None):
     """The person's verdict on an alarm: "false" (false alarm), "right" (there was a problem) or None (not said).
-    Written in the alert history and in the recording of that print. -> the entry, or None when there is no such alarm."""
+    Written in the alert history and in the recording of that print. -> the entry, or None when there is no such alarm.
+    1.26.2: an alarm that already left the history (it keeps the last ALERT_HISTORY_KEEP) is labelled in its recording
+    (`session`, or the recording that has it)."""
     with _history_lock:
         log = os.path.join(ALERT_HISTORY_DIR, "history.jsonl")
         try:
             with open(log, encoding="utf-8") as fh:
                 lines = [l for l in fh.read().splitlines() if l.strip()]
         except OSError:
-            return None
+            lines = []
         found = None
         for index, line in enumerate(lines):
             try:
@@ -3065,6 +3071,10 @@ def label_alert(alert_id, label):
                 lines[index] = json.dumps(entry, ensure_ascii=False)
                 found = entry
         if found is None:
+            for sid in ([session] if session else []) + [i for i in reversed(recorder.ids()) if i != session]:
+                entry = recorder.label_alert(sid, alert_id, label)
+                if entry is not None:
+                    return entry
             return None
         with open(log + ".tmp", "w", encoding="utf-8") as fh:
             fh.write("\n".join(lines) + "\n")
@@ -3081,7 +3091,8 @@ def api_alert_label(alert_id):
     label = body.get("label") if isinstance(body, dict) else "?"
     if label not in ALERT_LABELS + (None,) or not re.fullmatch(r"\d{8}-\d{6}", alert_id):
         return jsonify({"ok": False, "error": "label must be false, right or null"}), 400
-    entry = label_alert(alert_id, label)
+    session = body.get("session") if isinstance(body.get("session"), str) and recorder_id_ok(body.get("session")) else None
+    entry = label_alert(alert_id, label, session)
     if entry is None:
         return jsonify({"ok": False, "error": "no such alarm"}), 404
     return jsonify({"ok": True, "alert": entry})

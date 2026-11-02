@@ -243,15 +243,21 @@ class Recorder:
             self._save(session)
 
     def label_alert(self, sid, alert_id, label):
+        """The person's verdict on one alarm of a recording. -> that alarm (a copy), or None when the recording has no such alarm."""
         with self.lock:
+            if not ID_RE.match(sid or ""):
+                return None
             session = self.session if self.session and self.session["id"] == sid else self.load(sid)
             if session is None:
-                return False
-            for alert in session["alerts"]:
+                return None
+            found = None
+            for alert in session.get("alerts") or []:
                 if alert.get("id") == alert_id:
                     alert["label"] = label
-            self._save(session)
-            return True
+                    found = dict(alert, session=sid)
+            if found is not None:
+                self._save(session)
+            return found
 
     # ------------------------------------------------------------------ reading, labels, deleting
     def _save(self, session=None):

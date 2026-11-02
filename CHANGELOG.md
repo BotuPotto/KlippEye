@@ -1,5 +1,11 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.26.2
+
+* **Judging an older alarm no longer says "Not saved: no such alarm"**: the alert history keeps only its last 40 alarms, so
+  the answer to an alarm that had already left it was refused. Now it is saved in the recording the alarm belongs to (the
+  dashboard says which; without it the backend looks for it).
+
 ## 1.26.1
 
 **Recordings: clearer answers, the alarm pictures kept, the AI's 429 explained.**

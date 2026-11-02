@@ -188,14 +188,15 @@ function alertSummary(alert) {
   return alert.summary || alert.observation || outcome;
 }
 
-function AlertRow({ alert, onLabelled, onShow }) {
+function AlertRow({ alert, session, onLabelled, onShow }) {
   const [label, setLabel] = useState(alert.label || null);
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState("");
   useEffect(() => setLabel(alert.label || null), [alert.id, alert.label]);
   const change = async (next) => {
     setBusy(true);
-    const reply = await brainPost("/api/print/alerts/" + alert.id + "/label", { label: next });
+    // 1.26.2: with the recording, so an alarm that already left the alert history is labelled in its recording
+    const reply = await brainPost("/api/print/alerts/" + alert.id + "/label", session ? { label: next, session } : { label: next });
     setBusy(false);
     if (reply.ok) {
       setLabel(next);
@@ -325,7 +326,7 @@ function RecordingDetail({ id, onClose }) {
     return h(
       SettingsGroup,
       { title: tx("Alarms of this print ({judged} of {count} judged)", { judged, count: alerts.length }), help: ["recordings", "judge"], note: tx("An alarm is a moment when the camera saw something change; the AI then looked and answered continue, pause or cancel. For each one say whether the AI's response matches the real state of the print. «See it among the pictures» goes back to the print, at the moment of the alarm.") },
-      alerts.length === 0 ? h("p", { className: "set-group__note" }, tx("No alarm in this print.")) : alerts.map((alert) => h(AlertRow, { key: alert.id, alert, onLabelled: detail.reload, onShow: frames.length ? () => showAlert(alert) : null })),
+      alerts.length === 0 ? h("p", { className: "set-group__note" }, tx("No alarm in this print.")) : alerts.map((alert) => h(AlertRow, { key: alert.id, alert, session: id, onLabelled: detail.reload, onShow: frames.length ? () => showAlert(alert) : null })),
     );
   }
   return h(
