@@ -970,6 +970,12 @@ def mock_alert_label(aid):
             alert["label"] = body.get("label")
             S["rec_posts"].append(["alert", aid, body])
             return jsonify(ok=True, alert=alert)
+    for r in S["recordings"]:   # 1.26.2: an alarm no longer in the history, labelled in its recording
+        for alert in r.get("alerts") or []:
+            if alert.get("id") == aid and body.get("session") in (None, r["id"]):
+                alert["label"] = body.get("label")
+                S["rec_posts"].append(["alert", aid, body])
+                return jsonify(ok=True, alert=alert)
     return jsonify(ok=False, error="no such alarm"), 404
 
 

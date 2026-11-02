@@ -1183,6 +1183,11 @@ _hist_lines = open(os.path.join(mr.ALERT_HISTORY_DIR, "history.jsonl")).read().s
 open(os.path.join(mr.ALERT_HISTORY_DIR, "history.jsonl"), "w").write("\n".join(l for l in _hist_lines if _ev["id"] not in l) + "\n")
 _got = [x for x in cr.get("/api/recordings/" + sid).get_json()["session"]["alerts"] if x.get("id") == _ev["id"]]
 check("1.26.1 ... when the history has forgotten it, the recording's copy is shown", _got and _got[0].get("picture") == "/api/recordings/%s/alerts/%s.jpg" % (sid, _ev["id"]), _got)
+r = cr.post("/api/print/alerts/%s/label" % _ev["id"], json={"label": "false", "session": sid})
+check("1.26.2 an alarm that left the history is labelled in its recording", r.status_code == 200 and [x for x in mr.recorder.load(sid)["alerts"] if x["id"] == _ev["id"]][0]["label"] == "false", r.get_json())
+r = cr.post("/api/print/alerts/%s/label" % _ev["id"], json={"label": None})
+check("1.26.2 ... also without saying which recording (it is looked for)", r.status_code == 200 and [x for x in mr.recorder.load(sid)["alerts"] if x["id"] == _ev["id"]][0]["label"] is None, r.get_json())
+check("1.26.2 ... an alarm that is nowhere: 404", cr.post("/api/print/alerts/20990101-000000/label", json={"label": "false", "session": sid}).status_code == 404)
 class _R429:
     def __init__(self, headers, text):
         self.headers, self.text = headers, text
