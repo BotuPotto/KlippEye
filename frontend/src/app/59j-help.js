@@ -201,6 +201,13 @@ const HELP = {
         title: tx("To start"),
         steps: [tx("A free AI key: Groq gives one at console.groq.com → API Keys. Paste it in «The AI service»."), tx("Calibrate the camera (Camera calibration): then the whole bed is watched, not only a band around the picture."), tx("Leave the other values as they are: they are the usual ones.")],
       },
+      {
+        id: "alarm",
+        title: tx("During a print"),
+        text: [
+          tx("The «AI» badge in the top bar is grey with no print, green while all is well, amber or red with an alarm; a tap opens the AI monitoring panel. When the AI sees a problem, the print card asks whether it is real: «False alarm» and «Ignore» put the badge back to green, and every answer helps measure the monitor. The alarms of a print are closed when the next one starts."),
+        ],
+      },
       { id: "confidence", title: tx("Minimum AI confidence"), text: [tx("How sure the AI must be to propose a pause. 70% is the usual value; above 85% a failed print may not be stopped, because the AI is rarely that sure.")] },
       { id: "actions", title: tx("Automatic actions"), text: [tx("Off by default: you are told and you decide. «Pause by itself» stops the print when the AI is sure; a cancelled print cannot be recovered, so «Cancel by itself» is for when you really trust it.")] },
     ],

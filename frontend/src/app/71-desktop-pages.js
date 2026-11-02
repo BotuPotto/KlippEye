@@ -67,7 +67,7 @@ function PrintThumb({ src, className }) {
 }
 
 /** The same figures and buttons as the phone's progress card, laid out in a row under the camera. */
-function DesktopPrintCard({ status, controls }) {
+function DesktopPrintCard({ status, controls, monitor }) {
   return h(
     Card,
     { className: "desk-print" },
@@ -89,6 +89,7 @@ function DesktopPrintCard({ status, controls }) {
         h(PrintStat, { label: tx("Remaining"), value: status.remaining }),
         h(PrintStat, { label: "Layer", value: status.layer }),
       ),
+      h(AiAlarmQuestion, { monitor }),
       h(
         "div",
         { className: "oui-btn-row" },
@@ -159,8 +160,8 @@ function DesktopDevicePage({ printStatus, printControls, status, motion, bedTool
       "section",
       { className: "desk-device__main" },
       h(CameraPanel),
-      h(AiStrip, { monitor: aiMonitor, onOpen: () => onNavigate("sistema") }),
-      printStatus.printing ? h(DesktopPrintCard, { status: printStatus, controls: printControls }) : h(IdlePrintCard, { status: printStatus, onOpenFiles: () => onNavigate("files") }),
+      h(AiStrip, { monitor: aiMonitor, onOpen: openAiPanel }),
+      printStatus.printing ? h(DesktopPrintCard, { status: printStatus, controls: printControls, monitor: aiMonitor }) : h(IdlePrintCard, { status: printStatus, onOpenFiles: () => onNavigate("files") }),
     ),
     h(
       "aside",
@@ -312,6 +313,5 @@ function DesktopSystemPage({ controller, aiMonitor, onEditFile }) {
         : h(LoadingCard, { label: tx("System"), text: tx("Loading...") }),
     ),
     h("div", { className: "desk-col" }, h(LogsCard, { onEditFile })),
-    h("div", { className: "desk-col" }, h(AiMonitorCard, { monitor: aiMonitor })),
   );
 }

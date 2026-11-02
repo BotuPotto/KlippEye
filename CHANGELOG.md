@@ -1,5 +1,22 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.25.0
+
+**The alarms of the AI monitor belong to one print, and you answer them** (roadmap phase 6a, first part).
+
+* **The print card asks**: when the AI sees a problem, the card of the print in progress shows what it saw (with the picture)
+  and three answers: **Real problem**, **False alarm**, **Ignore**. "False alarm" and "Ignore" put the AI badge back to green
+  until the next alarm and the question goes; "Real problem" stays, reminding you to pause or cancel. "Real problem" and "False
+  alarm" also label the alarm in the history and the recording, the data *Measure now* uses.
+* **One print at a time**: the backend closes the alarm when a print starts and when it ends, so the badge and the verdict never
+  carry over to the next print (before, the Config page and the badge stayed amber or red). The dashboard no longer keeps an old
+  verdict in the browser.
+* **The AI badge opens the panel**: the badge in the top bar is always there (grey with no print) and a tap opens the AI
+  monitoring panel, with a button to its settings. The *Automatic AI monitoring* card left the Config page (and the desktop
+  System page; the desktop strip opens the panel too).
+* **Pictures to enlarge**: the AI monitor's pictures (the alarm in the print card and in the panel) open over the whole screen,
+  fit or at their real size; the phone's back closes them.
+
 ## 1.24.0
 
 **Sturdier app and menu** (roadmap phase 5f; Android app 1.4.0).

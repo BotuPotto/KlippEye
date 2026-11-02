@@ -8,13 +8,13 @@ function startPrint(job) {
 }
 
 /** The Z-offset card takes the Movement card's place while a job prints, and sits above it once the job is over while an offset is left to save. */
-function HomePage({ printStatus, printControls, status, motion, bedTools, zOffset, lockReason, onEditTemperature }) {
+function HomePage({ printStatus, printControls, status, motion, bedTools, zOffset, lockReason, onEditTemperature, aiMonitor }) {
   const placement = zOffsetPlacement(printStatus, status.zOffset);
   const zOffsetCard = placement && h("div", { className: "md:col-span-2" }, h(ZOffsetCard, { zOffset, printing: placement === "instead" }));
   return h(
     "div",
     { className: "grid grid-cols-1 md:grid-cols-2" },
-    printStatus.printing && h(PrintProgressCard, { status: printStatus, controls: printControls }),
+    printStatus.printing && h(PrintProgressCard, { status: printStatus, controls: printControls, monitor: aiMonitor }),
     h("div", { className: "md:col-span-2" }, h(CameraCard)),
     h("div", { className: "md:col-span-2" }, h(HeatersFansCard, { hotend: status.hotend, bed: status.bed, onEditTemperature })),
     zOffsetCard,
@@ -33,8 +33,9 @@ function ControlPage({ entries, status, capabilities, lockReason, onGcode, onEdi
   );
 }
 
-function ConfigPage({ aiMonitor, onEditFile, onViewImage }) {
-  return h("div", { className: "grid grid-cols-1" }, h(ConfigFilesCard, { onEditFile, onViewImage }), h(AiMonitorCard, { monitor: aiMonitor }), h(LogsCard, { onEditFile }));
+/** 1.25: the AI monitoring card left this page: the badge in the top bar opens it as a panel. */
+function ConfigPage({ onEditFile, onViewImage }) {
+  return h("div", { className: "grid grid-cols-1" }, h(ConfigFilesCard, { onEditFile, onViewImage }), h(LogsCard, { onEditFile }));
 }
 
 const TAB_TITLES = { home: "Home", controllo: tx("Control"), files: "Files", config: "Config", sistema: tx("System") };
@@ -101,7 +102,7 @@ function App() {
   const pages = {
     home: desktop
       ? h(DesktopDevicePage, { printStatus, printControls, status, motion, bedTools, zOffset, lockReason, aiMonitor, onEditTemperature: temperature.edit, onGcode: runFromConsole, onNavigate: selectTab })
-      : h(HomePage, { printStatus, printControls, status, motion, bedTools, zOffset, lockReason, onEditTemperature: temperature.edit }),
+      : h(HomePage, { printStatus, printControls, status, motion, bedTools, zOffset, lockReason, onEditTemperature: temperature.edit, aiMonitor }),
     controllo: desktop
       ? h(DesktopCalibrationPage, { capabilities, lockReason, onGcode: runFromConsole })
       : h(ControlPage, { entries: consoleFeed.entries, status, capabilities, lockReason, onGcode: runFromConsole, onEditTemperature: temperature.edit }),
@@ -148,6 +149,8 @@ function App() {
     h(SettingsMenuLayer, { menu: settingsMenu, updates, printing: printStatus.printing, actions: { restartService } }),
     h(NotifyInvite, { onOpen: () => settingsMenu.openPage("notifications") }),
     h(SetupGuideLayer, { menu: settingsMenu, printing: printStatus.printing }),
+    h(AiPanelLayer, { monitor: aiMonitor, onSettings: () => settingsMenu.openPage("ai") }),
+    h(PhotoViewerLayer),
     h(HelpLayer),
     h(Presence, null, temperature.dialog.open && h(TemperatureDialog, { maxTemp: capabilities.maxTemp, dialog: temperature.dialog, onChange: temperature.setValue, onClose: temperature.close, onConfirm: temperature.confirm })),
     h(Presence, null, motion.positionDialog.open && h(PositionDialog, { dialog: motion.positionDialog, onChange: motion.setPositionValue, onClose: motion.closePositionDialog, onConfirm: motion.goToPosition })),

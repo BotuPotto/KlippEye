@@ -35,3 +35,37 @@
 .ai-alert__text { margin-top: 6px; font-size: 14px; line-height: 1.5; color: var(--oui-text-2); }
 
 .ai-result { padding: 14px; background: var(--oui-inset); border-radius: var(--oui-r-tile); overflow-wrap: break-word; }
+
+/* 1.25: the badge is a button (it opens the AI monitoring panel) and is always there: grey with no print */
+button.ai-header-badge { cursor: pointer; font: inherit; color: inherit; }
+.ai-header-badge--idle { opacity: 0.75; }
+.ai-header-badge--idle .ai-header-badge__dot { box-shadow: none; }
+
+/* the alarm in the print card: what the AI saw and three answers */
+.ai-question { display: flex; flex-direction: column; gap: 10px; margin: 0 0 14px; padding: 12px; border-radius: var(--oui-r-tile, 16px); border: 1px solid var(--oui-warn); background: var(--oui-warn-soft); }
+.ai-question--danger { border-color: var(--oui-danger); background: var(--oui-danger-soft); }
+.ai-question__head { display: flex; gap: 12px; align-items: flex-start; }
+.ai-question__photo { flex: none; width: 96px; height: 64px; }
+.ai-question__text { min-width: 0; }
+.ai-question__title { font-weight: 700; font-size: 14px; }
+.ai-question__summary { margin-top: 4px; font-size: 13px; line-height: 1.45; color: var(--oui-text-2); }
+.ai-question__ask { font-size: 13px; font-weight: 600; }
+.ai-question__buttons { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.ai-question__buttons .oui-btn { min-width: 0; }
+.ai-question__done { margin: 0; font-size: 13px; color: var(--oui-text-2); }
+
+/* a picture that opens in the photo viewer */
+.zoom-photo { position: relative; display: block; padding: 0; border: 0; border-radius: 10px; overflow: hidden; background: #000; cursor: zoom-in; }
+.zoom-photo img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.zoom-photo__hint { position: absolute; right: 4px; bottom: 4px; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: rgba(0, 0, 0, 0.55); color: #fff; }
+.photo-viewer__stage.is-real { align-items: flex-start; justify-content: flex-start; }
+.photo-viewer__stage.is-real img { max-width: none; max-height: none; }
+.photo-viewer__stage img { cursor: zoom-in; touch-action: pinch-zoom; }
+.photo-viewer__stage.is-real img { cursor: zoom-out; }
+.photo-viewer { z-index: 9998; }
+
+/* the AI monitoring panel (the badge) */
+.ai-panel { max-height: min(90vh, 820px); }
+.ai-panel__card { display: flex; flex-direction: column; gap: 12px; }
+.ai-panel__photo { width: 100%; aspect-ratio: 3 / 2; }
+.ai-panel__empty { margin: 0; }

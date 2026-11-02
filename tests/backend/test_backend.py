@@ -1843,6 +1843,32 @@ os._exit(0)
 """, NEW_BRAIN], capture_output=True, text=True, timeout=90, env=dict(os.environ, KLIPPEYE_DATA=tmp()))
 check("without numpy and OpenCV the backend starts (1.23.0); the calibration says what to install", "RESULT 200 False 409" in _probe.stdout, (_probe.stdout[-300:], _probe.stderr[-300:]))
 
+print("== 1.25.0: the alarm of this print, and the person's answer")
+_da = tmp()
+_ba = load_brain(NEW_BRAIN, _da, fake, brain_json={"values": {"enabled": False}})
+_ca = _ba.app.test_client()
+_img = os.path.join(_da, "alarm.jpg"); open(_img, "wb").write(fakes.jpeg(fakes.frame()))
+_ev = _ba.record_alert({"outcome": "analysed", "action": "PAUSE", "summary": "spaghetti"}, _img)
+check("record_alert gives back the alarm it wrote (its id and its picture)", _ev and _ev.get("id") and _ev.get("image", "").endswith("-now.jpg"), _ev)
+_ba.detector.last_analysis = {"timestamp": "t", "analysis": {"action": "PAUSE", "summary": "spaghetti"}, "alert_id": _ev["id"], "image": _ev["image"]}
+j = _ca.get("/api/print/last_analysis").get_json()
+check("the dashboard gets the alarm's id and picture, no answer yet", j["has_analysis"] and j["alert_id"] == _ev["id"] and j["image"] == _ev["image"] and j["answer"] is None, j)
+check("an answer that is not one is refused", _ca.post("/api/print/last_analysis/answer", json={"answer": "maybe"}).status_code == 400)
+r = _ca.post("/api/print/last_analysis/answer", json={"answer": "false"})
+_hist = _ca.get("/api/print/alerts/history").get_json()["alerts"]
+check("«False alarm» from the print card: kept with the alarm, and the alarm is labelled false (what «Measure now» uses)", r.status_code == 200 and _ca.get("/api/print/last_analysis").get_json()["answer"] == "false" and _hist[0]["id"] == _ev["id"] and _hist[0].get("label") == "false", _hist[:1])
+_ca.post("/api/print/last_analysis/answer", json={"answer": "ignore"})
+check("«Ignore»: answered, the label stays the person's last real verdict", _ca.get("/api/print/last_analysis").get_json()["answer"] == "ignore" and _ca.get("/api/print/alerts/history").get_json()["alerts"][0].get("label") == "false")
+_ba.detector.in_print = True
+_ba.detector._follow_print("printing")
+check("the same print goes on: the alarm stays", _ba.detector.last_analysis is not None)
+_ba.detector._follow_print("complete")
+check("the print ends: the alarm is closed (has_analysis false), it stays in the history", _ca.get("/api/print/last_analysis").get_json()["has_analysis"] is False and _ca.get("/api/print/alerts/history").get_json()["alerts"][0]["id"] == _ev["id"])
+_ba.detector.last_analysis = {"analysis": {"action": "PAUSE"}}
+_ba.detector._follow_print("printing")
+check("a new print starts: an alarm left over is closed too", _ba.detector.last_analysis is None and _ba.detector.in_print is True)
+check("no alarm: answering says so", _ca.post("/api/print/last_analysis/answer", json={"answer": "false"}).status_code == 409)
+
 stop_all()
 fake.close()
 print("\n%d PASS, %d FAIL" % (passed, failed))
