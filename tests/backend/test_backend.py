@@ -1394,7 +1394,8 @@ mc.camera_cal._settings = (0.0, None)
 j = cc.get("/api/camera/calibration").get_json()
 check("1.29.1 GET: where Z is homed (safe_z_home at the centre), the markers clear of it", j["homing"]["how"] == "safe_z_home" and j["homing"]["xy"] == [175.0, 175.0] and j["homing"]["risks"] == [] and j["homing"]["layout_moved"] is False, j.get("homing"))
 r = cc.post("/api/camera/calibration/home")
-check("home: G28 sent (the motors kept on during the calibration first)", r.status_code == 200 and fake.scripts == ["SET_IDLE_TIMEOUT TIMEOUT=3600", "G28"] and fake.state["homed"] == "xyz", fake.scripts)
+check("home: G28 sent (the motors already kept on: the blobs made the idle timeout longer)", r.status_code == 200 and fake.scripts == ["G28"] and fake.state["homed"] == "xyz"
+      and mc.camera_cal._idle_was == 600, (fake.scripts, mc.camera_cal._idle_was))
 r = cc.post("/api/camera/calibration/goto", json={"target": "nope"})
 check("an unknown point: 400", r.status_code == 400)
 del fake.scripts[:]
