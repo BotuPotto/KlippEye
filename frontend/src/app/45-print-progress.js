@@ -216,7 +216,7 @@ function PrintStat({ label, value }) {
   return h("div", { className: "print-stat" }, h("div", { className: "oui-caption" }, label), h("div", { className: "print-stat__value" }, value));
 }
 
-function PrintProgressCard({ status, controls }) {
+function PrintProgressCard({ status, controls, monitor }) {
   const [thumbBroken, setThumbBroken] = useState(false);
   useEffect(() => setThumbBroken(false), [status.thumbnail]);
   const showThumb = !!status.thumbnail && !thumbBroken;
@@ -253,6 +253,7 @@ function PrintProgressCard({ status, controls }) {
       h(PrintStat, { label: tx("Remaining"), value: status.remaining }),
       h(PrintStat, { label: "Layer", value: status.layer }),
     ),
+    h(AiAlarmQuestion, { monitor }),
     h(
       "div",
       { className: "oui-btn-row" },

@@ -188,7 +188,14 @@ Tutto sta in **Impostazioni → Monitor IA**, una pagina sola, dall'alto in bass
 4. **Il servizio IA**: la **chiave dell'IA** (Groq è gratis; è la stessa dell'analisi dei log, resta in
    `~/printer_data/klippeye/ai.json`, leggibile solo dal servizio), se mandare anche la foto di prima, il modello.
 
-L'IA scrive le sue osservazioni nella lingua delle notifiche; ogni allarme resta con le sue foto (card del monitor IA, allarmi in
+**Durante la stampa.** Il badge **AI** nella barra in alto è grigio senza stampa, verde quando va tutto bene, arancione o rosso con
+un allarme; toccandolo si apre il **pannello del monitoraggio IA** (stato, punteggio, ultimo giudizio con la foto da ingrandire). Quando
+l'IA vede un problema, la **card della stampa** mostra cosa ha visto e chiede: **Problema vero**, **Falso allarme** o **Ignora**.
+«Falso allarme» e «Ignora» rimettono il badge verde fino al prossimo allarme; «Problema vero» e «Falso allarme» restano anche
+nell'allarme, e servono a misurare il monitor (Registrazioni → Misura adesso). Gli allarmi di una stampa si chiudono quando ne
+parte un'altra.
+
+L'IA scrive le sue osservazioni nella lingua delle notifiche; ogni allarme resta con le sue foto (pannello del monitor IA, allarmi in
 Registrazioni e `~/printer_data/klippeye/alerts/`). Quando l'IA ha proposto pausa o cancellazione ma nessun difetto arrivava alla
 fiducia minima, l'allarme lo dice in arancione («Pausa proposta, sotto la soglia»).
 

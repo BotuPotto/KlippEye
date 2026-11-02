@@ -1854,8 +1854,10 @@ def record_alert(event, image_path=None, reference_path=None):
                         os.remove(os.path.join(ALERT_HISTORY_DIR, name))
                     except OSError:
                         pass
+            return event
     except Exception as error:
         print(f"[ALERTS] cannot write the alert history: {error}")
+    return None
 
 
 _ALERT_KEYS_1_1 = {"esito": "outcome", "osservazione": "observation", "con_foto_di_prima": "with_reference", "filtro": "filter",
@@ -1988,7 +1990,8 @@ class LightDetector(FrameJudge):
         self.generation = 0  # every start() opens a new one: an old loop still asleep understands by itself that it must end
         self.last_ai_call = 0
         self.last_alert_img_path = None
-        self.last_analysis = None  # last AI result, formatted
+        self.last_analysis = None  # last AI result, formatted; None again at the start and at the end of every print (1.25)
+        self.in_print = False  # a print (printing or paused) was running at the last look
         self.meta = {}  # what the printer was doing at the last round (layer, position, progress): goes with the recorded picture
         self.next_cool_frame = 0.0
         self.cpu_mark = None  # (wall time, process CPU time) at the start of the current measuring window
@@ -2010,6 +2013,16 @@ class LightDetector(FrameJudge):
             self.stats["cpu_percent"] = round(100.0 * (cpu - self.cpu_mark[1]) / (now - self.cpu_mark[0]), 1)
             self.cpu_mark = (now, cpu)
             recorder.note_cpu(self.check_ms, self.stats["cpu_percent"])
+
+    def _follow_print(self, state):
+        """A print starts or ends: the alarms of the print before are closed (1.25), so the dashboard's AI badge and the
+        verdict on the page belong to this print only. They stay in the alert history and in the recordings."""
+        printing = state in ("printing", "paused")
+        if printing != self.in_print:
+            if self.last_analysis is not None:
+                print("[OPENCV] print %s: the last AI alarm is closed" % ("started" if printing else "ended"))
+            self.last_analysis = None
+            self.in_print = printing
 
     def _record_during_cooldown(self):
         """After an alarm the monitor rests, but the recording goes on (a replay with a shorter pause needs those pictures)."""
@@ -2160,6 +2173,7 @@ class LightDetector(FrameJudge):
                     tool = status.get("toolhead",{})
                     bed = status.get("heater_bed",{})
                     state = ps.get("state","")
+                    self._follow_print(state)
                     recorder.observe(state, ps.get("filename", ""), time.time(), brain_config.snapshot())
                     camera_cal.maybe_check()  # has the camera moved since its calibration? (every 10 minutes)
 
@@ -2453,7 +2467,7 @@ class LightDetector(FrameJudge):
                 self.stats["status"] = f"AI: {parsed.get('action','?')} - {str(parsed.get('summary',''))[:40]}"
                 print(f"[OPENCV] AI analysis saved: {parsed}")
                 confidences = [d.get("confidence") for k, d in parsed.items() if k in AI_DEFECT_KEYS and isinstance(d, dict) and d.get("detected") is True]
-                record_alert({
+                recorded = record_alert({
                     "outcome": "analysed" + (" (downgraded: confidence below the minimum)" if downgraded else ""),
                     "score": score, "progress": round(progress, 1), "filename": filename, "model": final_model,
                     "action": parsed.get("action"), "original_action": parsed.get("original_action"),
@@ -2461,6 +2475,9 @@ class LightDetector(FrameJudge):
                     "summary": parsed.get("summary"), "observation": parsed.get("observation"),
                     "with_reference": used_reference, "filter": self.persistent_filter,
                 }, img_path, ref_path if used_reference else None)
+                if recorded:  # the dashboard asks the person about this alarm (right / false / ignore) with its picture
+                    self.last_analysis["alert_id"] = recorded.get("id")
+                    self.last_analysis["image"] = recorded.get("image")
             else:
                 self.last_analysis = {
                     "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
@@ -2954,12 +2971,34 @@ def api_print_last_analysis():
             "filename": la.get("filename"),
             "analysis": la.get("analysis"),
             "raw": la.get("raw","")[:1000],
+            "alert_id": la.get("alert_id"),
+            "image": la.get("image"),
+            "answer": la.get("answer"),   # the person's answer from the print card: "right" | "false" | "ignore" | None
             "stats": detector.stats
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 ALERT_LABELS = ("false", "right")
+ALERT_ANSWERS = ("right", "false", "ignore")
+
+
+@app.route("/api/print/last_analysis/answer", methods=["POST"])
+def api_last_analysis_answer():
+    """{"answer": "right" | "false" | "ignore"}: the person's answer to the alarm of this print, from the print card (1.25).
+    "right" and "false" also label the alarm (alert history, recording: what "Measure now" uses); "false" and "ignore" put
+    the AI badge back to green until the next alarm."""
+    body = request.get_json(silent=True)
+    answer = body.get("answer") if isinstance(body, dict) else None
+    if answer not in ALERT_ANSWERS:
+        return jsonify({"ok": False, "error": "answer must be right, false or ignore"}), 400
+    la = detector.last_analysis
+    if not la:
+        return jsonify({"ok": False, "error": "no alarm to answer"}), 409
+    la["answer"] = answer
+    if answer in ALERT_LABELS and la.get("alert_id"):
+        label_alert(la["alert_id"], answer)
+    return jsonify({"ok": True, "answer": answer, "alert_id": la.get("alert_id")})
 
 
 def label_alert(alert_id, label):

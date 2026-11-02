@@ -30,6 +30,7 @@ def default_state():
         "detector_status": "scanning",
         "has_analysis": True,
         "analysis_action": "CONTINUA",
+        "ai_answer": None, "ai_answers": [],   # the person's answers to the alarm (/api/print/last_analysis/answer, 1.25)
         "update_channel": "dev",   # the channel of [update_manager klippeye] (None: not listed)
         "channel_posts": [],
         "mesh": True,
@@ -240,7 +241,7 @@ def mock_reset():
     S.clear(); S.update(default_state()); return jsonify(ok=True)
 @app.route("/__mock/state")
 def mock_state():
-    return jsonify({k: v for k, v in S.items() if k in ("light", "light_cmds", "light_reads", "actions", "webhooks", "webhooks_msg", "disconnected", "moonraker_down", "host_off", "services", "update_log", "brain_cfg_log", "brain_release", "brain_started", "klippeye_info", "pending_release", "logos", "app_apk_hits", "app_apk_downloads", "update_channel", "channel_posts", "rec_posts", "measure_starts", "recordings", "alerts", "pm_macros", "pm_wraps", "pm_posts", "gcode_log", "ntfy", "ntfy_posts", "ntfy_tests", "ntfy_app_reads")})
+    return jsonify({k: v for k, v in S.items() if k in ("light", "light_cmds", "light_reads", "actions", "webhooks", "webhooks_msg", "disconnected", "moonraker_down", "host_off", "services", "update_log", "brain_cfg_log", "brain_release", "brain_started", "klippeye_info", "pending_release", "logos", "app_apk_hits", "app_apk_downloads", "update_channel", "channel_posts", "rec_posts", "measure_starts", "recordings", "alerts", "pm_macros", "pm_wraps", "pm_posts", "gcode_log", "ntfy", "ntfy_posts", "ntfy_tests", "ntfy_app_reads", "ai_answers", "ai_answer")})
 @app.route("/__mock/print_actions")
 def mock_print_actions():
     return jsonify(S.get("print_actions", []))
@@ -1169,7 +1170,16 @@ def last_analysis():
                         "layer_shift": {"detected": False, "confidence": 5}, "warping": {"detected": S["analysis_action"] != "CONTINUA", "confidence": 61},
                         "action": S["analysis_action"], "summary": "Stampa regolare, nessun difetto rilevato."})
     return jsonify(ok=True, has_analysis=True, timestamp="2026-10-20 14:00:00", model="llama-vision", progress=42,
-                   analysis={"analysis": inner, "action": S["analysis_action"], "summary": "Stampa regolare."})
+                   analysis={"analysis": inner, "action": S["analysis_action"], "summary": "Stampa regolare." if S["analysis_action"] in ("CONTINUA", "CONTINUE") else "Spaghetti sul piatto, il pezzo si è staccato."},
+                   alert_id="20261020-140000", image="20261020-140000-now.jpg", answer=S["ai_answer"])
+@app.route("/api/print/last_analysis/answer", methods=["POST"])
+def last_analysis_answer():
+    answer = (request.get_json(force=True, silent=True) or {}).get("answer")
+    if answer not in ("right", "false", "ignore"):
+        return jsonify(ok=False, error="answer must be right, false or ignore"), 400
+    S["ai_answer"] = answer
+    S["ai_answers"].append(answer)
+    return jsonify(ok=True, answer=answer)
 
 @app.route("/server/database/item", methods=["GET", "POST"])
 def db_item():

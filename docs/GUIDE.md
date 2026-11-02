@@ -185,7 +185,13 @@ Everything is in **Settings → AI monitor**, one page, top to bottom:
 4. **The AI service**: the **AI key** (Groq is free; the same key is used for the log analysis, saved in
    `~/printer_data/klippeye/ai.json`, readable only by the service), whether the earlier picture is sent too, the model.
 
-The AI writes its observations in the language of the notifications; every alert is kept with its pictures (AI monitor card,
+**During a print.** The **AI** badge in the top bar is grey with no print, green while all is well, amber or red with an alarm; a
+tap opens the **AI monitoring panel** (status, score, the last verdict with its picture to enlarge). When the AI sees a problem,
+the **print card** shows what it saw and asks: **Real problem**, **False alarm** or **Ignore**. "False alarm" and "Ignore" put the
+badge back to green until the next alarm; "Real problem" and "False alarm" are also kept with the alarm and help measure the
+monitor (Recordings → Measure now). The alarms of a print are closed when the next one starts.
+
+The AI writes its observations in the language of the notifications; every alert is kept with its pictures (AI monitoring panel,
 the alarms in Recordings, and `~/printer_data/klippeye/alerts/`). When the AI proposed to pause or cancel but no defect reached
 the minimum confidence, the alarm says so in orange ("Pause proposed, under the threshold").
 
