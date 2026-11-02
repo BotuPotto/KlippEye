@@ -50,8 +50,8 @@
 
 /* 1.29: the dots that change the sizes on the live picture, the points found by themselves */
 .cal-handles { position: absolute; inset: 0; pointer-events: none; }
-.cal-handle { position: absolute; width: 26px; height: 26px; margin: -13px 0 0 -13px; padding: 0; border-radius: 50%; border: 2px solid #fff; background: var(--oui-accent); box-shadow: 0 1px 4px rgba(0, 0, 0, 0.6); pointer-events: auto; touch-action: none; cursor: grab; }
-.cal-handle::after { content: ""; position: absolute; inset: -9px; border-radius: 50%; }   /* a bigger target for the finger */
+.cal-handle { position: absolute; width: 18px; height: 18px; margin: -9px 0 0 -9px; padding: 0; border-radius: 50%; border: 2px solid #fff; background: var(--oui-accent); box-shadow: 0 1px 4px rgba(0, 0, 0, 0.6); pointer-events: auto; touch-action: none; cursor: grab; }
+.cal-handle::after { content: ""; position: absolute; inset: -8px; border-radius: 50%; }   /* a bigger target for the finger */
 .cal-handle--gantry { background: #ff9f43; }
 .cal-handle.is-held { transform: scale(1.25); cursor: grabbing; }
 .cal-handle-line { margin-top: 6px; color: var(--oui-text-3); font-size: 13px; font-variant-numeric: tabular-nums; }

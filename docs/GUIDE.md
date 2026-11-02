@@ -244,6 +244,13 @@ calibration: keep your hands out.
 
    The page shows a small drawing of what to tap at each point. Green numbers are done; tap a number to see it or redo it.
    The yellow cross is your tap, the green cross a point already kept.
+
+   **Faster: the nozzle found by itself.** Once you have tapped the nozzle at one point, KlippEye can find it at the other
+   nozzle points: **Find the nozzle by itself at the other N points** goes to each, moves the toolhead aside for a moment
+   (to see where it is) and looks for the tip you tapped (about 15 seconds a point; keep your hands out). The points found
+   are blue: **Use the N points found** keeps them, and **Calculate** turns red any that does not fit, to tap by hand.
+   At a single point, **Go there and find the nozzle by itself** opens the magnified view on what it found. The marker
+   points (7 to 12 when Z moves the bed) are always tapped by hand.
 5. **Calculate the calibration**: the average error in pixels (good: a few pixels) and, in red, the points to redo (a tap
    on the wrong thing: redo just those and calculate again). The live picture shows the toolhead and the bed drawn over it:
    move the toolhead with the buttons, the drawing must follow it. **Save the calibration**, then remove the markers.
@@ -251,7 +258,10 @@ calibration: keep your hands out.
 **Toolhead and gantry.** After saving, the page shows the live picture with the **toolhead** (purple) and the **gantry**
 (orange: the bar that carries the toolhead from side to side) drawn over it. What is inside those outlines is what the
 monitor leaves out, so they must cover the parts, with a little room (much more would hide a problem near the nozzle).
-Adjust them with **−** and **+** (5 mm a step), moving the toolhead with the buttons to check a few places:
+Adjust them by **dragging the dots on the picture** (each side of the toolhead, its top — the height — and the upper and
+lower edge of the gantry: the size is shown while you drag) or with **−** and **+** (5 mm a step), moving the toolhead
+with the buttons to check a few places. Dots that would sit on top of each other (a small or far toolhead) are left out:
+their sizes keep **−** and **+**:
 
 * toolhead: how far it goes **left, right, in front of and behind the nozzle**, **above** the nozzle tip and below it;
 * gantry: where the bar **starts behind the nozzle**, how **deep** it is and its **lower and upper edges** above the nozzle

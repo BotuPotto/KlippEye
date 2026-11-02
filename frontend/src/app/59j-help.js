@@ -237,7 +237,7 @@ const HELP = {
           tx("«Use the points found», then «Calculate»: a point found in the wrong place does not fit the others and turns red; tap it again by hand. The marker points (printers whose bed moves in Z) are always tapped by hand."),
         ],
       },
-      { id: "shape", title: tx("Toolhead and gantry"), text: [tx("After the calibration the live picture shows what is left out: purple the toolhead, orange the gantry. If they do not cover them, drag the dots on the picture (each side of the toolhead, its top and its bottom, the upper and lower edge of the gantry) or use − and + under «Toolhead» and «Gantry», then move the toolhead to check.")] },
+      { id: "shape", title: tx("Toolhead and gantry"), text: [tx("After the calibration the live picture shows what is left out: purple the toolhead, orange the gantry. If they do not cover them, drag the dots on the picture (each side of the toolhead, its top, the upper and lower edge of the gantry) or use − and + under «Toolhead» and «Gantry», then move the toolhead to check.")] },
     ],
   },
   detector: {

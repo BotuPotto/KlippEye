@@ -311,17 +311,21 @@ class CameraCalibration:
         printer = self.printer()
         position = printer["position"]
         here = self._fresh_picture()
+        # two places aside: what changed against BOTH is the toolhead here (against one only, the place it went to counts too)
         (x0, y0), (x1, y1) = printer["minimum"][:2], printer["maximum"][:2]
-        if position[0] + FIND_SHIFT <= x1:
-            dx, dy = FIND_SHIFT, 0.0
-        elif position[0] - FIND_SHIFT >= x0:
-            dx, dy = -FIND_SHIFT, 0.0
-        else:
-            dx, dy = 0.0, (FIND_SHIFT if position[1] + FIND_SHIFT <= y1 else -FIND_SHIFT)
-        self.gcode("G91\nG0 X%.2f Y%.2f F%d\nG90\nM400" % (dx, dy, TRAVEL_FEED), 60)
-        away = self._fresh_picture()
+        # one place on each side when there is room; else two on the same side, far enough apart not to overlap each other
+        far = 2 * FIND_SHIFT + 20.0
+        spots = [(position[0] + d, position[1]) for d in (FIND_SHIFT, -FIND_SHIFT) if x0 <= position[0] + d <= x1]
+        if len(spots) < 2:
+            spots += [(position[0] + d, position[1]) for d in (far, -far) if x0 <= position[0] + d <= x1]
+        if len(spots) < 2:
+            spots += [(position[0], position[1] + d) for d in (FIND_SHIFT, -FIND_SHIFT, far, -far) if y0 <= position[1] + d <= y1]
+        aways = []
+        for sx, sy in spots[:2]:
+            self.gcode("G90\nG0 X%.2f Y%.2f F%d\nM400" % (sx, sy, TRAVEL_FEED), 60)
+            aways.append(self._fresh_picture())
         self.gcode("G90\nG0 X%.2f Y%.2f F%d\nM400" % (position[0], position[1], TRAVEL_FEED), 60)
-        region = nozzle_finder.moving_region(self.cv2, self.np, here, away)
+        region = nozzle_finder.toolhead_region(self.cv2, self.np, here, aways)
         result = nozzle_finder.find(self.cv2, self.np, here, patch, region)
         proposal = {"u": result["u"], "v": result["v"], "score": result["score"], "found": result["found"], "moved": region is not None,
                     "machine": position, "time": int(time.time())}
@@ -567,7 +571,7 @@ class CameraCalibration:
                 "toolhead": [[round(a, 4), round(b, 4)] for a, b in (parts["toolhead"][0] if parts["toolhead"] else [])],
                 "gantry": [[[round(a, 4), round(b, 4)] for a, b in piece] for piece in parts["gantry"]],
                 "shape": shape,
-                "handles": machine_masks.handles(dict(calibration, z_moves=z_moves), shape, [x, y, z]),
+                "handles": machine_masks.handles(dict(calibration, z_moves=z_moves), shape, [x, y, z], [printer["minimum"][0], printer["maximum"][0]]),
                 "bed": [[round(float(a), 4), round(float(b), 4)] for (a, b), f in zip(bed_uv, bed_front) if f]}
 
     # ---------------------------------------------------------------- the shape of the toolhead and the gantry (masks)

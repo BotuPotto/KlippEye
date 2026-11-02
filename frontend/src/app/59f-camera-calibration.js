@@ -12,7 +12,7 @@
      5. checks it live: the toolhead outline and the bed are drawn over the picture while the toolhead moves;
      6. (phase 4b) adjusts the shape of the toolhead and of the gantry on the live picture, until the drawing covers them:
         the monitor leaves those parts out of its checks (backend/machine_masks.py). 1.29: by dragging the handles on the
-        picture (each face of the toolhead box, its top and bottom, the edges of the gantry), or with the − / + buttons.
+        picture (each side of the toolhead box, its top, the edges of the gantry), or with the − / + buttons.
    1.29, "automatic": after the nozzle is tapped by hand once, KlippEye finds it by itself at the other nozzle points
    (backend/nozzle_finder.py: the toolhead moves aside for a moment, the tapped picture is looked for where it was); the
    person accepts the proposals, «Calculate» shows any that does not fit, to redo by hand.
@@ -187,8 +187,8 @@ function handleLabel(key) {
 }
 
 /**
- * 1.29: the dots on the live picture, one per size (each face of the toolhead box, its top and bottom, the upper and lower
- * edge of the gantry). A dot moves only along its own direction (as the backend projects it: `per_mm` is how far it goes in
+ * 1.29: the dots on the live picture, one per size (each side of the toolhead box and its top, the upper and lower edge of the
+ * gantry; "below the tip" keeps only its − and +). A dot moves only along its own direction (as the backend projects it: `per_mm` is how far it goes in
  * the picture for 1 mm); the size follows the finger and is sent to the backend while dragging, so the outline follows too.
  */
 function ShapeHandles({ overlay, camera, frameRef, onDrag, onSaved }) {
@@ -243,12 +243,8 @@ function ShapeHandles({ overlay, camera, frameRef, onDrag, onSaved }) {
   return h(
     "div",
     { className: "cal-handles", onPointerMove: move, onPointerUp: up, onPointerCancel: up },
-    overlay.handles.map((handle) => {
+    visibleHandles(overlay.handles, held, frameRef.current).map(({ handle, u, v }) => {
       const moving = held && held.key === handle.key;
-      const shift = moving ? held.value - held.start : 0;
-      const u = handle.at[0] + handle.per_mm[0] * shift;
-      const v = handle.at[1] + handle.per_mm[1] * shift;
-      if (u < -0.02 || u > 1.02 || v < -0.02 || v > 1.02) return null;
       return h("button", {
         key: handle.key,
         type: "button",
@@ -263,6 +259,28 @@ function ShapeHandles({ overlay, camera, frameRef, onDrag, onSaved }) {
       });
     }),
   );
+}
+
+const HANDLE_ORDER = ["toolhead.top", "toolhead.left", "toolhead.right", "toolhead.front", "toolhead.back", "gantry.high", "gantry.low"];
+const HANDLE_MIN_GAP_PX = 26; // a dot closer than this to one already shown is left out (its size keeps its − and +)
+
+/** The dots to show, where they are now: in the picture, not on top of each other (the one being dragged always). */
+function visibleHandles(handles, held, frame) {
+  const width = frame ? frame.getBoundingClientRect().width : 360;
+  const height = frame ? frame.getBoundingClientRect().height : 200;
+  const kept = [];
+  const order = (key) => (held && held.key === key ? -1 : HANDLE_ORDER.indexOf(key));
+  [...handles]
+    .sort((a, b) => order(a.key) - order(b.key))
+    .forEach((handle) => {
+      const shift = held && held.key === handle.key ? held.value - held.start : 0;
+      const u = handle.at[0] + handle.per_mm[0] * shift;
+      const v = handle.at[1] + handle.per_mm[1] * shift;
+      if (u < -0.02 || u > 1.02 || v < -0.02 || v > 1.02) return;
+      if (kept.some((k) => Math.hypot((k.u - u) * width, (k.v - v) * height) < HANDLE_MIN_GAP_PX)) return;
+      kept.push({ handle, u, v });
+    });
+  return kept;
 }
 
 /**
@@ -606,11 +624,11 @@ function AutoFind({ state, run, busy, finding, auto, nozzleLeft, foundLeft }) {
           h("div", { className: "set-status" }, h("span", { className: "set-status__dot" }), tx("Finding the nozzle: point {done} of {total} ({found} found so far)…", { done: auto.done + 1, total: auto.total, found: auto.found })),
           h("button", { type: "button", className: "oui-btn oui-btn--sm", "data-auto-stop": "1", onClick: () => run("calibration/find-all", { stop: true }) }, tx("Stop")),
         )
-      : nozzleLeft.length > 0 &&
+      : nozzleLeft.length > foundLeft.length &&
           h(
             React.Fragment,
             null,
-            h("button", { type: "button", className: "oui-btn oui-btn--block", "data-find-all": "1", disabled: busy, onClick: () => run("calibration/find-all") }, tx("Find the nozzle by itself at the other {count} points", { count: nozzleLeft.length })),
+            h("button", { type: "button", className: "oui-btn oui-btn--block", "data-find-all": "1", disabled: busy, onClick: () => run("calibration/find-all") }, tx("Find the nozzle by itself at the other {count} points", { count: nozzleLeft.length - foundLeft.length })),
             h("p", { className: "set-group__note" }, tx("The printer goes to each point and moves the toolhead aside for a moment: about 15 seconds per point. Keep your hands out.")),
           ),
     auto.state === "done" && h("p", { className: "set-group__note", "data-auto-done": "1" }, tx("Done: the nozzle found at {found} of {total} points. The others are to tap by hand.", { found: auto.found, total: auto.total })),

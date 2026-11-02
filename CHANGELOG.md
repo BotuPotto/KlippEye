@@ -1,5 +1,21 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.29.0
+
+**Camera calibration: the nozzle found by itself, the toolhead resized by dragging** (roadmap phase 6a, last part).
+
+* **The nozzle found by itself**: tap the nozzle by hand at one point; then **Find the nozzle by itself at the other N
+  points** goes to each, moves the toolhead to two places aside for a moment (what changed is where the toolhead is) and
+  looks for the tip you tapped there (`backend/nozzle_finder.py`: template matching at several sizes inside that region).
+  The points found are blue; **Use the N points found** keeps them and **Calculate** shows in red any that does not fit.
+  One point at a time: **Go there and find the nozzle by itself** opens the magnified view on the proposal. The marker
+  points (bed moving in Z) stay by hand.
+* **Dots on the live picture**: each side of the toolhead, its **top (the height)** and the upper and lower edge of the
+  gantry have a dot to drag; the size shows while dragging and the outline follows. Dots that would overlap are left out
+  (their − and + stay); the gantry's sit on the side away from the toolhead.
+* Backend: `/api/camera/calibration/find`, `/find-all` (`{"stop": true}`), `/accept`; the overlay has `handles`
+  (`machine_masks.handles`: where each dot is and how far it moves per mm).
+
 ## 1.28.0
 
 **How precise the monitor is, what weighs and where there is margin** (roadmap phase 6a, fourth part).
