@@ -1,5 +1,23 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.24.0
+
+**Sturdier app and menu** (roadmap phase 5f; Android app 1.4.0).
+
+* **The app has no addresses of its own any more**: the first time it asks for the Raspberry's address, with an explanation
+  (before, it tried the maintainer's). The external address (ZeroTier, VPN) is optional. Before showing *Retry / Addresses* it
+  tries two rounds, local and external in turn, giving each 2.5 s.
+* **Links outside the app**: websites, stores and `ntfy://` open in the right Android app instead of replacing the dashboard;
+  the store buttons and *Open in the ntfy app* are back in the app's Notifications page. App data is no longer in Android's
+  backups.
+* **One "back" everywhere**: the arrow of the menu goes back to the page it came from (Camera → Camera calibration → back =
+  Camera), and the phone's back button (app 1.4.0) closes the guide or the open dialog, goes to the previous page of the menu or
+  the previous step of the guided set-up, and only then leaves.
+* **Fewer accidents in the menu**: the swipe that closes it is longer (110 px), must be quick and sideways, and never starts on a
+  slider, a field or a picture; a slider touched away from its knob while scrolling keeps its value (the number field is there
+  for exact values), and a vertical drag on a slider scrolls the page.
+* **System page**: CPU and memory are read again every 5 seconds while it is open.
+
 ## 1.23.0
 
 **Installing on any Raspberry, and the camera's snapshot.**

@@ -304,6 +304,10 @@ function HelpSection({ section, highlight }) {
 /** The guide over everything (also over the settings menu). */
 function HelpLayer() {
   const state = useHelpState();
+  useBackHandler(() => {
+    closeHelp();
+    return true;
+  }, Boolean(state));
   useEffect(() => {
     if (!state) return undefined;
     const onKey = (event) => event.key === "Escape" && (event.stopPropagation(), closeHelp());

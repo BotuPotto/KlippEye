@@ -6,16 +6,16 @@ import android.content.Context
  * Gli indirizzi del Raspberry a cui l'app si collega: la rete di casa e ZeroTier (la porta e' sempre quella del Brain).
  *
  * Arrivano dal menu Impostazioni della dashboard, che li comunica con `KlippEyeApp.setAddresses` (vedi
- * [MainActivity.DashboardBridge]), oppure dalla finestra "Indirizzi" dell'app, che compare quando non riesce a connettersi.
- * Senza niente di salvato valgono quelli di fabbrica: gli stessi di sempre. Quelli di fabbrica restano anche in fondo alla
- * lista dei tentativi: se un indirizzo scritto male impedisce la connessione, l'app non resta chiusa fuori.
+ * [MainActivity.DashboardBridge]), oppure dalla finestra "Indirizzi" dell'app: al primo avvio (dalla 1.4.0 non ci sono piu'
+ * indirizzi "di fabbrica": erano quelli di chi ha scritto l'app) e quando non riesce a connettersi.
+ * L'esterno (ZeroTier, VPN) e' facoltativo. Prima di arrendersi l'app prova due giri, locale ed esterno alternati.
  *
  * Qui non c'e' niente di Android a parte le preferenze: la pulizia e i controlli si provano da soli (IndirizziTest.kt).
  */
 object Indirizzi {
     const val PORTA = 8085
-    const val LOCALE_DI_FABBRICA = "192.168.1.17"
-    const val ESTERNO_DI_FABBRICA = "172.25.170.177"
+    /** Quanti giri di tentativi (locale, esterno) prima di mostrare "Riprova / Indirizzi". */
+    const val GIRI = 2
 
     private const val PREFERENZE = "klippeye"
     private const val CHIAVE_LOCALE = "ip_locale"
@@ -26,9 +26,12 @@ object Indirizzi {
         val url: String get() = "http://$host:$PORTA/"
     }
 
-    data class Coppia(val locale: String, val esterno: String)
+    /** I due indirizzi; "" = non impostato (l'esterno puo' mancare; il locale manca solo prima del primo avvio). */
+    data class Coppia(val locale: String, val esterno: String) {
+        val vuota: Boolean get() = locale.isEmpty() && esterno.isEmpty()
+    }
 
-    val DI_FABBRICA = Coppia(LOCALE_DI_FABBRICA, ESTERNO_DI_FABBRICA)
+    val NESSUNA = Coppia("", "")
 
     private val FORMA_NOME = Regex("^[a-z0-9]([a-z0-9.-]{0,98}[a-z0-9])?$")
     private val SUFFISSI_LOCALI = listOf(".local", ".lan", ".home", ".internal", ".home.arpa")
@@ -68,47 +71,46 @@ object Indirizzi {
     /** "ok" se i due indirizzi vanno bene, altrimenti il motivo (in italiano, e' quello che vede l'utente). */
     fun controlla(locale: String?, esterno: String?): String {
         val l = pulisci(locale) ?: return "L'IP locale non e' un indirizzo valido"
-        val e = pulisci(esterno) ?: return "L'IP esterno non e' un indirizzo valido"
         if (!privato(l)) return "L'IP locale deve essere di una rete privata (192.168.x.x, 10.x.x.x, 172.16-31.x.x)"
+        if (esterno.isNullOrBlank()) return "ok" // facoltativo: solo con ZeroTier o una VPN
+        val e = pulisci(esterno) ?: return "L'IP esterno non e' un indirizzo valido"
         if (!privato(e)) return "L'IP esterno deve essere di una rete privata (ZeroTier, VPN)"
         return "ok"
     }
 
-    /**
-     * In che ordine provare gli indirizzi: locale, esterno, poi quelli di fabbrica (se diversi). Senza ripetizioni.
-     * Con gli indirizzi di fabbrica salvati la lista e' quella di sempre: due tentativi.
-     */
+    /** Gli indirizzi diversi da provare: locale, poi esterno (se c'e' ed e' diverso). */
     fun candidati(scelti: Coppia): List<Candidato> {
         val lista = ArrayList<Candidato>()
-        fun aggiungi(host: String, etichetta: String) {
-            if (lista.none { it.host == host }) lista.add(Candidato(host, etichetta))
-        }
-        aggiungi(scelti.locale, "rete locale")
-        aggiungi(scelti.esterno, "ZeroTier")
-        aggiungi(LOCALE_DI_FABBRICA, "rete locale di fabbrica")
-        aggiungi(ESTERNO_DI_FABBRICA, "ZeroTier di fabbrica")
+        if (scelti.locale.isNotEmpty()) lista.add(Candidato(scelti.locale, "rete locale"))
+        if (scelti.esterno.isNotEmpty() && scelti.esterno != scelti.locale) lista.add(Candidato(scelti.esterno, "ZeroTier / VPN"))
         return lista
+    }
+
+    /** I tentativi in ordine: [GIRI] giri di locale ed esterno alternati (locale, esterno, locale, esterno). */
+    fun tentativi(scelti: Coppia): List<Candidato> {
+        val giro = candidati(scelti)
+        return (1..GIRI).flatMap { giro }
     }
 
     // ---- Le preferenze del telefono ----
 
     private fun preferenze(context: Context) = context.applicationContext.getSharedPreferences(PREFERENZE, Context.MODE_PRIVATE)
 
-    /** Gli indirizzi salvati; quello che manca o non e' piu' accettabile torna quello di fabbrica. */
+    /** Gli indirizzi salvati; quello che manca o non e' piu' accettabile e' "" (da chiedere). */
     fun leggi(context: Context): Coppia {
         val p = preferenze(context)
-        fun valido(chiave: String, predefinito: String): String {
+        fun valido(chiave: String): String {
             val host = pulisci(p.getString(chiave, null))
-            return if (host != null && privato(host)) host else predefinito
+            return if (host != null && privato(host)) host else ""
         }
-        return Coppia(valido(CHIAVE_LOCALE, LOCALE_DI_FABBRICA), valido(CHIAVE_ESTERNO, ESTERNO_DI_FABBRICA))
+        return Coppia(valido(CHIAVE_LOCALE), valido(CHIAVE_ESTERNO))
     }
 
     /** Salva i due indirizzi (puliti) se vanno bene. Restituisce "ok" oppure il motivo del rifiuto: in quel caso non cambia nulla. */
     fun salva(context: Context, locale: String?, esterno: String?): String {
         val esito = controlla(locale, esterno)
         if (esito != "ok") return esito
-        val nuovi = Coppia(pulisci(locale)!!, pulisci(esterno)!!)
+        val nuovi = Coppia(pulisci(locale)!!, pulisci(esterno) ?: "")
         if (nuovi != leggi(context)) {
             preferenze(context).edit().putString(CHIAVE_LOCALE, nuovi.locale).putString(CHIAVE_ESTERNO, nuovi.esterno).apply()
         }

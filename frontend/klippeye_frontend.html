@@ -3280,6 +3280,9 @@ body:has(.setup-overlay) .bottom-nav { display: none; }
 .help-steps li { display: list-item; }
 .set-snapshot { display: block; width: 100%; max-height: 260px; object-fit: contain; border-radius: 14px; background: #000; }
 
+/* sliders: a vertical drag scrolls the page instead of moving them (1.24, with 15a-back.js) */
+input[type="range"] { touch-action: pan-y; }
+
 /* ============================================================================
    Desktop layout (wide screens): tabs in the top bar, fixed-height pages whose
    columns scroll on their own, the console as a bar along the bottom.
@@ -6542,7 +6545,8 @@ const APP_CAN_PICK_FILES = !IN_APP_WEBVIEW || APP_VERSION >= 2;
 const APP_CAN_SAVE_FILES = !IN_APP_WEBVIEW || APP_VERSION >= 3;
 const APP_KNOWS_ADDRESSES = APP_VERSION >= 4;
 const APP_CAN_UPDATE = APP_VERSION >= 5;
-const APP_CAN_NOTIFY = APP_VERSION >= 6; // receives the notifications by itself (app 1.3.0: notifySetup / notifyState, 59i)
+const APP_CAN_NOTIFY = APP_VERSION >= 6;
+const APP_OPENS_LINKS = APP_VERSION >= 7; // links to other sites, stores and ntfy:// open outside the app (app 1.4.0) // receives the notifications by itself (app 1.3.0: notifySetup / notifyState, 59i)
 
 /**
  * Saves a file of the Raspberry as `name`. `url` is an address on this server ("/server/files/config/printer.cfg").
@@ -6693,6 +6697,78 @@ function startPolling(poll, ms) {
     stopListening();
   };
 }
+
+/* ============================================================================
+   15a · BACK (1.24)
+   One "back" for the whole dashboard: the phone's back button (the KlippEye app calls window.klippeyeBack(), app 7+) and
+   the Escape key. The layers open on top of each other register what "back" means for them; the top one answers:
+     · the guide ("?") closes;
+     · the guided set-up goes to the previous step (the first step: it closes);
+     · the settings menu goes to the page it came from (the menu's history), then closes;
+     · any other dialog, sheet or full-screen layer gets an Escape, which they all already handle.
+   Nothing open: false, and the app does its own back (the WebView's history, then leaves).
+   ========================================================================== */
+
+const backHandlers = []; // [{ fn }], the last one is the layer on top
+
+/** While `active`, `fn()` is what "back" does (it returns false when it had nothing to do). */
+function useBackHandler(fn, active = true) {
+  const ref = useRef(fn);
+  ref.current = fn;
+  useEffect(() => {
+    if (!active) return undefined;
+    const entry = { fn: () => ref.current() };
+    backHandlers.push(entry);
+    return () => {
+      const index = backHandlers.indexOf(entry);
+      if (index >= 0) backHandlers.splice(index, 1);
+    };
+  }, [active]);
+}
+
+const OTHER_LAYERS = ".modal, .confirm-overlay, .sheet-overlay, .screen, .editor-overlay";
+
+/** Does "back" once. True when something was closed or went back. */
+function goBack() {
+  for (let index = backHandlers.length - 1; index >= 0; index -= 1) {
+    if (backHandlers[index].fn() !== false) return true;
+  }
+  if (document.querySelector(OTHER_LAYERS)) {
+    const event = new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true });
+    (document.activeElement || document.body).dispatchEvent(event);
+    return true;
+  }
+  return false;
+}
+
+window.klippeyeBack = goBack; // called by the KlippEye app when the phone's back button is pressed
+
+/* ---------------------------------------------------------------------------
+   Sliders that do not move by themselves (1.24)
+   On a phone a finger that lands on a slider's track while scrolling the menu used to change the value: now a touch moves
+   a slider only when it starts on (or right next to) its knob; anywhere else on the track it is ignored (the page can be
+   scrolled from there with the next touch, and the number field next to each slider is there for exact values).
+   ------------------------------------------------------------------------- */
+const SLIDER_KNOB_REACH_PX = 26;
+
+function sliderKnobX(input) {
+  const rect = input.getBoundingClientRect();
+  const min = Number(input.min || 0);
+  const max = Number(input.max || 100);
+  const fraction = max > min ? (Number(input.value) - min) / (max - min) : 0;
+  const knob = 22; // the knob's width: its centre runs from knob/2 to width - knob/2
+  return rect.left + knob / 2 + fraction * (rect.width - knob);
+}
+
+document.addEventListener(
+  "touchstart",
+  (event) => {
+    const input = event.target;
+    if (!input || input.tagName !== "INPUT" || input.type !== "range" || event.touches.length !== 1) return;
+    if (Math.abs(event.touches[0].clientX - sliderKnobX(input)) > SLIDER_KNOB_REACH_PX) event.preventDefault();
+  },
+  { capture: true, passive: false },
+);
 
 /* ============================================================================
    16 · DASHBOARD SETTINGS
@@ -7263,8 +7339,8 @@ if (APP_KNOWS_ADDRESSES) {
   // called by the KlippEye app
   window.klippeyeSetAddresses = async (local, external) => {
     const cleanLocal = cleanHost(local);
-    const cleanExternal = cleanHost(external);
-    if (!cleanLocal || !cleanExternal) return;
+    const cleanExternal = typeof external === "string" && external.trim() === "" ? "" : cleanHost(external); // app 1.4.0: the external one is optional
+    if (!cleanLocal || cleanExternal === null) return;
     await settingsStore.pull(); // the Raspberry's settings first: the new addresses go on top of them, not of the defaults
     settingsStore.update((draft) => {
       draft.network.localIp = cleanLocal;
@@ -7417,7 +7493,7 @@ function usePrinterFunctions() {
    ========================================================================== */
 
 /** Written by build.py from the VERSION file of the release; stays as it is when the page is built by hand. */
-const DASHBOARD_RELEASE = "1.23.0";
+const DASHBOARD_RELEASE = "1.24.0";
 const dashboardRelease = () => (DASHBOARD_RELEASE.startsWith("__") ? "sviluppo" : DASHBOARD_RELEASE);
 
 /** The interface level this page needs from the backend (the backend says its own in /api/version). */
@@ -15301,6 +15377,7 @@ const WS_CALL_TIMEOUT_MS = 12000;
 const WS_RETRY_AFTER_MS = 60000;
 /** The system page asks Moonraker for more than the live pollers do (update status can be slow). */
 const SYSTEM_READ_TIMEOUT_MS = 15000;
+const SYSTEM_STATS_POLL_MS = 5000;
 
 /* ---------------------------------------------------------------------------
    Moonraker access
@@ -16056,6 +16133,15 @@ function useSystemData() {
     return () => {
       updateSocket.onRefreshed = noop;
     };
+  }, []);
+
+  // CPU and memory change all the time: read again every 5 seconds while the page is open (only those, 1.24)
+  useEffect(() => {
+    const stop = startPolling(async () => {
+      const proc = await fetchResult("/machine/proc_stats");
+      if (proc) setData((current) => (current ? { ...current, proc } : current));
+    }, SYSTEM_STATS_POLL_MS);
+    return stop;
   }, []);
 
   const checkForUpdates = async () => {
@@ -16951,7 +17037,11 @@ function BedMeshCard({ onGcode }) {
 
 const SETTINGS_PAGES = ["printer", "camera", "network", "zoffset", "notifications", "ai", "detector", "camcal", "recordings", "software"];
 const SETTINGS_TYPING_MS = 800; // a typed value is taken when the typing stops (and when the field is left or the menu closed)
-const SWIPE_CLOSE_PX = 70; // a swipe to the left at least this long closes the menu
+// a swipe to the left closes the menu: at least this long, mostly sideways, quick, and never started on a control
+// (1.24: it was too easy to close it while moving a slider or scrolling)
+const SWIPE_CLOSE_PX = 110;
+const SWIPE_CLOSE_MAX_MS = 600;
+const SWIPE_IGNORE = "input, textarea, select, .set-num, .cal-frame, .cal-loupe, .set-snapshot, .rec-viewer, [data-no-swipe]";
 /** The notification service writes its sign of life this often; one not seen for longer than this is not running. */
 const NOTIFIER_ALIVE_S = 360;
 
@@ -16964,41 +17054,64 @@ function useSettingsMenu() {
   const [open, setOpen] = useState(false);
   const [page, setPage] = useState(null); // null: the list of groups
   const [question, setQuestion] = useState(null); // "reset" | "autoCancel" while a confirmation is open
+  // the pages that led here (1.24): "back" returns to the page it came from (Camera -> Camera calibration -> back = Camera),
+  // not to the parent or to the start
+  const history = useRef([]);
+
+  const goTo = (next) => {
+    if (next !== page) history.current.push(page);
+    setPage(next);
+  };
+  const back = () => setPage(history.current.length ? history.current.pop() : PAGE_PARENT[page] || null);
+  const close = () => {
+    history.current = [];
+    setOpen(false);
+  };
 
   useEffect(() => {
     if (!open) return undefined;
     const onKey = (event) => {
-      if (event.key !== "Escape") return;
+      if (event.key !== "Escape" || document.querySelector(".help-overlay")) return;
       if (question) return setQuestion(null);
-      if (page) setPage(PAGE_PARENT[page] || null);
-      else setOpen(false);
+      if (page) back();
+      else close();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [open, page, question]);
+
+  // the phone's back button (KlippEye app): the confirmation, then the page before, then the menu itself
+  useBackHandler(() => {
+    if (question) setQuestion(null);
+    else if (page) back();
+    else close();
+    return true;
+  }, open);
 
   return {
     open,
     page,
     question,
     show: () => {
+      history.current = [];
       setPage(null);
       setOpen(true);
       settingsStore.pull(); // another device may have changed something
     },
-    close: () => setOpen(false),
+    close,
     /** The guided set-up (59k) takes the place of the menu. */
     startSetup: () => {
-      setOpen(false);
+      close();
       openSetupGuide();
     },
     /** Opens the menu straight on one page (the invitation to set up the notifications of this phone). */
     openPage: (id) => {
+      history.current = [];
       setPage(id);
       setOpen(true);
     },
-    goTo: setPage,
-    back: () => setPage((current) => PAGE_PARENT[current] || null),
+    goTo,
+    back,
     ask: setQuestion,
   };
 }
@@ -17723,7 +17836,8 @@ function SettingsDrawer({ menu, updates, printing, actions }) {
   const touch = useRef(null);
   const onTouchStart = (event) => {
     const point = event.touches[0];
-    touch.current = { x: point.clientX, y: point.clientY };
+    const onControl = event.target && event.target.closest && event.target.closest(SWIPE_IGNORE);
+    touch.current = event.touches.length === 1 && !onControl ? { x: point.clientX, y: point.clientY, t: Date.now() } : null;
   };
   const onTouchEnd = (event) => {
     const start = touch.current;
@@ -17731,7 +17845,7 @@ function SettingsDrawer({ menu, updates, printing, actions }) {
     if (!start) return;
     const point = event.changedTouches[0];
     const dx = point.clientX - start.x;
-    if (dx < -SWIPE_CLOSE_PX && Math.abs(dx) > Math.abs(point.clientY - start.y) * 1.5) menu.close();
+    if (dx < -SWIPE_CLOSE_PX && Math.abs(dx) > Math.abs(point.clientY - start.y) * 2 && Date.now() - start.t < SWIPE_CLOSE_MAX_MS) menu.close();
   };
   let body;
   if (page === "printer") body = h(PrinterPage);
@@ -20677,15 +20791,15 @@ function NtfyPairing({ ntfy, store, onPhone }) {
         "li",
         null,
         h("b", null, tx("Install the free ntfy app on the phone")),
-        IN_APP_WEBVIEW
+        IN_APP_WEBVIEW && !APP_OPENS_LINKS
           ? h("p", { className: "set-group__note" }, tx("Look for «ntfy» in Google Play, F-Droid or the App Store."))
           : h("div", { className: "nt-links" }, NTFY_APPS.map((app) => h("a", { key: app.id, className: "oui-btn oui-btn--sm", href: app.href, target: "_blank", rel: "noopener noreferrer" }, app.label))),
       ),
       h(
         "li",
         null,
-        h("b", null, onPhone && !IN_APP_WEBVIEW ? tx("Tap «Open in the ntfy app»: it subscribes by itself") : tx("Scan this code with the phone's camera: the ntfy app opens and subscribes")),
-        h("div", { className: "nt-pair" }, h(QrCode, { text: ntfy.link }), onPhone && !IN_APP_WEBVIEW && h("a", { className: "oui-btn oui-btn--primary", href: ntfy.link, "data-ntfy-link": "1" }, tx("Open in the ntfy app"))),
+        h("b", null, onPhone && (!IN_APP_WEBVIEW || APP_OPENS_LINKS) ? tx("Tap «Open in the ntfy app»: it subscribes by itself") : tx("Scan this code with the phone's camera: the ntfy app opens and subscribes")),
+        h("div", { className: "nt-pair" }, h(QrCode, { text: ntfy.link }), onPhone && (!IN_APP_WEBVIEW || APP_OPENS_LINKS) && h("a", { className: "oui-btn oui-btn--primary", href: ntfy.link, "data-ntfy-link": "1" }, tx("Open in the ntfy app"))),
         h(
           "p",
           { className: "set-group__note" },
@@ -21261,6 +21375,10 @@ function HelpSection({ section, highlight }) {
 /** The guide over everything (also over the settings menu). */
 function HelpLayer() {
   const state = useHelpState();
+  useBackHandler(() => {
+    closeHelp();
+    return true;
+  }, Boolean(state));
   useEffect(() => {
     if (!state) return undefined;
     const onKey = (event) => event.key === "Escape" && (event.stopPropagation(), closeHelp());
@@ -21482,6 +21600,12 @@ function SetupGuide({ menu, printing }) {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
+  // the phone's back button: the step before (on the first step it leaves, like the X)
+  useBackHandler(() => {
+    if (index > 0) go(index - 1);
+    else leave();
+    return true;
+  });
   const last = index === steps.length - 1;
   return h(
     "div",

@@ -195,6 +195,12 @@ function SetupGuide({ menu, printing }) {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
+  // the phone's back button: the step before (on the first step it leaves, like the X)
+  useBackHandler(() => {
+    if (index > 0) go(index - 1);
+    else leave();
+    return true;
+  });
   const last = index === steps.length - 1;
   return h(
     "div",

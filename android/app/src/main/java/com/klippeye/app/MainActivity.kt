@@ -60,7 +60,7 @@ class MainActivity : AppCompatActivity() {
     // Indirizzi scritti nella finestra "Indirizzi": appena la dashboard e' caricata glieli passiamo, cosi' li usa anche lei
     private var addressesForPage: Indirizzi.Coppia? = null
 
-    private var currentUrl = "http://${Indirizzi.LOCALE_DI_FABBRICA}:${Indirizzi.PORTA}/"
+    private var currentUrl = "http://127.0.0.1:${Indirizzi.PORTA}/" // vale solo finche' non si e' collegata a un indirizzo
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
     // Aggiornamento dell'app: lo scaricamento in corso e, se Android chiede prima il permesso di installare, cosa riprendere al ritorno
@@ -108,8 +108,9 @@ class MainActivity : AppCompatActivity() {
         // Dice alla dashboard cosa sa fare questa app: 2 = scelta file ("Carica file"), 3 = anche salvare file
         // nella cartella Download, 4 = anche usare gli indirizzi del menu Impostazioni (setAddresses/getAddresses),
         // 5 = anche aggiornarsi da sola (appInfo/updateApp), 6 = anche ricevere le notifiche da sola (notifySetup/notifyState...,
-        // vedi Ascolto.kt). Con un numero più basso la dashboard lascia disattivata la funzione.
-        webView.settings.userAgentString = webView.settings.userAgentString + " KlippEyeApp/6"
+        // vedi Ascolto.kt), 7 = anche il tasto indietro passato alla pagina (klippeyeBack) e i collegamenti esterni aperti
+        // fuori dall'app (store, ntfy, siti). Con un numero più basso la dashboard lascia disattivata la funzione.
+        webView.settings.userAgentString = webView.settings.userAgentString + " KlippEyeApp/7"
 
         // Download: il WebView non scarica da solo. La dashboard chiama window.KlippEyeApp.saveUrl(indirizzo, nome);
         // un collegamento che il WebView trasforma in download passa invece dal listener.
@@ -143,6 +144,20 @@ class MainActivity : AppCompatActivity() {
         }
 
         webView.webViewClient = object : WebViewClient() {
+            /**
+             * Solo le pagine del Raspberry restano nella finestra: un collegamento a un altro sito, a uno store o a un'app
+             * (ntfy://, market://, intent://) si apre fuori, nell'app giusta, invece di prendere il posto della dashboard.
+             */
+            override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
+                if (request == null || !request.isForMainFrame) return false
+                val uri = request.url
+                val scheme = (uri.scheme ?: "").lowercase()
+                if ((scheme == "http" || scheme == "https") && uri.host == hostOf(currentUrl)) return false
+                if (scheme == "about" || scheme == "data" || scheme == "blob" || scheme == "javascript") return false
+                apriFuori(uri)
+                return true
+            }
+
             override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
                 // Splash resta visibile
             }
@@ -196,19 +211,32 @@ class MainActivity : AppCompatActivity() {
     private fun detectAndLoad() {
         splash.visibility = View.VISIBLE
         webView.visibility = View.INVISIBLE
-        progress.visibility = View.VISIBLE
         failureActions.visibility = View.GONE
         statusText.setTextColor(getColor(R.color.vz_text2))
-        statusText.text = "Cerco KlippEye in rete locale..."
         errorHost = null
 
-        candidates = Indirizzi.candidati(Indirizzi.leggi(this))
+        val scelti = Indirizzi.leggi(this)
+        if (scelti.locale.isEmpty()) {
+            // Primo avvio (o indirizzo non piu' valido): niente indirizzi "di fabbrica", si chiede quello del Raspberry
+            progress.visibility = View.GONE
+            statusText.text = "Scrivi l'indirizzo del Raspberry per cominciare."
+            failureActions.visibility = View.VISIBLE
+            showAddressesDialog(first = true)
+            return
+        }
+        progress.visibility = View.VISIBLE
+        statusText.text = "Cerco KlippEye in rete locale..."
+        candidates = Indirizzi.candidati(scelti)
+        val attempts = Indirizzi.tentativi(scelti)
         scope.launch {
             var found = -1
-            for ((index, candidate) in candidates.withIndex()) {
-                if (index > 0) statusText.text = "Non risponde, provo ${candidate.etichetta} ${candidate.host}..."
+            for ((index, candidate) in attempts.withIndex()) {
+                if (index > 0) {
+                    statusText.text = "Tentativo ${index + 1} di ${attempts.size}: ${candidate.etichetta} ${candidate.host}..."
+                    if (index % candidates.size == 0) delay(800) // tra un giro e l'altro la rete ha un attimo per svegliarsi
+                }
                 if (withContext(Dispatchers.IO) { isReachable(candidate.url) }) {
-                    found = index
+                    found = candidates.indexOfFirst { it.host == candidate.host }
                     break
                 }
             }
@@ -217,9 +245,10 @@ class MainActivity : AppCompatActivity() {
                 val candidate = candidates[found]
                 connectTo(found, if (found == 0) "Connesso a ${candidate.host}" else "Connesso via ${candidate.etichetta} ${candidate.host}")
             } else {
-                // Nessuno risponde: si prova comunque il primo, come prima, ma senza girare gli altri uno a uno
+                // Nessuno risponde dopo due giri: si ferma e propone di riprovare o di cambiare gli indirizzi
                 cascade = false
-                connectTo(0, "Provo comunque ${candidates[0].host}...")
+                candidateIndex = candidates.size - 1
+                handleLoadError()
             }
         }
     }
@@ -228,8 +257,8 @@ class MainActivity : AppCompatActivity() {
         return try {
             val url = URL(baseUrl)
             val conn = url.openConnection() as HttpURLConnection
-            conn.connectTimeout = 1200
-            conn.readTimeout = 1200
+            conn.connectTimeout = 2500 // ZeroTier e le VPN a volte impiegano un paio di secondi a rispondere la prima volta
+            conn.readTimeout = 2500
             conn.requestMethod = "GET"
             conn.connect()
             val code = conn.responseCode
@@ -256,7 +285,7 @@ class MainActivity : AppCompatActivity() {
             // Nessun altro indirizzo da provare: lo spinner si ferma, il messaggio diventa d'errore e si puo' riprovare o cambiare gli indirizzi.
             progress.visibility = View.GONE
             statusText.setTextColor(getColor(R.color.vz_danger))
-            statusText.text = "Impossibile connettersi. Controlla Pi e ZeroTier, oppure gli indirizzi."
+            statusText.text = "KlippEye non risponde. Controlla che il Raspberry sia acceso e in rete (e ZeroTier, se lo usi), oppure gli indirizzi."
             failureActions.visibility = View.VISIBLE
         }
     }
@@ -268,7 +297,7 @@ class MainActivity : AppCompatActivity() {
      * Gli indirizzi nuovi valgono per l'app subito e, appena la dashboard e' caricata, anche per il suo menu Impostazioni
      * (un'unica coppia di indirizzi, che la camera della dashboard usa a sua volta).
      */
-    private fun showAddressesDialog(localText: String? = null, externalText: String? = null) {
+    private fun showAddressesDialog(localText: String? = null, externalText: String? = null, first: Boolean = false) {
         val current = Indirizzi.leggi(this)
         val padding = (20 * resources.displayMetrics.density).toInt()
         val box = LinearLayout(this).apply {
@@ -281,15 +310,17 @@ class MainActivity : AppCompatActivity() {
             setText(value)
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
         }
-        val localField = field("IP locale (rete di casa)", localText ?: current.locale)
-        val externalField = field("IP esterno (ZeroTier)", externalText ?: current.esterno)
+        val localField = field("IP locale, es. 192.168.1.20", localText ?: current.locale)
+        val externalField = field("IP esterno (facoltativo: ZeroTier, VPN)", externalText ?: current.esterno)
         box.addView(localField)
         box.addView(externalField)
+        val spiegazione = "Lo stesso indirizzo che usi per aprire Mainsail o Fluidd (senza http:// e senza porta), per esempio " +
+            "192.168.1.20 oppure mainsailos.local. L'esterno serve solo se apri KlippEye da fuori casa con ZeroTier o una VPN."
         AlertDialog.Builder(this)
-            .setTitle("Indirizzi del Raspberry")
-            .setMessage("Solo l'indirizzo, senza http:// e senza porta.")
+            .setTitle(if (first) "Benvenuto in KlippEye" else "Indirizzi del Raspberry")
+            .setMessage(if (first) "Dov'e' la tua stampante? $spiegazione" else spiegazione)
             .setView(box)
-            .setPositiveButton("Salva e riprova") { _, _ ->
+            .setPositiveButton(if (first) "Collegati" else "Salva e riprova") { _, _ ->
                 val local = localField.text.toString()
                 val external = externalField.text.toString()
                 val outcome = Indirizzi.salva(this, local, external)
@@ -298,13 +329,8 @@ class MainActivity : AppCompatActivity() {
                     detectAndLoad()
                 } else {
                     Toast.makeText(this, outcome, Toast.LENGTH_LONG).show()
-                    showAddressesDialog(local, external) // si riapre con quello che era stato scritto
+                    showAddressesDialog(local, external, first) // si riapre con quello che era stato scritto
                 }
-            }
-            .setNeutralButton("Valori di fabbrica") { _, _ ->
-                Indirizzi.salva(this, Indirizzi.LOCALE_DI_FABBRICA, Indirizzi.ESTERNO_DI_FABBRICA)
-                addressesForPage = Indirizzi.DI_FABBRICA
-                detectAndLoad()
             }
             .setNegativeButton("Annulla", null)
             .show()
@@ -316,6 +342,24 @@ class MainActivity : AppCompatActivity() {
         addressesForPage = null
         // Sono gia' puliti (lettere, cifre, punti e trattini): si possono scrivere tra apici
         webView.evaluateJavascript("window.klippeyeSetAddresses && window.klippeyeSetAddresses('${pair.locale}', '${pair.esterno}')", null)
+    }
+
+    /** Un collegamento che non e' della dashboard: lo apre l'app di Android che lo sa aprire (browser, store, ntfy). */
+    private fun apriFuori(uri: Uri) {
+        val intent = if ((uri.scheme ?: "").equals("intent", ignoreCase = true)) {
+            try {
+                Intent.parseUri(uri.toString(), Intent.URI_INTENT_SCHEME).apply { addCategory(Intent.CATEGORY_BROWSABLE); component = null; selector = null }
+            } catch (e: Exception) {
+                null
+            }
+        } else {
+            Intent(Intent.ACTION_VIEW, uri).addCategory(Intent.CATEGORY_BROWSABLE)
+        }
+        try {
+            if (intent != null) startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        } catch (e: Exception) {
+            Toast.makeText(this, if (uri.scheme == "ntfy") "Installa prima l'app ntfy" else "Nessuna app per aprire questo collegamento", Toast.LENGTH_LONG).show()
+        }
     }
 
     // ---- Download dei file del Raspberry (file di configurazione, log) ----
@@ -595,12 +639,29 @@ class MainActivity : AppCompatActivity() {
         return file.absolutePath
     }
 
+    /**
+     * Il tasto indietro del telefono va prima alla dashboard: chiude la guida o il dialogo aperto, torna alla pagina precedente
+     * del menu o al passo precedente della configurazione guidata (window.klippeyeBack). Solo se la pagina non ha niente da
+     * chiudere fa quello di sempre (pagina precedente del WebView, poi esce).
+     */
+    @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
+        if (webView.visibility != View.VISIBLE) {
+            tornaIndietroDavvero()
+            return
+        }
+        webView.evaluateJavascript("(function(){ try { return window.klippeyeBack && window.klippeyeBack() ? '1' : '' } catch (e) { return '' } })()") { risposta ->
+            if (risposta?.contains("1") != true) tornaIndietroDavvero()
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun tornaIndietroDavvero() {
         if (webView.canGoBack()) {
             webView.goBack()
-        } else {
-            super.onBackPressed()
+            return
         }
+        super.onBackPressed()
     }
 
     private companion object {
