@@ -231,7 +231,17 @@ const HELP = {
   recordings: {
     title: tx("Recordings"),
     sections: [
-      { id: "what", title: tx("What they are"), text: [tx("Every print can be recorded (a picture every few seconds and what the monitor thought). Mark the alarms as right or wrong: «Measure now» replays them with the current thresholds and shows how many false alarms and missed failures they would give.")] },
+      { id: "what", title: tx("What they are"), text: [tx("Every print can be recorded (a picture every few seconds and what the monitor thought). Judge its alarms: «Measure now» replays the prints with the current thresholds and shows how many false alarms and missed failures they would give.")] },
+      {
+        id: "judge",
+        title: tx("Judging the alarms"),
+        steps: [
+          tx("Open a print: its alarms are at the top, with the picture the AI saw (tap it to enlarge)."),
+          tx("«Print OK» if the print was fine: a false alarm, the AI was wrong. «Print KO» if there really was a problem: the AI was right."),
+          tx("«See it among the pictures» shows the moment of the alarm in the print's pictures. «How did the print go?» marks the whole print."),
+        ],
+      },
+      { id: "measure", title: tx("Measuring"), text: [tx("Choose under «Prints to use» which recordings count (a print with a different camera or a test can be left out), then «Measure now». The more alarms are judged, the more the numbers mean.")] },
     ],
   },
   access: {

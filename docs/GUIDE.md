@@ -272,9 +272,13 @@ Instead of guessing whether a change of the thresholds helps, measure it:
 1. **Settings → AI monitor → Recordings → Record the prints**. During every print the backend keeps the pictures the monitor looked at
    (small, about 150 MB for a four-hour print) with layer, position and score, in `~/printer_data/klippeye/recordings/`. The
    oldest prints are deleted when the chosen space is full, and nothing is recorded with less than 1 GB free on the disk.
-2. After each print, in the same page: mark each **alarm** as *False alarm* or *Real problem*, and open the print to say
-   **It went fine**, or, if it failed, move to the first picture where the problem shows and press **It failed from here**.
-3. **Measure now** runs the monitor again on every recorded print, with the thresholds in use now, and shows the alarms per
+2. After each print, open it in the same page. At the top are its **alarms**, each with the picture the AI saw (tap to
+   enlarge): **Print OK** if the print was fine (a false alarm: the AI was wrong), **Print KO** if there really was a problem
+   (the AI was right). *See it among the pictures* jumps to that moment. Then say **It went fine**, or, if it failed, move to the
+   first picture where the problem shows and press **It failed from here**. Alarms of prints that were not recorded are folded
+   at the bottom of the page (*Alarms outside the recordings*).
+3. **Measure now** runs the monitor again on the recorded prints ticked under *Prints to use* (all of them unless you untick
+   some: a print with another camera or a test can be left out), with the thresholds in use now, and shows the alarms per
    hour, how many were false and whether each failure was caught (and how long it took). From the terminal, to compare other
    thresholds: `klippeye replay --set sensitivity=45 --set persist_checks=4` (options: `scripts/replay.py`). With a camera
    calibration the replay leaves out the toolhead and the gantry like the live monitor (on the prints recorded with
