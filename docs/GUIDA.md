@@ -248,6 +248,13 @@ si muove da sola: tieni lontane le mani.
 
    A ogni punto la pagina mostra un piccolo disegno di cosa toccare. I numeri verdi sono fatti; tocca un numero per vederlo
    o rifarlo. La croce gialla è il tuo tocco, quella verde un punto già tenuto.
+
+   **Più veloce: l'ugello trovato da solo.** Dopo aver toccato l'ugello in un punto, KlippEye può trovarlo negli altri punti
+   dell'ugello: **Trova l'ugello da solo negli altri N punti** va in ognuno, sposta per un attimo la testina di lato (per
+   vedere dov'è) e cerca la punta che hai toccato (circa 15 secondi a punto; tieni le mani lontane). I punti trovati sono
+   blu: **Usa gli N punti trovati** li tiene, e **Calcola** colora in rosso quelli che non tornano, da toccare a mano.
+   In un singolo punto, **Vai lì e trova l'ugello da solo** apre la vista ingrandita su quello che ha trovato. I punti dei
+   segni (da 7 a 12 quando Z muove il piatto) si toccano sempre a mano.
 5. **Calcola la calibrazione**: l'errore medio in pixel (buono: pochi pixel) e, in rosso, i punti da rifare (un tocco sulla
    cosa sbagliata: rifai solo quelli e calcola di nuovo). L'immagine dal vivo mostra la testina e il piatto disegnati sopra:
    muovi la testina con i tasti, il disegno deve seguirla. **Salva la calibrazione**, poi togli i segni.
@@ -255,7 +262,10 @@ si muove da sola: tieni lontane le mani.
 **Testina e gantry.** Dopo il salvataggio la pagina mostra l'immagine dal vivo con la **testina** (viola) e il **gantry**
 (arancione: la barra che porta la testina da un lato all'altro) disegnati sopra. Quello che sta dentro i contorni è ciò che
 il monitor esclude, quindi devono coprire le parti, con un po' di margine (molto di più nasconderebbe un problema vicino
-all'ugello). Regolali con **−** e **+** (5 mm alla volta), muovendo la testina con i tasti per controllare in qualche punto:
+all'ugello). Regolali **trascinando i pallini sulla foto** (ogni lato della testina, la sua cima — l'altezza — e i bordi
+alto e basso del gantry: la misura si vede mentre trascini) o con **−** e **+** (5 mm alla volta), muovendo la testina con i
+tasti per controllare in qualche punto. I pallini che finirebbero uno sopra l'altro (testina piccola o lontana) non
+compaiono: le loro misure restano con **−** e **+**:
 
 * testina: quanto sporge **a sinistra, a destra, davanti e dietro l'ugello**, **sopra** la punta dell'ugello e sotto;
 * gantry: dove la barra **inizia dietro l'ugello**, quanto è **profonda** e i suoi **bordi basso e alto** sopra la punta

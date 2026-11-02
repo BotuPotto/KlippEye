@@ -3255,6 +3255,7 @@ CAMERA_MESSAGES = (  # what camera_calibration.py and camera_model.py may answer
     btn("the points must be at two heights at least 10 mm apart"), btn("the points are all on one plane"),
     btn("no camera fits these points: check that each tap is on the nozzle tip"), btn("the camera is not calibrated"),
     btn("Klipper refused the command: {message}"),
+    btn("tap the nozzle by hand at one point first: KlippEye then finds it at the others"), btn("only the nozzle points can be found by themselves"),
 )
 def _gcode_files():
     r = requests.get(f"{MOONRAKER_URL}/server/files/list?root=gcodes", timeout=10)
@@ -3384,6 +3385,29 @@ def api_camera_point():
 def api_camera_forget_point():
     body = _camera_body()
     return _camera_call(lambda: camera_cal.forget_point(str(body.get("target", ""))))
+
+
+@app.route("/api/camera/calibration/find", methods=["POST"])
+def api_camera_find():
+    """1.29 {"target": id}: goes to that nozzle point and looks for the nozzle tip by itself (the template of the one tapped
+    by hand). -> the proposal; it becomes a point with /accept (or with a tap)."""
+    body = _camera_body()
+    return _camera_call(lambda: {"proposal": camera_cal.find_tip(str(body.get("target", "")))})
+
+
+@app.route("/api/camera/calibration/find-all", methods=["POST"])
+def api_camera_find_all():
+    """1.29: every nozzle point not taken yet, in the background ({"stop": true} stops after the point being done)."""
+    body = _camera_body()
+    return _camera_call(lambda: {"auto": camera_cal.stop_finding() if body.get("stop") is True else camera_cal.find_all()})
+
+
+@app.route("/api/camera/calibration/accept", methods=["POST"])
+def api_camera_accept():
+    """1.29: the proposals found become points ({"targets": [...]} for some of them)."""
+    body = _camera_body()
+    ids = body.get("targets") if isinstance(body.get("targets"), list) else None
+    return _camera_call(lambda: camera_cal.accept(ids))
 
 
 @app.route("/api/camera/calibration/fit", methods=["POST"])

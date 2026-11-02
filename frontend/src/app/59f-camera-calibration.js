@@ -11,7 +11,11 @@
      4. "Calculate": the error in pixels and the points to redo; "Save" when it is good;
      5. checks it live: the toolhead outline and the bed are drawn over the picture while the toolhead moves;
      6. (phase 4b) adjusts the shape of the toolhead and of the gantry on the live picture, until the drawing covers them:
-        the monitor leaves those parts out of its checks (backend/machine_masks.py).
+        the monitor leaves those parts out of its checks (backend/machine_masks.py). 1.29: by dragging the handles on the
+        picture (each side of the toolhead box, its top, the edges of the gantry), or with the − / + buttons.
+   1.29, "automatic": after the nozzle is tapped by hand once, KlippEye finds it by itself at the other nozzle points
+   (backend/nozzle_finder.py: the toolhead moves aside for a moment, the tapped picture is looked for where it was); the
+   person accepts the proposals, «Calculate» shows any that does not fit, to redo by hand.
    The calibration is valid until the camera moves: the backend compares the picture with the one taken at calibration
    every ten minutes and, when the camera has moved, says so here and stops using the calibration.
    ========================================================================== */
@@ -36,6 +40,8 @@ const SHAPE_FIELDS = {
     { key: "high", label: tx("Upper edge above the nozzle tip"), min: -50 },
   ],
 };
+const SHAPE_MAX = { left: 300, right: 300, front: 300, back: 300, top: 400, below: 50, behind: 300, depth: 300, low: 400, high: 400 };
+const SHAPE_SEND_EVERY_MS = 400; // while a handle is dragged, the new size goes to the backend this often (the outline follows)
 const QUALITY_TEXT = { good: tx("good"), fair: tx("acceptable"), poor: tx("not good enough") };
 
 /** POST to the calibration API; resolves { ok, data, message } like brainPost, with a longer wait (moves take time). */
@@ -65,10 +71,10 @@ function tapFraction(event, element, camera) {
 const pointsAttr = (list) => list.map(([u, v]) => u + "," + v).join(" ");
 
 /** The camera picture (raw, flipped like the camera card) with what is drawn over it in the camera's own fractions. */
-function CameraFrame({ src, camera, onTap, children, label, onAspect }) {
+function CameraFrame({ src, camera, onTap, children, label, onAspect, layer, frameRef }) {
   return h(
     "div",
-    { className: cx("cal-frame", onTap && "cal-frame--tap"), style: flipStyle(camera) },
+    { ref: frameRef, className: cx("cal-frame", onTap && "cal-frame--tap"), style: flipStyle(camera) },
     h("img", {
       className: "cal-frame__img",
       src,
@@ -78,6 +84,7 @@ function CameraFrame({ src, camera, onTap, children, label, onAspect }) {
       onClick: onTap ? (event) => onTap(tapFraction(event, event.currentTarget, camera)) : undefined,
     }),
     h("svg", { className: "cal-frame__draw", viewBox: "0 0 1 1", preserveAspectRatio: "none", "aria-hidden": "true" }, children),
+    layer,
   );
 }
 
@@ -141,18 +148,27 @@ function LiveCheck({ camera, draft, editShape }) {
     setProblem(reply.ok ? "" : reply.message);
   };
   const step = (label, dx, dy, dz) => h("button", { type: "button", className: "oui-btn oui-btn--sm", disabled: busy, onClick: () => jog(dx, dy, dz) }, label);
+  const frameRef = useRef(null);
+  const [dragging, setDragging] = useState(null); // { key, value } while a handle is held
   return h(
     React.Fragment,
     null,
     h(
       CameraFrame,
-      { src: "/api/print/snapshot?t=" + stamp, camera, label: tx("Live picture with the calibration drawn over it") },
+      {
+        src: "/api/print/snapshot?t=" + stamp,
+        camera,
+        frameRef,
+        label: tx("Live picture with the calibration drawn over it"),
+        layer: editShape && overlay && overlay.shape && Array.isArray(overlay.handles) ? h(ShapeHandles, { overlay, camera, frameRef, onDrag: setDragging, onSaved: () => readRef.current() }) : null,
+      },
       overlay && overlay.bed.length > 2 && h("polygon", { className: "cal-bed", points: pointsAttr(overlay.bed) }),
       overlay && overlay.zone && overlay.zone.expected.map((piece, index) => h("polygon", { key: "z" + index, className: "cal-zone", points: pointsAttr(piece) })),
       overlay && (overlay.gantry || []).map((piece, index) => h("polygon", { key: "g" + index, className: "cal-gantry", points: pointsAttr(piece) })),
       overlay && overlay.toolhead.length > 2 && h("polygon", { className: "cal-toolhead", points: pointsAttr(overlay.toolhead) }),
       overlay && overlay.nozzle && h(Cross, { u: overlay.nozzle[0], v: overlay.nozzle[1], tone: "nozzle" }),
     ),
+    editShape && h("div", { className: cx("cal-handle-line", dragging && "is-active"), "data-handle-line": dragging ? dragging.key : "" }, dragging ? handleLabel(dragging.key) + ": " + formatNumber(dragging.value) + " mm" : tx("Drag the dots on the picture to make the outlines bigger or smaller.")),
     h("p", { className: "set-group__note" }, tx("Purple: the toolhead; orange: the gantry; dashed: the bed. Move the toolhead: the drawing must follow it.") + (overlay ? " X " + overlay.position[0] + " • Y " + overlay.position[1] + " • Z " + overlay.position[2] : "")),
     overlay &&
       overlay.zone &&
@@ -161,6 +177,110 @@ function LiveCheck({ camera, draft, editShape }) {
     problem && h("p", { className: "set-field__error", role: "alert" }, problem),
     editShape && overlay && overlay.shape && h(ShapeEditor, { shape: overlay.shape, onSaved: () => readRef.current() }),
   );
+}
+
+/** "Toolhead • Above the nozzle tip": the name of the size a handle moves. */
+function handleLabel(key) {
+  const [part, field] = key.split(".");
+  const found = (SHAPE_FIELDS[part] || []).find((f) => f.key === field);
+  return (part === "toolhead" ? tx("Toolhead") : tx("Gantry")) + " • " + (found ? found.label : field);
+}
+
+/**
+ * 1.29: the dots on the live picture, one per size (each side of the toolhead box and its top, the upper and lower edge of the
+ * gantry; "below the tip" keeps only its − and +). A dot moves only along its own direction (as the backend projects it: `per_mm` is how far it goes in
+ * the picture for 1 mm); the size follows the finger and is sent to the backend while dragging, so the outline follows too.
+ */
+function ShapeHandles({ overlay, camera, frameRef, onDrag, onSaved }) {
+  const [held, setHeld] = useState(null); // { key, start, value, at, per, startX, startY }
+  const lastSent = useRef(0);
+  const send = async (key, value) => {
+    const [part, field] = key.split(".");
+    lastSent.current = Date.now();
+    const reply = await camcalPost("shape", { [part]: { [field]: value } });
+    if (reply.ok) onSaved();
+  };
+  const valueOf = (key) => {
+    const [part, field] = key.split(".");
+    return overlay.shape[part] ? overlay.shape[part][field] : undefined;
+  };
+  const down = (event, handle) => {
+    const value = valueOf(handle.key);
+    if (typeof value !== "number") return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (event.currentTarget.setPointerCapture) event.currentTarget.setPointerCapture(event.pointerId);
+    const next = { key: handle.key, start: value, value, at: handle.at, per: handle.per_mm, startX: event.clientX, startY: event.clientY };
+    setHeld(next);
+    onDrag({ key: handle.key, value });
+  };
+  const move = (event) => {
+    if (!held || !frameRef.current) return;
+    const box = frameRef.current.getBoundingClientRect();
+    // the movement in the camera's own fractions (the frame may be shown flipped), measured in screen pixels
+    const du = ((event.clientX - held.startX) / box.width) * (camera.flipH ? -1 : 1);
+    const dv = ((event.clientY - held.startY) / box.height) * (camera.flipV ? -1 : 1);
+    const pu = held.per[0] * box.width;
+    const pv = held.per[1] * box.height;
+    const length = pu * pu + pv * pv;
+    if (length < 1e-9) return;
+    const mm = (du * box.width * pu + dv * box.height * pv) / length;
+    const [, field] = held.key.split(".");
+    const low = (SHAPE_FIELDS.gantry.concat(SHAPE_FIELDS.toolhead).find((f) => f.key === field) || {}).min || 0;
+    const value = Math.min(SHAPE_MAX[field] || 300, Math.max(low, Math.round(held.start + mm)));
+    if (value !== held.value) {
+      setHeld({ ...held, value });
+      onDrag({ key: held.key, value });
+      if (Date.now() - lastSent.current > SHAPE_SEND_EVERY_MS) send(held.key, value);
+    }
+  };
+  const up = () => {
+    if (!held) return;
+    if (held.value !== held.start || Date.now() - lastSent.current > 0) send(held.key, held.value);
+    setHeld(null);
+    onDrag(null);
+  };
+  return h(
+    "div",
+    { className: "cal-handles", onPointerMove: move, onPointerUp: up, onPointerCancel: up },
+    visibleHandles(overlay.handles, held, frameRef.current).map(({ handle, u, v }) => {
+      const moving = held && held.key === handle.key;
+      return h("button", {
+        key: handle.key,
+        type: "button",
+        className: cx("cal-handle", handle.key.startsWith("gantry") ? "cal-handle--gantry" : "cal-handle--toolhead", moving && "is-held"),
+        style: { left: u * 100 + "%", top: v * 100 + "%" },
+        "aria-label": handleLabel(handle.key),
+        title: handleLabel(handle.key),
+        "data-handle": handle.key,
+        onPointerDown: (event) => down(event, handle),
+        onPointerMove: move,
+        onPointerUp: up,
+      });
+    }),
+  );
+}
+
+const HANDLE_ORDER = ["toolhead.top", "toolhead.left", "toolhead.right", "toolhead.front", "toolhead.back", "gantry.high", "gantry.low"];
+const HANDLE_MIN_GAP_PX = 26; // a dot closer than this to one already shown is left out (its size keeps its − and +)
+
+/** The dots to show, where they are now: in the picture, not on top of each other (the one being dragged always). */
+function visibleHandles(handles, held, frame) {
+  const width = frame ? frame.getBoundingClientRect().width : 360;
+  const height = frame ? frame.getBoundingClientRect().height : 200;
+  const kept = [];
+  const order = (key) => (held && held.key === key ? -1 : HANDLE_ORDER.indexOf(key));
+  [...handles]
+    .sort((a, b) => order(a.key) - order(b.key))
+    .forEach((handle) => {
+      const shift = held && held.key === handle.key ? held.value - held.start : 0;
+      const u = handle.at[0] + handle.per_mm[0] * shift;
+      const v = handle.at[1] + handle.per_mm[1] * shift;
+      if (u < -0.02 || u > 1.02 || v < -0.02 || v > 1.02) return;
+      if (kept.some((k) => Math.hypot((k.u - u) * width, (k.v - v) * height) < HANDLE_MIN_GAP_PX)) return;
+      kept.push({ handle, u, v });
+    });
+  return kept;
 }
 
 /**
@@ -202,7 +322,7 @@ function ShapeEditor({ shape, onSaved }) {
     "div",
     { className: "cal-shape" },
     h("h3", { className: "cal-shape__title" }, tx("Toolhead")),
-    h("p", { className: "set-group__note" }, tx("A box around the nozzle tip, with fan ducts and cables: make the purple outline cover the toolhead, with a little room. Move the toolhead to a few places to check it.")),
+    h("p", { className: "set-group__note" }, tx("A box around the nozzle tip, with fan ducts and cables: make the purple outline cover the toolhead, with a little room (drag its dots on the picture, or use − and +; «Above the nozzle tip» is its height). Move the toolhead to a few places to check it.")),
     SHAPE_FIELDS.toolhead.map((field) => row("toolhead", field)),
     h("h3", { className: "cal-shape__title" }, tx("Gantry")),
     h(SwitchRow, { title: tx("Leave out the gantry too"), detail: tx("The bar that carries the toolhead across the whole printer (VzBot, Voron, most CoreXY)."), checked: local.gantry.on, onChange: (on) => send("gantry", { on }) }),
@@ -372,6 +492,27 @@ function PointsStep({ state, camera, run, busy }) {
   };
   const errors = (fit && fit.point_errors) || {};
   const redo = new Set((fit && fit.redo) || []);
+  // 1.29: the nozzle found by itself (after one tap by hand)
+  const proposals = draft.proposals || {};
+  const auto = state.auto || { state: "idle" };
+  const finding = auto.state === "running";
+  const proposal = target ? proposals[target.id] : null;
+  const [findNote, setFindNote] = useState("");
+  const nozzleLeft = targets.filter((t) => t.kind === "nozzle" && !points[t.id]);
+  const foundLeft = targets.filter((t) => !points[t.id] && proposals[t.id] && proposals[t.id].found);
+  useEffect(() => setFindNote(""), [target && target.id]);
+  const findHere = async () => {
+    setTap(null);
+    setFindNote("");
+    const reply = await run("calibration/find", { target: target.id }, true);
+    setStamp(Date.now());
+    if (!reply.ok) return setFindNote(reply.message);
+    const p = reply.data.proposal;
+    if (p.found) {
+      setTap({ u: p.u, v: p.v });
+      setFindNote(tx("Found (match {score}%): check it in the magnified view, then keep it.", { score: Math.round(p.score * 100) }));
+    } else setFindNote(p.moved ? tx("Not found with enough certainty: tap it by hand.") : tx("The toolhead did not show moving in the picture: tap it by hand."));
+  };
   return h(
     React.Fragment,
     null,
@@ -397,7 +538,7 @@ function PointsStep({ state, camera, run, busy }) {
                 key: t.id,
                 type: "button",
                 "data-target": t.id,
-                className: cx("cal-target", points[t.id] && "is-done", redo.has(t.id) && "is-redo", t.id === target.id && "is-current"),
+                className: cx("cal-target", points[t.id] && "is-done", !points[t.id] && proposals[t.id] && proposals[t.id].found && "is-proposed", redo.has(t.id) && "is-redo", t.id === target.id && "is-current"),
                 onClick: () => setCurrent(t.id),
                 title: errors[t.id] !== undefined ? errors[t.id] + " px" : "",
               },
@@ -417,12 +558,22 @@ function PointsStep({ state, camera, run, busy }) {
               : tx("Point {n}: the nozzle goes to X {x}, Y {y}, Z {z}. Tap the LOWEST POINT OF THE NOZZLE (the metal tip), not the marker under it.", { n: targets.indexOf(target) + 1, x: target.x, y: target.y, z: target.z }),
           ),
         ),
-        h("button", { type: "button", className: "oui-btn oui-btn--primary oui-btn--block", "data-go": target.id, disabled: busy, onClick: go }, at ? tx("Go there again") : tx("Go to point {n}", { n: targets.indexOf(target) + 1 })),
+        h(AutoFind, { state, run, busy, finding, auto, nozzleLeft, foundLeft }),
+        h("button", { type: "button", className: "oui-btn oui-btn--primary oui-btn--block", "data-go": target.id, disabled: busy || finding, onClick: go }, at ? tx("Go there again") : tx("Go to point {n}", { n: targets.indexOf(target) + 1 })),
+        target.kind === "nozzle" && state.template && !points[target.id] && h("button", { type: "button", className: "oui-btn oui-btn--block", "data-find": target.id, disabled: busy || finding, onClick: findHere }, tx("Go there and find the nozzle by itself")),
+        findNote && h("p", { className: "set-group__note", "data-find-note": "1" }, findNote),
         at &&
           h(
             "div",
             { className: "cal-pick" },
-            h(CameraFrame, { src, camera, onTap: setTap, onAspect: setAspect }, tap && h(Cross, tap), points[target.id] && h(Cross, { u: points[target.id].u, v: points[target.id].v, tone: "saved" })),
+            h(
+              CameraFrame,
+              { src, camera, onTap: setTap, onAspect: setAspect },
+              proposal && proposal.found && !tap && !points[target.id] && h(Cross, { u: proposal.u, v: proposal.v, tone: "proposal" }),
+              tap && h(Cross, tap),
+              points[target.id] && h(Cross, { u: points[target.id].u, v: points[target.id].v, tone: "saved" }),
+            ),
+            proposal && proposal.found && !tap && !points[target.id] && h("button", { type: "button", className: "oui-btn oui-btn--sm", "data-use-proposal": target.id, onClick: () => setTap({ u: proposal.u, v: proposal.v }) }, tx("Check the point found")),
             h("button", { type: "button", className: "oui-btn oui-btn--quiet oui-btn--sm set-inline-btn", onClick: () => setStamp(Date.now()) }, h(Icons.Refresh, { size: 16 }), tx("Refresh the picture")),
             tap
               ? h(
@@ -455,6 +606,41 @@ function PointsStep({ state, camera, run, busy }) {
         ),
     ),
     h("button", { type: "button", className: "oui-btn oui-btn--quiet oui-btn--block", disabled: busy, onClick: () => run("calibration/reset") }, tx("Start again")),
+  );
+}
+
+/** 1.29: «Find all the nozzle points by itself», its progress, and «Use the points found». */
+function AutoFind({ state, run, busy, finding, auto, nozzleLeft, foundLeft }) {
+  if (!state.template) {
+    return nozzleLeft.length > 1 ? h("p", { className: "set-group__note", "data-auto": "no-template" }, tx("Tap the nozzle by hand at one point: then KlippEye can find it by itself at the other nozzle points.")) : null;
+  }
+  return h(
+    "div",
+    { className: "cal-auto", "data-auto": auto.state },
+    finding
+      ? h(
+          React.Fragment,
+          null,
+          h("div", { className: "set-status" }, h("span", { className: "set-status__dot" }), tx("Finding the nozzle: point {done} of {total} ({found} found so far)…", { done: auto.done + 1, total: auto.total, found: auto.found })),
+          h("button", { type: "button", className: "oui-btn oui-btn--sm", "data-auto-stop": "1", onClick: () => run("calibration/find-all", { stop: true }) }, tx("Stop")),
+        )
+      : nozzleLeft.length > foundLeft.length &&
+          h(
+            React.Fragment,
+            null,
+            h("button", { type: "button", className: "oui-btn oui-btn--block", "data-find-all": "1", disabled: busy, onClick: () => run("calibration/find-all") }, tx("Find the nozzle by itself at the other {count} points", { count: nozzleLeft.length - foundLeft.length })),
+            h("p", { className: "set-group__note" }, tx("The printer goes to each point and moves the toolhead aside for a moment: about 15 seconds per point. Keep your hands out.")),
+          ),
+    auto.state === "done" && h("p", { className: "set-group__note", "data-auto-done": "1" }, tx("Done: the nozzle found at {found} of {total} points. The others are to tap by hand.", { found: auto.found, total: auto.total })),
+    auto.state === "error" && h("p", { className: "set-field__error", role: "alert" }, tx("Stopped: ") + (auto.message || "")),
+    foundLeft.length > 0 &&
+      !finding &&
+      h(
+        React.Fragment,
+        null,
+        h("button", { type: "button", className: "oui-btn oui-btn--primary oui-btn--block", "data-accept": foundLeft.length, disabled: busy, onClick: () => run("calibration/accept") }, h(Icons.Check, { size: 18 }), tx("Use the {count} points found", { count: foundLeft.length })),
+        h("p", { className: "set-group__note" }, tx("Blue numbers are found, not checked yet: tap one to see it. «Calculate» then shows in red any that does not fit, to tap again by hand.")),
+      ),
   );
 }
 

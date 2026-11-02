@@ -189,7 +189,30 @@ with sync_playwright() as p:
     fake.state["markers"] = b.camera_cal.draft["markers"]["points"]
     pg.locator(".drawer").screenshot(path=os.path.join(out, "01c_markers.png"))
     targets = b.camera_cal.target_list()
+    ok("1.29 before any tap: the page says to tap the nozzle once by hand, no 'find' button yet", pg.locator('[data-auto="no-template"]').count() == 1 and pg.locator("[data-find-all]").count() == 0)
     for n, t in enumerate(targets):
+        if 1 <= n <= 5:
+            continue   # 1.29: the other nozzle points are found by themselves (below)
+        if n == 6:
+            # --- 1.29: after one nozzle tapped by hand, the others found by themselves
+            find_all = pg.locator("[data-find-all]")
+            ok("1.29 after one nozzle tapped by hand: 'Trova l'ugello da solo negli altri 5 punti'", wait(pg, lambda: find_all.count() == 1 and "altri 5 punti" in find_all.inner_text()), body(pg)[-800:])
+            find_all.click()
+            ok("... it runs point by point, then says how many were found", wait(pg, lambda: pg.locator("[data-auto-done]").count() == 1, 90), body(pg)[-600:])
+            props = b.camera_cal.draft.get("proposals") or {}
+            errs = []
+            for tt in targets[1:6]:
+                pp = props.get(tt["id"]) or {}
+                xx, yy, zz = pp.get("machine") or [0, 0, 0]
+                tu_, tv_ = truth([xx, yy, 0.0])
+                errs.append((tt["id"], pp.get("found"), round(abs((pp.get("u") or 0) - tu_) * W, 1), round(abs((pp.get("v") or 0) - tv_) * H, 1), pp.get("score")))
+            ok("... the nozzle found at the 5 points, within 4 px of the real tip", all(e[1] and e[2] < 4 and e[3] < 4 for e in errs), errs)
+            ok("... the toolhead went aside twice at each point and back (3 moves per point)", sum(1 for sc in fake.scripts if sc.startswith("G90\nG0 X") and sc.endswith("M400")) >= 15, fake.scripts[-6:])
+            ok("... the numbers found are blue until used", pg.locator(".cal-target.is-proposed").count() == 5)
+            pg.locator(".drawer").screenshot(path=os.path.join(out, "02b_found.png"))
+            pg.click("[data-accept]")
+            ok("'Usa i 5 punti trovati': they become points (marked as found)", wait(pg, lambda: len(b.camera_cal.draft.get("points") or {}) == 6)
+               and all((b.camera_cal.draft["points"][tt["id"]].get("source") == "found") for tt in targets[1:6]), list((b.camera_cal.draft.get("points") or {}).keys()))
         pg.locator('.cal-target[data-target="%s"]' % t["id"]).click()
         if n in (0, 6):
             hint = pg.locator(".cal-instruction-row .cal-hint")
@@ -220,7 +243,8 @@ with sync_playwright() as p:
         pg.click('[data-keep="%s"]' % t["id"])
         wait(pg, lambda: t["id"] in (b.camera_cal.draft.get("points") or {}), 4)
     pts = b.camera_cal.draft.get("points") or {}
-    ok("12 points taken through the page", len(pts) == 12, list(pts))
+    ok("12 points taken through the page (7 by hand, 5 found by themselves)", len(pts) == 12, list(pts))
+    ok("1.29 the nozzle template was kept after the first tap", b.camera_cal.has_template() or os.path.isfile(os.path.join(data, "camera_tip.png")))
     first = pts[targets[0]["id"]]
     tu, tv = truth([targets[0]["x"], targets[0]["y"], 0.0])
     ok("... the magnified tap lands within 2 px of the real nozzle tip", abs(first["u"] - tu) * W < 2.5 and abs(first["v"] - tv) * H < 2.5, (first, tu, tv))
@@ -246,8 +270,30 @@ with sync_playwright() as p:
     pg.click('[data-size="toolhead.left.plus"]')
     ok("+ on 'left of the nozzle': 35 mm, saved, and the purple outline grows", wait(pg, lambda: pg.locator('[data-value="toolhead.left"]').inner_text().startswith("35")
        and b.camera_cal.get_shape()["toolhead"]["left"] == 35.0 and pg.locator(".cal-toolhead").get_attribute("points") != before), b.camera_cal.get_shape())
+    # --- 1.29: the dots on the picture
+    handle = pg.locator('[data-handle="toolhead.top"]')
+    ok("1.29 the live picture has dots for the sizes (up to 5 of the toolhead and 2 of the gantry, never on top of each other: few on this small, far camera), the top one among them", wait(pg, lambda: 2 <= pg.locator("[data-handle]").count() <= 7 and pg.locator("[data-handle=\"toolhead.top\"]").count() == 1), pg.locator("[data-handle]").count())
+    top0 = b.camera_cal.get_shape()["toolhead"]["top"]
+    ov = b.camera_cal.overlay()
+    per = next(hh["per_mm"] for hh in ov["handles"] if hh["key"] == "toolhead.top")
+    frame_box = pg.locator(".cal-frame").first.bounding_box()
+    handle.scroll_into_view_if_needed()
+    pg.wait_for_timeout(400)
+    hb = handle.bounding_box()
+    frame_box = pg.locator(".cal-frame").first.bounding_box()
+    cx_, cy_ = hb["x"] + hb["width"] / 2, hb["y"] + hb["height"] / 2
+    pg.mouse.move(cx_, cy_)
+    pg.mouse.down()
+    for k in range(1, 11):   # drag 20 mm higher, along the dot's own direction
+        pg.mouse.move(cx_ + per[0] * frame_box["width"] * 2 * k, cy_ + per[1] * frame_box["height"] * 2 * k)
+        pg.wait_for_timeout(60)
+    ok("... dragging the top dot shows the size while dragging", "Sopra la punta dell'ugello" in pg.locator("[data-handle-line]").inner_text(), pg.locator("[data-handle-line]").inner_text())
+    pg.mouse.up()
+    ok("... and on release the height of the toolhead is 20 mm more (saved)", wait(pg, lambda: abs(b.camera_cal.get_shape()["toolhead"]["top"] - (top0 + 20)) <= 1, 4)
+       and wait(pg, lambda: pg.locator('[data-value="toolhead.top"]').inner_text().startswith(str(int(b.camera_cal.get_shape()["toolhead"]["top"])))), (top0, b.camera_cal.get_shape()["toolhead"]))
+    pg.locator(".cal-frame").first.screenshot(path=os.path.join(out, "05b_handles.png"))
     pg.locator(".set-switch", has_text="Escludi anche il gantry").click()
-    ok("gantry switched off: the orange bar goes away", wait(pg, lambda: pg.locator(".cal-gantry").count() == 0) and b.camera_cal.get_shape()["gantry"]["on"] is False)
+    ok("gantry switched off: the orange bar goes away (and its dots)", wait(pg, lambda: pg.locator(".cal-gantry").count() == 0) and b.camera_cal.get_shape()["gantry"]["on"] is False and wait(pg, lambda: pg.locator("[data-handle^=\"gantry\"]").count() == 0))
     pg.locator(".set-switch", has_text="Escludi anche il gantry").click()
     wait(pg, lambda: pg.locator(".cal-gantry").count() == 10)
     pg.click('[data-size="toolhead.below.minus"]')
