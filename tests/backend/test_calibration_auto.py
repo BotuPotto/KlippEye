@@ -96,7 +96,12 @@ def gcode(script, timeout=30):
             STATE["position"] = pos
 
 
+SETTINGS = {"printer": {"kinematics": "corexy"}, "z_tilt": {}, "safe_z_home": {"home_xy_position": [175.0, 175.0], "z_hop": 10.0}}
+
+
 def query(objects):
+    if objects.startswith("configfile"):
+        return {"configfile": {"settings": SETTINGS}}
     return {"toolhead": {"position": STATE["position"] + [0], "homed_axes": STATE["homed"], "axis_minimum": MIN + [0], "axis_maximum": MAX + [0]},
             "print_stats": {"state": "standby"}, "webhooks": {"state": "ready"}}
 
@@ -181,6 +186,54 @@ right_dots = {d["key"]: d for d in machine_masks.handles(calib, shape, [280.0, 1
 check("the gantry's dots are on the side away from the toolhead", left_dots["gantry.high"]["at"][0] > left_dots["toolhead.top"]["at"][0] + 0.2
       and right_dots["gantry.high"]["at"][0] < right_dots["toolhead.top"]["at"][0] - 0.2, (left_dots["gantry.high"]["at"], right_dots["gantry.high"]["at"]))
 check("no gantry dots when the gantry is off", not any(k.startswith("gantry") for k in (d["key"] for d in machine_masks.handles(calib, machine_masks.clean_shape({"gantry": {"on": False}}), [175.0, 175.0, 20.0]))))
+
+print("== homing with the markers on the bed (1.29.1)")
+import homing_safety as hs  # noqa: E402
+TOOL = {"left": 30.0, "right": 30.0, "front": 35.0, "back": 35.0}
+p = hs.homing_place({"safe_z_home": {"home_xy_position": "175, 175", "z_hop": "10"}, "stepper_z": {"endstop_pin": "probe:z_virtual_endstop"}, "bltouch": {"x_offset": -40.0, "y_offset": 10.0}})
+check("safe_z_home (as a text or a list), with a BLTouch used as Z endstop: its offsets", p["how"] == "safe_z_home" and p["xy"] == [175.0, 175.0] and p["z_hop"] == 10.0 and p["probe"][:3] == ("bltouch", -40.0, 10.0), p)
+check("a homing_override: the place cannot be known", hs.homing_place({"homing_override": {}, "safe_z_home": {"home_xy_position": [1, 2]}})["how"] == "override")
+check("a Z endstop at the top (the bed goes down): nothing comes near the bed", hs.homing_place({"stepper_z": {"endstop_pin": "PA1", "position_endstop": 300, "position_max": 300}})["how"] == "top")
+check("a Beacon homing Z at its own place", hs.homing_place({"beacon": {"x_offset": 0, "y_offset": 20, "home_xy_position": [150, 150]}, "stepper_z": {"endstop_pin": "probe:z_virtual_endstop"}})["xy"] == [150.0, 150.0])
+check("no safe_z_home: where X and Y end their homing", hs.homing_place({"stepper_x": {"position_endstop": 350}, "stepper_y": {"position_endstop": 350}, "stepper_z": {"endstop_pin": "PA1", "position_endstop": 0, "position_max": 300}})["xy"] == [350.0, 350.0])
+usual = camera_markers.marker_positions(MIN, MAX)
+pos, moved = hs.safe_layout(MIN, MAX, {"xy": [175.0, 175.0]}, TOOL)
+check("homing at the centre: the usual grid is clear, nothing moved", pos == usual and not moved)
+spot = {"xy": [usual[0][0], usual[0][1]]}   # homing right where the first pyramid would be
+pos, moved = hs.safe_layout(MIN, MAX, spot, TOOL)
+check("homing where a pyramid would be: another grid, symmetric about the centre, none under the toolhead", moved and not hs.hits(pos, hs.footprints(spot, TOOL))
+      and abs(sum(x for x, _ in pos) / 6 - 175.0) < 0.1 and abs(sum(y for _, y in pos) / 6 - 175.0) < 0.1, pos)
+probe_spot = {"xy": [175.0, 175.0], "probe": ("bltouch", usual[1][0] - 175.0, usual[1][1] - 175.0, 8.0)}
+check("a probe whose offset puts it on a pyramid: that is a hit too", [h_[2] for h_ in hs.hits(usual, hs.footprints(probe_spot, TOOL))] == ["probe"])
+check("check(): a hit, with no z_hop and Z not homed also the warning about the height", [r["kind"] for r in hs.check({"safe_z_home": {"home_xy_position": spot["xy"]}}, [list(u_) + [10] for u_ in usual], TOOL, "")] == ["hit", "no_hop"])
+check("check(): with z_hop and the usual layout: safe", hs.check({"safe_z_home": {"home_xy_position": [175, 175], "z_hop": 10}}, [list(u_) + [10] for u_ in usual], TOOL, "") == [])
+
+STATE["homed"] = ""
+data2 = tempfile.mkdtemp()
+SCRIPTS.clear()
+cal2 = cc.CameraCalibration(data2, query, gcode, render, cv2, np)
+cal2.set_options("bed")
+SETTINGS["safe_z_home"] = {"home_xy_position": [usual[0][0], usual[0][1]], "z_hop": 10.0}
+cal2._settings = (0.0, None)
+cal2._set_markers({"source": "file", "points": [list(u_) + [10.0] for u_ in usual]})   # printed with the old, usual grid
+try:
+    cal2.home()
+    check("home() with a pyramid where Z is homed: refused, with the risk", False)
+except cc.HomingRisk as risk:
+    check("home() with a pyramid where Z is homed: refused, with the risk", [r["kind"] for r in risk.risks] == ["hit"] and risk.risks[0]["x"] == usual[0][0] and not any("G28" in sc for sc in SCRIPTS), risk.risks)
+cal2.home(force=True)
+check("... home(force) after the person checked: G28, and the motors kept on (idle timeout 3600)", SCRIPTS[-1] == "G28" and "SET_IDLE_TIMEOUT TIMEOUT=3600" in SCRIPTS, SCRIPTS)
+SETTINGS["idle_timeout"] = {"timeout": 900}
+cal2.reset()
+check("... and Klipper's own idle timeout put back at the end", SCRIPTS[-1] == "SET_IDLE_TIMEOUT TIMEOUT=600", SCRIPTS[-2:])
+cal2._settings = (0.0, None)
+stl_positions, moved = cal2.marker_layout()
+check("the STL now keeps the pyramids away from that homing point", moved and not hs.hits(stl_positions, hs.footprints({"xy": SETTINGS["safe_z_home"]["home_xy_position"]}, cal2.get_shape()["toolhead"])))
+stl = cal2.markers_stl()
+check("... the STL is made at those positions", len(stl) == 84 + 36 * 50 and abs(np.frombuffer(stl[84 + 12:84 + 24], "<f4")[0] - (stl_positions[0][0] - camera_markers.PYRAMID_BASE / 2)) < 0.01, np.frombuffer(stl[84 + 12:84 + 24], "<f4").tolist())
+cal2._set_markers({"source": "blobs", "points": [list(u_) + [0.6] for u_ in usual]})
+check("blobs on the bed (0.6 mm): nothing to hit", cal2.homing_risks()[0] == [])
+STATE["homed"] = "xyz"
 
 print("\n%d FAIL" % len(FAILS) if FAILS else "\nall passed")
 sys.exit(1 if FAILS else 0)

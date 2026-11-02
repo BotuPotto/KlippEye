@@ -228,6 +228,7 @@ const HELP = {
       { id: "why", title: tx("Why"), text: [tx("KlippEye learns where the bed, the nozzle and the gantry are in the picture. Then the AI monitor watches the whole bed around the parts and leaves out the moving toolhead and gantry, without false alarms.")] },
       { id: "tap", title: tx("Where to tap"), figure: "tap", text: [tx("The printer moves the nozzle to a few points; at each one tap the very tip of the nozzle on the picture, where it would touch the bed. Not the toolhead, not the green marker. Zoom in with two fingers to be precise.")] },
       { id: "before", title: tx("Before starting"), steps: [tx("The bed empty and clean, the light on."), tx("The printer homed (the page does it if needed)."), tx("The camera still: if it moves later, calibrate again.")] },
+      { id: "homing", title: tx("Homing with the markers on the bed"), text: [tx("After printing the markers the motors are often switched off, so the page homes again. KlippEye reads where Klipper homes Z and keeps the pyramids of the STL away from there; if a marker could still be under the toolhead or the probe (an older print, a homing macro of yours, no z_hop), «Home the printer» asks first. During the calibration the motors stay on.")] },
       {
         id: "auto",
         title: tx("Finding the nozzle by itself"),

@@ -26,6 +26,7 @@ import time
 import camera_markers
 import camera_model
 import camera_watch
+import homing_safety
 import machine_masks
 import nozzle_finder
 import print_zone
@@ -43,7 +44,17 @@ DEFAULT_TOOLHEAD = {"width": 60, "depth": 70, "height": 70}   # mm around the no
 WATCH_EVERY_S = 600
 BUSY_STATES = ("printing", "paused")
 FIND_SHIFT = 90.0     # mm the toolhead moves aside while the nozzle is looked for (more than its width: the two do not overlap)
-SETTLE_S = 1.2        # after a move, before the picture: the camera's stream is a little late
+SETTLE_S = 1.2
+IDLE_DURING_CALIBRATION_S = 3600   # 1.29.1: the motors stay on this long during the calibration (Klipper's idle timeout)
+SETTINGS_TTL_S = 60        # after a move, before the picture: the camera's stream is a little late
+
+
+class HomingRisk(Exception):
+    """1.29.1: homing could hit the markers on the bed: `risks` says how (homing_safety.check); the page asks to confirm."""
+
+    def __init__(self, risks):
+        Exception.__init__(self, "homing could hit the markers on the bed")
+        self.text, self.values, self.risks = "homing could hit the markers on the bed", {}, risks
 
 
 class NotReady(Exception):
@@ -134,7 +145,9 @@ class CameraCalibration:
         self.watch = (self.saved or {}).get("watch") or {"state": "unknown"}
         self.marks = {"state": "idle"}
         self._marks_thread = None
-        self.auto = {"state": "idle"}   # 1.29: finding the nozzle at every point by itself
+        self.auto = {"state": "idle"}
+        self._settings = (0.0, None)
+        self._idle_was = None   # Klipper's idle timeout before the calibration made it longer   # 1.29: finding the nozzle at every point by itself
         self._auto_thread = None
         self._auto_stop = False
         self.last_watch = 0.0
@@ -155,6 +168,7 @@ class CameraCalibration:
             raise NotReady("the printer is printing")
         if not all(axis in printer["homed"] for axis in "xyz"):
             raise NotReady("home the printer first")
+        self._keep_motors()
 
     def guess(self):
         try:
@@ -190,6 +204,7 @@ class CameraCalibration:
             return self.draft
 
     def reset(self):
+        self.restore_idle()
         with self.lock:
             self.draft = {}
             for path in (self.draft_path, self.template_path):
@@ -212,10 +227,80 @@ class CameraCalibration:
                 return t
         raise ValueError("unknown point")
 
-    def home(self):
+    # ---------------------------------------------------------------- 1.29.1: homing with the markers on the bed
+    def settings(self):
+        """Klipper's configuration (configfile.settings), read at most once a minute."""
+        when, known = self._settings
+        if known is None or time.time() - when > SETTINGS_TTL_S:
+            try:
+                known = self.query("configfile=settings").get("configfile", {}).get("settings", {}) or {}
+            except Exception:
+                known = known or {}
+            self._settings = (time.time(), known)
+        return known
+
+    def homing_place(self):
+        return homing_safety.homing_place(self.settings())
+
+    def marker_layout(self, printer=None):
+        """Where the markers of the STL go: the usual grid, or one that keeps them out of where homing touches.
+        -> (positions, moved)."""
+        printer = printer or self.printer()
+        return homing_safety.safe_layout(printer["minimum"], printer["maximum"], self.homing_place(), self.get_shape()["toolhead"])
+
+    def homing_summary(self, printer):
+        """For the page: where Z is homed, whether the markers of the STL were moved away from it, the risks now."""
+        place = self.homing_place()
+        risks, expected = self.homing_risks(printer)
+        positions, moved = self.marker_layout(printer)
+        probe = place.get("probe")
+        return {"how": place["how"], "xy": place["xy"], "z_hop": place["z_hop"], "probe": {"name": probe[0], "x_offset": probe[1], "y_offset": probe[2]} if probe else None,
+                "layout_moved": moved, "risks": risks, "expected": expected}
+
+    def homing_risks(self, printer=None):
+        """With the markers on the bed (read from their G-code; else, Z moving the bed, those the STL would print), what
+        could go wrong when homing. -> (risks, the markers are only expected)."""
+        if self.z_moves() != "bed":
+            return [], False
+        printer = printer or self.printer()
+        markers = (self.draft.get("markers") or {}).get("points")
+        expected = not markers
+        if expected:
+            markers = [[x, y, camera_markers.PYRAMID_HEIGHT] for x, y in self.marker_layout(printer)[0]]
+        elif (self.draft.get("markers") or {}).get("source") == "blobs":
+            return [], False   # 0.6 mm discs: nothing to hit
+        return homing_safety.check(self.settings(), markers, self.get_shape()["toolhead"], printer["homed"]), expected
+
+    def _keep_motors(self):
+        """The motors stay on during the calibration (a long idle timeout); restore_idle() puts back Klipper's own."""
+        if self._idle_was is not None:
+            return
+        try:
+            was = (self.settings().get("idle_timeout") or {}).get("timeout", 600)
+            self.gcode("SET_IDLE_TIMEOUT TIMEOUT=%d" % IDLE_DURING_CALIBRATION_S, 10)
+            self._idle_was = int(float(was))
+        except Exception as error:
+            print("[CAMERA] idle timeout not changed: %s" % error)
+
+    def restore_idle(self):
+        if self._idle_was is None:
+            return
+        try:
+            self.gcode("SET_IDLE_TIMEOUT TIMEOUT=%d" % self._idle_was, 10)
+        except Exception as error:
+            print("[CAMERA] idle timeout not restored: %s" % error)
+        self._idle_was = None
+
+    def home(self, force=False):
         printer = self.printer()
         if printer["state"] in BUSY_STATES:
             raise NotReady("the printer is printing")
+        risks, expected = self.homing_risks(printer)
+        if risks and not force:
+            for risk in risks:
+                risk["expected"] = expected
+            raise HomingRisk(risks)
+        self._keep_motors()
         self.gcode("G28", 180)
 
     def goto(self, target_id):
@@ -389,7 +474,7 @@ class CameraCalibration:
     def markers_stl(self):
         """The STL of the six pyramids to print, for this printer's bed."""
         printer = self.printer()
-        return camera_markers.markers_stl(printer["minimum"], printer["maximum"])
+        return camera_markers.markers_stl(printer["minimum"], printer["maximum"], positions=self.marker_layout(printer)[0])
 
     def gcode_files(self):
         """The newest G-code files on the printer (to choose the one of the markers), newest first."""

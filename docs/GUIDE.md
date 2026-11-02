@@ -245,6 +245,12 @@ calibration: keep your hands out.
    The page shows a small drawing of what to tap at each point. Green numbers are done; tap a number to see it or redo it.
    The yellow cross is your tap, the green cross a point already kept.
 
+   **Homing with the markers on the bed.** After printing the markers many printers switch the motors off, so the page
+   homes again. KlippEye reads from Klipper where Z is homed and places the pyramids of the STL away from it (the page
+   says where); **Home the printer** asks first if a marker could be under the toolhead or the probe there (an older
+   print, a `[homing_override]` macro, no `z_hop`). During the calibration the motors stay on (the idle timeout is made
+   longer and put back at the end).
+
    **Faster: the nozzle found by itself.** Once you have tapped the nozzle at one point, KlippEye can find it at the other
    nozzle points: **Find the nozzle by itself at the other N points** goes to each, moves the toolhead aside for a moment
    (to see where it is) and looks for the tip you tapped (about 15 seconds a point; keep your hands out). The points found
