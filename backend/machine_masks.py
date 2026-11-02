@@ -112,6 +112,49 @@ def polygons(calibration, shape, position, x_range=None, to=None, parts=("toolhe
     return out
 
 
+# 1.29: the handles on the live picture. Each moves one size: where it is (a point of the frame, from the nozzle tip) and the
+# way it goes when that size grows by 1 mm.
+HANDLE_STEP_MM = 10.0
+
+
+def _handle_points(shape, tip):
+    tx, ty, tz = tip
+    tool, gantry = shape["toolhead"], shape["gantry"]
+    mid = tz + (tool["top"] - tool["below"]) / 2.0
+    out = [("toolhead.left", (tx - tool["left"], ty, mid), (-1, 0, 0)),
+           ("toolhead.right", (tx + tool["right"], ty, mid), (1, 0, 0)),
+           ("toolhead.front", (tx, ty - tool["front"], mid), (0, -1, 0)),
+           ("toolhead.back", (tx, ty + tool["back"], mid), (0, 1, 0)),
+           ("toolhead.top", (tx, ty, tz + tool["top"]), (0, 0, 1)),
+           ("toolhead.below", (tx, ty, tz - tool["below"]), (0, 0, -1))]
+    if gantry.get("on"):
+        y_mid = ty + gantry["behind"] + gantry["depth"] / 2.0
+        out += [("gantry.high", (tx, y_mid, tz + gantry["high"]), (0, 0, 1)),
+                ("gantry.low", (tx, y_mid, tz + gantry["low"]), (0, 0, 1))]
+    return out
+
+
+def handles(calibration, shape, position):
+    """The handles of the sizes for the nozzle at `position` (machine X, Y, Z): [{"key": "toolhead.top", "at": [u, v],
+    "per_mm": [du, dv]}] in fractions of the picture, only those in view. Dragging a handle along per_mm by d fractions
+    changes its size by d / |per_mm| mm."""
+    tip = nozzle_frame(calibration.get("z_moves"), position)
+    rows = _handle_points(shape, tip)
+    points = []
+    for _, at, way in rows:
+        points.append(list(at))
+        points.append([at[i] + way[i] * HANDLE_STEP_MM for i in range(3)])
+    uv, front = camera_model.project(calibration, points)
+    out = []
+    for n, (key, _, _) in enumerate(rows):
+        a, b = uv[2 * n], uv[2 * n + 1]
+        if not (front[2 * n] and front[2 * n + 1]):
+            continue
+        out.append({"key": key, "at": [round(float(a[0]), 4), round(float(a[1]), 4)],
+                    "per_mm": [round(float(b[0] - a[0]) / HANDLE_STEP_MM, 6), round(float(b[1] - a[1]) / HANDLE_STEP_MM, 6)]})
+    return out
+
+
 def path_boxes(spots, step=PATH_STEP_MM, most=PATH_MAX_PIECES):
     """The way of the toolhead between the positions of one check, as pairs of corners (low, high) of small boxes: a fast
     diagonal move is covered by a chain of small boxes along it, not by one big rectangle (a VzBot crosses 150 mm in the

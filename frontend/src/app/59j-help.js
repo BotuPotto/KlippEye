@@ -228,7 +228,16 @@ const HELP = {
       { id: "why", title: tx("Why"), text: [tx("KlippEye learns where the bed, the nozzle and the gantry are in the picture. Then the AI monitor watches the whole bed around the parts and leaves out the moving toolhead and gantry, without false alarms.")] },
       { id: "tap", title: tx("Where to tap"), figure: "tap", text: [tx("The printer moves the nozzle to a few points; at each one tap the very tip of the nozzle on the picture, where it would touch the bed. Not the toolhead, not the green marker. Zoom in with two fingers to be precise.")] },
       { id: "before", title: tx("Before starting"), steps: [tx("The bed empty and clean, the light on."), tx("The printer homed (the page does it if needed)."), tx("The camera still: if it moves later, calibrate again.")] },
-      { id: "shape", title: tx("Toolhead and gantry"), text: [tx("After the calibration the live picture shows what is left out: purple the toolhead, orange the gantry. If they do not cover them, change their size with − and + under «Toolhead» and «Gantry», then move the toolhead to check.")] },
+      {
+        id: "auto",
+        title: tx("Finding the nozzle by itself"),
+        steps: [
+          tx("Tap the nozzle by hand at the first point (with the magnified view): KlippEye keeps that small picture of the tip."),
+          tx("«Find the nozzle by itself»: the printer goes to each other nozzle point, moves the toolhead aside for a moment and looks for the tip where the toolhead was. Keep your hands out."),
+          tx("«Use the points found», then «Calculate»: a point found in the wrong place does not fit the others and turns red; tap it again by hand. The marker points (printers whose bed moves in Z) are always tapped by hand."),
+        ],
+      },
+      { id: "shape", title: tx("Toolhead and gantry"), text: [tx("After the calibration the live picture shows what is left out: purple the toolhead, orange the gantry. If they do not cover them, drag the dots on the picture (each side of the toolhead, its top and its bottom, the upper and lower edge of the gantry) or use − and + under «Toolhead» and «Gantry», then move the toolhead to check.")] },
     ],
   },
   detector: {
