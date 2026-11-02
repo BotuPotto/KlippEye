@@ -3,12 +3,14 @@
    The page "Registrazioni" of the settings menu: the backend keeps the pictures the AI monitor looked at during each
    print (backend/recorder.py), so that the monitor can be measured instead of guessed (roadmap, phase 3):
      · recording on/off and the space it may take (two settings of /api/backend/config, group "recording");
-     · the recorded prints first (1.25): open one to judge its alarms right there (with their pictures, to enlarge),
-       look through its pictures, say "it went fine" or "it failed from here", delete;
+     · the recorded prints first (1.26): open one to look through its pictures, say "it went fine" or "it failed from
+       here", delete; below, «Alarms of this print» opens the list of its alarms to judge (with their pictures);
      · "Measure the monitor": the backend runs the monitor again on the recordings chosen (scripts/replay.py) and the
        page shows how many alarms, how many false, whether the failures were caught;
      · the alarms that are in no recording, folded at the bottom.
-   An alarm is judged with "Print OK" (false alarm: the AI was wrong) or "Print KO" (real problem: the AI was right).
+   An alarm is judged against the AI's verdict (1.26.1): "Correct result" or "Wrong result". What is saved is whether the
+   print really had a problem ("right") or not ("false"), so the two buttons swap meaning when the AI said to go on. An
+   alarm the AI did not judge (an error of the AI service) is judged by the print: "There was a problem" / "No problem".
    ========================================================================== */
 
 const RECORDINGS_POLL_MS = 10000;
@@ -114,24 +116,43 @@ function printLabel(session) {
 /* ---------------------------------------------------------------------------
    The alarms with the AI's verdict, to be marked
    ------------------------------------------------------------------------- */
-// 1.26: the two answers say what they mean for the AI (they confirm or deny it), not only for the print
-const ALERT_LABEL_OPTIONS = [
-  { id: "false", label: tx("Print OK"), detail: tx("false alarm: the AI was wrong") },
-  { id: "right", label: tx("Print KO"), detail: tx("real problem: the AI was right") },
-];
+/** The two answers for one alarm. "label" is what is saved: "right" = the print had a problem, "false" = it had not. */
+function alertLabelOptions(action) {
+  if (action === "CONTINUE")
+    return [
+      { id: "false", tone: "good", label: tx("Correct result"), detail: tx("yes: the print really was fine") },
+      { id: "right", tone: "bad", label: tx("Wrong result"), detail: tx("no: the print had a problem the AI missed") },
+    ];
+  if (action === "PAUSE" || action === "CANCEL")
+    return [
+      { id: "right", tone: "good", label: tx("Correct result"), detail: tx("yes: the print really had a problem") },
+      { id: "false", tone: "bad", label: tx("Wrong result"), detail: tx("no: the print was fine (false alarm)") },
+    ];
+  return [
+    { id: "right", tone: "bad", label: tx("There was a problem"), detail: tx("something was going wrong in the print") },
+    { id: "false", tone: "good", label: tx("No problem"), detail: tx("the print was fine") },
+  ];
+}
 
-function AlertLabelButtons({ value, onChange, busy }) {
+function AlertLabelButtons({ action, value, onChange, busy }) {
+  const judged = action === "CONTINUE" || action === "PAUSE" || action === "CANCEL";
+  // 1.26.1: the question names the AI's verdict, so the answers cannot be read the other way round
+  const question = judged ? tx("AI response: «{action}». Does it match the real state of the print?", { action: String(aiActionLabel(action)).charAt(0).toUpperCase() + String(aiActionLabel(action)).slice(1).toLowerCase() }) : tx("No AI response for this alarm: what was the real state of the print?");
   return h(
+    React.Fragment,
+    null,
+    h("div", { className: "rec-labels__question" }, question),
+    h(
     "div",
-    { className: "rec-labels", role: "group", "aria-label": tx("Did the AI get it right?") },
-    ALERT_LABEL_OPTIONS.map((option) =>
+    { className: "rec-labels", role: "group", "aria-label": question },
+    alertLabelOptions(action).map((option) =>
       h(
         "button",
         {
           key: option.id,
           type: "button",
           disabled: busy,
-          className: cx("oui-chip rec-labels__chip", value === option.id && "is-selected", option.id === "right" && "rec-labels__right"),
+          className: cx("oui-chip rec-labels__chip", value === option.id && "is-selected", "rec-labels__" + option.tone),
           "aria-pressed": value === option.id,
           "data-label": option.id,
           onClick: () => onChange(value === option.id ? null : option.id),
@@ -140,6 +161,7 @@ function AlertLabelButtons({ value, onChange, busy }) {
         h("span", { className: "rec-labels__detail" }, option.detail),
       ),
     ),
+  ),
   );
 }
 
@@ -155,6 +177,14 @@ function alertSummary(alert) {
   const outcome = String(alert.outcome || "");
   if (outcome.startsWith("skipped: AI cooldown")) return tx("Not analysed: the AI was resting between two analyses (before 1.19 these alarms were written; now the monitor waits for the AI).");
   if (outcome.startsWith("skipped: no AI key")) return tx("Not analysed: there is no AI key (Settings → AI monitor).");
+  const error = /^AI error (\d+)/.exec(outcome);
+  if (error) {
+    const said = alert.error ? " " + tx("The service said: «{text}»", { text: alert.error }) : "";
+    if (error[1] === "429") return tx("Not analysed: the AI service refused because it got too many requests (the limits of its plan, per minute or per day).") + said;
+    if (error[1] === "401" || error[1] === "403") return tx("Not analysed: the AI service did not accept the key (Settings → AI monitor).") + said;
+    return tx("Not analysed: the AI service answered with error {code}.", { code: error[1] }) + said;
+  }
+  if (outcome === "AI answer not readable") return tx("Not analysed: the AI's answer could not be read.");
   return alert.summary || alert.observation || outcome;
 }
 
@@ -174,6 +204,7 @@ function AlertRow({ alert, onLabelled, onShow }) {
     } else setProblem(tx("Not saved: ") + (reply.message || tx("the backend does not answer")));
   };
   const action = aiAction(alert.action);
+  const picture = alert.picture || (alert.image ? "/api/print/alerts/image/" + alert.image : null);
   const proposed = aiAction(alert.original_action); // the AI wanted to stop, the threshold made it "continue"
   const summary = alertSummary(alert);
   return h(
@@ -182,7 +213,7 @@ function AlertRow({ alert, onLabelled, onShow }) {
     h(
       "div",
       { className: "rec-alert__head" },
-      alert.image && h(ZoomablePhoto, { className: "rec-alert__img", src: "/api/print/alerts/image/" + alert.image, title: tx("Picture of the alarm") + (alert.time ? " • " + alert.time : ""), alt: tx("Picture of the alarm") }),
+      picture && h(ZoomablePhoto, { className: "rec-alert__img", src: picture, title: tx("Picture of the alarm") + (alert.time ? " • " + alert.time : ""), alt: tx("Picture of the alarm") }),
       h(
         "div",
         { className: "rec-alert__text" },
@@ -198,7 +229,7 @@ function AlertRow({ alert, onLabelled, onShow }) {
         h("div", { className: "rec-alert__summary" }, summary),
       ),
     ),
-    h(AlertLabelButtons, { value: label, onChange: change, busy }),
+    h(AlertLabelButtons, { action: alert.action ? action : null, value: label, onChange: change, busy }),
     onShow && h("button", { type: "button", className: "oui-btn oui-btn--quiet oui-btn--sm set-inline-btn", "data-show-alert": alert.id, onClick: onShow }, h(Icons.Image, { size: 16 }), tx("See it among the pictures")),
     problem && h("p", { className: "set-field__error", role: "alert" }, problem),
   );
@@ -229,11 +260,22 @@ function RecordingDetail({ id, onClose }) {
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState("");
   const [askDelete, setAskDelete] = useState(false);
-  // the arrow of the menu and the phone's back: back to the list of the recordings first
+  const [view, setView] = useState("print"); // "print" | "alarms" (the list of the alarms to judge)
+  const reveal = useRef(false); // after «See it among the pictures»: bring the pictures into view
+  // the arrow of the menu and the phone's back: from the alarms to the print, from the print to the list of recordings
   useBackHandler(() => {
-    onClose(false);
+    if (view === "alarms") setView("print");
+    else onClose(false);
     return true;
   });
+  useEffect(() => {
+    const body = document.querySelector(".drawer__body");
+    if (view === "print" && reveal.current) {
+      reveal.current = false;
+      const viewer = document.querySelector(".rec-viewer");
+      if (viewer && viewer.scrollIntoView) viewer.scrollIntoView({ block: "center" });
+    } else if (body) body.scrollTop = 0;
+  }, [view]);
   if (detail.phase === "gone") return h("div", { className: "set-status set-status--warn" }, h("span", { className: "set-status__dot" }), tx("This recording is no longer there."));
   if (detail.phase !== "ok") return h("div", { className: "set-status" }, h("span", { className: "set-status__dot" }), tx("Reading the recording…"));
   const session = detail.data.session;
@@ -266,25 +308,29 @@ function RecordingDetail({ id, onClose }) {
   const judged = alerts.filter((alert) => alert.label === "false" || alert.label === "right").length;
   const showAlert = (alert) => {
     // the picture of the alarm (the recording notes it), else the one nearest to its time
-    const exact = frames.findIndex((f) => f.n === alert.frame);
+    let picture = frames.findIndex((f) => f.n === alert.frame);
     const when = Number.isFinite(alert.t) ? alert.t : alertSeconds(alert);
-    if (exact >= 0) return reveal(exact);
-    if (when === null || !frames.length) return;
-    let best = 0;
-    frames.forEach((f, i) => {
-      if (Math.abs(f.t - when) < Math.abs(frames[best].t - when)) best = i;
-    });
-    reveal(best);
-  };
-  const reveal = (picture) => {
+    if (picture < 0 && when !== null && frames.length) {
+      picture = 0;
+      frames.forEach((f, i) => {
+        if (Math.abs(f.t - when) < Math.abs(frames[picture].t - when)) picture = i;
+      });
+    }
+    if (picture < 0) return;
     setIndex(picture);
-    const viewer = document.querySelector(".rec-viewer");
-    if (viewer && viewer.scrollIntoView) viewer.scrollIntoView({ behavior: "smooth", block: "center" });
+    reveal.current = true;
+    setView("print");
   };
+  if (view === "alarms") {
+    return h(
+      SettingsGroup,
+      { title: tx("Alarms of this print ({judged} of {count} judged)", { judged, count: alerts.length }), help: ["recordings", "judge"], note: tx("An alarm is a moment when the camera saw something change; the AI then looked and answered continue, pause or cancel. For each one say whether the AI's response matches the real state of the print. «See it among the pictures» goes back to the print, at the moment of the alarm.") },
+      alerts.length === 0 ? h("p", { className: "set-group__note" }, tx("No alarm in this print.")) : alerts.map((alert) => h(AlertRow, { key: alert.id, alert, onLabelled: detail.reload, onShow: frames.length ? () => showAlert(alert) : null })),
+    );
+  }
   return h(
     React.Fragment,
     null,
-    h("button", { type: "button", className: "oui-btn oui-btn--quiet oui-btn--sm set-inline-btn", onClick: () => onClose(false) }, h(Icons.Back, { size: 16 }), tx("All the recordings")),
     h(
       SettingsGroup,
       { title: session.file || tx("(no file name)") },
@@ -298,12 +344,6 @@ function RecordingDetail({ id, onClose }) {
         session.cpu && session.cpu.cpu_percent !== undefined && h(InfoLine, { label: tx("Backend CPU"), value: tx("{percent}% of one core • {ms} ms per check", { percent: formatNumber(session.cpu.cpu_percent), ms: formatNumber(session.cpu.check_ms) }) }),
       ),
     ),
-    alerts.length > 0 &&
-      h(
-        SettingsGroup,
-        { title: tx("Alarms of this print ({judged} of {count} judged)", { judged, count: alerts.length }), help: ["recordings", "judge"], note: tx("Did the AI get it right? «Print OK» if the print was fine (false alarm), «Print KO» if there was a problem.") },
-        alerts.map((alert) => h(AlertRow, { key: alert.id, alert, onLabelled: detail.reload, onShow: frames.length ? () => showAlert(alert) : null })),
-      ),
     frames.length > 0 &&
       h(
         SettingsGroup,
@@ -346,6 +386,22 @@ function RecordingDetail({ id, onClose }) {
       failedAt !== null && h("p", { className: "set-group__note" }, tx("Failed from {time} after the start.", { time: formatOffset(failedAt - session.started) })),
       problem && h("p", { className: "set-field__error", role: "alert" }, problem),
     ),
+    alerts.length > 0 &&
+      h(
+        SettingsGroup,
+        { title: tx("Judge the alarms"), help: ["recordings", "judge"] },
+        h(
+          "div",
+          { className: "oui-list" },
+          h(
+            "button",
+            { type: "button", className: "set-entry rec-row", "data-open-alarms": alerts.length, onClick: () => setView("alarms") },
+            h("span", { className: "oui-row__text" }, h("span", { className: "oui-row__name" }, tx("Alarms of this print")), h("span", { className: "oui-row__meta set-entry__meta" }, alarmCount(alerts.length) + " • " + tx("{judged} of {count} judged", { judged, count: alerts.length }))),
+            h("span", { className: cx("oui-badge", judged === alerts.length ? "oui-badge--ok" : "oui-badge--warn") }, judged === alerts.length ? tx("All judged") : tx("To judge")),
+            h("span", { className: "set-entry__go", "aria-hidden": "true" }, h(Icons.Forward)),
+          ),
+        ),
+      ),
     h(
       SettingsGroup,
       null,

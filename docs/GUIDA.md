@@ -276,11 +276,13 @@ Invece di indovinare se una soglia diversa aiuta, misuralo:
 1. **Impostazioni → Monitor IA → Registrazioni → Registra le stampe**. Durante ogni stampa il backend conserva le foto guardate dal monitor
    (piccole, circa 150 MB per una stampa di quattro ore) con strato, posizione e punteggio, in `~/printer_data/klippeye/recordings/`.
    Quando lo spazio scelto è pieno si cancellano le stampe più vecchie, e con meno di 1 GB libero sul disco non si registra niente.
-2. Dopo ogni stampa, aprila nella stessa pagina. In alto ci sono i suoi **allarmi**, ognuno con la foto vista dall'IA (toccala
-   per ingrandirla): **Stampa OK** se la stampa andava bene (falso allarme: l'IA si è sbagliata), **Stampa KO** se c'era davvero
-   un problema (l'IA aveva ragione). *Vedilo tra le foto* porta a quel momento. Poi dì **È andata bene** oppure, se è fallita,
-   vai alla prima foto in cui si vede il problema e premi **È fallita da qui**. Gli allarmi delle stampe non registrate sono
-   raccolti in fondo alla pagina (*Allarmi fuori dalle registrazioni*).
+2. Dopo ogni stampa, aprila nella stessa pagina: sfoglia le foto e dì **È andata bene** oppure, se è fallita, vai alla prima
+   foto in cui si vede il problema e premi **È fallita da qui**. Sotto, **Allarmi di questa stampa** elenca i suoi allarmi,
+   ognuno con la foto vista dall'IA (toccala per ingrandirla) e il suo responso. Giudichi se il responso dell'IA corrisponde al
+   reale stato della stampa: **Risultato corretto** se corrisponde, **Risultato sbagliato** se no (una pausa per una stampa che andava bene, oppure "continua" mentre qualcosa andava
+   storto). Un allarme che l'IA non ha potuto giudicare (un errore del servizio IA) chiede **C'era un problema** o **Nessun
+   problema**. *Vedilo tra le foto* torna alla stampa in quel momento. Gli allarmi delle stampe non registrate sono raccolti
+   in fondo alla pagina.
 3. **Misura adesso** rifà girare il monitor sulle stampe registrate spuntate in *Stampe da usare* (tutte, se non ne togli
    qualcuna: una stampa con un'altra camera o una prova si può escludere), con le soglie in uso adesso, e mostra gli allarmi
    all'ora, quanti erano falsi e se ogni guasto è stato visto (e dopo quanto). Da terminale, per confrontare altre soglie:
@@ -290,6 +292,12 @@ Invece di indovinare se una soglia diversa aiuta, misuralo:
    (che tengono gli oggetti) si guarda tutto il piatto fuori dai pezzi, `--set expected_zone=off` confronta con la sola fascia esterna.
 
 La pagina mostra anche il **carico del monitor**: il tempo di un controllo e la CPU usata dal backend nell'ultimo minuto.
+
+**"AI error 429"** su un allarme vuol dire che il servizio IA ha rifiutato la richiesta: troppe richieste o troppi dati (foto)
+per i limiti del suo piano, al minuto o al giorno; l'allarme riporta le parole del servizio. Dalla 1.26.1 il backend aspetta e
+riprova una volta quando il servizio chiede di attendere pochi secondi. Se succede spesso (un limite giornaliero), allunga la
+*Pausa tra due analisi dell'IA* (Soglie del monitor), spegni *Manda all'IA anche la foto di prima* (una foto per richiesta invece di due), scegli un
+modello con limiti più alti o un piano a pagamento del servizio.
 
 ## 6. App Android e notifiche
 

@@ -1,5 +1,23 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.26.1
+
+**Recordings: clearer answers, the alarm pictures kept, the AI's 429 explained.**
+
+* **Correct result / Wrong result**: each alarm asks "AI response: «Pause». Does it match the real state of the print?", and
+  each answer says the real state (*yes: the print really had a problem*, *no: the print was fine*; for a "continue": *yes: the
+  print really was fine*, *no: the print had a problem the AI missed*). *Print OK / KO* was confusing for a "continue". An
+  alarm the AI could not judge asks *There was a problem / No problem*.
+* **The print first, the alarms one level down**: a recorded print shows its pictures and how it went; *Alarms of this print*
+  (with how many are judged) opens the alarms. The *All the recordings* button is gone: the arrow of the menu (and the phone's
+  back) goes alarms → print → list of recordings → AI monitor, instead of jumping to AI monitor.
+* **Alarm pictures that stay**: the alert history keeps only its last 40 alarms with pictures, so older alarms of a recording
+  lost theirs. Now the recording keeps its own copy (`alert-<id>.jpg`); alarms recorded before show the recorded frame of the
+  alarm instead.
+* **AI error 429** (the AI service refused: too many requests for its plan) is explained in words with the service's message;
+  when the service asks to wait a few seconds (up to 30) the backend waits and asks once more, and it no longer resends at once
+  with one picture (which got a second 429).
+
 ## 1.26.0
 
 **Recordings you can judge at a glance** (roadmap phase 6a, second part).
