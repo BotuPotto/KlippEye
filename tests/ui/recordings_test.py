@@ -1,5 +1,6 @@
 """Release 1.12.0: the page "Registrazioni" of the settings menu (app/59e-recordings.js): recording on/off and its space,
-the alarms to mark as false or real, a recorded print (pictures, "it went fine" / "it failed from here", delete), the
+the alarms to mark as false or real (1.26: judged inside each recording, "Stampa OK"/"Stampa KO", the others folded at the
+bottom; the prints the measurement uses), a recorded print (pictures, "it went fine" / "it failed from here", delete), the
 measurement of the monitor, the monitor's load. Against the mock backend (mock_server.py, same answers as backend/recorder.py).
 Usage: recordings_test.py <html> <outdir> <port>"""
 import json
@@ -49,7 +50,7 @@ FRAMES = [{"n": n, "t": T0 + n * 3, "score": 0.4 if n != 30 else 6.2, "trig": n 
 SESSIONS = [
     {"id": "20261028-101500-benchy", "file": "benchy.gcode", "started": T0, "ended": T0 + 183, "end_state": "complete", "frames": 60, "bytes": 1900000,
      "release": "1.12.0", "config": {}, "label": {"outcome": None, "failed_at": None}, "truncated": False,
-     "live_triggers": [{"t": T0 + 90, "frame": 30}], "alerts": [{"id": "20261028-101631", "t": T0 + 90, "frame": 30, "action": "PAUSE", "summary": "Filo staccato?", "label": None}],
+     "live_triggers": [{"t": T0 + 90, "frame": 30}], "alerts": [{"id": "20261028-101631", "time": "2026-10-28 10:16:31", "t": T0 + 90, "frame": 30, "action": "PAUSE", "summary": "Filo staccato?", "label": None}],
      "cpu": {"check_ms": 11.5, "cpu_percent": 7.2}},
     {"id": "20261027-200000-cube", "file": "cube.gcode", "started": T0 - 90000, "ended": T0 - 86000, "end_state": "cancelled", "frames": 0, "bytes": 5 * 1024 ** 2,
      "release": "1.12.0", "config": {}, "label": {"outcome": "ok", "failed_at": None}, "truncated": False, "live_triggers": [], "alerts": [], "cpu": {}},
@@ -110,7 +111,7 @@ with sync_playwright() as p:
     P.settle(900)
     ok("off: the page says recording is off and offers the switch and the space", wait_until(lambda: "La registrazione è spenta." in body(P)) and "Registra le stampe" in body(P) and "Spazio per le registrazioni" in body(P), body(P))
     ok("... and the usage line (used of limit, free disk)", "Usati 0 MB su 2,0 GB" in body(P) and "12,0 GB liberi sul disco" in body(P), body(P))
-    ok("... nothing recorded yet: it says how to start", "Accendi «Registra le stampe»" in body(P), body(P))
+    ok("... nothing recorded yet: it says how to start", "Accendi «Registra le stampe» qui sotto" in body(P), body(P))
     ok("... 'Misura adesso' is off without recordings", P.pg.locator('[data-measure="start"]').is_disabled())
     P.pg.locator('.set-switch', has_text="Registra le stampe").click()
     ok("the switch turns recording on in the backend (record: true)", wait_until(lambda: any(e.get("record") is True for e in state()["brain_cfg_log"]), 4), state()["brain_cfg_log"][-3:])
@@ -144,23 +145,35 @@ with sync_playwright() as p:
     rows = P.pg.locator(".rec-row")
     ok("the recorded prints, newest first, with their label", rows.count() == 2 and "benchy.gcode" in rows.nth(0).inner_text() and "Non segnata" in rows.nth(0).inner_text() and "Andata bene" in rows.nth(1).inner_text(), [rows.nth(i).inner_text() for i in range(rows.count())])
     ok("... with alarms and space", "1 allarme" in rows.nth(0).inner_text() and "2 MB" in rows.nth(0).inner_text(), rows.nth(0).inner_text())
-    alerts = P.pg.locator(".rec-alert")
-    ok("the alarms with the AI's verdict and the two buttons; one already marked", alerts.count() == 2 and "Filo staccato" in alerts.nth(0).inner_text() and "Pausa" in alerts.nth(0).inner_text().title() or alerts.count() == 2, [alerts.nth(i).inner_text() for i in range(alerts.count())])
-    ok("... '1 su 2 segnati'", "1 su 2 segnati" in body(P), body(P))
-    ok("... the marked one shows its choice", alerts.nth(1).locator('button[aria-pressed="true"]').inner_text() == "Falso allarme")
-    alerts.nth(0).locator("button", has_text="Problema vero").click()
-    ok("'Problema vero' is sent to the backend for that alarm", wait_until(lambda: ["alert", "20261028-101631", {"label": "right"}] in state()["rec_posts"]), state()["rec_posts"])
-    ok("... and shows as chosen", wait_until(lambda: alerts.nth(0).locator('button[aria-pressed="true"]').inner_text() == "Problema vero"))
-    alerts.nth(1).locator("button", has_text="Falso allarme").click()
+    ok("the recordings come before the measurement and the settings (1.26)", body(P).lower().index("stampe registrate") < body(P).lower().index("misura il monitor") < body(P).lower().index("spazio per le registrazioni"), body(P)[:800])
+    loose = P.pg.locator("[data-loose-alerts]")
+    ok("the alarms outside the recordings are folded at the bottom, with how many are judged", wait_until(lambda: loose.count() == 1) and loose.get_attribute("open") is None and "1 di 1 giudicati" in loose.inner_text().lower(), loose.inner_text() if loose.count() else "")
+    ok("... the alarm of a recorded print is not among them", P.pg.locator('[data-loose-alerts] [data-alert="20261028-101631"]').count() == 0)
+    loose.locator("summary").click()
+    P.settle(300)
+    alerts = loose.locator(".rec-alert")
+    ok("... opened: the alarm, its picture and 'Stampa OK' chosen", alerts.count() == 1 and alerts.nth(0).locator('button[aria-pressed="true"]').get_attribute("data-label") == "false" and "Stampa OK" in alerts.nth(0).inner_text() and "falso allarme" in alerts.nth(0).inner_text(), alerts.nth(0).inner_text() if alerts.count() else "")
+    alerts.nth(0).locator('button[data-label="false"]').click()
     ok("pressing the chosen one again clears it (label null)", wait_until(lambda: ["alert", "20261028-090000", {"label": None}] in state()["rec_posts"]), state()["rec_posts"])
     P.pg.screenshot(path=os.path.join(out, "02_list.png"), full_page=True)
 
-    # measure
+    # measure: choose the prints
+    choose = P.pg.locator("[data-measure-choose]")
+    ok("'Stampe da usare' lists the finished prints, all ticked", choose.count() == 1 and "Stampe da usare: 2 di 2" in choose.inner_text() and P.pg.locator("[data-measure-use]:checked").count() == 2, choose.inner_text() if choose.count() else "")
+    choose.locator("summary").click()
+    P.pg.locator('[data-measure-use="20261027-200000-cube"]').click()
+    ok("... unticking one says 1 of 2", "Stampe da usare: 1 di 2" in choose.inner_text(), choose.inner_text())
     P.pg.locator('[data-measure="start"]').click()
-    ok("'Misura adesso' starts the measurement", wait_until(lambda: state()["measure_starts"] == 1) and wait_until(lambda: "Sto misurando" in body(P), 2), body(P)[-300:])
+    ok("'Misura adesso' starts the measurement with the chosen print only", wait_until(lambda: state()["measure_starts"] == 1) and state()["measure_bodies"] == [{"ids": ["20261028-101500-benchy"]}] and wait_until(lambda: "Sto misurando" in body(P), 2), state()["measure_bodies"])
     ok("... and shows the result: alarms per hour, false alarms, failures caught, time of a check", wait_until(lambda: "Stampe misurate" in body(P), 8) and "3 • 2,6 all'ora" in body(P)
        and "0 • 0 all'ora" in body(P) and "1 su 1" in body(P) and "dopo 10 s" in body(P) and "9,4 ms" in body(P), body(P)[-900:])
     ok("... one line per print, the unmarked one with '?'", "visto dopo 10 s" in body(P) and "falsi: ?" in body(P), body(P)[-600:])
+    ok("the choice is remembered on this device", P.pg.evaluate("() => localStorage.getItem('ke_measure_skip')") == '["20261027-200000-cube"]')
+    P.pg.locator('[data-measure-use="20261027-200000-cube"]').click()
+    P.settle(1600)
+    P.pg.locator('[data-measure="start"]').click()
+    ok("with every print ticked the measurement is asked for all of them ({})", wait_until(lambda: state()["measure_starts"] == 2) and state()["measure_bodies"][-1] == {}, state()["measure_bodies"])
+    P.settle(1800)
     P.pg.screenshot(path=os.path.join(out, "03_measure.png"), full_page=True)
 
     # one recording
@@ -181,7 +194,23 @@ with sync_playwright() as p:
     ok("... and the page says from when", wait_until(lambda: "Fallita da 1:24 dopo l'inizio." in body(P), 6), body(P))
     P.pg.locator(".rec-outcome button", has_text="È andata bene").click()
     ok("'È andata bene' sends ok", wait_until(lambda: ["label", SESSIONS[0]["id"], {"outcome": "ok"}] in state()["rec_posts"]), state()["rec_posts"][-2:])
-    ok("the AI verdicts of this print are there to mark too", "giudizi dell'ia in questa stampa" in body(P).lower() and P.pg.locator(".rec-alert").count() == 1)
+    alert = P.pg.locator('.rec-alert[data-alert="20261028-101631"]')
+    ok("the alarms of this print, before the pictures, with the picture the AI saw", "allarmi di questa stampa (0 di 1 giudicati)" in body(P).lower() and alert.count() == 1
+       and P.pg.evaluate("() => !!(document.querySelector('.rec-alert').compareDocumentPosition(document.querySelector('.rec-viewer')) & Node.DOCUMENT_POSITION_FOLLOWING)") and alert.locator("[data-zoom]").get_attribute("data-zoom") == "/api/print/alerts/image/20261028-101631-now.jpg", body(P)[:900])
+    alert.locator("[data-zoom]").click()
+    ok("... the picture opens enlarged", wait_until(lambda: P.pg.locator(".photo-viewer").count() == 1, 2))
+    P.pg.keyboard.press("Escape")
+    ok("... and closes", wait_until(lambda: P.pg.locator(".photo-viewer").count() == 0, 2))
+    alert.locator('button[data-label="right"]').click()
+    ok("'Stampa KO' is sent to the backend for that alarm", wait_until(lambda: ["alert", "20261028-101631", {"label": "right"}] in state()["rec_posts"]), state()["rec_posts"])
+    ok("... and the count says 1 of 1", wait_until(lambda: "(1 di 1 giudicati)" in body(P).lower(), 6), body(P)[:600])
+    alert.locator("[data-show-alert]").click()
+    P.settle(400)
+    ok("'Vedilo tra le foto' shows the picture of the alarm", img.get_attribute("src").endswith("/frames/30.jpg"), img.get_attribute("src"))
+    img.click()
+    ok("a picture of the print opens enlarged too", wait_until(lambda: P.pg.locator(".photo-viewer").count() == 1, 2))
+    P.pg.keyboard.press("Escape")
+    P.settle(300)
     P.pg.screenshot(path=os.path.join(out, "04_detail.png"), full_page=True)
     ok("no horizontal scrolling in the recording", overflow(P) <= 0, overflow(P))
     P.pg.locator("button", has_text="Cancella questa registrazione").click()
@@ -198,6 +227,9 @@ with sync_playwright() as p:
     P.pg.locator(".rec-row").nth(0).click()
     P.settle(900)
     ok("360 px: no horizontal scrolling on a recording", overflow(P) <= 0, overflow(P))
+    P.pg.evaluate("() => window.klippeyeBack()")
+    P.settle(600)
+    ok("the back of the phone goes from a recording to the list", P.pg.locator(".rec-row").count() == 2 and "stampe registrate" in body(P).lower(), body(P)[:300])
     P.pg.screenshot(path=os.path.join(out, "05_360.png"), full_page=True)
     P.ctx.close()
 

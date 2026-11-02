@@ -86,6 +86,7 @@ def default_state():
         "alerts": [],               # the alert history (/api/print/alerts/history), newest first
         "measure": {"state": "idle"},
         "measure_starts": 0,
+        "measure_bodies": [],       # the bodies of POST /api/recordings/measure
         "detector_extra": {},       # more stats of /api/print/detector/status (check_ms, cpu_percent)
         "brain_cfg_saved": False, "brain_cfg_log": [], "brain_cfg_fail": 0,  # brain_cfg_fail: HTTP status the next POSTs answer with (0: they work)
         "brain_running": True, "brain_has_cv2": True,
@@ -241,7 +242,7 @@ def mock_reset():
     S.clear(); S.update(default_state()); return jsonify(ok=True)
 @app.route("/__mock/state")
 def mock_state():
-    return jsonify({k: v for k, v in S.items() if k in ("light", "light_cmds", "light_reads", "actions", "webhooks", "webhooks_msg", "disconnected", "moonraker_down", "host_off", "services", "update_log", "brain_cfg_log", "brain_release", "brain_started", "klippeye_info", "pending_release", "logos", "app_apk_hits", "app_apk_downloads", "update_channel", "channel_posts", "rec_posts", "measure_starts", "recordings", "alerts", "pm_macros", "pm_wraps", "pm_posts", "gcode_log", "ntfy", "ntfy_posts", "ntfy_tests", "ntfy_app_reads", "ai_answers", "ai_answer")})
+    return jsonify({k: v for k, v in S.items() if k in ("light", "light_cmds", "light_reads", "actions", "webhooks", "webhooks_msg", "disconnected", "moonraker_down", "host_off", "services", "update_log", "brain_cfg_log", "brain_release", "brain_started", "klippeye_info", "pending_release", "logos", "app_apk_hits", "app_apk_downloads", "update_channel", "channel_posts", "rec_posts", "measure_starts", "measure_bodies", "recordings", "alerts", "pm_macros", "pm_wraps", "pm_posts", "gcode_log", "ntfy", "ntfy_posts", "ntfy_tests", "ntfy_app_reads", "ai_answers", "ai_answer")})
 @app.route("/__mock/print_actions")
 def mock_print_actions():
     return jsonify(S.get("print_actions", []))
@@ -894,6 +895,10 @@ def mock_recordings():
 def mock_measure():
     if request.method == "POST":
         S["measure_starts"] += 1
+        body = request.get_json(silent=True) or {}
+        S["measure_bodies"].append(body)
+        if "ids" in body and not (isinstance(body["ids"], list) and body["ids"] and all(rec_find(i) for i in body["ids"])):
+            return jsonify(ok=False, error="choose at least one recording"), 400
         S["measure"] = {"state": "running", "started": int(time.time())}
         result = S.get("measure_result")
         def finish():
@@ -912,7 +917,9 @@ def mock_recording(sid):
         S["recordings"] = [x for x in S["recordings"] if x["id"] != sid]
         S["rec_posts"].append(["delete", sid, None])
         return jsonify(ok=True)
-    return jsonify(ok=True, session=r, frames=S["rec_frames"].get(sid, []))
+    history = {a["id"]: a for a in S["alerts"]}  # as the backend: image and label from the alert history
+    alerts = [dict(a, image=history.get(a.get("id"), {}).get("image") or a.get("image"), label=history.get(a.get("id"), {}).get("label", a.get("label"))) for a in r.get("alerts") or []]
+    return jsonify(ok=True, session=dict(r, alerts=alerts), frames=S["rec_frames"].get(sid, []))
 
 
 @app.route("/api/recordings/<sid>/frames/<int:n>.jpg")

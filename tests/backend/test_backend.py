@@ -1162,6 +1162,14 @@ check("alert label: 400 for a bad label, 404 for an unknown alarm", cr.post("/ap
       and cr.post("/api/print/alerts/20990101-000000/label", json={"label": "false"}).status_code == 404)
 r = cr.post("/api/print/alerts/%s/label" % aid, json={"label": None})
 check("alert label null: the label goes away", r.status_code == 200 and "label" not in mr.read_alert_history(5)[0])
+# 1.26: the recording shows its alarms with the picture and the label of the alert history (judged inside the recording)
+_hist_entry = mr.read_alert_history(5)[0]
+cr.post("/api/print/alerts/%s/label" % aid, json={"label": "right"})
+_alerts = cr.get("/api/recordings/" + sid).get_json()["session"]["alerts"]
+_mine = [x for x in _alerts if x.get("id") == aid]
+check("1.26 /api/recordings/<id>: its alarms carry the label (and the picture, when saved) of the alert history", len(_mine) == 1 and _mine[0]["label"] == "right"
+      and _mine[0].get("image") == _hist_entry.get("image") and _mine[0].get("frame") == 3, _mine)
+cr.post("/api/print/alerts/%s/label" % aid, json={"label": None})
 
 # --- the replay (scripts/replay.py) on that recording
 REPLAY = os.path.join(ROOT, "scripts", "replay.py")
@@ -1199,6 +1207,20 @@ check("replay: an empty and a broken picture are skipped and counted (no OpenCV 
 check("replay without recordings: says how to start, exit 0", rp4.returncode == 0 and "No recordings" in rp4.stdout, rp4.stdout + rp4.stderr)
 
 # --- measuring from the dashboard
+check("1.26 measure: ids that are not recordings, or none, are refused (400)", cr.post("/api/recordings/measure", json={"ids": []}).status_code == 400
+      and cr.post("/api/recordings/measure", json={"ids": ["20990101-000000"]}).status_code == 400 and cr.post("/api/recordings/measure", json={"ids": "x"}).status_code == 400)
+_popen_seen = []
+_real_popen = mr.subprocess.Popen
+class _FakeMeasure:
+    def __init__(self, command, **kw):
+        _popen_seen.append(command)
+    def poll(self):
+        return 0
+mr.subprocess.Popen = _FakeMeasure
+r = cr.post("/api/recordings/measure", json={"ids": [sid]})
+mr.subprocess.Popen = _real_popen
+mr._measure["process"] = None
+check("1.26 measure: the chosen recordings go to replay.py as --session", r.status_code == 200 and _popen_seen and _popen_seen[-1][-2:] == ["--session", sid], _popen_seen)
 r = cr.post("/api/recordings/measure")
 check("POST /api/recordings/measure starts the replay", r.status_code == 200 and r.get_json()["state"] == "running", r.get_json())
 wait_for(lambda: cr.get("/api/recordings/measure").get_json()["state"] != "running", 90)

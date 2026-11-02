@@ -276,9 +276,13 @@ Invece di indovinare se una soglia diversa aiuta, misuralo:
 1. **Impostazioni → Monitor IA → Registrazioni → Registra le stampe**. Durante ogni stampa il backend conserva le foto guardate dal monitor
    (piccole, circa 150 MB per una stampa di quattro ore) con strato, posizione e punteggio, in `~/printer_data/klippeye/recordings/`.
    Quando lo spazio scelto è pieno si cancellano le stampe più vecchie, e con meno di 1 GB libero sul disco non si registra niente.
-2. Dopo ogni stampa, nella stessa pagina: segna ogni **allarme** come *Falso allarme* o *Problema vero*, e apri la stampa per
-   dire **È andata bene** oppure, se è fallita, vai alla prima foto in cui si vede il problema e premi **È fallita da qui**.
-3. **Misura adesso** rifà girare il monitor su ogni stampa registrata, con le soglie in uso adesso, e mostra gli allarmi
+2. Dopo ogni stampa, aprila nella stessa pagina. In alto ci sono i suoi **allarmi**, ognuno con la foto vista dall'IA (toccala
+   per ingrandirla): **Stampa OK** se la stampa andava bene (falso allarme: l'IA si è sbagliata), **Stampa KO** se c'era davvero
+   un problema (l'IA aveva ragione). *Vedilo tra le foto* porta a quel momento. Poi dì **È andata bene** oppure, se è fallita,
+   vai alla prima foto in cui si vede il problema e premi **È fallita da qui**. Gli allarmi delle stampe non registrate sono
+   raccolti in fondo alla pagina (*Allarmi fuori dalle registrazioni*).
+3. **Misura adesso** rifà girare il monitor sulle stampe registrate spuntate in *Stampe da usare* (tutte, se non ne togli
+   qualcuna: una stampa con un'altra camera o una prova si può escludere), con le soglie in uso adesso, e mostra gli allarmi
    all'ora, quanti erano falsi e se ogni guasto è stato visto (e dopo quanto). Da terminale, per confrontare altre soglie:
    `klippeye replay --set sensitivity=45 --set persist_checks=4` (opzioni: `scripts/replay.py`).
    Con una calibrazione della camera il replay esclude testina e gantry come il monitor dal vivo (sulle stampe registrate

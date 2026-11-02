@@ -1,5 +1,19 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.26.0
+
+**Recordings you can judge at a glance** (roadmap phase 6a, second part).
+
+* **The alarms are judged inside their print**: open a recorded print and its alarms are at the top, each with the picture the
+  AI saw (tap to enlarge). The answers say what they mean: **Print OK** (a false alarm, the AI was wrong) and **Print KO** (a
+  real problem, the AI was right). *See it among the pictures* jumps to the moment of the alarm in the print's pictures, which
+  can be enlarged too. The phone's back goes from a print to the list.
+* **The page in a clearer order**: the recorded prints first, then the measurement, then the settings. The alarms of prints that
+  were not recorded are folded at the bottom.
+* **Choose what to measure**: under *Prints to use* tick the recordings *Measure now* uses (a print with another camera or a
+  test can be left out); the choice is remembered on the device. The backend accepts `{"ids": [...]}` and passes them to
+  `replay.py --session`.
+
 ## 1.25.0
 
 **The alarms of the AI monitor belong to one print, and you answer them** (roadmap phase 6a, first part).

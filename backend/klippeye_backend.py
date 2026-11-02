@@ -3072,6 +3072,14 @@ def api_recording(sid):
     if session is None:
         return jsonify({"ok": False, "error": "no such recording"}), 404
     frames = [{k: f.get(k) for k in ("n", "t", "score", "trig", "cool", "layer", "layers", "progress")} for f in recorder.frames(sid)]
+    # 1.26: the alarms of this print with their pictures and labels as the alert history has them (the recording keeps a
+    # copy made before the pictures were saved), so they can be judged right here
+    history = {entry.get("id"): entry for entry in read_alert_history(ALERT_HISTORY_KEEP)}
+    alerts = []
+    for alert in session.get("alerts") or []:
+        known = history.get(alert.get("id")) or {}
+        alerts.append(dict(alert, image=known.get("image") or alert.get("image"), label=known.get("label", alert.get("label"))))
+    session = dict(session, alerts=alerts)
     return _no_store(jsonify({"ok": True, "session": session, "frames": frames}))
 
 
@@ -3125,8 +3133,13 @@ def api_measure_get():
 
 @app.route("/api/recordings/measure", methods=["POST"])
 def api_measure_start():
-    """Runs the monitor again on every recording with the thresholds in use, at low priority (it takes a minute or two).
-    The answer comes with GET."""
+    """Runs the monitor again on the recordings with the thresholds in use, at low priority (it takes a minute or two).
+    {"ids": [...]} (1.26): only those recordings; none given: all of them. The answer comes with GET."""
+    body = request.get_json(silent=True)
+    ids = body.get("ids") if isinstance(body, dict) else None
+    if ids is not None:
+        if not isinstance(ids, list) or not ids or len(ids) > 500 or any(not isinstance(i, str) or recorder.load(i) is None for i in ids):
+            return jsonify({"ok": False, "error": bt("choose at least one recording", _lang())}), 400
     with _measure_lock:
         if _measure_state()["state"] == "running":
             return jsonify({"ok": True, "state": "running"})
@@ -3139,6 +3152,8 @@ def api_measure_start():
             except OSError:
                 pass
             command = [sys.executable, REPLAY_SCRIPT, "--data", DATA_DIR, "--current", "--json", MEASURE_PATH]
+            for sid in ids or []:
+                command += ["--session", sid]
             if shutil.which("nice"):
                 command = ["nice", "-n", "15"] + command
             _measure["process"] = subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)

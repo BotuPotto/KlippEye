@@ -3,10 +3,12 @@
    The page "Registrazioni" of the settings menu: the backend keeps the pictures the AI monitor looked at during each
    print (backend/recorder.py), so that the monitor can be measured instead of guessed (roadmap, phase 3):
      · recording on/off and the space it may take (two settings of /api/backend/config, group "recording");
-     · the alarms of the monitor with the AI's verdict, each marked by the person as "false alarm" or "real problem";
-     · the recorded prints: look through the pictures, say "it went fine" or "it failed from here", delete;
-     · "Measure the monitor": the backend runs the monitor again on every recording (scripts/replay.py) and the page
-       shows how many alarms, how many false, whether the failures were caught.
+     · the recorded prints first (1.25): open one to judge its alarms right there (with their pictures, to enlarge),
+       look through its pictures, say "it went fine" or "it failed from here", delete;
+     · "Measure the monitor": the backend runs the monitor again on the recordings chosen (scripts/replay.py) and the
+       page shows how many alarms, how many false, whether the failures were caught;
+     · the alarms that are in no recording, folded at the bottom.
+   An alarm is judged with "Print OK" (false alarm: the AI was wrong) or "Print KO" (real problem: the AI was right).
    ========================================================================== */
 
 const RECORDINGS_POLL_MS = 10000;
@@ -112,15 +114,16 @@ function printLabel(session) {
 /* ---------------------------------------------------------------------------
    The alarms with the AI's verdict, to be marked
    ------------------------------------------------------------------------- */
+// 1.26: the two answers say what they mean for the AI (they confirm or deny it), not only for the print
 const ALERT_LABEL_OPTIONS = [
-  { id: "false", label: tx("False alarm") },
-  { id: "right", label: tx("Real problem") },
+  { id: "false", label: tx("Print OK"), detail: tx("false alarm: the AI was wrong") },
+  { id: "right", label: tx("Print KO"), detail: tx("real problem: the AI was right") },
 ];
 
 function AlertLabelButtons({ value, onChange, busy }) {
   return h(
     "div",
-    { className: "rec-labels", role: "group", "aria-label": tx("Was it a real problem?") },
+    { className: "rec-labels", role: "group", "aria-label": tx("Did the AI get it right?") },
     ALERT_LABEL_OPTIONS.map((option) =>
       h(
         "button",
@@ -128,14 +131,23 @@ function AlertLabelButtons({ value, onChange, busy }) {
           key: option.id,
           type: "button",
           disabled: busy,
-          className: cx("oui-chip", value === option.id && "is-selected", option.id === "right" && "rec-labels__right"),
+          className: cx("oui-chip rec-labels__chip", value === option.id && "is-selected", option.id === "right" && "rec-labels__right"),
           "aria-pressed": value === option.id,
+          "data-label": option.id,
           onClick: () => onChange(value === option.id ? null : option.id),
         },
-        option.label,
+        h("span", { className: "rec-labels__main" }, option.label),
+        h("span", { className: "rec-labels__detail" }, option.detail),
       ),
     ),
   );
+}
+
+/** When an alarm happened (its id is the local time "YYYYMMDD-HHMMSS"), as seconds since 1970. */
+function alertSeconds(alert) {
+  const match = /^(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})(\d{2})$/.exec(String(alert.id || ""));
+  if (!match) return null;
+  return new Date(+match[1], +match[2] - 1, +match[3], +match[4], +match[5], +match[6]).getTime() / 1000;
 }
 
 /** What an alarm says, in the page's language (the backend writes its outcomes in English). */
@@ -146,7 +158,7 @@ function alertSummary(alert) {
   return alert.summary || alert.observation || outcome;
 }
 
-function AlertRow({ alert, onLabelled }) {
+function AlertRow({ alert, onLabelled, onShow }) {
   const [label, setLabel] = useState(alert.label || null);
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState("");
@@ -170,7 +182,7 @@ function AlertRow({ alert, onLabelled }) {
     h(
       "div",
       { className: "rec-alert__head" },
-      alert.image && h("img", { className: "rec-alert__img", src: "/api/print/alerts/image/" + alert.image, alt: tx("Picture of the alarm"), loading: "lazy" }),
+      alert.image && h(ZoomablePhoto, { className: "rec-alert__img", src: "/api/print/alerts/image/" + alert.image, title: tx("Picture of the alarm") + (alert.time ? " • " + alert.time : ""), alt: tx("Picture of the alarm") }),
       h(
         "div",
         { className: "rec-alert__text" },
@@ -187,20 +199,24 @@ function AlertRow({ alert, onLabelled }) {
       ),
     ),
     h(AlertLabelButtons, { value: label, onChange: change, busy }),
+    onShow && h("button", { type: "button", className: "oui-btn oui-btn--quiet oui-btn--sm set-inline-btn", "data-show-alert": alert.id, onClick: onShow }, h(Icons.Image, { size: 16 }), tx("See it among the pictures")),
     problem && h("p", { className: "set-field__error", role: "alert" }, problem),
   );
 }
 
-function AlertsGroup({ active }) {
+/** The alarms that belong to no recording (recording off, or a recording deleted): folded at the bottom of the page. */
+function AlertsGroup({ active, recorded, open }) {
   const alerts = useBackendJson("/api/print/alerts/history?limit=" + ALERTS_SHOWN, active, RECORDINGS_POLL_MS * 3);
-  const list = alerts.phase === "ok" && Array.isArray(alerts.data.alerts) ? alerts.data.alerts : [];
+  const all = alerts.phase === "ok" && Array.isArray(alerts.data.alerts) ? alerts.data.alerts : [];
+  const list = all.filter((alert) => !alert.session || !recorded.has(alert.session));
   const marked = list.filter((alert) => alert.label === "false" || alert.label === "right").length;
+  if (alerts.phase === "ok" && list.length === 0) return null;
   return h(
-    SettingsGroup,
-    { title: tx("Alarms of the monitor"), note: tx("For each alarm say whether there really was a problem: this is how the false alarms are counted.") },
-    list.length === 0
-      ? h("p", { className: "set-group__note" }, alerts.phase === "ok" ? tx("No alarm so far.") : tx("Reading the alarms…"))
-      : h(React.Fragment, null, h("p", { className: "set-group__note" }, tx("{marked} of {count} marked", { marked, count: list.length })), list.map((alert) => h(AlertRow, { key: alert.id, alert }))),
+    "details",
+    { className: "set-group rec-loose", open: open || undefined, "data-loose-alerts": list.length },
+    h("summary", { className: "set-group__label" }, tx("Alarms outside the recordings ({marked} of {count} judged)", { marked, count: list.length })),
+    h("p", { className: "set-group__note" }, tx("The alarms of prints that were not recorded. For each say whether the AI was right: this is how the false alarms are counted.")),
+    list.length === 0 ? h("p", { className: "set-group__note" }, tx("Reading the alarms…")) : list.map((alert) => h(AlertRow, { key: alert.id, alert })),
   );
 }
 
@@ -213,6 +229,11 @@ function RecordingDetail({ id, onClose }) {
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState("");
   const [askDelete, setAskDelete] = useState(false);
+  // the arrow of the menu and the phone's back: back to the list of the recordings first
+  useBackHandler(() => {
+    onClose(false);
+    return true;
+  });
   if (detail.phase === "gone") return h("div", { className: "set-status set-status--warn" }, h("span", { className: "set-status__dot" }), tx("This recording is no longer there."));
   if (detail.phase !== "ok") return h("div", { className: "set-status" }, h("span", { className: "set-status__dot" }), tx("Reading the recording…"));
   const session = detail.data.session;
@@ -241,6 +262,25 @@ function RecordingDetail({ id, onClose }) {
     if (next !== undefined) setIndex(next);
   };
   const failedFrame = failedAt !== null ? frames.findIndex((f) => f.t >= failedAt) : -1;
+  const alerts = Array.isArray(session.alerts) ? session.alerts : [];
+  const judged = alerts.filter((alert) => alert.label === "false" || alert.label === "right").length;
+  const showAlert = (alert) => {
+    // the picture of the alarm (the recording notes it), else the one nearest to its time
+    const exact = frames.findIndex((f) => f.n === alert.frame);
+    const when = Number.isFinite(alert.t) ? alert.t : alertSeconds(alert);
+    if (exact >= 0) return reveal(exact);
+    if (when === null || !frames.length) return;
+    let best = 0;
+    frames.forEach((f, i) => {
+      if (Math.abs(f.t - when) < Math.abs(frames[best].t - when)) best = i;
+    });
+    reveal(best);
+  };
+  const reveal = (picture) => {
+    setIndex(picture);
+    const viewer = document.querySelector(".rec-viewer");
+    if (viewer && viewer.scrollIntoView) viewer.scrollIntoView({ behavior: "smooth", block: "center" });
+  };
   return h(
     React.Fragment,
     null,
@@ -258,6 +298,12 @@ function RecordingDetail({ id, onClose }) {
         session.cpu && session.cpu.cpu_percent !== undefined && h(InfoLine, { label: tx("Backend CPU"), value: tx("{percent}% of one core • {ms} ms per check", { percent: formatNumber(session.cpu.cpu_percent), ms: formatNumber(session.cpu.check_ms) }) }),
       ),
     ),
+    alerts.length > 0 &&
+      h(
+        SettingsGroup,
+        { title: tx("Alarms of this print ({judged} of {count} judged)", { judged, count: alerts.length }), help: ["recordings", "judge"], note: tx("Did the AI get it right? «Print OK» if the print was fine (false alarm), «Print KO» if there was a problem.") },
+        alerts.map((alert) => h(AlertRow, { key: alert.id, alert, onLabelled: detail.reload, onShow: frames.length ? () => showAlert(alert) : null })),
+      ),
     frames.length > 0 &&
       h(
         SettingsGroup,
@@ -265,7 +311,7 @@ function RecordingDetail({ id, onClose }) {
         h(
           "div",
           { className: "rec-viewer" },
-          h("div", { className: "set-roi__frame" }, h("img", { className: "set-roi__img", src: "/api/recordings/" + id + "/frames/" + frame.n + ".jpg", alt: tx("Picture {number}", { number: frame.n }), draggable: false })),
+          h("div", { className: "set-roi__frame" }, h(ZoomablePhoto, { className: "rec-viewer__photo", src: "/api/recordings/" + id + "/frames/" + frame.n + ".jpg", title: (session.file || "") + " • " + formatOffset(frame.t - session.started), alt: tx("Picture {number}", { number: frame.n }) })),
           h(
             "div",
             { className: "rec-viewer__caption" },
@@ -300,12 +346,6 @@ function RecordingDetail({ id, onClose }) {
       failedAt !== null && h("p", { className: "set-group__note" }, tx("Failed from {time} after the start.", { time: formatOffset(failedAt - session.started) })),
       problem && h("p", { className: "set-field__error", role: "alert" }, problem),
     ),
-    (session.alerts || []).length > 0 &&
-      h(
-        SettingsGroup,
-        { title: tx("AI verdicts in this print") },
-        session.alerts.map((alert) => h(AlertRow, { key: alert.id, alert: { ...alert, image: null }, onLabelled: detail.reload })),
-      ),
     h(
       SettingsGroup,
       null,
@@ -372,9 +412,31 @@ function MeasureResult({ result }) {
   );
 }
 
-function MeasureGroup({ count }) {
+const MEASURE_SKIP_KEY = "ke_measure_skip"; // the recordings left out of the measurement, on this device
+
+function readSkipped() {
+  try {
+    const list = JSON.parse(storage.get(MEASURE_SKIP_KEY) || "[]");
+    return new Set(Array.isArray(list) ? list.filter((id) => RECORDING_ID.test(id)) : []);
+  } catch (error) {
+    return new Set();
+  }
+}
+
+function MeasureGroup({ sessions }) {
   const [state, setState] = useState({ phase: "loading" });
   const [starting, setStarting] = useState(false);
+  const [skipped, setSkipped] = useState(readSkipped);
+  const usable = sessions.filter((session) => session.ended);
+  const chosen = usable.filter((session) => !skipped.has(session.id));
+  const count = chosen.length;
+  const toggle = (id) => {
+    const next = new Set(skipped);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setSkipped(next);
+    storage.set(MEASURE_SKIP_KEY, JSON.stringify([...next]));
+  };
   const running = state.phase === "running";
   useEffect(() => {
     let cancelled = false;
@@ -395,13 +457,36 @@ function MeasureGroup({ count }) {
   }, [running]);
   const start = async () => {
     setStarting(true);
-    const reply = await brainPost("/api/recordings/measure", {});
+    const reply = await brainPost("/api/recordings/measure", chosen.length === usable.length ? {} : { ids: chosen.map((session) => session.id) });
     setStarting(false);
     setState(reply.ok ? { phase: "running" } : { phase: "error", result: { error: reply.message } });
   };
   return h(
     SettingsGroup,
-    { title: tx("Measure the monitor"), note: tx("The backend runs the monitor again on every recorded print, with the thresholds in use now, and counts the alarms. It takes a minute or two; printing is not disturbed.") },
+    { title: tx("Measure the monitor"), help: ["recordings", "measure"], note: tx("The backend runs the monitor again on the recorded prints chosen here, with the thresholds in use now, and counts the alarms. It takes a minute or two; printing is not disturbed.") },
+    usable.length > 0 &&
+      h(
+        "details",
+        { className: "rec-choose", "data-measure-choose": "1" },
+        h("summary", null, tx("Prints to use: {count} of {total}", { count, total: usable.length })),
+        h(
+          "div",
+          { className: "rec-choose__list" },
+          usable.map((session) =>
+            h(
+              "label",
+              { key: session.id, className: "rec-choose__row" },
+              h("input", { type: "checkbox", checked: !skipped.has(session.id), "data-measure-use": session.id, onChange: () => toggle(session.id) }),
+              h(
+                "span",
+                { className: "rec-choose__text" },
+                h("span", { className: "rec-choose__name" }, session.file || session.id),
+                h("span", { className: "rec-choose__meta" }, formatWhen(session.started) + " • " + printLabel(session).text),
+              ),
+            ),
+          ),
+        ),
+      ),
     h("button", { type: "button", className: "oui-btn oui-btn--primary oui-btn--block", disabled: running || starting || !count, "data-measure": "start", onClick: start }, h(Icons.Play, { size: 18 }), running ? tx("Measuring…") : tx("Measure now")),
     state.phase === "error" && state.result && state.result.error && h("p", { className: "set-field__error", role: "alert" }, state.result.error),
     state.phase === "done" && state.result && h(MeasureResult, { result: state.result }),
@@ -451,10 +536,20 @@ function RecordingsPage({ active }) {
   const specs = schema ? schema.spec.filter((spec) => spec.group === "recording") : [];
   const stats = detector.phase === "ok" && isPlainObject(detector.data.stats) ? detector.data.stats : {};
   const sessions = Array.isArray(data.sessions) ? data.sessions : [];
+  const recorded = new Set(sessions.map((session) => session.id));
   return h(
     React.Fragment,
     null,
     h("div", { className: cx("set-status", data.status === "recording" ? "set-status--ok" : data.enabled ? "" : "set-status--warn") }, h("span", { className: "set-status__dot" }), recorderStatusText(data.status)),
+    // 1.26: the prints first; their alarms are judged inside each of them
+    h(
+      SettingsGroup,
+      { title: tx("Recorded prints"), help: ["recordings", "judge"], note: sessions.length ? tx("Open a print to judge its alarms and look through its pictures.") : null },
+      sessions.length === 0
+        ? h("p", { className: "set-group__note" }, data.enabled ? tx("No print recorded yet: the next one will be.") : tx("No print recorded. Turn on «Record the prints» below."))
+        : h("div", { className: "oui-list" }, sessions.map((session) => h(RecordingRow, { key: session.id, session, onOpen: () => setOpenId(session.id) }))),
+    ),
+    h(MeasureGroup, { sessions }),
     h(
       SettingsGroup,
       { title: tx("Recording"), note: tx("Used {used} of {limit}; {free} free on the disk.", { used: formatSpace(data.used_bytes), limit: formatSpace(data.max_bytes), free: data.free_bytes === null ? "?" : formatSpace(data.free_bytes) }) },
@@ -473,15 +568,7 @@ function RecordingsPage({ active }) {
           stats.cpu_percent !== undefined && h(InfoLine, { label: tx("Backend CPU (last minute)"), value: tx("{percent}% of one core", { percent: formatNumber(stats.cpu_percent) }) }),
         ),
       ),
-    h(AlertsGroup, { active }),
-    h(
-      SettingsGroup,
-      { title: tx("Recorded prints") },
-      sessions.length === 0
-        ? h("p", { className: "set-group__note" }, data.enabled ? tx("No print recorded yet: the next one will be.") : tx("No print recorded. Turn on «Record the prints» above."))
-        : h("div", { className: "oui-list" }, sessions.map((session) => h(RecordingRow, { key: session.id, session, onOpen: () => setOpenId(session.id) }))),
-    ),
-    h(MeasureGroup, { count: sessions.length }),
+    h(AlertsGroup, { active, recorded, open: sessions.length === 0 }),
   );
 }
 
