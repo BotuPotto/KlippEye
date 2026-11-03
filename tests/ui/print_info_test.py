@@ -122,6 +122,24 @@ with sync_playwright() as p:
     P.pg.screenshot(path=os.path.join(out, "03_desktop.png"))
     ok("no JavaScript error (desktop)", P.errors == [], P.errors)
     P.ctx.close()
+
+    # --- 1.30.1: on a computer the console bar must not cover the AI alarm's answers
+    P = fresh(b, w=1366, h=720, print_objects=OBJECTS, detector_status="scanning", has_analysis=True, analysis_action="PAUSA")
+    pg = P.pg
+    ok("desktop, low screen: the AI alarm question is in the print card", wait_until(lambda: pg.locator("[data-ai-question] [data-ai-answer]").count() == 3, 8))
+    pg.locator(".desk-print [data-print-details] summary").click()
+    P.settle(300)
+    cover = []
+    for k in range(3):
+        btn = pg.locator("[data-ai-question] [data-ai-answer]").nth(k)
+        btn.scroll_into_view_if_needed()
+        P.settle(200)
+        cover.append(pg.evaluate("""(b) => { const r = b.getBoundingClientRect(); const dock = document.querySelector('.desk-dock').getBoundingClientRect();
+            const top = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2); return { hit: b.contains(top), below: r.bottom <= dock.top + 1 }; }""", btn.element_handle()))
+    ok("... each answer can be pressed: not under the console bar (the column scrolls)", all(c["hit"] and c["below"] for c in cover), cover)
+    pg.screenshot(path=os.path.join(out, "04_desktop_alarm.png"))
+    ok("no JavaScript error (desktop, alarm)", P.errors == [], P.errors)
+    P.ctx.close()
     b.close()
 
 print("FAILS:", FAILS if FAILS else "none")

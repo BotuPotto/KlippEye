@@ -65,7 +65,10 @@
 
 /* ---- Dispositivo ---- */
 .desk-device { display: grid; flex: 1; grid-template-columns: minmax(0, 1fr) 440px; gap: 16px; min-height: 0; }
-.desk-device__main { display: flex; flex-direction: column; gap: 16px; min-width: 0; min-height: 0; }
+.desk-device__main { display: flex; flex-direction: column; gap: 16px; min-width: 0; min-height: 0; overflow-y: auto; }
+/* 1.30.1: the camera takes what is left; the AI strip and the print card keep their height, and when they need more (an
+   AI alarm to answer, «More details») the column scrolls instead of running under the console bar */
+.desk-device__main > :not(.desk-camera) { flex: none; }
 /* One column: heaters, movement (or Z-offset), fans, extruder. The two groups only exist for the extra-wide variant. */
 .desk-side { display: flex; flex-direction: column; gap: 16px; min-height: 0; overflow-y: auto; }
 .desk-side__group { display: contents; }
