@@ -1,5 +1,12 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.36.1
+
+* **The 3D height map looks like Mainsail's**: Mainsail's colours (blue low → yellow → red high) as a smooth gradient
+  across the surface instead of one colour a square, the mesh lines faint on it, a box with a grid on the floor and the
+  back walls, and the values on its edges (X and Y in mm, Z minimum and maximum). Seen from the front, above; drag to
+  turn, pinch or wheel to zoom, ↻ to go back. The 2D grid and the scale use the same colours.
+
 ## 1.36.0
 
 **The height map redone, like Mainsail's** (roadmap phase 6b, seventh part).
