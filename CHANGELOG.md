@@ -1,5 +1,19 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.30.0
+
+**More in the print card, and «Exclude an object»** (roadmap phase 6b, first part).
+
+* **Like Mainsail**: under time, remaining and layer a second row with **when it ends** (clock time; "tomorrow" when it
+  ends another day), the **speed** now and the **volumetric flow** now (the extruder's speed and the filament's diameter
+  from `[extruder]`). **More details** (folded) has the remaining time by the file, the filament and the slicer, the
+  slicer's whole estimate, the total time with pauses, the filament used of the total (m and g), the height now of the
+  object's, the speed now / requested and the speed and flow factors (M220 / M221).
+* **Exclude an object**: with Klipper's `[exclude_object]` and a slicer that labels the objects, the card (phone and
+  desktop) offers **Exclude an object (N of M printing)**: a map of the bed with the objects (the one printing now in
+  blue, the excluded ones grey) and their list; one is chosen on the map or in the list, then confirmed:
+  `EXCLUDE_OBJECT NAME=…`. The phone's back first forgets the choice, then closes.
+
 ## 1.29.1
 
 **Camera calibration: homing with the markers on the bed** (after the markers are printed many printers switch the motors

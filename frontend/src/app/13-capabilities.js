@@ -30,6 +30,7 @@ const UNKNOWN_CAPABILITIES = {
   zOffsetApply: "Z_OFFSET_APPLY_PROBE",
   axisLimits: DEFAULT_AXIS_LIMITS,
   maxTemp: DEFAULT_MAX_TEMP,
+  filamentDiameter: 1.75,
   macros: [],
   commands: {},
   lights: [],
@@ -123,6 +124,8 @@ function deriveCapabilities(configfile, commands) {
     zOffsetApply: registered(applyCommand) ? applyCommand : null,
     axisLimits: axisLimitsFrom(settings),
     maxTemp: maxTempFrom(settings),
+    // 1.30: the filament's diameter, for the volumetric flow of the print card ([extruder] filament_diameter)
+    filamentDiameter: Number((settings.extruder || {}).filament_diameter) > 0 ? Number(settings.extruder.filament_diameter) : 1.75,
   };
 }
 
