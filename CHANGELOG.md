@@ -1,5 +1,16 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.40.0
+
+**Print files: search, order and details** (roadmap phase 6c, second part).
+
+* **Search** the print files by name (and folder); the count says how many match.
+* **Order** (kept on this device): newest / oldest first, name A→Z / Z→A, shortest / longest print, most filament,
+  largest, last printed. Sorting by print time, filament or last print reads every file's metadata (a few at a time).
+* **Details** in the long-press menu (and on the computer's file panel), like Mainsail: folder, size, last change, last
+  printed, slicer and version, estimated time, layer / first layer / object height, layers, filament type and name, length,
+  weight, nozzle, first layer nozzle / bed temperature, chamber; *Start print* from there.
+
 ## 1.39.0
 
 **Configuration files: order, backups and hidden files** (roadmap phase 6c, first part).

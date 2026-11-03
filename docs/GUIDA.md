@@ -232,6 +232,15 @@ macchina** (velocità, accelerazione, velocità negli angoli, minimum cruise rat
 `[firmware_retraction]`). Usa − / + o scrivi un valore; sotto ognuno c'è il valore di `printer.cfg`, e la freccia tonda
 torna a quello. Niente viene scritto in `printer.cfg`: un riavvio di Klipper riporta i suoi valori.
 
+### File di stampa
+
+La card **File di stampa** (pagina File) ha la **ricerca** per nome (anche per cartella) e l'**ordine** a scelta: più
+recenti o più vecchi prima, nome A→Z / Z→A, stampa più breve o più lunga, più filamento, più grandi, stampati di recente
+(resta su questo dispositivo). Tenendo premuto un file si apre il suo menu: **Dettagli** mostra quello che mostra Mainsail —
+cartella, dimensione, ultima modifica, ultima stampa, slicer, tempo stimato, altezza layer e primo layer, altezza
+dell'oggetto, layer, filamento (tipo, lunghezza, peso), ugello, temperature del primo layer — con *Avvia stampa*; poi
+l'editor ed *Elimina*. Sul computer anche il riquadro accanto all'elenco ha il pulsante *Dettagli*.
+
 ### File di configurazione
 
 La card **File di configurazione** (pagina Config) mostra prima le cartelle, poi i file. Il pulsante ⇅ accanto alla ricerca

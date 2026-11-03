@@ -226,6 +226,15 @@ square corner velocity, minimum cruise ratio) and the **firmware retraction** (w
 − / + or type a value; under each one is the value of `printer.cfg`, and the round arrow goes back to it. Nothing is
 written to `printer.cfg`: a restart of Klipper brings its values back.
 
+### Print files
+
+The **Print files** card (Files page) has a **search** by name (also by folder) and an **order** to choose: newest or
+oldest first, name A→Z / Z→A, shortest or longest print, most filament, largest, last printed (kept on this device).
+A long press on a file opens its menu: **Details** shows what Mainsail shows — folder, size, last change, last printed,
+slicer, estimated time, layer and first layer height, object height, layers, filament (type, length, weight), nozzle,
+first layer temperatures — with *Start print*; then the editor and *Delete*. On a computer the panel next to the list has
+a *Details* button too.
+
 ### Configuration files
 
 The **Configuration files** card (Config page) lists folders first, then files. The ⇅ button next to the search box chooses
