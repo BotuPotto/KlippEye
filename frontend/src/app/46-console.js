@@ -152,7 +152,7 @@ function useConsoleFeed(onStore) {
   const echo = (lines) => {
     echoPending.current = true;
     const t = localTimeString();
-    setEntries((previous) => previous.concat(lines.map((line) => ({ t, msg: line.msg, color: line.color }))));
+    setEntries((previous) => previous.concat(lines.map((line) => ({ t, msg: line.msg, color: line.color, seq: ++consoleEchoSeq }))));
   };
 
   return { entries, echo };
@@ -162,6 +162,83 @@ function useConsoleFeed(onStore) {
 function sendFromConsole(script, echo) {
   echo([...script.split("\n").map((line) => ({ msg: `> ${line}`, color: "log--input" })), { msg: "ok", color: "log--dim" }]);
   fireGcode(script);
+}
+
+/* ---------------------------------------------------------------------------
+   How the console is shown (1.34, like Mainsail's): kept on this device
+     autoscroll   follow the newest line (off: the log stays where it is);
+     newestOnTop  the newest line first;
+     showTemps    the temperature reports too (hidden by default: noise);
+   and "clear", which empties the view (Klipper keeps its lines; the view shows
+   only what comes after).
+   ------------------------------------------------------------------------- */
+const CONSOLE_PREFS_KEY = "ke_console_prefs";
+let consoleEchoSeq = 0; // the lines KlippEye adds itself (echo) have no Klipper time: they are told apart by this
+
+const consoleViewStore = (() => {
+  const saved = storage.getJson(CONSOLE_PREFS_KEY) || {};
+  let view = { autoscroll: saved.autoscroll !== false, newestOnTop: saved.newestOnTop === true, showTemps: saved.showTemps === true, clearedAt: 0, clearedSeq: 0 };
+  const listeners = new Set();
+  const emit = () => listeners.forEach((listener) => listener());
+  return {
+    snapshot: () => view,
+    subscribe(listener) {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+    set(change) {
+      view = { ...view, ...change };
+      storage.set(CONSOLE_PREFS_KEY, JSON.stringify({ autoscroll: view.autoscroll, newestOnTop: view.newestOnTop, showTemps: view.showTemps }));
+      emit();
+    },
+    clear(entries) {
+      const newest = entries.reduce((max, entry) => Math.max(max, entry.time || 0), view.clearedAt);
+      view = { ...view, clearedAt: newest, clearedSeq: consoleEchoSeq };
+      emit();
+    },
+  };
+})();
+
+function useConsoleView() {
+  return useSyncExternalStore(consoleViewStore.subscribe, consoleViewStore.snapshot);
+}
+
+/** The lines to show, in the order to show them. */
+function visibleConsoleEntries(entries, view, order = true) {
+  const shown = entries.filter((entry) => (view.showTemps || !isTemperatureReport(String(entry.msg || ""))) && (entry.time ? entry.time > view.clearedAt : (entry.seq || 0) > view.clearedSeq));
+  return order && view.newestOnTop ? shown.reverse() : shown;
+}
+
+/** Clear, the options (autoscroll, newest on top, temperatures) and full screen: the buttons of a console's title bar. */
+function ConsoleTools({ entries, fullscreen, onFullscreen }) {
+  const view = useConsoleView();
+  const menu = useDropdown();
+  const option = (key, title, subtitle) =>
+    h(
+      "button",
+      { key, type: "button", className: "oui-menu__item console-option", role: "menuitemcheckbox", "aria-checked": view[key], "data-option": key, onClick: () => consoleViewStore.set({ [key]: !view[key] }) },
+      h("span", { className: "oui-menu__icon" }, view[key] ? h(Icons.Check, { size: 18 }) : null),
+      h("span", { className: "oui-menu__text" }, h("span", { className: "oui-menu__title" }, title), h("span", { className: "oui-menu__sub" }, subtitle)),
+    );
+  return h(
+    "div",
+    { className: "console-tools" },
+    h("button", { type: "button", className: "icon-btn", title: tx("Clear the console"), "aria-label": tx("Clear the console"), onClick: () => consoleViewStore.clear(entries) }, h(Icons.Trash, { size: 18 })),
+    h("button", { type: "button", ref: menu.anchorRef, className: cx("icon-btn", menu.open && "is-active"), title: tx("Console options"), "aria-label": tx("Console options"), "aria-haspopup": "menu", "aria-expanded": menu.open, onClick: menu.toggle }, h(Icons.Sliders, { size: 18 })),
+    h(
+      DropdownMenu,
+      { menu },
+      option("autoscroll", tx("Autoscroll"), tx("Follow the newest line")),
+      option("newestOnTop", tx("Newest on top"), tx("The latest line first")),
+      option("showTemps", tx("Show temperatures"), tx("The temperature reports too")),
+    ),
+    onFullscreen &&
+      h(
+        "button",
+        { type: "button", className: "icon-btn", title: fullscreen ? tx("Leave full screen") : tx("Full screen"), "aria-label": fullscreen ? tx("Leave full screen") : tx("Full screen"), onClick: onFullscreen },
+        h(fullscreen ? Icons.Shrink : Icons.Expand, { size: 18 }),
+      ),
+  );
 }
 
 /* ---------------------------------------------------------------------------
@@ -182,33 +259,79 @@ function ConsoleLine({ entry, onPick }) {
 }
 
 /**
- * The scrolling log itself: follows the newest line while the reader is at the bottom, and lets a click on a
- * command line hand it to `onPick`. `className` adds to the well's own (the dock's drawer sets its height).
+ * The scrolling log itself: follows the newest line (at the bottom, or at the top with "newest on top") while the reader
+ * is there and autoscroll is on, and lets a click on a command line hand it to `onPick`. `className` adds to the well's
+ * own (the dock's drawer and the full screen set its height).
  */
 function ConsoleLog({ entries, onPick, className }) {
+  const view = useConsoleView();
   const listRef = useRef(null);
   const following = useRef(true);
+  const shown = visibleConsoleEntries(entries, view);
 
   useEffect(() => {
+    following.current = true; // the order changed: start from the newest line
+  }, [view.newestOnTop]);
+  useEffect(() => {
     const list = listRef.current;
-    if (list && following.current) list.scrollTop = list.scrollHeight;
-  }, [entries]);
+    if (!list || !view.autoscroll || !following.current) return;
+    list.scrollTop = view.newestOnTop ? 0 : list.scrollHeight;
+  }, [entries, view]);
 
   return h(
     "div",
     {
       ref: listRef,
       className: cx("console-well oui-well", className),
+      "data-order": view.newestOnTop ? "newest-first" : "newest-last",
       onScroll: (e) => {
         const list = e.currentTarget;
-        following.current = list.scrollHeight - list.scrollTop - list.clientHeight < FOLLOW_TAIL_PX;
+        following.current = view.newestOnTop ? list.scrollTop < FOLLOW_TAIL_PX : list.scrollHeight - list.scrollTop - list.clientHeight < FOLLOW_TAIL_PX;
       },
     },
-    entries.filter((entry) => !isTemperatureReport(String(entry.msg || ""))).map((entry, index) => h(ConsoleLine, { key: index, entry, onPick })),
+    shown.length === 0 && h("div", { className: "log-line log-empty" }, h("span", { className: "log--dim" }, view.clearedAt || view.clearedSeq ? tx("Nothing new since the console was cleared.") : tx("No lines yet."))),
+    shown.map((entry, index) => h(ConsoleLine, { key: (entry.time || "s" + entry.seq || index) + "|" + index, entry, onPick })),
+  );
+}
+
+/** The console over the whole screen: the log, the tools and the input field (1.34). */
+function ConsoleFullscreen({ entries, onClose }) {
+  useBodyScrollLock(true);
+  useBackHandler(onClose, true);
+  const [command, setCommand] = useState("");
+  const inputRef = useRef(null);
+  useEffect(() => {
+    // Escape with the options menu open closes the menu only
+    // in the capture phase, before the menu's own handler takes the menu away: Escape with the options open closes the menu only
+    const onKey = (event) => event.key === "Escape" && !document.querySelector(".oui-menu") && onClose();
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, []);
+  const send = () => {
+    if (!command.trim()) return;
+    fireGcode(command);
+    setCommand("");
+  };
+  const pick = (message) => {
+    setCommand(message);
+    if (inputRef.current) inputRef.current.focus();
+  };
+  return h(
+    "div",
+    { className: "console-full", role: "dialog", "aria-label": "Console" },
+    h("div", { className: "console-full__head" }, h("div", { className: "console-full__title" }, h(Icons.Code, { size: 20 }), "Console"), h(ConsoleTools, { entries, fullscreen: true, onFullscreen: onClose })),
+    h(ConsoleLog, { entries, onPick: pick, className: "console-full__log" }),
+    h(
+      "div",
+      { className: "console-full__input" },
+      h("input", { ref: inputRef, value: command, onChange: (e) => setCommand(e.target.value), onKeyDown: (e) => e.key === "Enter" && send(), placeholder: tx("Send code..."), "aria-label": tx("Send code"), className: "oui-field oui-mono console-input" }),
+      h("button", { onClick: send, className: "oui-btn oui-btn--primary oui-btn--icon console-send", "aria-label": tx("Send") }, h(Icons.Send)),
+    ),
   );
 }
 
 function ConsoleCard({ entries }) {
+  const [fullscreen, setFullscreen] = useState(false);
   const [command, setCommand] = useState("");
   const inputRef = useRef(null);
 
@@ -229,8 +352,9 @@ function ConsoleCard({ entries }) {
   return h(
     Card,
     null,
-    h(CardHeader, { title: "Console" }),
+    h(CardHeader, { title: "Console" }, h(ConsoleTools, { entries, fullscreen: false, onFullscreen: () => setFullscreen(true) })),
     h(ConsoleLog, { entries, onPick: pick }),
+    h(Presence, null, fullscreen && h(ConsoleFullscreen, { entries, onClose: () => setFullscreen(false) })),
     h(
       "div",
       { className: "flex gap-3 mt-3" },

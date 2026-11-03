@@ -165,6 +165,14 @@ hai girato la vite, *Va bene* se era già giusta. Klipper rifà il giro finché 
 compensation** usa la calibrazione automatica del Cartographer quando c'è; altrimenti quella di Klipper, con la stessa prova
 del foglio in alcuni punti (− / + muovono l'ugello, *Va bene* passa al successivo), poi SAVE_CONFIG.
 
+### Console
+
+La console (pagina Controllo sul telefono, la barra in basso sul computer: la sua freccia apre tutto il registro) ha, nella
+barra del titolo: **pulisci** (svuota la vista; Klipper tiene le sue righe, la vista mostra quelle che arrivano dopo), le
+**opzioni** — *Scorrimento automatico* (segue l'ultima riga), *Più recenti in alto*, *Mostra le temperature* (i messaggi
+delle temperature, nascosti di solito), salvate su questo dispositivo — e lo **schermo intero**. Un tocco su un comando lo
+rimette nel campo di invio.
+
 ### Macro
 
 Le card delle macro (pagina Controllo sul telefono, pagina Calibrazione sul computer) funzionano come in Mainsail.

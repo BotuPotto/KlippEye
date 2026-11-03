@@ -1,5 +1,15 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.34.0
+
+**The console, like Mainsail's** (roadmap phase 6b, fifth part). In the title bar of the console (the Control page on the
+phone, the panel of the console bar on a computer):
+
+* **Clear**: empties the view (Klipper keeps its lines); then only what comes after is shown, the bar's preview too.
+* **Options**, kept on this device: **Autoscroll** on / off (off: new lines arrive and the log stays where it is), **Newest
+  on top** or at the bottom, **Show temperatures** (the temperature reports, hidden as before by default).
+* **Full screen**: the console over the whole screen, with its tools and its own input field (Esc or the button leaves).
+
 ## 1.33.1
 
 * **Fixed: "Waiting for the printer status" for ever.** After a print that ended later than the slicer had estimated
