@@ -33,6 +33,9 @@ def default_state():
         "has_bed_screws": False, "has_level": False,    # [bed_screws]; [z_tilt] / [quad_gantry_level] (by z_kind)
         "level_delay": 1.2, "level_busy_until": 0.0, "level_applied": False,
         "bs": {"is_active": False, "state": None, "current_screw": 0, "accepted_screws": 0}, "bs_adjusted": False,
+        "twist_kind": "cartographer",   # 1.33.1: "klipper": Klipper's own AXIS_TWIST_COMPENSATION_CALIBRATE (paper test), no Cartographer
+        "twist_y": False,               # [axis_twist_compensation] has the Y options (calibrate_start_y...)
+        "mp": {"is_active": False, "z_position": 0.0, "z_position_lower": None, "z_position_upper": None}, "mp_points": 0, "mp_axis": "X",
         "z_kind": "bed",            # 1.31: "bed" (z_tilt) or "toolhead" (quad_gantry_level) in Klipper's settings
         "print_objects": [],        # 1.30: exclude_object objects of the print ([{name, center, polygon}])
         "excluded": [],             # their names excluded with EXCLUDE_OBJECT
@@ -169,7 +172,8 @@ def settings_now():
     out["stepper_y"] = {"position_max": 350}
     out["extruder"] = dict(out.get("extruder") or {}, max_temp=285)
     out["heater_bed"] = dict(out.get("heater_bed") or {}, max_temp=110)
-    out["cartographer"] = {"serial": "/dev/serial/by-id/usb-cartographer"}
+    if S["twist_kind"] == "cartographer":
+        out["cartographer"] = {"serial": "/dev/serial/by-id/usb-cartographer"}
     out["printer"] = {"kinematics": "corexy", "max_velocity": 300.0, "max_accel": 3000.0, "square_corner_velocity": 5.0}   # 1.31: the Motion card guesses what Z moves from these
     if S["old_limits"]:
         out["printer"]["max_accel_to_decel"] = 1500.0
@@ -189,13 +193,19 @@ def settings_now():
                                      "screw3": [320, 320], "screw3_name": "rear right", "screw4": [30, 320], "screw4_name": "rear left", "horizontal_move_z": 5}
     if S["has_twist_section"]:
         out["axis_twist_compensation"] = {"calibrate_start_x": 30, "calibrate_end_x": 320, "calibrate_y": 175}
+        if S["twist_y"]:
+            out["axis_twist_compensation"].update(calibrate_start_y=30, calibrate_end_y=320, calibrate_x=175)
     return out
 
 def commands_now():
-    names = ["G28", "M84", "SAVE_CONFIG", "SET_GCODE_OFFSET", "QUERY_PROBE", "CARTOGRAPHER_AXIS_TWIST_COMPENSATION", "PARK_TEST", "SHAPER_CALIBRATE",
+    names = ["G28", "M84", "SAVE_CONFIG", "SET_GCODE_OFFSET", "QUERY_PROBE", "PARK_TEST", "SHAPER_CALIBRATE",
              "CLEAN_NOZZLE", "VAR_LUCI", "LUCI_ON", "LUCI_OFF", "SET_LED", "SET_PIN", "SET_LED_EFFECT", "STOP_LED_EFFECTS"] + S.get("extra_commands", [])
     if S["has_screws"]:
         names.append("SCREWS_TILT_CALCULATE")
+    if S["twist_kind"] == "cartographer":
+        names.append("CARTOGRAPHER_AXIS_TWIST_COMPENSATION")
+    elif S["has_twist_section"]:
+        names.append("AXIS_TWIST_COMPENSATION_CALIBRATE")
     names += ["M220", "M221", "SET_PRESSURE_ADVANCE", "SET_VELOCITY_LIMIT"] + (["SET_RETRACTION"] if S["has_retraction"] else [])
     if S["has_level"]:
         names.append("Z_TILT_ADJUST" if S.get("z_kind", "bed") == "bed" else "QUAD_GANTRY_LEVEL")
@@ -210,6 +220,10 @@ def status_for(keys, fields=None):
     for k in keys:
         if k == "webhooks":
             st[k] = {"state": S["webhooks"], "state_message": S["webhooks_msg"]}
+        elif k == "print_stats" and S.get("done_print"):   # 1.33.1: a print that has just finished (file still loaded, 100 %)
+            st[k] = {"state": "complete", "filename": "Benchy_0.2mm_PLA.gcode", "print_duration": 8000, "total_duration": 8100, "filament_used": 5000, "info": {"current_layer": 100, "total_layer": 100}}
+        elif k == "virtual_sdcard" and S.get("done_print"):
+            st[k] = {"progress": 1.0, "is_active": False, "file_position": 5000, "file_path": "Benchy_0.2mm_PLA.gcode"}
         elif k == "print_stats":
             state = S.get("print_state") or ("paused" if S["paused"] else ("printing" if p else "standby"))
             st[k] = {"state": state, "filename": "Benchy_0.2mm_PLA.gcode" if p else "", "print_duration": 1260 if p else 0,
@@ -237,6 +251,8 @@ def status_for(keys, fields=None):
         elif k in ("z_tilt", "quad_gantry_level"):
             if S["has_level"] and (k == "z_tilt") == (S.get("z_kind", "bed") == "bed"):
                 st[k] = {"applied": S["level_applied"]}
+        elif k == "manual_probe":
+            st[k] = dict(S["mp"])
         elif k == "bed_screws":
             if S["has_bed_screws"]:
                 st[k] = dict(S["bs"])
@@ -297,7 +313,7 @@ def mock_reset():
     S.clear(); S.update(default_state()); return jsonify(ok=True)
 @app.route("/__mock/state")
 def mock_state():
-    return jsonify({k: v for k, v in S.items() if k in ("light", "light_cmds", "light_reads", "actions", "webhooks", "webhooks_msg", "disconnected", "moonraker_down", "host_off", "services", "update_log", "brain_cfg_log", "brain_release", "brain_started", "klippeye_info", "pending_release", "logos", "app_apk_hits", "app_apk_downloads", "update_channel", "channel_posts", "rec_posts", "measure_starts", "measure_bodies", "ai_cfg", "ai_posts", "ai_model_reads", "excluded", "tune", "speed_factor", "extrude_factor", "bs", "level_applied", "recordings", "alerts", "pm_macros", "pm_wraps", "pm_posts", "gcode_log", "ntfy", "ntfy_posts", "ntfy_tests", "ntfy_app_reads", "ai_answers", "ai_answer")})
+    return jsonify({k: v for k, v in S.items() if k in ("light", "light_cmds", "light_reads", "actions", "webhooks", "webhooks_msg", "disconnected", "moonraker_down", "host_off", "services", "update_log", "brain_cfg_log", "brain_release", "brain_started", "klippeye_info", "pending_release", "logos", "app_apk_hits", "app_apk_downloads", "update_channel", "channel_posts", "rec_posts", "measure_starts", "measure_bodies", "ai_cfg", "ai_posts", "ai_model_reads", "excluded", "mp", "mp_points", "tune", "speed_factor", "extrude_factor", "bs", "level_applied", "recordings", "alerts", "pm_macros", "pm_wraps", "pm_posts", "gcode_log", "ntfy", "ntfy_posts", "ntfy_tests", "ntfy_app_reads", "ai_answers", "ai_answer")})
 @app.route("/__mock/print_actions")
 def mock_print_actions():
     return jsonify(S.get("print_actions", []))
@@ -528,6 +544,24 @@ def gcode_script():
         time.sleep(S["level_delay"]); levelled()
         if S["tool_error"]:
             return jsonify(error={"code": 400, "message": S["tool_error"]}), 400
+    elif cmd == "AXIS_TWIST_COMPENSATION_CALIBRATE":
+        time.sleep(0.4)   # probes the first point, then waits for the paper test there
+        S["mp_axis"] = next((w.split("=")[1] for w in words if w.upper().startswith("AXIS=")), "X")
+        S["mp_points"] = 0
+        S["mp"] = {"is_active": True, "z_position": 1.0, "z_position_lower": None, "z_position_upper": None}
+    elif S["mp"]["is_active"] and cmd in ("TESTZ", "ACCEPT", "ABORT"):
+        if cmd == "TESTZ":
+            S["mp"]["z_position"] = round(S["mp"]["z_position"] + float(words[1].split("=")[1]), 4)
+        elif cmd == "ABORT":
+            S["mp"] = dict(S["mp"], is_active=False)
+            console_line("!! Manual probe aborted")
+        else:
+            S["mp"] = dict(S["mp"], is_active=False)
+            S["mp_points"] += 1
+            if S["mp_points"] >= 3:
+                later(0.6, lambda: finish_twist(S["mp_axis"]))
+            else:
+                later(0.8, lambda: S.__setitem__("mp", {"is_active": True, "z_position": 1.0, "z_position_lower": None, "z_position_upper": None}))
     elif cmd == "BED_SCREWS_ADJUST":
         S["bs"] = {"is_active": True, "state": "adjust", "current_screw": 0, "accepted_screws": 0}; S["bs_adjusted"] = False
     elif cmd in ("ACCEPT", "ADJUSTED", "ABORT"):

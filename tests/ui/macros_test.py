@@ -67,6 +67,10 @@ def card_buttons(P, cid):
     return [t.strip() for t in P.pg.locator('[data-macro-card="%s"] :is(.macro-run, .macro-split-run)' % cid).all_inner_texts()]
 
 
+def MOCK_HEX(value):
+    return isinstance(value, str) and len(value) == 7 and value.startswith("#")
+
+
 def drawer(P):
     return P.pg.locator(".drawer")
 
@@ -122,7 +126,23 @@ with sync_playwright() as p:
     P.settle(300)
     pg.screenshot(path=out + "/group_editor.png")
     ok("no horizontal overflow in the editor", pg.evaluate("() => { const b = document.querySelector('.drawer__body'); return b.scrollWidth <= b.clientWidth; }"))
+    # 1.33.1: any colour, on the wheel
+    cal = pg.locator('.macro-group-edit[data-group-id="calib"]')
+    cal.get_by_role("radio", name="Personalizzato").click()
+    ok("'Personalizzato' opens the colour wheel", wait_until(lambda: cal.locator(".color-wheel__disc").count() == 1 and MOCK_HEX(stored()["groups"][0]["color"])), stored()["groups"][0]["color"])
+    box = cal.locator(".color-wheel__disc").bounding_box()
+    pg.mouse.click(box["x"] + box["width"] - 3, box["y"] + box["height"] / 2)
+    ok("a tap at the right edge of the wheel: red", wait_until(lambda: stored()["groups"][0]["color"][1:3] == "ff" and int(stored()["groups"][0]["color"][3:5], 16) < 0x20 and int(stored()["groups"][0]["color"][5:7], 16) < 0x20), stored()["groups"][0]["color"])
+    pg.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    ok("... at the centre: white", wait_until(lambda: stored()["groups"][0]["color"] == "#ffffff"), stored()["groups"][0]["color"])
+    hexf = cal.locator(".color-wheel__hex")
+    hexf.fill("#12ab34")
+    ok("typing a colour code sets it", wait_until(lambda: stored()["groups"][0]["color"] == "#12ab34"), stored()["groups"][0]["color"])
+    hexf.blur()
+    P.settle(300)
+    cal.screenshot(path=out + "/color_wheel.png")
     close_drawer(P)
+    ok("the card takes the colour of the wheel", "#12ab34" in (pg.locator('[data-macro-card="calib"]').get_attribute("style") or "") and "macro-card--custom" in pg.locator('[data-macro-card="calib"]').get_attribute("class"))
     ok("idle: only the groups shown while idle (Filamento is not)", card_titles(P) == ["calibrazioni"], card_titles(P))
     ok("... and the new order", card_buttons(P, "calib") == ["Shaper calibrate", "Park test"], card_buttons(P, "calib"))
     P.close()

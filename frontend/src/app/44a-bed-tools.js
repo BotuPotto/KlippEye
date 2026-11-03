@@ -112,13 +112,14 @@ function buildBedTools(capabilities) {
     });
   }
   if (capabilities.twistCommand || capabilities.twistNeedsConfig) {
-    for (const axis of TWIST_AXES) {
+    const manual = Boolean(capabilities.twistManual);
+    for (const axis of capabilities.twistAxes || TWIST_AXES) {
       tools.push({
         id: "twist-" + axis.toLowerCase(),
-        kind: "twist",
-        group: "Axis twist compensation · Cartographer",
+        kind: manual ? "twistManual" : "twist",
+        group: manual ? "Axis twist compensation" : "Axis twist compensation · Cartographer",
         title: tx("Axis ") + axis,
-        subtitle: tx("Compensate the twist along ") + axis,
+        subtitle: manual ? tx("Paper test at a few points along ") + axis : tx("Compensate the twist along ") + axis,
         short: "Twist " + axis,
         axis,
         icon: h(Icons.Wave),
@@ -148,6 +149,7 @@ function useBedTools({ capabilities, homedAxes, lockReason, onSaveConfig }) {
   const [screws, setScrews] = useState(null); // { error, results } to show in the sheet
   const [twistDone, setTwistDone] = useState(null); // the twist tool whose values wait for SAVE_CONFIG
   const [bedScrews, setBedScrews] = useState(false); // the BED_SCREWS_ADJUST sheet is open
+  const [manualProbe, setManualProbe] = useState(null); // { tool, baseline, since } while Klipper's twist calibration asks for the paper test
   const runRef = useRef(null);
   const consoleClock = useRef(0); // newest gcode-store time seen so far
   runRef.current = run;
@@ -171,6 +173,7 @@ function useBedTools({ capabilities, homedAxes, lockReason, onSaveConfig }) {
     if (!end(current)) return;
     if (current.tool.kind === "level") toast.action(tx("{tool} completed", { tool: current.tool.title }));
     else if (current.tool.kind === "bedscrews") setBedScrews(true);
+    else if (current.tool.kind === "twistManual") setManualProbe({ tool: current.tool, baseline: current.baseline, since: current.since });
     else if (current.tool.kind === "screws") setScrews({ error: Boolean(observed && observed.error), results: (observed && observed.results) || {} });
     else setTwistDone(current.tool);
   };
@@ -211,7 +214,7 @@ function useBedTools({ capabilities, homedAxes, lockReason, onSaveConfig }) {
   }, [run]);
 
   const start = async (tool) => {
-    if (runRef.current || lockedReason || tool.unavailable || bedScrews) return;
+    if (runRef.current || lockedReason || tool.unavailable || bedScrews || manualProbe) return;
     const current = { tool, since: consoleClock.current, startedAt: Date.now(), baseline: JSON.stringify(await tool.observe().catch(() => null)) };
     runRef.current = current;
     setRun(current);
@@ -219,8 +222,8 @@ function useBedTools({ capabilities, homedAxes, lockReason, onSaveConfig }) {
     toast.action(tx("{tool} started", { tool: tool.title }));
     const sent = await sendLongGcode(tool.script);
     if (!sent.ok) fail(current, sent.message);
-    // BED_SCREWS_ADJUST answers once the nozzle is at the first screw: the rest is the sheet's
-    else if (tool.kind === "bedscrews") complete(current, null);
+    // BED_SCREWS_ADJUST and Klipper's twist calibration answer once the nozzle waits at the first point: the rest is the sheet's
+    else if (tool.kind === "bedscrews" || tool.kind === "twistManual") complete(current, null);
     // Answered before the proxy's 10 s: the script is over, whatever its result looks like next to the old one.
     else if (sent.finished) complete(current, await tool.observe().catch(() => null));
   };
@@ -240,6 +243,13 @@ function useBedTools({ capabilities, homedAxes, lockReason, onSaveConfig }) {
     },
     bedScrews,
     closeBedScrews: () => setBedScrews(false),
+    manualProbe,
+    twistSamples: capabilities.twistSamples || 3,
+    closeManualProbe: () => setManualProbe(null),
+    manualProbeDone: (tool) => {
+      setManualProbe(null);
+      setTwistDone(tool);
+    },
     bedScrewLayout: capabilities.bedScrewLayout || [],
     twistDone,
     dismissTwist: () => setTwistDone(null),
@@ -463,6 +473,115 @@ function BedScrewsSheet({ controller }) {
   );
 }
 
+/* ---------------------------------------------------------------------------
+   The paper test of Klipper's own twist calibration (1.33.1)
+   AXIS_TWIST_COMPENSATION_CALIBRATE probes each point, then leaves the nozzle
+   above it in a manual probe session: TESTZ moves the nozzle, ACCEPT takes the
+   height, ABORT stops. After the last point the values wait for SAVE_CONFIG.
+   ------------------------------------------------------------------------- */
+const MANUAL_PROBE_POLL_MS = 800;
+const TESTZ_STEPS = [-1, -0.1, -0.05, -0.01, 0.01, 0.05, 0.1, 1];
+
+function ManualProbeSheet({ controller }) {
+  useBodyScrollLock(true);
+  const { tool, baseline, since } = controller.manualProbe;
+  const [probe, setProbe] = useState(null); // the manual_probe object
+  const [busy, setBusy] = useState("");
+  const [accepted, setAccepted] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    const poll = async () => {
+      const [status, pending] = await Promise.all([moonraker.queryObjects("manual_probe").catch(() => ({})), bedToolsApi.pendingTwist().catch(() => null)]);
+      if (cancelled) return;
+      if (pending !== null && JSON.stringify(pending) !== baseline) return controller.manualProbeDone(tool);
+      setProbe(status.manual_probe || null);
+    };
+    poll();
+    const timer = setInterval(poll, MANUAL_PROBE_POLL_MS);
+    const stopWatching = onConsoleStore((store) => {
+      const error = consoleErrorSince(store, since);
+      if (error && !cancelled) {
+        cancelled = true;
+        toast.action(tool.short + ": " + String(error.message).replace(/^\s*!!\s*/, "").slice(0, BED_TOOL_ERROR_MAX_CHARS));
+        controller.closeManualProbe();
+      }
+    });
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+      stopWatching();
+    };
+  }, []);
+
+  const send = async (command) => {
+    if (busy) return;
+    setBusy(command);
+    const sent = await sendLongGcode(command);
+    setBusy("");
+    if (!sent.ok) toast.action(tool.short + ": " + String(sent.message || tx("unknown error")).replace(/^\s*!!\s*/, "").slice(0, BED_TOOL_ERROR_MAX_CHARS));
+    else if (command === "ACCEPT") {
+      setAccepted((n) => n + 1);
+      setProbe((current) => current && { ...current, is_active: false }); // Klipper goes on to the next point: wait for it
+    }
+    else if (command === "ABORT") controller.closeManualProbe();
+  };
+  const active = Boolean(probe && probe.is_active);
+  const close = () => (active ? send("ABORT") : controller.closeManualProbe());
+  useBackHandler(close, true);
+  const total = controller.twistSamples;
+  const z = probe && typeof probe.z_position === "number" ? probe.z_position.toFixed(3) : "–";
+
+  return h(
+    "div",
+    { className: "sheet-overlay sheet-overlay--screws", onClick: (event) => event.target === event.currentTarget && close() },
+    h(
+      "div",
+      { className: "sheet-card sheet-card--column manual-probe", "data-state": active ? "active" : "waiting" },
+      h(
+        "div",
+        { className: "sheet-header sheet-header--bar" },
+        h("div", null, h("div", { className: "dialog-title" }, tx("Axis ") + tool.axis), h("div", { className: "dialog-sub" }, "Axis twist compensation")),
+        h("button", { className: "dialog-close", onClick: close, "aria-label": tx("Close") }, "✕"),
+      ),
+      h(
+        "div",
+        { className: "screws-body" },
+        h(
+          "div",
+          { className: "bed-screws__screw" },
+          h("span", { className: "bed-screws__step" }, tx("Point {n} of {total}", { n: Math.min(accepted + 1, total), total })),
+          h("span", { className: "bed-screws__name manual-probe__z" }, active ? "Z " + z : tx("Klipper is measuring with the probe…")),
+        ),
+        h(
+          "ol",
+          { className: "bed-screws__how" },
+          h("li", null, tx("Slide a sheet of paper between the nozzle and the bed.")),
+          h("li", null, tx("Bring the nozzle down (−) or up (+) until the paper drags a little as it moves.")),
+          h("li", null, tx("Then «Accept»: Klipper measures the next point, up to the last one.")),
+        ),
+        h(
+          "div",
+          { className: "manual-probe__steps" },
+          TESTZ_STEPS.map((step) =>
+            h(
+              "button",
+              { key: step, type: "button", className: cx("oui-btn oui-btn--sm manual-probe__step", busy === "TESTZ Z=" + step && "is-busy"), disabled: Boolean(busy) || !active, onClick: () => send("TESTZ Z=" + step) },
+              (step > 0 ? "+" : "−") + Math.abs(step),
+            ),
+          ),
+        ),
+      ),
+      h(
+        "div",
+        { className: "sheet-footer" },
+        h("button", { className: "oui-btn", disabled: Boolean(busy), onClick: close }, active ? tx("Abort") : tx("Close")),
+        h("button", { className: cx("oui-btn oui-btn--primary", busy === "ACCEPT" && "is-busy"), disabled: Boolean(busy) || !active, onClick: () => send("ACCEPT") }, tx("Accept")),
+      ),
+    ),
+  );
+}
+
 /** The result sheet and the "save the twist values?" question. */
 function BedToolsDialogs({ controller }) {
   const { twistDone } = controller;
@@ -471,6 +590,7 @@ function BedToolsDialogs({ controller }) {
     null,
     h(Presence, null, controller.screws && h(ScrewsSheet, { controller })),
     h(Presence, null, controller.bedScrews && h(BedScrewsSheet, { controller })),
+    h(Presence, null, controller.manualProbe && h(ManualProbeSheet, { controller })),
     h(ConfirmDialog, {
       open: Boolean(twistDone),
       tone: "neutral",

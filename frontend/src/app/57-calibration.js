@@ -358,6 +358,12 @@ function MacroPicker({ state, onClose, title }) {
 /** "standby" | "printing" | "paused" from print_stats.state. */
 const macroPrintState = (state) => (state === "printing" ? "printing" : state === "paused" ? "paused" : "standby");
 
+/** The class and style of a card (or editor) in `color`: one of MACRO_COLORS, or "#rrggbb" from the colour wheel (1.33.1). */
+function macroColorProps(color) {
+  if (MACRO_HEX_COLOR.test(color)) return { className: "macro-card--custom", style: { "--macro-tint": color, "--macro-soft": "color-mix(in srgb, " + color + " 20%, transparent)" } };
+  return { className: "macro-card--" + color, style: undefined };
+}
+
 /** The cards to show: [{ id, title, color, names, empty }]. */
 function macroCards(macroSettings, catalog, printState) {
   const known = catalog.loaded || catalog.macros.length > 0;
@@ -388,7 +394,7 @@ function MacroCards({ printState, onGcode, onSettings }) {
     cards.map((card) =>
       h(
         Card,
-        { key: card.id, className: cx("macro-card", "macro-card--" + card.color), "data-macro-card": card.id },
+        { key: card.id, className: cx("macro-card", macroColorProps(card.color).className), style: macroColorProps(card.color).style, "data-macro-card": card.id },
         h(CardHeader, { title: card.title }, h("button", { className: "icon-btn", title: tx("Manage macros"), "aria-label": tx("Manage macros"), onClick: onSettings }, h(Icons.Gear, { size: 20 }))),
         h(
           "div",

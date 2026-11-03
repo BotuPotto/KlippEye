@@ -161,7 +161,9 @@ ognuno).
 **Calibra** (card Movimento) ha anche i **livellamenti** che Klipper offre sulla tua stampante: **Z tilt adjust**
 (`[z_tilt]`), **Quad gantry level** (`[quad_gantry_level]`) e, sulle stampanti senza sonda, **Bed screws adjust**
 (`[bed_screws]`): l'ugello si ferma sopra ogni vite e una scheda dice cosa fare (la prova del foglio); rispondi *Regolata* se
-hai girato la vite, *Va bene* se era già giusta. Klipper rifà il giro finché un giro intero va bene.
+hai girato la vite, *Va bene* se era già giusta. Klipper rifà il giro finché un giro intero va bene. L'**Axis twist
+compensation** usa la calibrazione automatica del Cartographer quando c'è; altrimenti quella di Klipper, con la stessa prova
+del foglio in alcuni punti (− / + muovono l'ugello, *Va bene* passa al successivo), poi SAVE_CONFIG.
 
 ### Macro
 
@@ -169,7 +171,7 @@ Le card delle macro (pagina Controllo sul telefono, pagina Calibrazione sul comp
 **Impostazioni → Macro** (o l'ingranaggio di una card) sceglie come:
 * **Tutte le macro**: una card con ogni macro della stampante; spegni quelle che non usi mai (le macro il cui nome comincia
   con `_` non vengono mai mostrate);
-* **Gruppi**: card tue, ognuna con un **nome**, un **colore**, le **macro** che scegli nell'ordine che vuoi, e **quando
+* **Gruppi**: card tue, ognuna con un **nome**, un **colore** (quelli pronti, o qualsiasi colore sulla ruota di *Personalizzato*), le **macro** che scegli nell'ordine che vuoi, e **quando
   compare**: ferma, in stampa, in pausa (per esempio le macro del filamento anche in pausa, le calibrazioni solo da ferma).
 
 Una macro con parametri ha un ⚙ accanto al nome: apre un modulo con i valori da inviare. La scelta sta nelle impostazioni

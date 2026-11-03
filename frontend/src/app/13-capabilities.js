@@ -11,8 +11,10 @@
 const CAPABILITIES_RETRY_MS = 5000;
 
 /** Cartographer's own, fully automatic axis twist calibration (scan + touch). Klipper's stock
- *  AXIS_TWIST_COMPENSATION_CALIBRATE needs a manual TESTZ session, which this dashboard does not drive. */
+ *  AXIS_TWIST_COMPENSATION_CALIBRATE needs the paper test at each point (a manual probe session): since 1.33.1 the
+ *  dashboard drives it too (44a-bed-tools.js, ManualProbeSheet), when there is no Cartographer. */
 const CARTOGRAPHER_TWIST_COMMAND = "CARTOGRAPHER_AXIS_TWIST_COMPENSATION";
+const KLIPPER_TWIST_COMMAND = "AXIS_TWIST_COMPENSATION_CALIBRATE";
 /** Config sections that provide a Z probe (the last, `probe_eddy_current <name>`, is matched by prefix). */
 const PROBE_SECTIONS = ["probe", "bltouch", "smart_effector", "cartographer", "scanner", "beacon"];
 
@@ -26,6 +28,9 @@ const UNKNOWN_CAPABILITIES = {
   screwLayout: [],
   twistCommand: CARTOGRAPHER_TWIST_COMMAND,
   twistNeedsConfig: false,
+  twistManual: false,
+  twistAxes: ["X", "Y"],
+  twistSamples: 3,
   probe: true,
   zOffsetApply: "Z_OFFSET_APPLY_PROBE",
   axisLimits: DEFAULT_AXIS_LIMITS,
@@ -150,6 +155,8 @@ function deriveCapabilities(configfile, commands) {
   // Cartographer registers the twist command even without [axis_twist_compensation], where it only prints a reminder.
   const cartographerTwist = registered(CARTOGRAPHER_TWIST_COMMAND);
   const twistConfigured = hasSection("axis_twist_compensation");
+  const twistSection = settings.axis_twist_compensation || {};
+  const nativeTwist = !cartographerTwist && twistConfigured && registered(KLIPPER_TWIST_COMMAND);
 
   // The screws of [screws_tilt_adjust]: "screw1: x, y" and "screw1_name: front left".
   const screwLayout = screwLayoutOf(settings.screws_tilt_adjust);
@@ -161,8 +168,12 @@ function deriveCapabilities(configfile, commands) {
     known: true,
     screwsTilt: hasSection("screws_tilt_adjust") && registered("SCREWS_TILT_CALCULATE"),
     screwLayout,
-    twistCommand: cartographerTwist && twistConfigured ? CARTOGRAPHER_TWIST_COMMAND : null,
+    twistCommand: cartographerTwist && twistConfigured ? CARTOGRAPHER_TWIST_COMMAND : nativeTwist ? KLIPPER_TWIST_COMMAND : null,
     twistNeedsConfig: cartographerTwist && !twistConfigured,
+    // 1.33.1: Klipper's own calibration (no Cartographer): the paper test at each point; Y only with its options in the config
+    twistManual: nativeTwist,
+    twistAxes: nativeTwist ? ["X"].concat(twistSection.calibrate_start_y !== undefined ? ["Y"] : []) : ["X", "Y"],
+    twistSamples: 3, // AXIS_TWIST_COMPENSATION_CALIBRATE's default SAMPLE_COUNT
     probe: registered("QUERY_PROBE") || PROBE_SECTIONS.some(hasSection) || Object.keys(settings).some((name) => name.startsWith("probe_eddy_current ")),
     zOffsetApply: registered(applyCommand) ? applyCommand : null,
     axisLimits: axisLimitsFrom(settings),

@@ -72,6 +72,7 @@ const MACRO_NAME = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/;
 /** 1.33: the macro cards (57-calibration.js), like Mainsail's: every macro in one card, or groups of the person's own. */
 const MACRO_MODES = ["simple", "groups"];
 const MACRO_COLORS = ["none", "accent", "ok", "warn", "danger", "cool"];
+const MACRO_HEX_COLOR = /^#[0-9a-f]{6}$/; // 1.33.1: any colour, chosen on the wheel
 const MACRO_STATES = ["standby", "printing", "paused"];
 const MACRO_GROUPS_MAX = 30;
 const MACRO_GROUP_NAME_MAX = 40;
@@ -206,7 +207,7 @@ function cleanMacroSettings(raw) {
       return {
         id,
         name: typeof group.name === "string" ? group.name.trim().slice(0, MACRO_GROUP_NAME_MAX) : "",
-        color: pickOne(group.color, MACRO_COLORS, "none"),
+        color: typeof group.color === "string" && MACRO_HEX_COLOR.test(group.color.toLowerCase()) ? group.color.toLowerCase() : pickOne(group.color, MACRO_COLORS, "none"),
         show: Object.fromEntries(MACRO_STATES.map((state) => [state, asBool(show[state], true)])),
         macros: cleanMacroNames(group.macros),
       };

@@ -23,8 +23,11 @@ function formatDuration(seconds) {
 }
 
 /** The remaining time by each method, in seconds (null when it does not apply): file (progress), filament, slicer. */
+/** A time estimate worth showing (positive and finite), else null. */
+const usableEstimate = (value) => (value > 0 && isFinite(value) ? value : null);
+
 function remainingEstimates(printDuration, progress, filamentUsed, meta) {
-  const usable = (value) => (value > 0 && isFinite(value) ? value : null);
+  const usable = usableEstimate;
   const out = { file: null, filament: null, slicer: null };
   if (progress > 0.02 && printDuration > 30) out.file = usable((printDuration / progress) * (1 - progress));
   if (meta && meta.filament_total && filamentUsed > 0 && meta.filament_total > filamentUsed) out.filament = usable((printDuration / filamentUsed) * (meta.filament_total - filamentUsed));
@@ -42,7 +45,9 @@ function estimateRemainingSeconds(printDuration, progress, filamentUsed, meta) {
   if (estimates.length > 0) return estimates.reduce((sum, value) => sum + value, 0) / estimates.length;
   if (progress > 0 && printDuration > 0) {
     const fallback = (printDuration / progress) * (1 - progress);
-    if (usable(fallback)) return fallback;
+    // 1.33.1: this called a helper that only exists inside remainingEstimates: after a finished print (progress 100 %, a
+    // duration) every poll stopped here, the status never loaded and the tools waited for it for ever
+    if (usableEstimate(fallback)) return fallback;
   }
   return null;
 }
@@ -188,6 +193,17 @@ function usePrintStatus(capabilities) {
     const poll = async () => {
       const data = await fetchPrintObjects();
       if (!data || cancelled) return;
+      try {
+        applyPrintObjects(data);
+      } catch (error) {
+        // a value nobody expected must not stop the status for good: what is sure is still known
+        console.error("print status", error);
+        const state = (data.stats && data.stats.state) || "standby";
+        const filename = (data.stats && data.stats.filename) || "";
+        setStatus((previous) => ({ ...previous, loaded: true, state, printing: (state === "printing" || state === "paused") && !!filename }));
+      }
+    };
+    const applyPrintObjects = (data) => {
       const { stats, sdcard, display, meta, move = {}, motion = {}, exclude } = data;
       const state = stats.state || "standby";
       const filename = stats.filename || sdcard.file_path || "";

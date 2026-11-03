@@ -157,7 +157,9 @@ buttons always have 1 and 10 mm steps; 50 and 100 mm can be added (one more ring
 **Calibrate** (Movement card) also has the **leveling** Klipper offers on your printer: **Z tilt adjust** (`[z_tilt]`),
 **Quad gantry level** (`[quad_gantry_level]`) and, on printers with no probe, **Bed screws adjust** (`[bed_screws]`): the
 nozzle stops above each screw and a sheet tells you what to do (the paper test); answer *Adjusted* if you turned the screw,
-*Accept* if it was right already. Klipper goes round again until a whole round is accepted.
+*Accept* if it was right already. Klipper goes round again until a whole round is accepted. **Axis twist compensation**
+uses Cartographer's automatic calibration when there is one; otherwise Klipper's own, with the same paper test at a few
+points (− / + move the nozzle, *Accept* goes on), then SAVE_CONFIG.
 
 ### Macros
 
@@ -165,7 +167,7 @@ The macro cards (Control page on the phone, Calibration page on a computer) work
 (or the gear of a card) chooses how:
 * **All the macros**: one card with every macro of the printer; switch off the ones you never use (the macros whose name
   starts with `_` are never shown);
-* **Groups**: cards of your own, each with a **name**, a **colour**, the **macros** you pick in the order you want, and
+* **Groups**: cards of your own, each with a **name**, a **colour** (ready ones, or any colour on the wheel of *Custom*), the **macros** you pick in the order you want, and
   **when it shows**: idle, printing, paused (e.g. the filament macros also while paused, the calibrations only when idle).
 
 A macro with parameters has a ⚙ next to its name: it opens a form with the values to send. The choice is in the shared
