@@ -23,7 +23,7 @@ def default_state():
         "light": 0,
         "ext_t": 215.3, "ext_target": 220, "bed_t": 60.1, "bed_target": 60,
         "gcode_log": [],           # received scripts
-        "calib_selected": ["PARK_TEST", "SHAPER_CALIBRATE"],
+        "calib_selected": [],         # 1.33: the old "Calibrations" choice (macros_test: it becomes a group)
         "long_macro": False,        # adds a macro with a very long name and parameters (the parameter form must fit its buttons)
         "ai_key_ok": True,
         # 1.32: the Tune card and the leveling tools

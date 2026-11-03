@@ -137,6 +137,20 @@ const HELP = {
       { id: "check", title: tx("«All right»"), text: [tx("The entry is marked «To check» until you look at it once and press «All right».")] },
     ],
   },
+  macros: {
+    title: tx("Macros"),
+    sections: [
+      {
+        id: "mode",
+        title: tx("How the macros are shown"),
+        text: [
+          tx("«All the macros» puts every macro of the printer in one card, as Klipper has them; switch off the ones you never use."),
+          tx("«Groups» makes cards of your own, like Mainsail: a name, a colour, the macros you choose in the order you want, and when the card shows (idle, printing, paused: for example the filament macros also while paused, the calibrations only when idle)."),
+          tx("A macro with parameters has a ⚙ next to its name: it opens a form with the values to send."),
+        ],
+      },
+    ],
+  },
   motion: {
     title: tx("Motion"),
     sections: [

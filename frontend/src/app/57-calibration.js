@@ -1,14 +1,14 @@
 /* ============================================================================
-   57 · CALIBRATION MACROS
-   A card of quick-launch buttons for the Klipper macros the user picked
-   (shaper calibration, park, clean nozzle, ...). The choice is kept in
-   localStorage and mirrored on the server (/api/calibration/selected), so it is
-   the same on every device. A macro with parameters gets a ⚙ half-button that
-   opens a form; the ⚙ in the card header opens the macro picker. The endstop and
-   probe readings (57a) close the card.
+   57 · MACROS
+   Quick-launch buttons for the Klipper macros (1.33, like Mainsail): every macro
+   in one card ("simple", hiding the ones not used) or cards of the person's own
+   ("groups": a name, a colour, the macros in their order, and when each card
+   shows: standby, printing, paused). The choice is in the shared settings
+   (Settings → Macros, 59m-macro-settings.js), the same on every device. A macro
+   with parameters gets a ⚙ half-button that opens a form. The endstop and probe
+   readings (57a) have their own card.
    ========================================================================== */
 
-const CALIBRATION_SYNC_MS = 5000;
 const MACRO_PRELOAD_DELAY_MS = 1100;
 const MACRO_PREFIX = "gcode_macro ";
 
@@ -72,69 +72,78 @@ async function loadMacroCatalog() {
   return [...byName.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
 
-const calibrationApi = {
-  async loadSelected() {
-    const json = await fetchJson("/api/calibration/selected").catch(() => null);
-    return json && json.ok && Array.isArray(json.selected) ? json.selected : null;
-  },
-  async saveSelected(selected) {
-    storage.set(STORAGE_KEYS.calibrationSelected, JSON.stringify(selected));
-    try {
-      await fetch("/api/calibration/selected", { method: "POST", headers: JSON_HEADERS, body: JSON.stringify({ selected }) });
-    } catch (error) {}
-  },
-};
+/** The old "Calibrations" choice (before 1.33), kept by the backend: only read once, to turn it into a group. */
+async function loadLegacySelection() {
+  const json = await fetchJson("/api/calibration/selected").catch(() => null);
+  return json && json.ok && Array.isArray(json.selected) ? json.selected : null;
+}
 
-/* ---------------------------------------------------------------------------
-   State
-   ------------------------------------------------------------------------- */
-function useCalibrationMacros(syncPaused) {
-  const [selected, setSelected] = useState(() => storage.getJson(STORAGE_KEYS.calibrationSelected) || []);
-  const [macros, setMacros] = useState(() => storage.getJson(STORAGE_KEYS.calibrationMacrosCache) || []);
-  const [loading, setLoading] = useState(false);
-  const pausedRef = useRef(syncPaused);
-  pausedRef.current = syncPaused;
-
-  const refreshMacros = async () => {
-    setLoading(true);
-    const catalog = await loadMacroCatalog();
-    setMacros(catalog);
-    storage.set(STORAGE_KEYS.calibrationMacrosCache, JSON.stringify(catalog));
-    setLoading(false);
+/**
+ * Every macro of the printer, shared by the cards and Settings → Macros: read once (and kept on this device for the next
+ * opening), again when Klipper restarts and when Settings → Macros opens. Names in upper case.
+ */
+const macroCatalogStore = (() => {
+  const cached = storage.getJson(STORAGE_KEYS.calibrationMacrosCache);
+  let view = { macros: Array.isArray(cached) ? cached : [], loaded: false, loading: false };
+  let started = false;
+  const listeners = new Set();
+  const emit = (change) => {
+    view = { ...view, ...change };
+    listeners.forEach((listener) => listener());
   };
-
-  // The server copy is the reference: it is re-read regularly so a change made on another device shows up here.
-  useEffect(() => {
-    let cancelled = false;
-    const sync = async () => {
-      if (pausedRef.current) return;
-      const remote = await calibrationApi.loadSelected();
-      if (cancelled || !remote || pausedRef.current) return;
-      storage.set(STORAGE_KEYS.calibrationSelected, JSON.stringify(remote));
-      setSelected((current) => (JSON.stringify(current) === JSON.stringify(remote) ? current : remote));
-    };
-    const stopPolling = startPolling(sync, CALIBRATION_SYNC_MS);
-    const preload = setTimeout(() => (storage.getJson(STORAGE_KEYS.calibrationMacrosCache) || []).length === 0 && refreshMacros(), MACRO_PRELOAD_DELAY_MS);
-    return () => {
-      cancelled = true;
-      stopPolling();
-      clearTimeout(preload);
-    };
-  }, []);
-
-  const select = (next) => {
-    setSelected(next);
-    calibrationApi.saveSelected(next);
+  const refresh = async () => {
+    if (view.loading) return;
+    emit({ loading: true });
+    const catalog = (await loadMacroCatalog().catch(() => null)) || null;
+    if (catalog && catalog.length) {
+      const macros = catalog.map((macro) => ({ ...macro, name: macro.name.toUpperCase() }));
+      storage.set(STORAGE_KEYS.calibrationMacrosCache, JSON.stringify(macros));
+      emit({ macros, loaded: true, loading: false });
+    } else emit({ loading: false, loaded: Boolean(catalog) });
   };
-
   return {
-    selected,
-    macros,
-    loading,
-    refreshMacros,
-    toggle: (name) => select(selected.includes(name) ? selected.filter((item) => item !== name) : [...selected, name]),
-    clear: () => select([]),
+    snapshot: () => view,
+    refresh,
+    subscribe(listener) {
+      listeners.add(listener);
+      if (!started) {
+        started = true;
+        setTimeout(refresh, view.macros.length ? MACRO_PRELOAD_DELAY_MS : 0);
+        onKlipperReady(() => refresh());
+      }
+      return () => listeners.delete(listener);
+    },
   };
+})();
+
+/** { macros, loaded, loading, refresh }. */
+function useMacroCatalog() {
+  const view = useSyncExternalStore(macroCatalogStore.subscribe, macroCatalogStore.snapshot);
+  return { ...view, refresh: macroCatalogStore.refresh };
+}
+
+/**
+ * 1.33: the macros chosen in the old "Calibrations" card become a group "Calibrations" (groups mode), when the settings have
+ * come from the Raspberry (before, they could be the defaults of a device that has not asked yet) and have no groups. The
+ * backend's old list is then emptied, so it happens once (and not again after "Restore the initial values").
+ */
+function useMacroMigration() {
+  const { settings, sync, update } = useSettings();
+  const done = useRef(false);
+  useEffect(() => {
+    if (done.current || sync.state !== "shared") return;
+    done.current = true;
+    loadLegacySelection().then((selected) => {
+      const names = cleanMacroNames(selected || []);
+      if (!names.length) return;
+      update((draft) => {
+        if (draft.macros.groups.length) return;
+        draft.macros.mode = "groups";
+        draft.macros.groups = [{ id: "calib", name: tx("Calibrations"), color: "none", show: { standby: true, printing: true, paused: true }, macros: names }];
+      });
+      fetch("/api/calibration/selected", { method: "POST", headers: JSON_HEADERS, body: JSON.stringify({ selected: [] }) }).catch(noop);
+    });
+  }, [sync.state]);
 }
 
 /* ---------------------------------------------------------------------------
@@ -298,7 +307,8 @@ const pickerSearchText = (macro) =>
     .join(" ")
     .toLowerCase();
 
-function MacroPicker({ state, onClose }) {
+/** A checklist of every macro. `state`: { macros, selected (names), loading, toggle(name), clear() }; `title` of the sheet. */
+function MacroPicker({ state, onClose, title }) {
   const { macros, selected, loading, toggle, clear } = state;
   const [query, setQuery] = useState("");
   // The counter line is worded differently after the list is drawn, after a tick and after "clear all".
@@ -326,7 +336,7 @@ function MacroPicker({ state, onClose }) {
     h(
       "div",
       { className: "sheet-card sheet-card--column" },
-      h("div", { className: "sheet-header sheet-header--bar" }, h("div", { className: "dialog-title" }, tx("Choose macros")), h("button", { className: "dialog-close", onClick: onClose, "aria-label": tx("Close") }, "✕")),
+      h("div", { className: "sheet-header sheet-header--bar" }, h("div", { className: "dialog-title" }, title || tx("Choose macros")), h("button", { className: "dialog-close", onClick: onClose, "aria-label": tx("Close") }, "✕")),
       h(
         "div",
         { className: "picker-search" },
@@ -340,43 +350,63 @@ function MacroPicker({ state, onClose }) {
 }
 
 /* ---------------------------------------------------------------------------
-   Card
+   Cards (1.33): like Mainsail's macros
+   "simple": one card with every macro of the printer but the hidden ones;
+   "groups": a card for each group of the person's, shown while the printer is in
+   one of the group's states (standby, printing, paused), in the group's colour.
    ------------------------------------------------------------------------- */
-/** `onGcode(script)` sends a macro call (and echoes it in the console); `capabilities` and `lockReason` feed the endstop section. */
-function CalibrationCard({ onGcode, capabilities, lockReason }) {
-  const [pickerOpen, setPickerOpen] = useState(false);
-  const [editing, setEditing] = useState(null); // macro whose parameters are being filled in
-  const state = useCalibrationMacros(pickerOpen);
+/** "standby" | "printing" | "paused" from print_stats.state. */
+const macroPrintState = (state) => (state === "printing" ? "printing" : state === "paused" ? "paused" : "standby");
 
+/** The cards to show: [{ id, title, color, names, empty }]. */
+function macroCards(macroSettings, catalog, printState) {
+  const known = catalog.loaded || catalog.macros.length > 0;
+  const exists = (name) => !known || catalog.macros.some((macro) => macro.name === name);
+  if (macroSettings.mode === "simple") {
+    const names = catalog.macros.map((macro) => macro.name).filter((name) => !macroSettings.hidden.includes(name));
+    return [{ id: "all", title: tx("Macros"), color: "none", names, empty: known ? tx("No macros to show - the gear chooses them") : tx("Reading the macros…") }];
+  }
+  const state = macroPrintState(printState);
+  const groups = macroSettings.groups.filter((group) => group.show[state]);
+  if (macroSettings.groups.length === 0) return [{ id: "none", title: tx("Macros"), color: "none", names: [], empty: tx("No groups yet - the gear makes one") }];
+  return groups.map((group) => ({ id: group.id, title: group.name || tx("Macros"), color: group.color, names: group.macros.filter(exists), empty: tx("No macros in this group - the gear adds them") }));
+}
+
+/** The macro cards. `onSettings()` opens Settings → Macros. */
+function MacroCards({ printState, onGcode, onSettings }) {
+  const { settings } = useSettings();
+  const catalog = useMacroCatalog();
+  const [editing, setEditing] = useState(null); // macro whose parameters are being filled in
   const run = (script) => {
     onGcode(script);
     toast.action(script);
   };
-  const openPicker = () => {
-    setPickerOpen(true);
-    state.refreshMacros();
-  };
-
+  const cards = macroCards(settings.macros, catalog, printState);
   return h(
-    Card,
+    React.Fragment,
     null,
-    h(
-      CardHeader,
-      { title: tx("Calibrations") },
-      h("button", { className: "icon-btn", title: tx("Manage macros (the list is read when this opens)"), "aria-label": tx("Manage macros"), onClick: openPicker }, h(Icons.Gear, { size: 20 })),
+    cards.map((card) =>
+      h(
+        Card,
+        { key: card.id, className: cx("macro-card", "macro-card--" + card.color), "data-macro-card": card.id },
+        h(CardHeader, { title: card.title }, h("button", { className: "icon-btn", title: tx("Manage macros"), "aria-label": tx("Manage macros"), onClick: onSettings }, h(Icons.Gear, { size: 20 }))),
+        h(
+          "div",
+          { className: "macro-grid" },
+          card.names.length === 0
+            ? h("span", { className: "macro-empty" }, card.empty)
+            : card.names.map((name) => {
+                const macro = catalog.macros.find((item) => item.name === name) || { name, params: [], has_params: false, description: "" };
+                return h(MacroButton, { key: name, macro, onRun: run, onEditParams: setEditing });
+              }),
+        ),
+      ),
     ),
-    h(
-      "div",
-      { className: "macro-grid" },
-      state.selected.length === 0
-        ? h("span", { className: "macro-empty" }, tx("No macros - tap the gear to choose some"))
-        : state.selected.map((name) => {
-            const macro = state.macros.find((item) => item.name === name) || { name, params: [], has_params: false, description: "" };
-            return h(MacroButton, { key: name, macro, onRun: run, onEditParams: setEditing });
-          }),
-    ),
-    h(EndstopsSection, { capabilities, lockReason }),
     h(Presence, null, editing && h(ParamDialog, { macro: editing, onRun: run, onClose: () => setEditing(null) })),
-    h(Presence, null, pickerOpen && h(MacroPicker, { state, onClose: () => setPickerOpen(false) })),
   );
+}
+
+/** The endstops and the probe (57a), a card of their own since the macros left the "Calibrations" card (1.33). */
+function EndstopsCard({ capabilities, lockReason }) {
+  return h(Card, { className: "endstops-card" }, h(EndstopsSection, { capabilities, lockReason }));
 }
