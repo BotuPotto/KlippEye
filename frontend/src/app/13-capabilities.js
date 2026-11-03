@@ -32,6 +32,11 @@ const UNKNOWN_CAPABILITIES = {
   maxTemp: DEFAULT_MAX_TEMP,
   filamentDiameter: 1.75,
   zMoves: null, // not known yet
+  quadGantry: false,
+  zTilt: false,
+  bedScrews: false,
+  bedScrewLayout: [],
+  tune: {},
   macros: [],
   commands: {},
   lights: [],
@@ -90,6 +95,39 @@ function axisLimitsFrom(settings) {
   return out;
 }
 
+/** "screw1: x, y" and "screw1_name: front left" of [screws_tilt_adjust] or [bed_screws], in their order. */
+function screwLayoutOf(section) {
+  return Object.keys(section || {})
+    .filter((key) => /^screw\d+$/.test(key))
+    .sort((a, b) => parseInt(a.slice(5)) - parseInt(b.slice(5)))
+    .map((id) => {
+      const place = Array.isArray(section[id]) ? section[id] : String(section[id] || "").split(",").map(Number);
+      return { id, name: section[id + "_name"] || id, x: place[0], y: place[1] };
+    });
+}
+
+/** The printer.cfg values the Tune card (48a-tune.js) goes back to, with Klipper's own defaults for what is not written. */
+function tuneDefaultsFrom(settings) {
+  const read = (section, option, fallback) => {
+    const value = Number((settings[section] || {})[option]);
+    return (settings[section] || {})[option] !== undefined && Number.isFinite(value) ? value : fallback;
+  };
+  const accel = read("printer", "max_accel", null);
+  return {
+    pa: read("extruder", "pressure_advance", 0),
+    smooth: read("extruder", "pressure_advance_smooth_time", 0.04),
+    velocity: read("printer", "max_velocity", null),
+    accel,
+    scv: read("printer", "square_corner_velocity", 5),
+    mcr: read("printer", "minimum_cruise_ratio", 0.5),
+    a2d: read("printer", "max_accel_to_decel", accel === null ? null : accel / 2),
+    retractLength: read("firmware_retraction", "retract_length", 0),
+    retractSpeed: read("firmware_retraction", "retract_speed", 20),
+    unretractExtra: read("firmware_retraction", "unretract_extra_length", 0),
+    unretractSpeed: read("firmware_retraction", "unretract_speed", 10),
+  };
+}
+
 /** The highest temperatures Klipper accepts ([extruder] and [heater_bed] max_temp). */
 function maxTempFrom(settings) {
   const read = (section, fallback) => (Number.isFinite(Number((settings[section] || {}).max_temp)) ? Number(settings[section].max_temp) : fallback);
@@ -114,11 +152,7 @@ function deriveCapabilities(configfile, commands) {
   const twistConfigured = hasSection("axis_twist_compensation");
 
   // The screws of [screws_tilt_adjust]: "screw1: x, y" and "screw1_name: front left".
-  const screwSection = settings.screws_tilt_adjust || {};
-  const screwLayout = Object.keys(screwSection)
-    .filter((key) => /^screw\d+$/.test(key))
-    .sort((a, b) => parseInt(a.slice(5)) - parseInt(b.slice(5)))
-    .map((id) => ({ id, name: screwSection[id + "_name"] || id, x: (screwSection[id] || [])[0], y: (screwSection[id] || [])[1] }));
+  const screwLayout = screwLayoutOf(settings.screws_tilt_adjust);
 
   // The command that writes the live Z offset into the config: for the probe or for the endstop, never the other.
   const applyCommand = zHomesOnProbe ? "Z_OFFSET_APPLY_PROBE" : "Z_OFFSET_APPLY_ENDSTOP";
@@ -138,6 +172,12 @@ function deriveCapabilities(configfile, commands) {
     // 1.31: what Z moves, as the camera calibration guesses it (backend/camera_calibration.py guess_z_moves): a gantry that
     // goes up and down (quad_gantry_level) moves the toolhead; z_tilt or a CoreXY moves the bed; else the toolhead (i3 style)
     zMoves: guessZMoves(settings),
+    // 1.32: the leveling tools of the "Calibrate" menu, and the printer.cfg values of the Tune card
+    quadGantry: hasSection("quad_gantry_level") && registered("QUAD_GANTRY_LEVEL"),
+    zTilt: (hasSection("z_tilt") || hasSection("z_tilt_ng")) && registered("Z_TILT_ADJUST"),
+    bedScrews: hasSection("bed_screws") && registered("BED_SCREWS_ADJUST"),
+    bedScrewLayout: screwLayoutOf(settings.bed_screws),
+    tune: tuneDefaultsFrom(settings),
   };
 }
 

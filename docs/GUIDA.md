@@ -158,6 +158,19 @@ delle frecce di Z — col piatto, ↑ lo alza verso l'ugello; con la testina, �
 sempre i passi da 1 e 10 mm; si possono aggiungere 50 e 100 mm (una corona in più nel cerchio, due tasti Z in più per
 ognuno).
 
+**Calibra** (card Movimento) ha anche i **livellamenti** che Klipper offre sulla tua stampante: **Z tilt adjust**
+(`[z_tilt]`), **Quad gantry level** (`[quad_gantry_level]`) e, sulle stampanti senza sonda, **Bed screws adjust**
+(`[bed_screws]`): l'ugello si ferma sopra ogni vite e una scheda dice cosa fare (la prova del foglio); rispondi *Regolata* se
+hai girato la vite, *Va bene* se era già giusta. Klipper rifà il giro finché un giro intero va bene.
+
+### Regolazioni
+
+La card **Regolazioni** (pagina Controllo sul telefono, pagina Dispositivo sul computer) cambia, anche durante una stampa:
+i fattori di **velocità** e **flusso** (M220 / M221), il **pressure advance** e il suo smooth time, i **limiti della
+macchina** (velocità, accelerazione, velocità negli angoli, minimum cruise ratio) e la **retrazione firmware** (se c'è
+`[firmware_retraction]`). Usa − / + o scrivi un valore; sotto ognuno c'è il valore di `printer.cfg`, e la freccia tonda
+torna a quello. Niente viene scritto in `printer.cfg`: un riavvio di Klipper riporta i suoi valori.
+
 ### Durante la stampa
 
 La **card della stampa** (Home) mostra file, avanzamento, tempo, quanto manca e il layer; sotto, **a che ora finisce**,

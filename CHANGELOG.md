@@ -1,5 +1,19 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.32.0
+
+**Tune card and leveling tools** (roadmap phase 6b, third part).
+
+* **Tune** (Control page on the phone, Device page on a computer), usable during a print too: **speed** and **flow**
+  factors (M220 / M221), **pressure advance** and smooth time (`SET_PRESSURE_ADVANCE`), **machine limits** (velocity,
+  acceleration, square corner velocity, minimum cruise ratio, or accel_to_decel on an older Klipper:
+  `SET_VELOCITY_LIMIT`) and **firmware retraction** (`SET_RETRACTION`, when `[firmware_retraction]` exists). − / + or a
+  typed value; quick taps are sent once; each value shows the one of `printer.cfg` and a button back to it.
+* **Calibrate** menu: **Z tilt adjust** and **Quad gantry level** when `printer.cfg` has `[z_tilt]` /
+  `[quad_gantry_level]` (the end is read from Klipper, also when it takes longer than the proxy waits; errors in a
+  toast), and **Bed screws adjust** (`[bed_screws]`) step by step: which screw, the paper test, *Adjusted* / *Accept* /
+  *Abort*, until the bed is level.
+
 ## 1.31.0
 
 **Motion: the Z arrows follow your printer, and bigger steps** (roadmap phase 6b, second part).

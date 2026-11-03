@@ -28,6 +28,7 @@ function ControlPage({ entries, status, capabilities, lockReason, onGcode, onEdi
     { className: "grid grid-cols-1" },
     h(ConsoleCard, { entries }),
     h(ExtruderCard, { hotend: status.hotend, onGcode, onEditTemperature }),
+    h(TuneCard, { capabilities, onGcode }),
     h(CalibrationCard, { onGcode, capabilities, lockReason }),
     h(BedMeshCard, { onGcode }),
   );
@@ -101,7 +102,7 @@ function App() {
 
   const pages = {
     home: desktop
-      ? h(DesktopDevicePage, { printStatus, printControls, status, motion, bedTools, zOffset, lockReason, aiMonitor, onEditTemperature: temperature.edit, onGcode: runFromConsole, onNavigate: selectTab })
+      ? h(DesktopDevicePage, { printStatus, printControls, status, capabilities, motion, bedTools, zOffset, lockReason, aiMonitor, onEditTemperature: temperature.edit, onGcode: runFromConsole, onNavigate: selectTab })
       : h(HomePage, { printStatus, printControls, status, motion, bedTools, zOffset, lockReason, onEditTemperature: temperature.edit, aiMonitor }),
     controllo: desktop
       ? h(DesktopCalibrationPage, { capabilities, lockReason, onGcode: runFromConsole })

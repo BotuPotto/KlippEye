@@ -77,6 +77,7 @@
 .desk-slot--motion { order: 2; }
 .desk-slot--fans { order: 3; }
 .desk-slot--extruder { order: 4; }
+.desk-slot--tune { order: 5; }
 .heater-tiles--last { margin-bottom: 0; }
 /* extra wide: heaters + fans, and movement + extruder, each in a column of its own */
 @media (min-width: 1600px) {

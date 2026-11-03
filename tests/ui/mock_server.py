@@ -26,6 +26,13 @@ def default_state():
         "calib_selected": ["PARK_TEST", "SHAPER_CALIBRATE"],
         "long_macro": False,        # adds a macro with a very long name and parameters (the parameter form must fit its buttons)
         "ai_key_ok": True,
+        # 1.32: the Tune card and the leveling tools
+        "speed_factor": 1.1, "extrude_factor": 0.95,
+        "tune": {"pa": 0.04, "smooth": 0.04, "vel": 300.0, "accel": 3000.0, "scv": 5.0, "mcr": 0.5, "rl": 0.8, "rs": 35.0, "ue": 0.0, "us": 30.0},
+        "has_retraction": True, "old_limits": False,    # old_limits: Klipper before 2024 (max_accel_to_decel, no minimum cruise ratio)
+        "has_bed_screws": False, "has_level": False,    # [bed_screws]; [z_tilt] / [quad_gantry_level] (by z_kind)
+        "level_delay": 1.2, "level_busy_until": 0.0, "level_applied": False,
+        "bs": {"is_active": False, "state": None, "current_screw": 0, "accepted_screws": 0}, "bs_adjusted": False,
         "z_kind": "bed",            # 1.31: "bed" (z_tilt) or "toolhead" (quad_gantry_level) in Klipper's settings
         "print_objects": [],        # 1.30: exclude_object objects of the print ([{name, center, polygon}])
         "excluded": [],             # their names excluded with EXCLUDE_OBJECT
@@ -163,7 +170,16 @@ def settings_now():
     out["extruder"] = dict(out.get("extruder") or {}, max_temp=285)
     out["heater_bed"] = dict(out.get("heater_bed") or {}, max_temp=110)
     out["cartographer"] = {"serial": "/dev/serial/by-id/usb-cartographer"}
-    out["printer"] = {"kinematics": "corexy"}   # 1.31: the Motion card guesses what Z moves from these
+    out["printer"] = {"kinematics": "corexy", "max_velocity": 300.0, "max_accel": 3000.0, "square_corner_velocity": 5.0}   # 1.31: the Motion card guesses what Z moves from these
+    if S["old_limits"]:
+        out["printer"]["max_accel_to_decel"] = 1500.0
+    else:
+        out["printer"]["minimum_cruise_ratio"] = 0.5
+    out["extruder"] = dict(out["extruder"], pressure_advance=0.05, pressure_advance_smooth_time=0.04)
+    if S["has_retraction"]:
+        out["firmware_retraction"] = {"retract_length": 0.8, "retract_speed": 35.0, "unretract_extra_length": 0.0, "unretract_speed": 30.0}
+    if S["has_bed_screws"]:
+        out["bed_screws"] = {"screw1": "30, 30", "screw1_name": "front left", "screw2": "320, 30", "screw2_name": "front right", "screw3": "175, 320", "screw3_name": "rear"}
     if S.get("z_kind", "bed") == "bed":
         out["z_tilt"] = {"z_positions": "0, 0"}
     else:
@@ -180,6 +196,11 @@ def commands_now():
              "CLEAN_NOZZLE", "VAR_LUCI", "LUCI_ON", "LUCI_OFF", "SET_LED", "SET_PIN", "SET_LED_EFFECT", "STOP_LED_EFFECTS"] + S.get("extra_commands", [])
     if S["has_screws"]:
         names.append("SCREWS_TILT_CALCULATE")
+    names += ["M220", "M221", "SET_PRESSURE_ADVANCE", "SET_VELOCITY_LIMIT"] + (["SET_RETRACTION"] if S["has_retraction"] else [])
+    if S["has_level"]:
+        names.append("Z_TILT_ADJUST" if S.get("z_kind", "bed") == "bed" else "QUAD_GANTRY_LEVEL")
+    if S["has_bed_screws"]:
+        names += ["BED_SCREWS_ADJUST", "ACCEPT", "ADJUSTED", "ABORT"]
     names.append("Z_OFFSET_APPLY_PROBE" if S["z_apply"] == "probe" else "Z_OFFSET_APPLY_ENDSTOP")
     return {n: "help for " + n for n in names}
 
@@ -199,16 +220,33 @@ def status_for(keys, fields=None):
         elif k == "display_status":
             st[k] = {"progress": 0.42 if p else 0, "message": None}
         elif k == "toolhead":
-            st[k] = {"position": [120.5, 80.2, 15.3, 0], "homed_axes": S["homed"]}
+            t = S["tune"]
+            st[k] = {"position": [120.5, 80.2, 15.3, 0], "homed_axes": S["homed"], "max_velocity": t["vel"], "max_accel": t["accel"], "square_corner_velocity": t["scv"]}
+            if S["old_limits"]:
+                st[k]["max_accel_to_decel"] = t.get("a2d", 1500.0)
+            else:
+                st[k]["minimum_cruise_ratio"] = t["mcr"]
         elif k == "gcode_move":
-            st[k] = {"gcode_position": [120.5, 80.2, 15.3, 0], "homing_origin": [0, 0, S["z_offset"], 0], "speed_factor": 1.1, "extrude_factor": 0.95, "speed": 6000.0}
+            st[k] = {"gcode_position": [120.5, 80.2, 15.3, 0], "homing_origin": [0, 0, S["z_offset"], 0], "speed_factor": S["speed_factor"], "extrude_factor": S["extrude_factor"], "speed": 6000.0}
+        elif k == "firmware_retraction":
+            if S["has_retraction"]:
+                t = S["tune"]
+                st[k] = {"retract_length": t["rl"], "retract_speed": t["rs"], "unretract_extra_length": t["ue"], "unretract_speed": t["us"]}
+        elif k == "idle_timeout":
+            st[k] = {"state": "Printing" if (p or time.time() < S["level_busy_until"]) else "Ready", "printing_time": 0.0}
+        elif k in ("z_tilt", "quad_gantry_level"):
+            if S["has_level"] and (k == "z_tilt") == (S.get("z_kind", "bed") == "bed"):
+                st[k] = {"applied": S["level_applied"]}
+        elif k == "bed_screws":
+            if S["has_bed_screws"]:
+                st[k] = dict(S["bs"])
         elif k == "motion_report":
             st[k] = {"live_velocity": 87.4 if p else 0.0, "live_extruder_velocity": 2.6 if p else 0.0, "live_position": [120.5, 80.2, 15.3, 0]}
         elif k == "exclude_object":
             if S["print_objects"]:
                 st[k] = {"objects": S["print_objects"], "excluded_objects": list(S["excluded"]), "current_object": next((o["name"] for o in S["print_objects"] if o["name"] not in S["excluded"]), None)}
         elif k == "extruder":
-            st[k] = {"temperature": S["ext_t"], "target": S["ext_target"]}
+            st[k] = {"temperature": S["ext_t"], "target": S["ext_target"], "pressure_advance": S["tune"]["pa"], "smooth_time": S["tune"]["smooth"]}
         elif k == "heater_bed":
             st[k] = {"temperature": S["bed_t"], "target": S["bed_target"]}
         elif k in FANS:
@@ -259,7 +297,7 @@ def mock_reset():
     S.clear(); S.update(default_state()); return jsonify(ok=True)
 @app.route("/__mock/state")
 def mock_state():
-    return jsonify({k: v for k, v in S.items() if k in ("light", "light_cmds", "light_reads", "actions", "webhooks", "webhooks_msg", "disconnected", "moonraker_down", "host_off", "services", "update_log", "brain_cfg_log", "brain_release", "brain_started", "klippeye_info", "pending_release", "logos", "app_apk_hits", "app_apk_downloads", "update_channel", "channel_posts", "rec_posts", "measure_starts", "measure_bodies", "ai_cfg", "ai_posts", "ai_model_reads", "excluded", "recordings", "alerts", "pm_macros", "pm_wraps", "pm_posts", "gcode_log", "ntfy", "ntfy_posts", "ntfy_tests", "ntfy_app_reads", "ai_answers", "ai_answer")})
+    return jsonify({k: v for k, v in S.items() if k in ("light", "light_cmds", "light_reads", "actions", "webhooks", "webhooks_msg", "disconnected", "moonraker_down", "host_off", "services", "update_log", "brain_cfg_log", "brain_release", "brain_started", "klippeye_info", "pending_release", "logos", "app_apk_hits", "app_apk_downloads", "update_channel", "channel_posts", "rec_posts", "measure_starts", "measure_bodies", "ai_cfg", "ai_posts", "ai_model_reads", "excluded", "tune", "speed_factor", "extrude_factor", "bs", "level_applied", "recordings", "alerts", "pm_macros", "pm_wraps", "pm_posts", "gcode_log", "ntfy", "ntfy_posts", "ntfy_tests", "ntfy_app_reads", "ai_answers", "ai_answer")})
 @app.route("/__mock/print_actions")
 def mock_print_actions():
     return jsonify(S.get("print_actions", []))
@@ -466,6 +504,50 @@ def gcode_script():
             later(S["tool_delay"], work)
             return jsonify(error="HTTPConnectionPool(host='127.0.0.1', port=7125): Read timed out. (read timeout=10)"), 502
         time.sleep(S["tool_delay"]); work()  # Moonraker answers when the command is over
+    elif cmd in ("M220", "M221"):
+        value = next((float(w[1:]) for w in words[1:] if w.upper().startswith("S")), 100.0)
+        S["speed_factor" if cmd == "M220" else "extrude_factor"] = value / 100.0
+    elif cmd in ("SET_PRESSURE_ADVANCE", "SET_VELOCITY_LIMIT", "SET_RETRACTION"):
+        keys = {"ADVANCE": "pa", "SMOOTH_TIME": "smooth", "VELOCITY": "vel", "ACCEL": "accel", "SQUARE_CORNER_VELOCITY": "scv", "MINIMUM_CRUISE_RATIO": "mcr",
+                "ACCEL_TO_DECEL": "a2d", "RETRACT_LENGTH": "rl", "RETRACT_SPEED": "rs", "UNRETRACT_EXTRA_LENGTH": "ue", "UNRETRACT_SPEED": "us"}
+        for w in words[1:]:
+            if "=" in w and w.split("=")[0].upper() in keys:
+                S["tune"][keys[w.split("=")[0].upper()]] = float(w.split("=")[1])
+    elif cmd in ("Z_TILT_ADJUST", "QUAD_GANTRY_LEVEL"):
+        S["level_busy_until"] = time.time() + S["level_delay"]
+        def levelled():
+            if S["tool_error"]:
+                console_line("!! " + S["tool_error"])
+            else:
+                S["level_applied"] = True
+                console_line("// Retries: 1/5 Probed points range: 0.002100 tolerance: 0.007500")
+            S["level_busy_until"] = 0.0
+        if S["tool_timeout_502"]:
+            later(S["level_delay"], levelled)
+            return jsonify(error="HTTPConnectionPool(host='127.0.0.1', port=7125): Read timed out. (read timeout=10)"), 502
+        time.sleep(S["level_delay"]); levelled()
+        if S["tool_error"]:
+            return jsonify(error={"code": 400, "message": S["tool_error"]}), 400
+    elif cmd == "BED_SCREWS_ADJUST":
+        S["bs"] = {"is_active": True, "state": "adjust", "current_screw": 0, "accepted_screws": 0}; S["bs_adjusted"] = False
+    elif cmd in ("ACCEPT", "ADJUSTED", "ABORT"):
+        bs = S["bs"]
+        if not bs["is_active"]:
+            return jsonify(error={"code": 400, "message": "Unknown command:\"%s\"" % cmd}), 400
+        time.sleep(0.3)   # the nozzle goes to the next screw
+        if cmd == "ABORT":
+            S["bs"] = {"is_active": False, "state": None, "current_screw": 0, "accepted_screws": 0}
+        else:
+            if cmd == "ADJUSTED":
+                S["bs_adjusted"] = True
+            else:
+                bs["accepted_screws"] += 1
+            bs["current_screw"] += 1
+            if bs["current_screw"] >= 3:
+                if S["bs_adjusted"]:
+                    bs.update(current_screw=0, accepted_screws=0); S["bs_adjusted"] = False
+                else:
+                    S["bs"] = {"is_active": False, "state": None, "current_screw": 0, "accepted_screws": 0}
     elif cmd == "SET_GCODE_OFFSET":
         args = {w.split("=")[0].upper(): w.split("=")[1] for w in words[1:] if "=" in w}
         if "Z_ADJUST" in args:
