@@ -9,6 +9,10 @@ It includes or uses the following third-party works, each under its own license.
 |---|---|---|---|
 | React and ReactDOM | 18.3.1 | MIT, Copyright (c) Meta Platforms, Inc. and affiliates | `frontend/vendor/react-dom-18.3.1.min.js` |
 | Tailwind CSS (compiled utilities) | 3.4.18 | MIT, Copyright (c) Tailwind Labs, Inc. | `frontend/vendor/tailwind-3.4.18.compiled.css` |
+| qrcode-generator | 2.0.4 | MIT, Copyright (c) 2009 Kazuhiko Arase | `frontend/vendor/qrcode-generator-2.0.4.js` |
+| CodeMirror 6 (state, view, language, commands, search, autocomplete) | 6.x (see `frontend/tools/codemirror/build.sh`) | MIT, Copyright (C) 2018-2021 by Marijn Haverbeke and others | `frontend/vendor/codemirror-6.js` |
+| Lezer (common, highlight, lr) | 1.x | MIT, Copyright (C) 2018 by Marijn Haverbeke and others | `frontend/vendor/codemirror-6.js` |
+| style-mod, w3c-keyname, crelt, find-cluster-break | 4.1.2, 2.2.8, 1.0.6, 1.0.2 | MIT, Copyright (C) Marijn Haverbeke | `frontend/vendor/codemirror-6.js` |
 | Outfit font (SemiBold, reduced subset) | — | SIL Open Font License 1.1, Copyright 2021 The Outfit Project Authors (github.com/Outfitio/Outfit-Fonts) | `frontend/src/css/02-wordmark-font.css` |
 
 ## Included in the Android app (`android/`, resolved by Gradle at build time)

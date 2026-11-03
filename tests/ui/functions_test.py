@@ -102,17 +102,16 @@ with sync_playwright() as p:
     # load -> G-code written in the editor
     group(P, "load").locator(".oui-chip", has_text="G-code").click(); P.settle(300)
     P.pg.locator('[data-edit-gcode="load"]').click(); P.settle(600)
-    ok("G-code: the dashboard's editor opens over the page", P.pg.locator(".editor-textarea, textarea").count() >= 1 and P.pg.locator(".editor-save").count() >= 1)
+    ok("G-code: the dashboard's editor opens over the page", P.pg.locator(".screen--editor .cm-editor").count() == 1 and P.pg.locator(".editor-save").count() >= 1)
     ok("... with only 'Salva' (no 'Salva e riavvia': this text is not a file)", P.pg.locator(".editor-save", has_text="riavvia").count() == 0)
-    ta = P.pg.locator("textarea").last
-    ta.fill("M109 S220\nG1 E50 F300")
+    P.pg.evaluate("(t) => { const v = CM.EditorView.findFromDOM(document.querySelector('.screen--editor .cm-editor')); v.dispatch({ changes: { from: 0, to: v.state.doc.length, insert: t } }); }", "M109 S220\nG1 E50 F300")
     P.pg.locator(".editor-save").first.click(); P.settle(900)
     ok("... saving keeps the G-code in the settings and closes the editor", wait_until(lambda: stored().get("functions", {}).get("load", {}).get("gcode") == "M109 S220\nG1 E50 F300") and P.pg.locator(".editor-save").count() == 0, stored().get("functions", {}).get("load"))
 
     # unload -> create a macro
     P.pg.locator('[data-create="unload"]').scroll_into_view_if_needed()
     P.pg.locator('[data-create="unload"]').click(); P.settle(800)
-    ok("create a macro: the proposed KLIPPEYE_UNLOAD_FILAMENT opens in the editor", "KLIPPEYE_UNLOAD_FILAMENT" in P.pg.locator("textarea").last.input_value())
+    ok("create a macro: the proposed KLIPPEYE_UNLOAD_FILAMENT opens in the editor", "KLIPPEYE_UNLOAD_FILAMENT" in P.pg.evaluate("() => CM.EditorView.findFromDOM(document.querySelector('.screen--editor .cm-editor')).state.doc.toString()"))
     P.pg.locator(".editor-save").first.click(); P.settle(1200)
     ok("... saved by the backend into klippeye_macros.cfg, and the function now uses it", wait_until(lambda: "KLIPPEYE_UNLOAD_FILAMENT" in state()["pm_macros"]) and wait_until(lambda: stored().get("functions", {}).get("unload", {}).get("macro") == "KLIPPEYE_UNLOAD_FILAMENT"), (state()["pm_macros"].keys(), stored().get("functions", {}).get("unload")))
     ok("... the page says Klipper must restart, with the button", wait_until(lambda: P.pg.locator('[data-restart="1"]').count() == 1), body(P)[:400])
