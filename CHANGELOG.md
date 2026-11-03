@@ -1,5 +1,14 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.39.0
+
+**Configuration files: order, backups and hidden files** (roadmap phase 6c, first part).
+
+* The ⇅ button next to the search box: **order** by name A→Z / Z→A, last change first / oldest first, largest first
+  (folders always first); show the **backup files** (SAVE_CONFIG's `printer-…cfg`, `.bak`, `.bkp`, `.old`…) and the
+  **hidden files** (`.name`), tagged in the list. Kept on this device.
+* Under the list, a line says how many backups and hidden files are left out; a tap shows them.
+
 ## 1.38.0
 
 **Notifications of your own, and the error with Klipper's message** (roadmap phase 6b, ninth part; notification service 1.7).

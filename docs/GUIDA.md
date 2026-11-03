@@ -232,6 +232,14 @@ macchina** (velocità, accelerazione, velocità negli angoli, minimum cruise rat
 `[firmware_retraction]`). Usa − / + o scrivi un valore; sotto ognuno c'è il valore di `printer.cfg`, e la freccia tonda
 torna a quello. Niente viene scritto in `printer.cfg`: un riavvio di Klipper riporta i suoi valori.
 
+### File di configurazione
+
+La card **File di configurazione** (pagina Config) mostra prima le cartelle, poi i file. Il pulsante ⇅ accanto alla ricerca
+sceglie l'**ordine** (nome A→Z o Z→A, ultima modifica prima o più vecchia prima, più grandi prima) e se mostrare i **file
+di backup** (i `printer-AAAAMMGG_HHMMSS.cfg` scritti da SAVE_CONFIG, `.bak`, `.bkp`…) e i **file nascosti** (nomi che
+iniziano con un punto). La scelta resta su questo dispositivo; una riga sotto l'elenco dice quanti ne restano fuori, e
+toccandola li mostra.
+
 ### Durante la stampa
 
 La **card della stampa** (Home) mostra file, avanzamento, tempo, quanto manca e il layer; sotto, **a che ora finisce**,

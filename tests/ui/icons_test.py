@@ -37,6 +37,8 @@ def fresh(tab, w=390, h=844, wait=1800, **state):
     mock.reset()
     mock.set(**state)
     P = Page(b, mock, w, h)
+    # 1.39: backups and hidden files are left out unless shown: this test wants every kind of file in the list
+    P.ctx.add_init_script("try { localStorage.setItem('ke_cfg_view', JSON.stringify({ sort: 'name', backups: true, hidden: true })) } catch (e) {}")
     P.goto(tab, wait)
     return P
 
