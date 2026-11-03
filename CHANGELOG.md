@@ -1,5 +1,10 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.33.1
+
+* **Macro groups in any colour**: besides the ready colours, *Custom* opens a **colour wheel** (hue around, strength from
+  the centre), a **brightness** bar and the **colour code** (#rrggbb) to type one exactly.
+
 ## 1.33.0
 
 **Macros like Mainsail** (roadmap phase 6b, fourth part). The *Calibrations* card is replaced by macro cards set in the new

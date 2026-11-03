@@ -165,7 +165,7 @@ The macro cards (Control page on the phone, Calibration page on a computer) work
 (or the gear of a card) chooses how:
 * **All the macros**: one card with every macro of the printer; switch off the ones you never use (the macros whose name
   starts with `_` are never shown);
-* **Groups**: cards of your own, each with a **name**, a **colour**, the **macros** you pick in the order you want, and
+* **Groups**: cards of your own, each with a **name**, a **colour** (ready ones, or any colour on the wheel of *Custom*), the **macros** you pick in the order you want, and
   **when it shows**: idle, printing, paused (e.g. the filament macros also while paused, the calibrations only when idle).
 
 A macro with parameters has a ⚙ next to its name: it opens a form with the values to send. The choice is in the shared

@@ -29,6 +29,138 @@ function macroSettingsSummary(macros) {
   return macros.hidden.length ? tx("All the macros • {count} hidden", { count: macros.hidden.length }) : tx("All the macros");
 }
 
+/* ---------------------------------------------------------------------------
+   The colour (1.33.1): a few ready ones, or any colour on a wheel (hue around,
+   strength from the centre out) with a brightness bar and the hex code.
+   ------------------------------------------------------------------------- */
+const COLOR_COMMIT_MS = 250; // dragging on the wheel saves once it stops for this long
+
+function hsvToHex(hue, sat, val) {
+  const f = (n) => {
+    const k = (n + hue / 60) % 6;
+    return val - val * sat * Math.max(0, Math.min(k, 4 - k, 1));
+  };
+  return "#" + [f(5), f(3), f(1)].map((c) => Math.round(c * 255).toString(16).padStart(2, "0")).join("");
+}
+
+function hexToHsv(hex) {
+  const n = parseInt(hex.slice(1), 16);
+  const [r, g, b] = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((c) => c / 255);
+  const max = Math.max(r, g, b);
+  const d = max - Math.min(r, g, b);
+  let hue = 0;
+  if (d) hue = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  return { h: (hue * 60 + 360) % 360, s: max ? d / max : 0, v: max };
+}
+
+/** The wheel: drag (or tap) to pick hue and strength; the bar under it sets the brightness. */
+function ColorWheel({ value, onChange }) {
+  const [hsv, setHsv] = useState(() => hexToHsv(MACRO_HEX_COLOR.test(value) ? value : "#7c5cff"));
+  const [text, setText] = useState(null); // the hex code while it is typed
+  const wheel = useRef(null);
+  const timer = useRef(null);
+  useEffect(() => () => clearTimeout(timer.current), []);
+  useEffect(() => {
+    if (MACRO_HEX_COLOR.test(value) && value !== hsvToHex(hsv.h, hsv.s, hsv.v)) setHsv(hexToHsv(value));
+  }, [value]);
+  const hex = hsvToHex(hsv.h, hsv.s, hsv.v);
+  const set = (next) => {
+    setHsv(next);
+    clearTimeout(timer.current);
+    timer.current = setTimeout(() => onChange(hsvToHex(next.h, next.s, next.v)), COLOR_COMMIT_MS);
+  };
+  const pick = (event) => {
+    const box = wheel.current.getBoundingClientRect();
+    const dx = event.clientX - (box.left + box.width / 2);
+    const dy = event.clientY - (box.top + box.height / 2);
+    const radius = box.width / 2;
+    set({ ...hsv, h: ((Math.atan2(dy, dx) * 180) / Math.PI + 360) % 360, s: Math.min(1, Math.hypot(dx, dy) / radius) });
+  };
+  const angle = (hsv.h * Math.PI) / 180;
+  return h(
+    "div",
+    { className: "color-wheel", style: { "--wheel-hex": hex, "--wheel-dim": 1 - hsv.v } },
+    h(
+      "div",
+      {
+        ref: wheel,
+        className: "color-wheel__disc",
+        role: "slider",
+        "aria-label": tx("Colour wheel"),
+        "aria-valuetext": hex,
+        onPointerDown: (event) => {
+          event.currentTarget.setPointerCapture(event.pointerId);
+          pick(event);
+        },
+        onPointerMove: (event) => event.buttons && pick(event),
+      },
+      h("span", { className: "color-wheel__dim", "aria-hidden": "true" }),
+      h("span", { className: "color-wheel__knob", style: { left: 50 + 50 * hsv.s * Math.cos(angle) + "%", top: 50 + 50 * hsv.s * Math.sin(angle) + "%" } }),
+    ),
+    h(
+      "div",
+      { className: "color-wheel__side" },
+      h("span", { className: "color-wheel__preview", "aria-hidden": "true" }),
+      h("label", { className: "set-field__label color-wheel__label" }, tx("Brightness")),
+      h("input", { type: "range", className: "color-wheel__bright", min: 15, max: 100, value: Math.round(hsv.v * 100), "aria-label": tx("Brightness"), onChange: (event) => set({ ...hsv, v: Number(event.target.value) / 100 }) }),
+      h("input", {
+        className: "oui-field oui-mono color-wheel__hex",
+        "aria-label": tx("Colour code"),
+        value: text !== null ? text : hex,
+        maxLength: 7,
+        onChange: (event) => {
+          const typed = event.target.value.trim().toLowerCase();
+          setText(typed);
+          const clean = typed.startsWith("#") ? typed : "#" + typed;
+          if (MACRO_HEX_COLOR.test(clean)) set(hexToHsv(clean));
+        },
+        onBlur: () => setText(null),
+      }),
+    ),
+  );
+}
+
+/** The ready colours plus "Custom", which opens the wheel. */
+function MacroColorChoice({ value, onChange }) {
+  const custom = MACRO_HEX_COLOR.test(value);
+  const [wheelOpen, setWheelOpen] = useState(custom);
+  const chip = (id, label, extra) =>
+    h(
+      "button",
+      { key: id, type: "button", role: "radio", "aria-checked": extra.selected, className: cx("oui-chip macro-color-chip", extra.className, extra.selected && "is-selected"), style: extra.style, onClick: extra.onClick },
+      h("span", { className: "macro-color-chip__dot", "aria-hidden": "true" }),
+      label,
+    );
+  return h(
+    React.Fragment,
+    null,
+    h(
+      "div",
+      { className: "set-chips macro-colors", role: "radiogroup", "aria-label": tx("Colour") },
+      MACRO_COLOR_OPTIONS.map((option) =>
+        chip(option.id, option.label, {
+          className: "macro-card--" + option.id,
+          selected: value === option.id,
+          onClick: () => {
+            setWheelOpen(false);
+            onChange(option.id);
+          },
+        }),
+      ),
+      chip("custom", tx("Custom"), {
+        className: cx("macro-color-chip--custom", custom && "macro-card--custom"),
+        style: custom ? macroColorProps(value).style : undefined,
+        selected: custom,
+        onClick: () => {
+          setWheelOpen(true);
+          if (!custom) onChange("#7c5cff");
+        },
+      }),
+    ),
+    wheelOpen && custom && h(ColorWheel, { value, onChange }),
+  );
+}
+
 const newGroupId = () => "g" + Date.now().toString(36).slice(-7) + Math.floor(Math.random() * 36).toString(36);
 
 /** A small round button of the group editor. */
@@ -57,7 +189,7 @@ function MacroGroupEditor({ group, index, count, catalog, onChange, onMove, onDe
 
   return h(
     "section",
-    { className: cx("set-group macro-group-edit", "macro-card--" + group.color), "data-group-id": group.id },
+    { className: cx("set-group macro-group-edit", macroColorProps(group.color).className), style: macroColorProps(group.color).style, "data-group-id": group.id },
     h(
       "div",
       { className: "macro-group-edit__head" },
@@ -76,18 +208,7 @@ function MacroGroupEditor({ group, index, count, catalog, onChange, onMove, onDe
       onCommit: (name) => change((draft) => (draft.name = name)),
     }),
     h("div", { className: "set-field__label macro-group-edit__label" }, tx("Colour")),
-    h(
-      "div",
-      { className: "set-chips macro-colors", role: "radiogroup", "aria-label": tx("Colour") },
-      MACRO_COLOR_OPTIONS.map((option) =>
-        h(
-          "button",
-          { key: option.id, type: "button", role: "radio", "aria-checked": group.color === option.id, className: cx("oui-chip macro-color-chip", "macro-card--" + option.id, group.color === option.id && "is-selected"), onClick: () => change((draft) => (draft.color = option.id)) },
-          h("span", { className: "macro-color-chip__dot", "aria-hidden": "true" }),
-          option.label,
-        ),
-      ),
-    ),
+    h(MacroColorChoice, { value: group.color, onChange: (color) => change((draft) => (draft.color = color)) }),
     h("div", { className: "set-field__label macro-group-edit__label" }, tx("Show the card while the printer is")),
     h(
       "div",
