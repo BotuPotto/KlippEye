@@ -75,8 +75,8 @@ function ConsoleDock({ entries }) {
   useEffect(() => {
     if (!open || fullscreen) return undefined;
     const onKey = (event) => event.key === "Escape" && !document.querySelector(".oui-menu") && setOpen(false);
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
   }, [open, fullscreen]);
 
   const send = () => {

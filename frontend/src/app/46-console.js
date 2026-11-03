@@ -302,9 +302,10 @@ function ConsoleFullscreen({ entries, onClose }) {
   const inputRef = useRef(null);
   useEffect(() => {
     // Escape with the options menu open closes the menu only
+    // in the capture phase, before the menu's own handler takes the menu away: Escape with the options open closes the menu only
     const onKey = (event) => event.key === "Escape" && !document.querySelector(".oui-menu") && onClose();
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
   }, []);
   const send = () => {
     if (!command.trim()) return;

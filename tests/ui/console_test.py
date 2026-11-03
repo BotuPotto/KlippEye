@@ -118,7 +118,11 @@ with sync_playwright() as p:
     pg.locator('.console-full button[aria-label="Opzioni della console"]').click()
     ok("... its options menu opens above it", wait_until(lambda: pg.locator(".oui-menu").is_visible()) and pg.evaluate("() => { const r = document.querySelector('.oui-menu').getBoundingClientRect(); const el = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2); return !!(el && el.closest('.oui-menu')); }"))
     pg.keyboard.press("Escape")
-    P.settle(200)
+    P.settle(300)
+    ok("... Escape closes the menu, the full screen stays", pg.locator(".console-full").count() == 1)
+    if pg.locator(".console-full").count() == 0:
+        pg.locator('button[aria-label="Schermo intero"]').first.click()
+        P.settle(400)
     full.locator(".console-input").fill("G28 X")
     full.locator(".console-input").press("Enter")
     ok("... and sends from its own field", wait_until(lambda: "G28 X" in gcodes()))
