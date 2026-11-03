@@ -109,7 +109,7 @@ with sync_playwright() as p:
     P.pg.locator(".help-sheet .drawer__btn").click(); P.settle(400)
 
     # every page has its guide, opened from its title bar
-    for page in ["printer", "functions", "zoffset", "camera", "ai", "notifications", "network", "access", "software", "language"]:
+    for page in ["printer", "functions", "motion", "zoffset", "camera", "ai", "notifications", "network", "access", "software", "language"]:
         P.pg.locator('.set-entry[data-page="%s"]' % page).click(); P.settle(500)
         P.pg.locator(".drawer__help").click(); P.settle(400)
         good = P.pg.locator('[data-help-open="%s"]' % page).count() == 1 and P.pg.locator(".help-section").count() >= 1
