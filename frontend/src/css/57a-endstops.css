@@ -1,9 +1,10 @@
 /* ============================================================================
-   Endstops & probe: the collapsible section at the foot of the Calibrazioni card
+   Endstops & probe: a collapsible card of its own (1.33; before, the foot of the Calibrazioni card)
    (markup: app/57a-endstops.js; rows are the shared .oui-row)
    ========================================================================== */
 
 .endstops { margin-top: 16px; padding-top: 4px; border-top: 1px solid var(--oui-stroke); }
+.endstops-card .endstops { margin: -8px 0; padding-top: 0; border-top: 0; }
 .endstops-head {
   display: flex;
   align-items: center;

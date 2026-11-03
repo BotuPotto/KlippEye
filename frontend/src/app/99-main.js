@@ -22,14 +22,15 @@ function HomePage({ printStatus, printControls, status, motion, bedTools, zOffse
   );
 }
 
-function ControlPage({ entries, status, capabilities, lockReason, onGcode, onEditTemperature }) {
+function ControlPage({ entries, status, capabilities, lockReason, printState, onGcode, onEditTemperature, onMacroSettings }) {
   return h(
     "div",
     { className: "grid grid-cols-1" },
     h(ConsoleCard, { entries }),
     h(ExtruderCard, { hotend: status.hotend, onGcode, onEditTemperature }),
+    h(MacroCards, { printState, onGcode, onSettings: onMacroSettings }),
     h(TuneCard, { capabilities, onGcode }),
-    h(CalibrationCard, { onGcode, capabilities, lockReason }),
+    h(EndstopsCard, { capabilities, lockReason }),
     h(BedMeshCard, { onGcode }),
   );
 }
@@ -60,6 +61,7 @@ function App() {
   const power = usePowerMenu({ klipper, printing: printStatus.printing });
   const settingsMenu = useSettingsMenu();
   useSettingsSync();
+  useMacroMigration();
   useAppNotifySync();
   usePrinterIdentity();
   const temperature = useTemperatureDialog();
@@ -92,6 +94,7 @@ function App() {
       setTab(id);
     });
   const runFromConsole = (script) => sendFromConsole(script, consoleFeed.echo);
+  const openMacroSettings = () => settingsMenu.openPage("macros");
   const restartService = (name) => {
     settingsMenu.close();
     power.service("restart", name);
@@ -105,8 +108,8 @@ function App() {
       ? h(DesktopDevicePage, { printStatus, printControls, status, capabilities, motion, bedTools, zOffset, lockReason, aiMonitor, onEditTemperature: temperature.edit, onGcode: runFromConsole, onNavigate: selectTab })
       : h(HomePage, { printStatus, printControls, status, motion, bedTools, zOffset, lockReason, onEditTemperature: temperature.edit, aiMonitor }),
     controllo: desktop
-      ? h(DesktopCalibrationPage, { capabilities, lockReason, onGcode: runFromConsole })
-      : h(ControlPage, { entries: consoleFeed.entries, status, capabilities, lockReason, onGcode: runFromConsole, onEditTemperature: temperature.edit }),
+      ? h(DesktopCalibrationPage, { capabilities, lockReason, printState: printStatus.state, onGcode: runFromConsole, onMacroSettings: openMacroSettings })
+      : h(ControlPage, { entries: consoleFeed.entries, status, capabilities, lockReason, printState: printStatus.state, onGcode: runFromConsole, onEditTemperature: temperature.edit, onMacroSettings: openMacroSettings }),
     files: desktop ? h(DesktopFilesPage, { list: files, onPrint: setPrintJob, fileActions }) : h(FilesCard, { list: files, onPrint: setPrintJob, onMenu: fileActions.openMenu }),
     config: desktop
       ? h(DesktopConfigPage, {

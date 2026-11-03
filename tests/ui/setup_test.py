@@ -102,14 +102,14 @@ with sync_playwright() as p:
 
     # ------------------------------------------------------------------ the menu in groups
     groups = P.pg.locator("[data-group]").evaluate_all("els => els.map(e => [e.dataset.group, [...e.querySelectorAll('[data-page]')].map(x => x.dataset.page)])")
-    ok("the menu in four groups: printer / camera and AI / phone and network / system", groups == [["printer", ["printer", "functions", "motion", "zoffset"]], ["watch", ["camera", "ai"]], ["phone", ["notifications", "network"]], ["system", ["access", "software", "language"]]], groups)
+    ok("the menu in four groups: printer / camera and AI / phone and network / system", groups == [["printer", ["printer", "functions", "macros", "motion", "zoffset"]], ["watch", ["camera", "ai"]], ["phone", ["notifications", "network"]], ["system", ["access", "software", "language"]]], groups)
     P.shot(out + "/menu.png")
     P.pg.locator(".drawer__help").click(); P.settle(500)
     ok("«?» on the menu: how the settings work", P.pg.locator('[data-help-open="home"]').count() == 1 and "Salvate sul Raspberry" in P.pg.locator(".help-sheet").inner_text())
     P.pg.locator(".help-sheet .drawer__btn").click(); P.settle(400)
 
     # every page has its guide, opened from its title bar
-    for page in ["printer", "functions", "motion", "zoffset", "camera", "ai", "notifications", "network", "access", "software", "language"]:
+    for page in ["printer", "functions", "macros", "motion", "zoffset", "camera", "ai", "notifications", "network", "access", "software", "language"]:
         P.pg.locator('.set-entry[data-page="%s"]' % page).click(); P.settle(500)
         P.pg.locator(".drawer__help").click(); P.settle(400)
         good = P.pg.locator('[data-help-open="%s"]' % page).count() == 1 and P.pg.locator(".help-section").count() >= 1

@@ -163,6 +163,19 @@ ognuno).
 (`[bed_screws]`): l'ugello si ferma sopra ogni vite e una scheda dice cosa fare (la prova del foglio); rispondi *Regolata* se
 hai girato la vite, *Va bene* se era già giusta. Klipper rifà il giro finché un giro intero va bene.
 
+### Macro
+
+Le card delle macro (pagina Controllo sul telefono, pagina Calibrazione sul computer) funzionano come in Mainsail.
+**Impostazioni → Macro** (o l'ingranaggio di una card) sceglie come:
+* **Tutte le macro**: una card con ogni macro della stampante; spegni quelle che non usi mai (le macro il cui nome comincia
+  con `_` non vengono mai mostrate);
+* **Gruppi**: card tue, ognuna con un **nome**, un **colore**, le **macro** che scegli nell'ordine che vuoi, e **quando
+  compare**: ferma, in stampa, in pausa (per esempio le macro del filamento anche in pausa, le calibrazioni solo da ferma).
+
+Una macro con parametri ha un ⚙ accanto al nome: apre un modulo con i valori da inviare. La scelta sta nelle impostazioni
+condivise, uguale su ogni telefono e computer. Le macro scelte nella vecchia card *Calibrazioni* diventano un gruppo con quel
+nome. *Endstop e probe* ora è una card a sé.
+
 ### Regolazioni
 
 La card **Regolazioni** (pagina Controllo sul telefono, pagina Dispositivo sul computer) cambia, anche durante una stampa:

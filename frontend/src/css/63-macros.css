@@ -85,3 +85,46 @@
 .picker-row-description { min-width: 0; margin-top: 3px; overflow: hidden; font-size: 13px; color: var(--oui-text-2); text-overflow: ellipsis; white-space: nowrap; }
 .picker-row-params { margin-top: 3px; font-family: var(--oui-font-mono); font-size: 12px; color: var(--oui-text-3); }
 .picker-row-file { margin-top: 2px; font-size: 12px; color: var(--oui-text-3); }
+
+/* ---- 1.33: the colour of a macro card (Settings → Macros) tints its buttons ---- */
+.macro-card--none { --macro-tint: var(--oui-text-3); --macro-soft: var(--oui-surface-2); }
+.macro-card--accent { --macro-tint: var(--oui-accent); --macro-soft: var(--oui-accent-soft); }
+.macro-card--cool { --macro-tint: var(--oui-cool); --macro-soft: color-mix(in srgb, var(--oui-cool) 16%, transparent); }
+.macro-card--ok { --macro-tint: var(--oui-ok); --macro-soft: var(--oui-ok-soft); }
+.macro-card--warn { --macro-tint: var(--oui-warn); --macro-soft: var(--oui-warn-soft); }
+.macro-card--danger { --macro-tint: var(--oui-danger); --macro-soft: var(--oui-danger-soft); }
+.macro-card:not(.macro-card--none) .macro-run,
+.macro-card:not(.macro-card--none) .macro-split { background: var(--macro-soft); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--macro-tint) 35%, transparent); }
+.macro-card:not(.macro-card--none) .oui-card-title { display: flex; align-items: center; gap: 10px; }
+.macro-card:not(.macro-card--none) .oui-card-title::before { content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--macro-tint); }
+
+/* ---- Settings → Macros: the group editor ---- */
+.macro-search { margin-bottom: 10px; }
+.macro-visibility__bulk { display: flex; gap: 8px; margin-bottom: 10px; }
+.macro-group-edit { display: flex; flex-direction: column; gap: 10px; padding: 14px; border-radius: var(--oui-r-card); background: var(--oui-surface); box-shadow: inset 4px 0 0 var(--macro-tint); }
+.macro-group-edit__head { display: flex; align-items: center; gap: 8px; }
+.macro-group-edit__swatch { flex: none; width: 12px; height: 12px; border-radius: 50%; background: var(--macro-tint); }
+.macro-group-edit__title { flex: 1; min-width: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.macro-group-edit__label { margin-top: 4px; }
+.macro-group-edit__empty { margin: 0; }
+.macro-group-edit__row { gap: 6px; }
+.macro-group-edit__missing { color: var(--oui-warn); }
+.macro-group-edit__add { margin-top: 2px; }
+.macro-edit-btn {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--oui-surface-2);
+  color: var(--oui-text-2);
+}
+.macro-edit-btn:hover:not(:disabled) { background: var(--oui-surface-3); color: var(--oui-text); }
+.macro-edit-btn:disabled { opacity: 0.35; }
+.macro-edit-btn--danger { color: var(--oui-danger); }
+.macro-color-chip { display: inline-flex; align-items: center; gap: 6px; }
+.macro-color-chip__dot { width: 10px; height: 10px; border-radius: 50%; background: var(--macro-tint); }
+.macro-group-new { margin-top: 4px; }

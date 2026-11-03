@@ -1,5 +1,17 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.33.0
+
+**Macros like Mainsail** (roadmap phase 6b, fourth part). The *Calibrations* card is replaced by macro cards set in the new
+**Settings → Macros** (also from the gear of each card), kept in the shared settings:
+
+* **All the macros**: one card with every macro of the printer, each can be hidden (search, show all / hide all);
+* **Groups**: cards of your own with a name, a colour (it tints the buttons), the macros in the order you choose (↑ ↓ ✕,
+  *Add or remove macros*) and the printer states the card shows in (idle, printing, paused); a macro Klipper no longer has
+  is left out and flagged in the editor.
+* The macros chosen in the old card become the group *Calibrations* (once); a new installation starts with all the macros.
+* *Endstops and probe* is a card of its own.
+
 ## 1.32.0
 
 **Tune card and leveling tools** (roadmap phase 6b, third part).

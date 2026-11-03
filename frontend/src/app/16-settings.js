@@ -69,6 +69,13 @@ const LIGHT_MODES = ["auto", "object", "macro", "gcode", "off"];
 const FUNCTION_GCODE_MAX = 4000;
 const MACRO_NAME = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/;
 
+/** 1.33: the macro cards (57-calibration.js), like Mainsail's: every macro in one card, or groups of the person's own. */
+const MACRO_MODES = ["simple", "groups"];
+const MACRO_COLORS = ["none", "accent", "ok", "warn", "danger", "cool"];
+const MACRO_STATES = ["standby", "printing", "paused"];
+const MACRO_GROUPS_MAX = 30;
+const MACRO_GROUP_NAME_MAX = 40;
+
 const SETTINGS_DEFAULTS = {
   camera: {
     method: "webrtc",
@@ -99,6 +106,8 @@ const SETTINGS_DEFAULTS = {
     light: { mode: "auto", object: "", onMacro: "", offMacro: "", onGcode: "", offGcode: "", stateFrom: "auto" },
     filament: { sensor: true, macros: [], phrases: [] }, // what tells the notification service that the filament ran out
   },
+  // 1.33: the macro cards (the old "Calibrations" choice, /api/calibration/selected, becomes a group: useMacroMigration)
+  macros: { mode: "simple", hidden: [], groups: [] },
   // the guided set-up (59k, 1.22): shown by itself once on a new installation, until it is done or skipped
   setup: { done: false },
 };
@@ -179,6 +188,32 @@ const cleanGcode = (value) => (typeof value === "string" ? value.replace(/\r\n?/
 const cleanObjectName = (value) => (typeof value === "string" && /^[A-Za-z_]+ [^\n]{1,80}$/.test(value.trim()) ? value.trim() : "");
 
 /** The "functions" part of the settings, cleaned. */
+/** Macro names, upper case, once each (Klipper does not tell "park" from "PARK"). */
+const cleanMacroNames = (list) => (Array.isArray(list) ? [...new Set(list.filter((name) => typeof name === "string" && MACRO_NAME.test(name)).map((name) => name.toUpperCase()))].slice(0, 500) : []);
+
+/** The settings of the macro cards: the mode, the macros hidden in "simple", the groups. */
+function cleanMacroSettings(raw) {
+  const given = isPlainObject(raw) ? raw : {};
+  const ids = new Set();
+  const groups = (Array.isArray(given.groups) ? given.groups : [])
+    .filter(isPlainObject)
+    .slice(0, MACRO_GROUPS_MAX)
+    .map((group, index) => {
+      let id = typeof group.id === "string" && /^[a-z0-9]{1,16}$/.test(group.id) ? group.id : "g" + index;
+      while (ids.has(id)) id += "x";
+      ids.add(id);
+      const show = isPlainObject(group.show) ? group.show : {};
+      return {
+        id,
+        name: typeof group.name === "string" ? group.name.trim().slice(0, MACRO_GROUP_NAME_MAX) : "",
+        color: pickOne(group.color, MACRO_COLORS, "none"),
+        show: Object.fromEntries(MACRO_STATES.map((state) => [state, asBool(show[state], true)])),
+        macros: cleanMacroNames(group.macros),
+      };
+    });
+  return { mode: pickOne(given.mode, MACRO_MODES, "simple"), hidden: cleanMacroNames(given.hidden), groups };
+}
+
 function cleanFunctions(raw) {
   const given = isPlainObject(raw) ? raw : {};
   const light = isPlainObject(given.light) ? given.light : {};
@@ -257,6 +292,7 @@ function sanitizeSettings(raw) {
       defects: Object.fromEntries(AI_DEFECTS.map((defect) => [defect.id, asBool(defects[defect.id], true)])),
     },
     functions: cleanFunctions(given.functions),
+    macros: cleanMacroSettings(given.macros),
     // settings saved before 1.22 (anything stored, without "setup"): an installation already set up, the guide is not forced on it
     setup: { done: isPlainObject(given.setup) ? asBool(given.setup.done, false) : Object.keys(given).length > 0 },
   };

@@ -15,7 +15,7 @@
    What is stored and how is app/16-settings.js. Every change counts at once and is saved a moment later.
    ========================================================================== */
 
-const SETTINGS_PAGES = ["printer", "camera", "network", "motion", "zoffset", "notifications", "ai", "detector", "camcal", "recordings", "software"];
+const SETTINGS_PAGES = ["printer", "camera", "network", "macros", "motion", "zoffset", "notifications", "ai", "detector", "camcal", "recordings", "software"];
 const SETTINGS_TYPING_MS = 800; // a typed value is taken when the typing stops (and when the field is left or the menu closed)
 // a swipe to the left closes the menu: at least this long, mostly sideways, quick, and never started on a control
 // (1.24: it was too easy to close it while moving a slider or scrolling)
@@ -773,6 +773,8 @@ function settingsSummary(page, settings, brain) {
       return zOffset.steps.join(" · ") + " mm";
     case "motion":
       return motionSummary(settings.motion);
+    case "macros":
+      return macroSettingsSummary(settings.macros);
     case "language":
       return languageSummary();
     case "functions":
@@ -794,6 +796,7 @@ const SETTINGS_GROUPS = [
 const SETTINGS_ENTRIES = [
   { id: "printer", group: "printer", title: tx("Name and logo"), icon: Icons.Cube },
   { id: "functions", group: "printer", title: tx("Printer functions"), icon: Icons.Bulb },
+  { id: "macros", group: "printer", title: tx("Macros"), icon: Icons.Play },
   { id: "motion", group: "printer", title: tx("Motion"), icon: Icons.Move },
   { id: "zoffset", group: "printer", title: "Z-offset", icon: Icons.Layers },
   { id: "camera", group: "watch", title: "Camera", icon: Icons.Camera },
@@ -887,6 +890,7 @@ function SettingsDrawer({ menu, updates, printing, actions }) {
   else if (page === "network") body = h(NetworkPage);
   else if (page === "zoffset") body = h(ZOffsetPage);
   else if (page === "motion") body = h(MotionPage);
+  else if (page === "macros") body = h(MacrosPage);
   else if (page === "notifications") body = h(NotificationsPage, { active: true });
   else if (page === "ai") body = h(AiPage, { active: true, menu });
   else if (page === "detector") body = h(DetectorPage, { active: true });

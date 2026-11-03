@@ -18,7 +18,7 @@ _FAILED = []
 def ok(name, cond, extra=""):
     if not cond: _FAILED.append(name)
     print(("PASS " if cond else "FAIL ") + name + ((" :: " + str(extra)) if extra != "" else ""))
-def card(P): return P.pg.locator(".oui-card:has(.oui-card-title:text-is('Calibrazioni'))").first
+def card(P): return P.pg.locator(".endstops-card").first   # 1.33: a card of its own (before, the foot of "Calibrazioni")
 def n_queries(): return sum(1 for g in mock.gcode() if g in ("QUERY_ENDSTOPS", "QUERY_PROBE"))
 def asked(P): return any("query_endstops" in r["u"] for r in P.reqs) or n_queries() > 0
 def press_update(P, c, wait=1000):
