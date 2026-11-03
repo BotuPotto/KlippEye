@@ -4,6 +4,7 @@ import android.Manifest
 import android.annotation.SuppressLint
 import android.content.ContentValues
 import android.content.Intent
+import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.net.Uri
@@ -33,6 +34,9 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import kotlinx.coroutines.*
 import org.json.JSONObject
 import java.io.File
@@ -110,7 +114,7 @@ class MainActivity : AppCompatActivity() {
         // 5 = anche aggiornarsi da sola (appInfo/updateApp), 6 = anche ricevere le notifiche da sola (notifySetup/notifyState...,
         // vedi Ascolto.kt), 7 = anche il tasto indietro passato alla pagina (klippeyeBack) e i collegamenti esterni aperti
         // fuori dall'app (store, ntfy, siti). Con un numero più basso la dashboard lascia disattivata la funzione.
-        webView.settings.userAgentString = webView.settings.userAgentString + " KlippEyeApp/7"
+        webView.settings.userAgentString = webView.settings.userAgentString + " KlippEyeApp/8"
 
         // Download: il WebView non scarica da solo. La dashboard chiama window.KlippEyeApp.saveUrl(indirizzo, nome);
         // un collegamento che il WebView trasforma in download passa invece dal listener.
@@ -444,11 +448,32 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        /**
+         * La camera a schermo intero (dashboard 1.35, app 1.5.0): `on` nasconde le barre di Android (ricompaiono per un
+         * momento scorrendo dal bordo); `landscape` gira lo schermo in orizzontale, seguendo il sensore tra i due versi.
+         * Con `on` falso tutto torna com'era.
+         */
+        @JavascriptInterface
+        fun setFullscreen(on: Boolean, landscape: Boolean) {
+            runOnUiThread { schermoIntero(on, landscape) }
+        }
+
         /** Le impostazioni delle notifiche di KlippEye in Android (per riattivarle o nascondere la notifica fissa). */
         @JavascriptInterface
         fun openNotificationSettings() {
             runOnUiThread { apriImpostazioniNotifiche() }
         }
+    }
+
+    private fun schermoIntero(on: Boolean, landscape: Boolean) {
+        val barre = WindowCompat.getInsetsController(window, window.decorView)
+        if (on) {
+            barre.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            barre.hide(WindowInsetsCompat.Type.systemBars())
+        } else {
+            barre.show(WindowInsetsCompat.Type.systemBars())
+        }
+        requestedOrientation = if (on && landscape) ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE else ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
     }
 
     private fun apriImpostazioniNotifiche() {

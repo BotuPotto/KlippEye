@@ -346,13 +346,139 @@ function CameraMedia({ className, reloads }) {
   return h("iframe", { key: camera.method + reloads, className, src: url, style, allow: "autoplay; fullscreen", loading: "eager", title: "Camera" });
 }
 
+/* ---------------------------------------------------------------------------
+   Full screen (1.35, roadmap 6b part 6)
+   The picture over the whole screen, turned to fit it: the app (1.5.0) hides
+   Android's bars and turns the screen to landscape; a browser enters its own
+   full screen and locks landscape where it can. When the screen stays upright
+   anyway (iPhone, a browser that cannot lock), the picture itself is turned 90°
+   ("automatic"); the turn button switches that off and on.
+   ------------------------------------------------------------------------- */
+const CAMERA_CONTROLS_HIDE_MS = 3500;
+
+/** The size of the window, kept up to date. */
+function useViewportSize() {
+  const read = () => ({ w: window.innerWidth, h: window.innerHeight });
+  const [size, setSize] = useState(read);
+  useEffect(() => {
+    const update = () => setSize(read());
+    window.addEventListener("resize", update);
+    window.addEventListener("orientationchange", update);
+    return () => {
+      window.removeEventListener("resize", update);
+      window.removeEventListener("orientationchange", update);
+    };
+  }, []);
+  return size;
+}
+
+/** Enters the full screen of the app or of the browser (and landscape where it can); `onLeft` when the browser leaves it by itself. */
+function useScreenTakeover(box, onLeft) {
+  useEffect(() => {
+    const bridge = nativeBridge();
+    if (APP_CAN_FULLSCREEN && bridge && bridge.setFullscreen) {
+      try {
+        bridge.setFullscreen(true, true);
+      } catch (e) {}
+      return () => {
+        try {
+          bridge.setFullscreen(false, false);
+        } catch (e) {}
+      };
+    }
+    let entered = false;
+    const element = box.current;
+    if (element && element.requestFullscreen && !IN_APP_WEBVIEW) {
+      element
+        .requestFullscreen({ navigationUI: "hide" })
+        .then(() => {
+          entered = true;
+          if (screen.orientation && screen.orientation.lock) return screen.orientation.lock("landscape").catch(noop);
+        })
+        .catch(noop);
+    }
+    const onChange = () => entered && !document.fullscreenElement && onLeft(); // Esc or the phone's back in the browser's full screen
+    document.addEventListener("fullscreenchange", onChange);
+    return () => {
+      document.removeEventListener("fullscreenchange", onChange);
+      try {
+        if (screen.orientation && screen.orientation.unlock) screen.orientation.unlock();
+      } catch (e) {}
+      if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(noop);
+    };
+  }, []);
+}
+
+function CameraFullscreen({ onClose }) {
+  useBodyScrollLock(true);
+  useBackHandler(onClose, true);
+  const box = useRef(null);
+  const light = useCaseLight();
+  const reloads = useCameraReloads();
+  const viewport = useViewportSize();
+  const [turn, setTurn] = useState(true); // turn the picture when the screen stays upright
+  const [controls, setControls] = useState(true);
+  const hideTimer = useRef(null);
+  useScreenTakeover(box, onClose);
+
+  const showControls = () => {
+    setControls(true);
+    clearTimeout(hideTimer.current);
+    hideTimer.current = setTimeout(() => setControls(false), CAMERA_CONTROLS_HIDE_MS);
+  };
+  useEffect(() => {
+    showControls();
+    const onKey = (event) => event.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => {
+      clearTimeout(hideTimer.current);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, []);
+
+  const rotated = turn && viewport.h > viewport.w;
+  const stage = rotated ? { width: viewport.h + "px", height: viewport.w + "px" } : undefined;
+  const control = (label, icon, onClick, extra) =>
+    h("button", { type: "button", className: cx("camera-full__btn", extra), "aria-label": label, title: label, onClick: (event) => (event.stopPropagation(), showControls(), onClick()) }, icon);
+
+  return h(
+    "div",
+    { ref: box, className: "camera-full", role: "dialog", "aria-label": "Camera", "data-rotated": rotated ? "true" : "false", onClick: showControls, onPointerMove: (event) => event.pointerType === "mouse" && showControls() },
+    h(
+      "div",
+      { className: cx("camera-full__stage", rotated && "is-rotated"), style: stage },
+      h(CameraMedia, { className: "camera-full__video", reloads }),
+      // over the picture: a tap on the camera page (an iframe) would not reach this page
+      h("div", { className: "camera-full__tap", "aria-hidden": "true" }),
+      h(
+        "div",
+        { className: cx("camera-full__controls", controls && "is-shown") },
+        light.available && h("div", { className: "camera-full__light", onClick: (event) => event.stopPropagation() }, h(LightButton, light)),
+        viewport.h > viewport.w && control(turn ? tx("Do not turn the picture") : tx("Turn the picture"), h(Icons.RotateCw, { size: 20 }), () => setTurn(!turn), turn && "is-on"),
+        control(tx("Leave full screen"), h(Icons.Shrink, { size: 20 }), onClose),
+      ),
+    ),
+  );
+}
+
+/** The button that opens the full screen. */
+const CameraFullscreenButton = ({ onOpen, className }) =>
+  h("button", { type: "button", className: cx("icon-btn camera-full-open", className), "aria-label": tx("Full screen"), title: tx("Full screen"), onClick: onOpen }, h(Icons.Expand, { size: 18 }));
+
 function CameraCard() {
   const light = useCaseLight();
   const reloads = useCameraReloads();
+  const [full, setFull] = useState(false);
+  // the full screen next to the card, not in it (a card that moves would carry a fixed layer with it)
   return h(
-    Card,
+    React.Fragment,
     null,
-    h(CardHeader, { title: "Camera" }, light.available && h(LightButton, light)),
-    h("div", { className: "camera-frame" }, h(CameraMedia, { className: "camera-frame__video", reloads })),
+    h(
+      Card,
+      null,
+      h(CardHeader, { title: "Camera" }, h("div", { className: "camera-head-actions" }, light.available && h(LightButton, light), h(CameraFullscreenButton, { onOpen: () => setFull(true) }))),
+      h("div", { className: "camera-frame" }, !full && h(CameraMedia, { className: "camera-frame__video", reloads })),
+    ),
+    h(Presence, null, full && h(CameraFullscreen, { onClose: () => setFull(false) })),
   );
 }

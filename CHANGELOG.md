@@ -1,5 +1,17 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.35.0
+
+**The camera in full screen, turned to fit** (roadmap phase 6b, sixth part; Android app 1.5.0).
+
+* A **full screen** button on the camera card (phone) and on the camera panel (computer): the picture over the whole
+  screen, with the light button, a tap to show the buttons again (they fade after a few seconds), and ⤡ / Esc / the
+  phone's back to leave.
+* **Automatic rotation**: the KlippEye app 1.5.0 hides Android's bars and turns the screen to landscape (following the
+  sensor between the two sides) while the camera is in full screen, and gives the screen back afterwards. A browser enters
+  its own full screen and locks landscape where it can; where the screen stays upright (iPhone, browsers that cannot lock
+  it) the picture itself is turned 90° to fill it, and the ↻ button switches that off.
+
 ## 1.34.0
 
 **The console, like Mainsail's** (roadmap phase 6b, fifth part). In the title bar of the console (the Control page on the
