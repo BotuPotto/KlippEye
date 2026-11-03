@@ -306,4 +306,5 @@ broken = subprocess.run([sys.executable, os.path.join(HERE, "..", "..", "notifie
 ok("command line: a damaged config file -> clear message, exit 2", broken.returncode == 2 and "Cannot read" in broken.stdout, broken.stdout)
 
 print("\nFAILED: %d %s" % (len(FAILS), FAILS) if FAILS else "\nALL PASS")
+sys.stdout.flush()   # os._exit skips the flush: piped (CI), the PASS / FAIL lines were lost and only the exit code was left
 os._exit(1 if FAILS else 0)

@@ -54,8 +54,9 @@ const LIGHT_KINDS = ["output_pin", "led", "neopixel", "dotstar", "pca9533", "pca
 /**
  * The parts of the printer that "Printer functions" (59g-printer-functions.js) can use, read from Klipper:
  *   macros:  every [gcode_macro] (the names as commands, upper case), sorted;
- *   lights:  [{ object: "neopixel LUCI", kind, name, effects: ["led_effect IDLE", ...] }]: the outputs that may drive a light,
- *            each with the klipper-led_effect effects drawn on it (an effect running = the light is on);
+ *   lights:  [{ object: "neopixel LUCI", kind, name, effects: ["led_effect IDLE", ...], dim, color, white }]: the outputs that
+ *            may drive a light, each with the klipper-led_effect effects drawn on it (an effect running = the light is on),
+ *            whether its brightness can be set (a PWM pin, any LED) and its colour (LEDs; `white`: a white channel);
  *   sensors: the filament sensors ("filament_switch_sensor runout", "filament_motion_sensor ...").
  */
 function deriveParts(configfile, commands, objects) {
@@ -74,7 +75,11 @@ function deriveParts(configfile, commands, objects) {
       const name = rest.join(" ");
       const target = (kind + ":" + name).toLowerCase();
       const effects = objects.filter((other) => other.startsWith("led_effect ") && String(rawSection(other).leds || "").toLowerCase().split(/[\s,]+/).some((led) => led.replace(/\(.*$/, "") === target));
-      return { object, kind, name, effects };
+      // 1.37: what can be set besides on / off: the brightness (a PWM pin, any LED) and the colour (LEDs; a white channel)
+      const section = settings[object.toLowerCase()] || settings[object] || {};
+      const isPin = kind === "output_pin";
+      const white = !isPin && (/w/i.test(String(section.color_order || "")) || Boolean(section.white_pin));
+      return { object, kind, name, effects, dim: isPin ? section.pwm === true || String(section.pwm).toLowerCase() === "true" : true, color: !isPin, white };
     });
   const sensors = objects.filter((object) => object.startsWith("filament_switch_sensor ") || object.startsWith("filament_motion_sensor "));
   return { macros, commands, lights, sensors };

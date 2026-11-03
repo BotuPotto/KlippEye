@@ -133,6 +133,14 @@ const HELP = {
       },
       { id: "create", title: tx("Create a macro for this"), text: [tx("KlippEye proposes a macro, you check it in the editor and it is saved in klippeye_macros.cfg next to printer.cfg. Klipper reads it after a restart: the page offers to restart it (never during a print).")] },
       { id: "light", title: tx("The light"), text: [tx("The light button always shows the real state of the light, read from its Klipper output (and from the led_effect effects), whoever switched it: Mainsail, KlipperScreen, a macro.")] },
+      {
+        id: "lights",
+        title: tx("More lights"),
+        text: [
+          tx("KlippEye finds the lights by itself: each pair of light macros (LUCI_ON / LUCI_OFF…), each LED output ([led], [neopixel], [dotstar]…) and the pins whose name says light. Rename them, change how they are switched (an output, two macros, G-code), remove them or add more: from the first change the list is yours."),
+          tx("The round button on the camera switches together the lights marked «Switched by the round button». The arrow next to it opens every light: a switch each, the brightness (LEDs, PWM pins) and the colour (RGB LEDs), and the scenes: save how the lights are now with a name and call it back with a tap."),
+        ],
+      },
       { id: "filament", title: tx("Filament change notification"), text: [tx("The phone is told «Filament run out» by a filament sensor, by a macro you choose (M600, your runout macro: KlippEye adds a small wrapper that announces it and then runs it exactly as before) or by a line of the console.")] },
       { id: "check", title: tx("«All right»"), text: [tx("The entry is marked «To check» until you look at it once and press «All right».")] },
     ],

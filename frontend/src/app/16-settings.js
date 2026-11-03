@@ -66,6 +66,12 @@ const AI_CONFIDENCES = [0, 50, 70, 85];
 const ACTION_FUNCTIONS = ["park", "wipe", "load", "unload"];
 const ACTION_MODES = ["auto", "macro", "gcode", "off"];
 const LIGHT_MODES = ["auto", "object", "macro", "gcode", "off"];
+/** 1.37: several lights, each switched in its own way; scenes. */
+const LIGHT_HOWS = ["object", "macro", "gcode"];
+const LIGHTS_MAX = 12;
+const LIGHT_SCENES_MAX = 12;
+const LIGHT_NAME_MAX = 30;
+const LIGHT_HEX = /^#[0-9a-f]{6}$/;
 const FUNCTION_GCODE_MAX = 4000;
 const MACRO_NAME = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/;
 
@@ -104,7 +110,9 @@ const SETTINGS_DEFAULTS = {
   functions: {
     reviewed: false, // the person has looked at "Printer functions" (until then a reminder is shown)
     ...Object.fromEntries(ACTION_FUNCTIONS.map((id) => [id, { mode: "auto", macro: "", gcode: "" }])),
-    light: { mode: "auto", object: "", onMacro: "", offMacro: "", onGcode: "", offGcode: "", stateFrom: "auto" },
+    // 1.37: the lights. `configured` false: the list is what KlippEye finds in Klipper (it follows the printer); the first
+    // change the person makes keeps the list as it is then. `main`: switched by the round button on the camera.
+    lights: { configured: false, items: [], scenes: [] },
     filament: { sensor: true, macros: [], phrases: [] }, // what tells the notification service that the filament ran out
   },
   // 1.33: the macro cards (the old "Calibrations" choice, /api/calibration/selected, becomes a group: useMacroMigration)
@@ -215,6 +223,53 @@ function cleanMacroSettings(raw) {
   return { mode: pickOne(given.mode, MACRO_MODES, "simple"), hidden: cleanMacroNames(given.hidden), groups };
 }
 
+/** One light of the list: how it is switched (an output, two macros, G-code), its name, whether the round button switches it. */
+function cleanLightItem(raw, index) {
+  const one = isPlainObject(raw) ? raw : {};
+  return {
+    id: typeof one.id === "string" && /^[a-z0-9-]{1,40}$/.test(one.id) ? one.id : "l" + index,
+    name: typeof one.name === "string" ? one.name.trim().slice(0, LIGHT_NAME_MAX) : "",
+    mode: pickOne(one.mode, LIGHT_HOWS, "object"),
+    object: cleanObjectName(one.object),
+    onMacro: cleanMacroName(one.onMacro),
+    offMacro: cleanMacroName(one.offMacro),
+    onGcode: cleanGcode(one.onGcode),
+    offGcode: cleanGcode(one.offGcode),
+    stateFrom: one.stateFrom === "auto" || one.stateFrom === "" ? one.stateFrom : cleanObjectName(one.stateFrom) || "auto",
+    main: asBool(one.main, true),
+  };
+}
+
+/**
+ * The lights (1.37). Settings saved before have one `light`: chosen by hand it becomes the only item of the list (switched
+ * off: an empty list), left on "automatic" the list follows what KlippEye finds.
+ */
+function cleanLights(raw, oldLight) {
+  if (!isPlainObject(raw)) {
+    const old = isPlainObject(oldLight) ? oldLight : {};
+    if (!old.mode || old.mode === "auto") return { configured: false, items: [], scenes: [] };
+    if (old.mode === "off") return { configured: true, items: [], scenes: [] };
+    return { configured: true, items: [cleanLightItem({ ...old, id: "light", name: tx("Light") }, 0)], scenes: [] };
+  }
+  const ids = new Set();
+  const items = (Array.isArray(raw.items) ? raw.items : []).slice(0, LIGHTS_MAX).map(cleanLightItem).filter((item) => !ids.has(item.id) && ids.add(item.id));
+  const scenes = (Array.isArray(raw.scenes) ? raw.scenes : [])
+    .filter(isPlainObject)
+    .slice(0, LIGHT_SCENES_MAX)
+    .map((scene, index) => ({
+      id: typeof scene.id === "string" && /^[a-z0-9-]{1,40}$/.test(scene.id) ? scene.id : "s" + index,
+      name: typeof scene.name === "string" ? scene.name.trim().slice(0, LIGHT_NAME_MAX) : "",
+      set: Object.fromEntries(
+        Object.entries(isPlainObject(scene.set) ? scene.set : {})
+          .filter(([id, value]) => /^[a-z0-9-]{1,40}$/.test(id) && isPlainObject(value))
+          .slice(0, LIGHTS_MAX * 2)
+          .map(([id, value]) => [id, { on: asBool(value.on, false), level: Math.round(asNumber(value.level, 0, 100, 100)), color: typeof value.color === "string" && LIGHT_HEX.test(value.color) ? value.color : "" }]),
+      ),
+    }))
+    .filter((scene) => scene.name);
+  return { configured: asBool(raw.configured, false), items, scenes };
+}
+
 function cleanFunctions(raw) {
   const given = isPlainObject(raw) ? raw : {};
   const light = isPlainObject(given.light) ? given.light : {};
@@ -228,15 +283,7 @@ function cleanFunctions(raw) {
         return [id, { mode: pickOne(one.mode, ACTION_MODES, "auto"), macro: cleanMacroName(one.macro), gcode: cleanGcode(one.gcode) }];
       }),
     ),
-    light: {
-      mode: pickOne(light.mode, LIGHT_MODES, "auto"),
-      object: cleanObjectName(light.object),
-      onMacro: cleanMacroName(light.onMacro),
-      offMacro: cleanMacroName(light.offMacro),
-      onGcode: cleanGcode(light.onGcode),
-      offGcode: cleanGcode(light.offGcode),
-      stateFrom: light.stateFrom === "auto" || light.stateFrom === "" ? light.stateFrom : cleanObjectName(light.stateFrom) || "auto",
-    },
+    lights: cleanLights(given.lights, light),
     filament: {
       sensor: asBool(filament.sensor, true),
       macros: list(filament.macros, cleanMacroName, 10),

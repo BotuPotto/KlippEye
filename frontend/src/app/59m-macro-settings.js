@@ -54,7 +54,8 @@ function hexToHsv(hex) {
 }
 
 /** The wheel: drag (or tap) to pick hue and strength; the bar under it sets the brightness. */
-function ColorWheel({ value, onChange }) {
+/** `brightness` false: no bar (the lights panel has its own brightness). */
+function ColorWheel({ value, onChange, brightness = true }) {
   const [hsv, setHsv] = useState(() => hexToHsv(MACRO_HEX_COLOR.test(value) ? value : "#7c5cff"));
   const [text, setText] = useState(null); // the hex code while it is typed
   const wheel = useRef(null);
@@ -101,8 +102,8 @@ function ColorWheel({ value, onChange }) {
       "div",
       { className: "color-wheel__side" },
       h("span", { className: "color-wheel__preview", "aria-hidden": "true" }),
-      h("label", { className: "set-field__label color-wheel__label" }, tx("Brightness")),
-      h("input", { type: "range", className: "color-wheel__bright", min: 15, max: 100, value: Math.round(hsv.v * 100), "aria-label": tx("Brightness"), onChange: (event) => set({ ...hsv, v: Number(event.target.value) / 100 }) }),
+      brightness && h("label", { className: "set-field__label color-wheel__label" }, tx("Brightness")),
+      brightness && h("input", { type: "range", className: "color-wheel__bright", min: 15, max: 100, value: Math.round(hsv.v * 100), "aria-label": tx("Brightness"), onChange: (event) => set({ ...hsv, v: Number(event.target.value) / 100 }) }),
       h("input", {
         className: "oui-field oui-mono color-wheel__hex",
         "aria-label": tx("Colour code"),

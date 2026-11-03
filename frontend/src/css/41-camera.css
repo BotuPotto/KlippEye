@@ -107,3 +107,36 @@
 .desk-camera__full { background: var(--oui-glass); border: 1px solid var(--oui-stroke-strong); color: var(--oui-text); }
 .camera-full__tap { position: absolute; inset: 0; z-index: 2; }
 .camera-full-open { flex: none; }
+
+/* ---- 1.37: the round button and its arrow; the lights panel ---- */
+.light-group { display: inline-flex; align-items: center; gap: 4px; }
+.light-more {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--oui-r-pill);
+  background: var(--oui-surface-2);
+  color: var(--oui-text-2);
+}
+.light-more:hover { background: var(--oui-surface-3); color: var(--oui-text); }
+.desk-camera__light .light-more,
+.camera-full__light .light-more { background: var(--oui-glass); border: 1px solid var(--oui-stroke-strong); }
+.camera-full__light { display: flex; }
+.sheet-overlay--lights { --sheet-width: 460px; --sheet-max-height: 88vh; }
+.lights-panel__body { flex: 1; min-height: 0; padding: 0 22px 8px; overflow-y: auto; overscroll-behavior: contain; }
+.lights-scenes { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 14px; }
+.lights-scene { display: inline-flex; align-items: center; gap: 6px; }
+.lights-scene--add { color: var(--oui-accent-text); }
+.lights-scene-new { display: inline-flex; flex: 1 1 220px; gap: 8px; }
+.lights-scene-new__input { flex: 1; min-width: 0; min-height: 38px; }
+.lights-list { display: flex; flex-direction: column; gap: 10px; }
+.light-row { display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; border-radius: var(--oui-r-tile); background: var(--oui-surface-2); }
+.light-row__head { display: flex; align-items: center; gap: 12px; }
+.light-row__name { flex: 1; min-width: 0; overflow: hidden; font-size: 15px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.light-row__swatch { flex: none; width: 26px; height: 26px; padding: 0; border: 2px solid var(--oui-stroke-strong); border-radius: 50%; cursor: pointer; }
+.light-row__swatch.is-open { box-shadow: 0 0 0 2px var(--oui-accent); }
+.light-row__switch { display: flex; flex: none; padding: 0; border: 0; background: transparent; cursor: pointer; }
+.light-row__level { width: 100%; accent-color: var(--level-color); }

@@ -36,6 +36,8 @@ def default_state():
         "twist_kind": "cartographer",   # 1.33.1: "klipper": Klipper's own AXIS_TWIST_COMPENSATION_CALIBRATE (paper test), no Cartographer
         "twist_y": False,               # [axis_twist_compensation] has the Y options (calibrate_start_y...)
         "mp": {"is_active": False, "z_position": 0.0, "z_position_lower": None, "z_position_upper": None}, "mp_points": 0, "mp_axis": "X",
+        "extra_lights": False,          # 1.37: also a white+RGB neopixel STRIP and a PWM output_pin caselight
+        "strip": [0.0, 0.0, 0.0, 0.0], "caselight": 0.0,
         "z_kind": "bed",            # 1.31: "bed" (z_tilt) or "toolhead" (quad_gantry_level) in Klipper's settings
         "print_objects": [],        # 1.30: exclude_object objects of the print ([{name, center, polygon}])
         "excluded": [],             # their names excluded with EXCLUDE_OBJECT
@@ -203,6 +205,10 @@ def settings_now():
     out["extruder"] = dict(out["extruder"], pressure_advance=0.05, pressure_advance_smooth_time=0.04)
     if S["has_retraction"]:
         out["firmware_retraction"] = {"retract_length": 0.8, "retract_speed": 35.0, "unretract_extra_length": 0.0, "unretract_speed": 30.0}
+    if S.get("extra_lights"):
+        out["neopixel STRIP"] = {"pin": "PB0", "chain_count": "20", "color_order": "GRBW"}
+        out["output_pin caselight"] = {"pin": "PA1", "pwm": True}
+        out["output_pin beeper"] = {"pin": "PA2", "pwm": False}
     if S["has_bed_screws"]:
         out["bed_screws"] = {"screw1": "30, 30", "screw1_name": "front left", "screw2": "320, 30", "screw2_name": "front right", "screw3": "175, 320", "screw3_name": "rear"}
     if S.get("z_kind", "bed") == "bed":
@@ -308,7 +314,11 @@ def status_for(keys, fields=None):
         elif k == "bed_mesh":
             st[k] = mesh_status()
         elif k == "output_pin caselight":
-            st[k] = {"value": float(S["light"])}
+            st[k] = {"value": float(S["caselight"]) if S.get("extra_lights") else float(S["light"])}
+        elif k == "neopixel STRIP" and S.get("extra_lights"):
+            st[k] = {"color_data": [list(S["strip"])] * 3}
+        elif k == "output_pin beeper" and S.get("extra_lights"):
+            st[k] = {"value": 0.0}
         elif k.startswith("mcu"):
             st[k] = {"mcu_version": "v0.12.0-100-gabcd", "version": "v0.12.0-100"}
     return st
@@ -328,7 +338,7 @@ def mock_reset():
     S.clear(); S.update(default_state()); return jsonify(ok=True)
 @app.route("/__mock/state")
 def mock_state():
-    return jsonify({k: v for k, v in S.items() if k in ("light", "light_cmds", "light_reads", "actions", "webhooks", "webhooks_msg", "disconnected", "moonraker_down", "host_off", "services", "update_log", "brain_cfg_log", "brain_release", "brain_started", "klippeye_info", "pending_release", "logos", "app_apk_hits", "app_apk_downloads", "update_channel", "channel_posts", "rec_posts", "measure_starts", "measure_bodies", "ai_cfg", "ai_posts", "ai_model_reads", "excluded", "mesh_profiles", "mesh_active", "mp", "mp_points", "tune", "speed_factor", "extrude_factor", "bs", "level_applied", "recordings", "alerts", "pm_macros", "pm_wraps", "pm_posts", "gcode_log", "ntfy", "ntfy_posts", "ntfy_tests", "ntfy_app_reads", "ai_answers", "ai_answer")})
+    return jsonify({k: v for k, v in S.items() if k in ("light", "light_cmds", "light_reads", "actions", "webhooks", "webhooks_msg", "disconnected", "moonraker_down", "host_off", "services", "update_log", "brain_cfg_log", "brain_release", "brain_started", "klippeye_info", "pending_release", "logos", "app_apk_hits", "app_apk_downloads", "update_channel", "channel_posts", "rec_posts", "measure_starts", "measure_bodies", "ai_cfg", "ai_posts", "ai_model_reads", "excluded", "strip", "caselight", "mesh_profiles", "mesh_active", "mp", "mp_points", "tune", "speed_factor", "extrude_factor", "bs", "level_applied", "recordings", "alerts", "pm_macros", "pm_wraps", "pm_posts", "gcode_log", "ntfy", "ntfy_posts", "ntfy_tests", "ntfy_app_reads", "ai_answers", "ai_answer")})
 @app.route("/__mock/print_actions")
 def mock_print_actions():
     return jsonify(S.get("print_actions", []))
@@ -436,7 +446,7 @@ def notify_test():
     return jsonify(ok=True, results=results)
 @app.route("/printer/objects/list")
 def obj_list():
-    return jsonify(result={"objects": OBJECTS})
+    return jsonify(result={"objects": OBJECTS + (["neopixel STRIP", "output_pin caselight", "output_pin beeper"] if S.get("extra_lights") else [])})
 @app.route("/printer/config")
 def printer_config():
     return jsonify(result={"config": CONFIG})
@@ -583,6 +593,8 @@ def gcode_script():
             elif "REMOVE" in args:
                 prof.pop(args["REMOVE"], None)
                 S["pending"] = dict(S["pending"], **{"bed_mesh " + args["REMOVE"]: None})
+    elif cmd in ("SET_LED", "SET_PIN", "STOP_LED_EFFECTS"):
+        apply_led_lines(script)
     elif cmd == "AXIS_TWIST_COMPENSATION_CALIBRATE":
         time.sleep(0.4)   # probes the first point, then waits for the paper test there
         S["mp_axis"] = next((w.split("=")[1] for w in words if w.upper().startswith("AXIS=")), "X")
@@ -657,11 +669,22 @@ def gcode_help():
     if S["caps_down"]:
         return jsonify(error={"code": 503, "message": "Klippy Host not ready"}), 503
     return jsonify(result=commands_now())
+def apply_led_lines(script):
+    """SET_LED / SET_PIN on the extra lights (1.37) change what the mock reports."""
+    for line in script.strip().split("\n"):
+        w = line.strip().split()
+        args = {x.split("=")[0].upper(): x.split("=", 1)[1] for x in w[1:] if "=" in x}
+        if w and w[0].upper() == "SET_LED" and args.get("LED") == "STRIP":
+            S["strip"] = [float(args.get(c, 0)) for c in ("RED", "GREEN", "BLUE", "WHITE")]
+        elif w and w[0].upper() == "SET_PIN" and args.get("PIN") == "caselight":
+            S["caselight"] = float(args.get("VALUE", 0))
+
 @app.route("/api/gcode", methods=["POST"])
 def api_gcode():
     body = request.get_json(force=True, silent=True) or {}
     script = body.get("script", "")
     S["gcode_log"].append(script)
+    apply_led_lines(script)
     if script.lower() in ("luci_on", "luci_off"):
         script = script.lower()
         S["light_cmds"].append((script, time.time()))

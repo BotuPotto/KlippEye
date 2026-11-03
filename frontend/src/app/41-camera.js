@@ -167,8 +167,12 @@ function createLightEngine(publish, getLight) {
       clearTimeout(giveUpTimer);
       if (reading) reading.abort();
     },
-    toggle() {
-      wish = !(wish !== null ? wish : real === true);
+    /** What the switch shows now (the wish while one is pending). */
+    current: () => (wish !== null ? wish : real === true),
+    /** On or off (1.37: the round button sets every light it switches to the same state). */
+    set(target) {
+      if (wish === null && real === target) return;
+      wish = target;
       generation += 1; // readings that left before this tap are out of date
       confirmFrom = 0;
       clearTimeout(giveUpTimer);
@@ -176,25 +180,252 @@ function createLightEngine(publish, getLight) {
       restartReading(LIGHT_CONFIRM_POLL_MS);
       pump();
     },
+    toggle() {
+      this.set(!(wish !== null ? wish : real === true));
+    },
+    /** Ask Klipper now (after a brightness or colour sent around the switch). */
+    refresh: () => restartReading(150),
   };
 }
 
-/** The case light as the button shows it ({ on, waiting, failures }) plus toggle(). */
+/**
+ * The lights (1.37): one engine each, and the round button over the ones it switches (`main`, or all when none is):
+ * on when any of them is on; a tap switches them all off when any is on, else all on.
+ * -> { lights, views: { id: { on, waiting, failures } }, available, on, waiting, failures, toggle, set(id, on), sendLevel(light, level, color) }
+ */
 function useCaseLight() {
-  const light = usePrinterFunctions().light;
-  const lightRef = useRef(light);
-  lightRef.current = light;
-  const [view, setView] = useState({ on: false, waiting: false, failures: 0 });
-  const engine = useRef(null);
-  if (!engine.current) engine.current = createLightEngine(setView, () => lightRef.current);
-  const available = light.mode !== "off";
-  const key = light.mode + "|" + (light.object ? light.object.object : "") + "|" + light.on + "|" + light.off;
+  const functions = usePrinterFunctions();
+  const lights = functions.lights;
+  const lightsRef = useRef(lights);
+  lightsRef.current = lights;
+  const engines = useRef(new Map());
+  const [views, setViews] = useState({});
+  const capabilities = usePrinterCapabilities();
+  const key = lights.map((light) => [light.id, light.mode, light.object ? light.object.object : "", light.on, light.off].join("|")).join(";");
   useEffect(() => {
-    if (!available) return undefined;
-    engine.current.start();
-    return () => engine.current.stop();
+    const made = lights.map((light) => {
+      const engine = createLightEngine(
+        (view) => setViews((previous) => ({ ...previous, [light.id]: view })),
+        () => lightsRef.current.find((one) => one.id === light.id) || light,
+      );
+      engine.start();
+      return [light.id, engine];
+    });
+    engines.current = new Map(made);
+    return () => made.forEach(([, engine]) => engine.stop());
   }, [key]);
-  return { ...view, available, toggle: engine.current.toggle };
+
+  const chosen = lights.filter((light) => light.main);
+  const group = chosen.length ? chosen : lights;
+  const viewOf = (light) => views[light.id] || { on: false, waiting: false, failures: 0 };
+  const toggle = () => {
+    const now = group.some((light) => {
+      const engine = engines.current.get(light.id);
+      return engine ? engine.current() : viewOf(light).on;
+    });
+    group.forEach((light) => engines.current.get(light.id) && engines.current.get(light.id).set(!now));
+  };
+  return {
+    lights,
+    views,
+    available: lights.length > 0,
+    on: group.some((light) => viewOf(light).on),
+    waiting: group.some((light) => viewOf(light).waiting),
+    failures: group.reduce((sum, light) => sum + viewOf(light).failures, 0),
+    toggle,
+    set: (id, on) => engines.current.get(id) && engines.current.get(id).set(on),
+    /** Brightness 0-100 and colour of a light switched on its output; true when Klipper took it. */
+    async sendLevel(light, level, color) {
+      const response = await sendBrainGcode(lightLevelCommand(light, level, color, capabilities.commands)).catch(() => null);
+      const engine = engines.current.get(light.id);
+      if (engine) engine.refresh();
+      if (!response || !response.ok) toast.notice(tx("Cannot switch the light"), 2600);
+      return Boolean(response && response.ok);
+    },
+  };
+}
+
+/* ---------------------------------------------------------------------------
+   The lights panel (1.37): every light with its switch, its brightness and its
+   colour where the output has them, and the scenes (saved combinations).
+   ------------------------------------------------------------------------- */
+const LIGHT_DETAILS_POLL_MS = 1200;
+const LIGHT_LEVEL_SEND_MS = 300;
+/** Settings → Printer functions, opened from the panel (99-main.js sets it). */
+const lightSettingsLink = { open: noop };
+
+/** Brightness and colour of the lights switched on their outputs, read while the panel is open. */
+function useLightDetails(lights) {
+  const [details, setDetails] = useState({});
+  const direct = lights.filter((light) => light.object);
+  const query = [...new Set(direct.flatMap((light) => [light.object.object, ...light.object.effects]))].map(encodeURIComponent).join("&");
+  useEffect(() => {
+    if (!query) return undefined;
+    let cancelled = false;
+    const read = async () => {
+      const status = await moonraker.queryObjects(query).catch(() => null);
+      if (cancelled || !status) return;
+      setDetails(Object.fromEntries(direct.map((light) => [light.id, lightDetails(status, light)]).filter(([, value]) => value)));
+    };
+    read();
+    const timer = setInterval(read, LIGHT_DETAILS_POLL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [query]);
+  return details;
+}
+
+/** One light: name, switch, brightness bar, colour. */
+function LightRow({ light, view, detail, controller }) {
+  // what was asked last, shown until Klipper reports it (a reading may still carry the old value for a moment)
+  const [asked, setAsked] = useState(null); // { level, color, at }
+  const [wheel, setWheel] = useState(false);
+  const timer = useRef(null);
+  useEffect(() => () => clearTimeout(timer.current), []);
+  useEffect(() => {
+    if (asked && detail && detail.level === asked.level && (!light.color || detail.color === asked.color || asked.level === 0)) setAsked(null);
+    else if (asked && Date.now() - asked.at > 6000) setAsked(null);
+  }, [detail]);
+  const shownLevel = asked ? asked.level : detail ? detail.level : view.on ? 100 : 0;
+  const color = (asked && asked.color) || (detail && detail.color) || "#ffffff";
+  const sendSoon = (next, nextColor) => {
+    setAsked({ level: next, color: nextColor, at: Date.now() });
+    clearTimeout(timer.current);
+    timer.current = setTimeout(() => controller.sendLevel(light, next, nextColor), LIGHT_LEVEL_SEND_MS);
+  };
+  return h(
+    "div",
+    { className: "light-row", "data-light": light.id },
+    h(
+      "div",
+      { className: "light-row__head" },
+      light.color && h("button", { type: "button", className: cx("light-row__swatch", wheel && "is-open"), style: { background: view.on ? color : "transparent" }, "aria-label": tx("Colour of {name}", { name: light.name }), onClick: () => setWheel(!wheel) }),
+      h("span", { className: "light-row__name" }, light.name),
+      h(
+        "button",
+        { type: "button", role: "switch", "aria-checked": view.on, "aria-label": light.name, className: cx("light-row__switch", view.on && "is-on"), onClick: () => controller.set(light.id, !view.on) },
+        h("span", { className: "oui-switch" }, h("span", { className: "oui-switch__knob" })),
+      ),
+    ),
+    light.dim &&
+      h("input", {
+        type: "range",
+        className: "light-row__level",
+        min: 0,
+        max: 100,
+        step: 1,
+        value: shownLevel,
+        "aria-label": tx("Brightness of {name}", { name: light.name }),
+        style: { "--level-color": light.color ? color : "var(--oui-accent)" },
+        onChange: (event) => sendSoon(Number(event.target.value), color),
+      }),
+    wheel && light.color && h(ColorWheel, { value: color, brightness: false, onChange: (next) => sendSoon(shownLevel > 0 ? shownLevel : 100, next) }),
+  );
+}
+
+function LightsPanel({ controller, onClose }) {
+  useBodyScrollLock(true);
+  useBackHandler(onClose, true);
+  const { settings, update } = useSettings();
+  const details = useLightDetails(controller.lights);
+  const scenes = settings.functions.lights.scenes;
+  const [naming, setNaming] = useState(false);
+  const [sceneName, setSceneName] = useState("");
+  const viewOf = (light) => controller.views[light.id] || { on: false, waiting: false, failures: 0 };
+
+  const applyScene = (scene) => {
+    for (const light of controller.lights) {
+      const want = scene.set[light.id];
+      if (!want) continue;
+      if (!want.on) controller.set(light.id, false);
+      else if (light.dim || light.color) controller.sendLevel(light, want.level || 100, want.color || "#ffffff");
+      else controller.set(light.id, true);
+    }
+    toast.action(tx("Scene «{name}»", { name: scene.name }));
+  };
+  const saveScene = async () => {
+    const name = sceneName.trim().slice(0, LIGHT_NAME_MAX);
+    if (!name) return;
+    // read the outputs now: the panel's own reading may be a moment old
+    const direct = controller.lights.filter((light) => light.object);
+    const query = [...new Set(direct.flatMap((light) => [light.object.object, ...light.object.effects]))].map(encodeURIComponent).join("&");
+    const status = query ? await moonraker.queryObjects(query).catch(() => null) : null;
+    const fresh = status ? Object.fromEntries(direct.map((light) => [light.id, lightDetails(status, light)])) : {};
+    const set = Object.fromEntries(
+      controller.lights.map((light) => {
+        const detail = fresh[light.id] || details[light.id];
+        return [light.id, { on: detail ? detail.on : viewOf(light).on, level: detail ? detail.level : 100, color: detail ? detail.color : "" }];
+      }),
+    );
+    update((draft) => {
+      const list = draft.functions.lights.scenes.filter((scene) => scene.name.toLowerCase() !== name.toLowerCase());
+      draft.functions.lights.scenes = [...list, { id: "s" + Date.now().toString(36), name, set }].slice(-LIGHT_SCENES_MAX);
+    });
+    setNaming(false);
+    setSceneName("");
+    toast.action(tx("Scene «{name}» saved", { name }));
+  };
+
+  return h(
+    "div",
+    { className: "sheet-overlay sheet-overlay--lights", onClick: (event) => event.target === event.currentTarget && onClose() },
+    h(
+      "div",
+      { className: "sheet-card sheet-card--column lights-panel", role: "dialog", "aria-label": tx("Lights") },
+      h("div", { className: "sheet-header sheet-header--bar" }, h("div", { className: "dialog-title" }, tx("Lights")), h("button", { className: "dialog-close", onClick: onClose, "aria-label": tx("Close") }, "✕")),
+      h(
+        "div",
+        { className: "lights-panel__body" },
+        h(
+          "div",
+          { className: "lights-scenes", role: "group", "aria-label": tx("Scenes") },
+          scenes.map((scene) => h("button", { key: scene.id, type: "button", className: "oui-chip lights-scene", "data-scene": scene.id, onClick: () => applyScene(scene) }, scene.name)),
+          naming
+            ? h(
+                "span",
+                { className: "lights-scene-new" },
+                h("input", {
+                  className: "oui-field lights-scene-new__input",
+                  value: sceneName,
+                  autoFocus: true,
+                  maxLength: LIGHT_NAME_MAX,
+                  placeholder: tx("Name of the scene"),
+                  "aria-label": tx("Name of the scene"),
+                  onChange: (event) => setSceneName(event.target.value),
+                  onKeyDown: (event) => (event.key === "Enter" ? saveScene() : event.key === "Escape" && setNaming(false)),
+                }),
+                h("button", { type: "button", className: "oui-btn oui-btn--sm oui-btn--primary", disabled: !sceneName.trim(), onClick: saveScene }, tx("Save")),
+              )
+            : h("button", { type: "button", className: "oui-chip lights-scene lights-scene--add", onClick: () => setNaming(true) }, h(Icons.Plus, { size: 14 }), tx("Save as a scene")),
+        ),
+        h(
+          "div",
+          { className: "lights-list" },
+          controller.lights.map((light) => h(LightRow, { key: light.id, light, view: viewOf(light), detail: details[light.id], controller })),
+        ),
+      ),
+      h(
+        "div",
+        { className: "sheet-footer" },
+        h(
+          "button",
+          {
+            type: "button",
+            className: "oui-btn",
+            onClick: () => {
+              onClose();
+              lightSettingsLink.open("functions");
+            },
+          },
+          h(Icons.Gear, { size: 16 }),
+          tx("Light settings"),
+        ),
+        h("button", { type: "button", className: "oui-btn oui-btn--primary", onClick: onClose }, tx("Done")),
+      ),
+    ),
+  );
 }
 
 /* ---------------------------------------------------------------------------
@@ -204,7 +435,20 @@ function useCaseLight() {
  * The round bulb button (css/41-camera.css): amber when on. It is a switch for screen readers; while a command
  * waits for Klipper it carries aria-busy / .is-waiting (no visible change: the button simply shows what was asked).
  */
-function LightButton({ on, waiting, failures, toggle }) {
+/** The round button and, next to it, the arrow that opens every light (`controller`: useCaseLight()). */
+function LightButton(controller) {
+  const { on, waiting, failures, toggle } = controller;
+  const [panel, setPanel] = useState(false);
+  return h(
+    "span",
+    { className: "light-group" },
+    h(LightMainButton, { on, waiting, failures, toggle }),
+    controller.lights && h("button", { type: "button", className: "light-more", "aria-label": tx("All the lights"), title: tx("All the lights"), "aria-haspopup": "dialog", onClick: () => setPanel(true) }, h(Icons.Chevron, { size: 14 })),
+    h(Presence, null, panel && h(LightsPanel, { controller, onClose: () => setPanel(false) })),
+  );
+}
+
+function LightMainButton({ on, waiting, failures, toggle }) {
   return h(
     "button",
     {

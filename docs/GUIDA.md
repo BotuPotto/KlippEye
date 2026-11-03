@@ -142,6 +142,14 @@ Chiunque la cambi, il pulsante legge l'uscita stessa (e gli effetti di *klipper-
 giusto, anche quando la luce viene cambiata da Mainsail, KlipperScreen, dalla console o da una macro. Con le macro o il G-code
 scegli da dove il pulsante legge lo stato (oppure nessuna: mostra l'ultima richiesta).
 
+**Luci** (1.37): tutte quelle che ha la stampante. KlippEye le trova da solo — ogni coppia di macro delle luci (`LUCI_ON` /
+`LUCI_OFF`…), ogni uscita LED (`[led]`, `[neopixel]`, `[dotstar]`…) e i pin il cui nome dice luce — e le elenca sotto
+**Luci**: rinominane una, cambia come si comanda (un'uscita, due macro, G-code) e da dove si legge il suo stato, toglila o
+aggiungine altre; dalla prima modifica l'elenco è tuo (*Cerca di nuovo le luci* torna a quello che trova KlippEye). Il
+pulsante tondo sulla camera accende e spegne insieme le luci segnate *Comandata dal pulsante tondo*; la freccia accanto
+apre tutte le luci — un interruttore ciascuna, la **luminosità** (LED, pin PWM), il **colore** (LED RGB) — e le **scene**:
+*Salva come scena* tiene com'è la luce adesso con un nome, un tocco la richiama.
+
 **Notifica di cambio filamento**: il telefono riceve *Filamento esaurito* quando
 * un **sensore del filamento** (`[filament_switch_sensor]`, `[filament_motion_sensor]`) dice che il filamento è finito durante
   una stampa;
