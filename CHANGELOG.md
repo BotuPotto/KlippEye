@@ -1,5 +1,21 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.36.0
+
+**The height map redone, like Mainsail's** (roadmap phase 6b, seventh part).
+
+* **2D and 3D kept**, with the **probed** points or the **interpolated** mesh; **minimum, maximum, range** (in orange above
+  0.3 mm) and **points**. The 2D grid shows the value of each point and, with a tap, where it is (X, Y in mm); the 3D view
+  has a button to go back to the starting view and is bigger on a phone.
+* **Fixed: the map was drawn front to back.** Klipper lists the front row (Y min) first; the 3D view took it for the back
+  row, so the map was mirrored. Now the origin (0,0) is the front left point in 3D, and in 2D the back of the bed is at
+  the top.
+* **Profiles**: the ones Klipper keeps, with their range and the one in use; **load**, **rename** (load, save with the new
+  name, remove the old: Klipper has no renaming), **remove** (after a question), **save as** (the mesh in use, under a
+  name); **clear** the mesh in use.
+* **Calibrate mesh** asks for the profile name and offers **adaptive** (`ADAPTIVE=1`). Calibrate, load and clear wait while
+  a print runs; homing (⌂) only shows when the printer is not homed.
+
 ## 1.35.0
 
 **The camera in full screen, turned to fit** (roadmap phase 6b, sixth part; Android app 1.5.0).

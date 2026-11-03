@@ -165,6 +165,27 @@ OBJECTS = ["webhooks","print_stats","toolhead","extruder","heater_bed","fan","fa
            "gcode_macro LUCI_ON","gcode_macro LUCI_OFF","neopixel LUCI","led_effect IDLE",
            "mcu","mcu EBBCan"]
 
+def mesh_rows(shift=0.0, n=7):
+    rows = []
+    for r in range(n):   # row 0 = the front (Y min), as Klipper lists them; the back right corner is the highest
+        rows.append([round(0.02*((c-3)**2)/9 + 0.015*(r-3) + 0.005*((r*c)%3) + shift, 4) for c in range(n)])
+    return rows
+
+def mesh_status():
+    """Klipper's bed_mesh object (1.36: profiles with their points, mesh_min / mesh_max, loaded / cleared)."""
+    m = S.get("mesh_profiles")
+    if m is None:
+        m = S["mesh_profiles"] = {"default": mesh_rows(), "adaptive": mesh_rows(0.01, 5)} if S["mesh"] else {}
+        S["mesh_active"] = "default" if S["mesh"] else ""
+    active = S.get("mesh_active", "")
+    profiles = {name: {"points": pts, "mesh_params": {"min_x": 30.0, "max_x": 320.0, "min_y": 30.0, "max_y": 320.0, "x_count": len(pts[0]), "y_count": len(pts)}} for name, pts in m.items()}
+    rows = m.get(active) or S.get("mesh_current")
+    if not active and not S.get("mesh_current"):
+        return {"profile_name": "", "mesh_min": [0, 0], "mesh_max": [0, 0], "probed_matrix": [[]], "mesh_matrix": [[]], "profiles": profiles}
+    rows = rows or mesh_rows()
+    fine = [[round(v, 4) for v in row for _ in (0, 1)][:2 * len(row) - 1] for row in rows for _ in (0, 1)][:2 * len(rows) - 1]
+    return {"profile_name": active, "mesh_min": [30.0, 30.0], "mesh_max": [320.0, 320.0], "probed_matrix": rows, "mesh_matrix": fine, "profiles": profiles}
+
 def settings_now():
     out = dict(CONFIG)
     out["stepper_z"] = {"endstop_pin": S["z_pin"], "position_max": 300}
@@ -285,13 +306,7 @@ def status_for(keys, fields=None):
             if S["has_screws"]:
                 st[k] = S["screws"] or {"error": False, "results": {}, "max_deviation": None}
         elif k == "bed_mesh":
-            if S["mesh"]:
-                rows = []
-                for r in range(7):
-                    rows.append([round(0.02*((c-3)**2)/9 - 0.015*(r-3) + 0.005*((r*c)%3), 4) for c in range(7)])
-                st[k] = {"profile_name": "default", "probed_matrix": rows, "mesh_matrix": rows, "profiles": {"default": {}, "adaptive": {}}}
-            else:
-                st[k] = {"profile_name": "", "probed_matrix": [[]], "profiles": {}}
+            st[k] = mesh_status()
         elif k == "output_pin caselight":
             st[k] = {"value": float(S["light"])}
         elif k.startswith("mcu"):
@@ -313,7 +328,7 @@ def mock_reset():
     S.clear(); S.update(default_state()); return jsonify(ok=True)
 @app.route("/__mock/state")
 def mock_state():
-    return jsonify({k: v for k, v in S.items() if k in ("light", "light_cmds", "light_reads", "actions", "webhooks", "webhooks_msg", "disconnected", "moonraker_down", "host_off", "services", "update_log", "brain_cfg_log", "brain_release", "brain_started", "klippeye_info", "pending_release", "logos", "app_apk_hits", "app_apk_downloads", "update_channel", "channel_posts", "rec_posts", "measure_starts", "measure_bodies", "ai_cfg", "ai_posts", "ai_model_reads", "excluded", "mp", "mp_points", "tune", "speed_factor", "extrude_factor", "bs", "level_applied", "recordings", "alerts", "pm_macros", "pm_wraps", "pm_posts", "gcode_log", "ntfy", "ntfy_posts", "ntfy_tests", "ntfy_app_reads", "ai_answers", "ai_answer")})
+    return jsonify({k: v for k, v in S.items() if k in ("light", "light_cmds", "light_reads", "actions", "webhooks", "webhooks_msg", "disconnected", "moonraker_down", "host_off", "services", "update_log", "brain_cfg_log", "brain_release", "brain_started", "klippeye_info", "pending_release", "logos", "app_apk_hits", "app_apk_downloads", "update_channel", "channel_posts", "rec_posts", "measure_starts", "measure_bodies", "ai_cfg", "ai_posts", "ai_model_reads", "excluded", "mesh_profiles", "mesh_active", "mp", "mp_points", "tune", "speed_factor", "extrude_factor", "bs", "level_applied", "recordings", "alerts", "pm_macros", "pm_wraps", "pm_posts", "gcode_log", "ntfy", "ntfy_posts", "ntfy_tests", "ntfy_app_reads", "ai_answers", "ai_answer")})
 @app.route("/__mock/print_actions")
 def mock_print_actions():
     return jsonify(S.get("print_actions", []))
@@ -544,6 +559,30 @@ def gcode_script():
         time.sleep(S["level_delay"]); levelled()
         if S["tool_error"]:
             return jsonify(error={"code": 400, "message": S["tool_error"]}), 400
+    elif cmd in ("BED_MESH_PROFILE", "BED_MESH_CLEAR", "BED_MESH_CALIBRATE"):
+        for line in script.strip().split("\n"):   # a rename is three lines
+            w = line.strip().split()
+            c = w[0].upper() if w else ""
+            args = {x.split("=")[0].upper(): x.split("=", 1)[1] for x in w[1:] if "=" in x}
+            mesh_status()
+            prof = S["mesh_profiles"]
+            if c == "BED_MESH_CLEAR":
+                S["mesh_active"] = ""; S["mesh_current"] = None
+            elif c == "BED_MESH_CALIBRATE":
+                name = args.get("PROFILE", "default")
+                prof[name] = mesh_rows(0.002, 5 if args.get("ADAPTIVE") == "1" else 7); S["mesh_active"] = name
+                S["pending"] = dict(S["pending"], **{"bed_mesh " + name: {"version": 1}})
+            elif "LOAD" in args:
+                if args["LOAD"] not in prof:
+                    console_line("!! bed_mesh: Unknown profile [%s]" % args["LOAD"])
+                    return jsonify(error={"code": 400, "message": "bed_mesh: Unknown profile [%s]" % args["LOAD"]}), 400
+                S["mesh_active"] = args["LOAD"]
+            elif "SAVE" in args:
+                prof[args["SAVE"]] = prof.get(S["mesh_active"]) or mesh_rows(); S["mesh_active"] = args["SAVE"]
+                S["pending"] = dict(S["pending"], **{"bed_mesh " + args["SAVE"]: {"version": 1}})
+            elif "REMOVE" in args:
+                prof.pop(args["REMOVE"], None)
+                S["pending"] = dict(S["pending"], **{"bed_mesh " + args["REMOVE"]: None})
     elif cmd == "AXIS_TWIST_COMPENSATION_CALIBRATE":
         time.sleep(0.4)   # probes the first point, then waits for the paper test there
         S["mp_axis"] = next((w.split("=")[1] for w in words if w.upper().startswith("AXIS=")), "X")

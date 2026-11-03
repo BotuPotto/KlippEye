@@ -1,8 +1,12 @@
 /* ============================================================================
-   58 · BED MESH
-   Shows Klipper's bed-leveling map (`bed_mesh` object) either as a coloured
-   2D grid or as a 3D surface drawn on a canvas that can be rotated (drag) and
-   zoomed (wheel or pinch). Buttons: Homing (G28) and CALIBRA MESH.
+   58 · BED MESH (redone like Mainsail's height map in 1.36, roadmap 6b part 7)
+   Klipper's bed-leveling map (`bed_mesh` object) as a coloured 2D grid (the
+   values, a tap on a point says where it is) or a 3D surface on a canvas that
+   can be rotated (drag) and zoomed (wheel or pinch); the probed points or the
+   interpolated mesh; minimum, maximum and range. The profiles Klipper keeps:
+   load, rename, remove, save the current mesh under a name; clear the mesh;
+   calibrate (a profile name, adaptive or not).
+   Klipper's matrices list the front row (Y min) first.
    ========================================================================== */
 
 const MESH_POLL_MS = 2500;
@@ -38,14 +42,39 @@ function useBedMesh() {
   return { mesh, loading };
 }
 
-/** The probed heights and their statistics, or null while there is no mesh. */
-function analyzeMesh(mesh) {
-  const matrix = mesh && (mesh.probed_matrix || mesh.mesh_matrix);
-  if (!matrix || matrix.length === 0 || matrix[0].length === 0) return null;
+/**
+ * The heights and their statistics, or null while there is no mesh. `which`: "probed" (the points Klipper measured) or
+ * "mesh" (the interpolated mesh Klipper uses). x / y: the place of each column / row in mm (from mesh_min to mesh_max).
+ */
+function analyzeMesh(mesh, which = "probed") {
+  const matrix = mesh && (which === "mesh" ? mesh.mesh_matrix || mesh.probed_matrix : mesh.probed_matrix || mesh.mesh_matrix);
+  if (!matrix || matrix.length === 0 || !matrix[0] || matrix[0].length === 0) return null;
   const values = matrix.flat();
   const min = Math.min(...values);
   const max = Math.max(...values);
-  return { matrix, rows: matrix.length, cols: matrix[0].length, min, max, range: max - min, mean: values.reduce((sum, value) => sum + value, 0) / values.length };
+  const rows = matrix.length;
+  const cols = matrix[0].length;
+  const low = Array.isArray(mesh.mesh_min) ? mesh.mesh_min : null;
+  const high = Array.isArray(mesh.mesh_max) ? mesh.mesh_max : null;
+  const place = (index, count, axis) => (low && high ? low[axis] + (count > 1 ? ((high[axis] - low[axis]) * index) / (count - 1) : 0) : null);
+  return {
+    matrix,
+    rows,
+    cols,
+    min,
+    max,
+    range: max - min,
+    mean: values.reduce((sum, value) => sum + value, 0) / values.length,
+    x: Array.from({ length: cols }, (_, i) => place(i, cols, 0)),
+    y: Array.from({ length: rows }, (_, i) => place(i, rows, 1)),
+    area: low && high ? { min: low, max: high } : null,
+  };
+}
+
+/** The range (max − min) of a saved profile's points, or null. */
+function profileRange(profile) {
+  const values = profile && Array.isArray(profile.points) ? profile.points.flat().filter((value) => typeof value === "number") : [];
+  return values.length ? Math.max(...values) - Math.min(...values) : null;
 }
 
 /** Blue (low) → light blue/green → orange/red (high). */
@@ -67,7 +96,7 @@ const degrees = (value) => (value * Math.PI) / 180;
 /** Maps mesh coordinates (column, row from the front, height) to canvas pixels for a given view. */
 function createProjector(canvasSize, stats, view) {
   const { width, height } = canvasSize;
-  const baseScale = Math.min(width, height) * 0.135 * view.zoom;
+  const baseScale = Math.min(width, height * 1.6) * 0.135 * view.zoom; // a taller canvas (phone, 4:3) gets a bigger map
   const heightScale = (baseScale * 0.6 * 0.22) / (stats.range || 0.1); // heights are exaggerated
   const boxHeight = baseScale;
   const [sinZ, cosZ] = [Math.sin(degrees(view.rotation)), Math.cos(degrees(view.rotation))];
@@ -189,8 +218,8 @@ function drawMesh3D(canvas, stats, view) {
   ctx.clearRect(0, 0, size.width, size.height); // the card's well shows through
 
   const projector = createProjector(size, stats, view);
-  // The matrix lists the back row first; the view works from the front (row 0 = Y min).
-  const heightAt = (row, column) => stats.matrix[stats.rows - 1 - row][column];
+  // Klipper lists the front row (Y min) first, as the view counts them (1.36: before, the map was drawn front to back)
+  const heightAt = (row, column) => stats.matrix[row][column];
   drawBuildVolume(ctx, projector, stats);
   drawSurface(ctx, projector, stats, heightAt);
   drawOrigin(ctx, projector, stats, heightAt);
@@ -278,31 +307,70 @@ function useOrbitControls(canvasRef, viewRef, redraw, enabled) {
 /* ---------------------------------------------------------------------------
    Card
    ------------------------------------------------------------------------- */
+const MESH_PROFILE_NAME = /^[A-Za-z0-9_-]{1,40}$/;
+const MESH_VALUES_MAX_COLS = 9; // more columns than this: the 2D grid has no room for the numbers
+const meshSigned = (value, digits = 3) => (value > 0 ? "+" : "") + value.toFixed(digits);
+
 function ViewToggle({ mode, onChange }) {
-  const button = (id, label) => h("button", { onClick: () => onChange(id), className: mode === id ? "is-selected" : "" }, label);
-  return h("div", { className: "oui-segmented" }, button("2d", "2D"), button("3d", "3D"));
+  const button = (id, label) => h("button", { type: "button", onClick: () => onChange(id), className: mode === id ? "is-selected" : "", "aria-pressed": mode === id }, label);
+  return h("div", { className: "oui-segmented", role: "group", "aria-label": tx("View") }, button("2d", "2D"), button("3d", "3D"));
 }
 
-/** Colour scale legend (low → high) + height variation shown under both views. */
+/** Colour scale legend (low → high). */
 function MeshLegend({ stats }) {
+  return h("div", { className: "mesh-legend" }, h("span", null, meshSigned(stats.min)), h("span", { className: "mesh-legend__scale" }), h("span", null, meshSigned(stats.max)));
+}
+
+/** Minimum, maximum, range, and the size of the grid. */
+function MeshStats({ stats }) {
+  const tile = (label, value, extra) => h("div", { className: cx("oui-tile mesh-stat", extra) }, h("div", { className: "oui-caption" }, label), h("div", { className: "mesh-stat__value" }, value));
   return h(
     "div",
-    { className: "mesh-legend" },
-    h("span", null, stats.min.toFixed(3)),
-    h("span", { className: "mesh-legend__scale" }),
-    h("span", null, stats.max.toFixed(3)),
-    h("span", { className: "mesh-legend__var" }, "var " + stats.range.toFixed(4) + " mm"),
+    { className: "mesh-stats" },
+    tile(tx("Minimum"), meshSigned(stats.min) + " mm"),
+    tile(tx("Maximum"), meshSigned(stats.max) + " mm"),
+    tile(tx("Range"), stats.range.toFixed(3) + " mm", stats.range > 0.3 ? "mesh-stat--warn" : null),
+    tile(tx("Points"), stats.cols + " × " + stats.rows),
   );
 }
 
+/** The grid as seen from above, the back of the bed at the top; the numbers when there is room; a tap tells where a point is. */
 function MeshGrid({ stats }) {
+  const [picked, setPicked] = useState(null); // { row, col }
+  const values = stats.cols <= MESH_VALUES_MAX_COLS;
+  const rowsTopDown = stats.matrix.map((row, index) => ({ row, index })).reverse();
+  const at = picked && stats.matrix[picked.row] ? stats.matrix[picked.row][picked.col] : null;
   return h(
     "div",
     { className: "mesh-well oui-well" },
     h(
       "div",
       { className: "mesh-grid", style: { gridTemplateColumns: "repeat(" + stats.cols + ", minmax(0,1fr))" } },
-      stats.matrix.map((row, rowIndex) => row.map((value, columnIndex) => h("div", { key: rowIndex + "-" + columnIndex, className: "mesh-cell", style: { background: heightColor(value, stats) } }))),
+      rowsTopDown.map(({ row, index }) =>
+        row.map((value, column) =>
+          h(
+            "button",
+            {
+              key: index + "-" + column,
+              type: "button",
+              className: cx("mesh-cell", picked && picked.row === index && picked.col === column && "is-picked"),
+              style: { background: heightColor(value, stats) },
+              "data-row": index,
+              "data-col": column,
+              "aria-label": "X " + (stats.x[column] !== null ? Math.round(stats.x[column]) : column) + " Y " + (stats.y[index] !== null ? Math.round(stats.y[index]) : index) + ": " + meshSigned(value),
+              onClick: () => setPicked(picked && picked.row === index && picked.col === column ? null : { row: index, col: column }),
+            },
+            values && h("span", { className: "mesh-cell__value" }, value.toFixed(2)),
+          ),
+        ),
+      ),
+    ),
+    h(
+      "div",
+      { className: "mesh-grid__foot" },
+      at !== null
+        ? h("span", { className: "mesh-pick", "data-pick": "" }, (stats.x[picked.col] !== null ? "X " + stats.x[picked.col].toFixed(1) + " · Y " + stats.y[picked.row].toFixed(1) : tx("Point") + " " + (picked.col + 1) + "," + (picked.row + 1)) + ": ", h("b", null, meshSigned(at) + " mm"))
+        : h("span", { className: "oui-caption" }, tx("Back of the bed at the top. Tap a point to see where it is.")),
     ),
     h(MeshLegend, { stats }),
   );
@@ -322,39 +390,190 @@ function MeshSurface({ stats }) {
   }, [stats]);
   useOrbitControls(canvasRef, viewRef, redraw, true);
 
-  return h("div", { className: "mesh-well oui-well" }, h("canvas", { ref: canvasRef, className: "mesh-canvas" }), h(MeshLegend, { stats }));
+  const reset = () => {
+    Object.assign(viewRef.current, MESH_DEFAULT_VIEW);
+    redraw();
+  };
+  return h(
+    "div",
+    { className: "mesh-well oui-well mesh-surface" },
+    h("canvas", { ref: canvasRef, className: "mesh-canvas" }),
+    h("button", { type: "button", className: "icon-btn mesh-surface__reset", "aria-label": tx("Reset the view"), title: tx("Reset the view"), onClick: reset }, h(Icons.Refresh, { size: 16 })),
+    h(MeshLegend, { stats }),
+  );
 }
 
-/** `onGcode(script)` sends G-code; confirmations are shown as toasts. */
-function BedMeshCard({ onGcode }) {
+/** A profile name typed by the person (Klipper takes letters, digits, _ and -). */
+function MeshNameDialog({ open, title, initial, confirmLabel, onConfirm, onCancel, extra }) {
+  const [name, setName] = useState(initial || "");
+  useEffect(() => {
+    if (open) setName(initial || "");
+  }, [open]);
+  const valid = MESH_PROFILE_NAME.test(name.trim());
+  return h(ConfirmDialog, {
+    open,
+    tone: "neutral",
+    icon: h(Icons.Layers),
+    title,
+    message: h(
+      "div",
+      { className: "mesh-name" },
+      h("input", {
+        className: cx("oui-field mesh-name__input", !valid && name && "is-invalid"),
+        value: name,
+        autoFocus: true,
+        "aria-label": tx("Profile name"),
+        placeholder: tx("Profile name"),
+        onChange: (event) => setName(event.target.value),
+        onKeyDown: (event) => event.key === "Enter" && valid && onConfirm(name.trim()),
+      }),
+      h("span", { className: "oui-caption" }, valid || !name ? tx("Letters, digits, _ and - (no spaces).") : tx("Only letters, digits, _ and -, no spaces.")),
+      extra,
+    ),
+    confirmLabel,
+    onConfirm: () => valid && onConfirm(name.trim()),
+    onCancel,
+  });
+}
+
+/** The profiles Klipper keeps in printer.cfg: the one in use, their range, load / rename / remove. */
+function MeshProfiles({ mesh, locked, run }) {
+  const [renaming, setRenaming] = useState(null);
+  const [removing, setRemoving] = useState(null);
+  const profiles = Object.keys((mesh && mesh.profiles) || {}).sort((a, b) => (a === "default" ? -1 : b === "default" ? 1 : a.localeCompare(b)));
+  const active = mesh && mesh.profile_name;
+  return h(
+    "div",
+    { className: "mesh-profiles" },
+    h("div", { className: "oui-label mesh-profiles__title" }, tx("Profiles")),
+    profiles.length === 0
+      ? h("p", { className: "oui-caption" }, tx("No profile saved yet: calibrate, or save the current mesh."))
+      : h(
+          "div",
+          { className: "oui-list" },
+          profiles.map((name) => {
+            const range = profileRange(mesh.profiles[name]);
+            return h(
+              "div",
+              { key: name, className: cx("oui-row mesh-profile-row", name === active && "is-active"), "data-profile": name },
+              h(
+                "span",
+                { className: "oui-row__text" },
+                h("span", { className: "oui-row__name" }, name, name === active && h("span", { className: "oui-badge oui-badge--ok mesh-profile-row__badge" }, tx("In use"))),
+                h("span", { className: "oui-row__meta" }, range !== null ? tx("Range {value} mm", { value: range.toFixed(3) }) : ""),
+              ),
+              name !== active && h("button", { type: "button", className: "oui-btn oui-btn--sm", disabled: Boolean(locked), onClick: () => run("BED_MESH_PROFILE LOAD=" + name, tx("Profile {name} loaded", { name })) }, tx("Load")),
+              h("button", { type: "button", className: "macro-edit-btn", "aria-label": tx("Rename") + " " + name, title: tx("Rename"), disabled: Boolean(locked), onClick: () => setRenaming(name) }, h(Icons.Pencil, { size: 16 })),
+              h("button", { type: "button", className: "macro-edit-btn macro-edit-btn--danger", "aria-label": tx("Remove") + " " + name, title: tx("Remove"), onClick: () => setRemoving(name) }, h(Icons.Trash, { size: 16 })),
+            );
+          }),
+        ),
+    h(MeshNameDialog, {
+      open: Boolean(renaming),
+      title: tx("Rename the profile"),
+      initial: renaming,
+      confirmLabel: tx("Rename"),
+      onCancel: () => setRenaming(null),
+      onConfirm: (name) => {
+        const old = renaming;
+        setRenaming(null);
+        if (name !== old) run(["BED_MESH_PROFILE LOAD=" + old, "BED_MESH_PROFILE SAVE=" + name, "BED_MESH_PROFILE REMOVE=" + old].join("\n"), tx("Profile renamed: save the configuration to keep it"));
+      },
+      extra: h("span", { className: "oui-caption" }, tx("Klipper has no renaming: the profile is loaded, saved with the new name and the old one removed.")),
+    }),
+    h(ConfirmDialog, {
+      open: Boolean(removing),
+      tone: "danger",
+      icon: h(Icons.Trash),
+      title: tx("Remove the profile?"),
+      subtitle: removing,
+      message: tx("It leaves printer.cfg at the next SAVE_CONFIG (the save button at the top)."),
+      confirmLabel: tx("Remove"),
+      onConfirm: () => {
+        const name = removing;
+        setRemoving(null);
+        run("BED_MESH_PROFILE REMOVE=" + name, tx("Profile removed: save the configuration to confirm"));
+      },
+      onCancel: () => setRemoving(null),
+    }),
+  );
+}
+
+/** `onGcode(script)` sends G-code; `lockReason` (a print, or no status yet) stops what moves the machine or changes the mesh in use. */
+function BedMeshCard({ onGcode, lockReason, homedAxes }) {
   const { mesh, loading } = useBedMesh();
   const [viewMode, setViewMode] = useState("3d");
-  const stats = useMemo(() => analyzeMesh(mesh), [mesh]);
-  const send = (script, message) => {
+  const [which, setWhich] = useState("probed");
+  const [calibrating, setCalibrating] = useState(false);
+  const [adaptive, setAdaptive] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const stats = useMemo(() => analyzeMesh(mesh, which), [mesh, which]);
+  const homed = ["x", "y", "z"].every((axis) => (homedAxes || "").includes(axis));
+  const run = (script, message) => {
     onGcode(script);
     toast.action(message);
   };
+  const hasMesh = Boolean(stats);
 
   return h(
     Card,
-    null,
-    h(CardHeader, { title: tx("Height map / mesh") }),
+    { className: "mesh-card" },
+    h(
+      CardHeader,
+      { title: tx("Height map / mesh") },
+      h("span", { className: "oui-badge mesh-profile", "data-active-profile": (mesh && mesh.profile_name) || "" }, (mesh && mesh.profile_name) || tx("no mesh")),
+    ),
     h(
       "div",
       { className: "mesh-toolbar" },
       h(ViewToggle, { mode: viewMode, onChange: setViewMode }),
-      h("span", { className: "oui-badge mesh-profile" }, (mesh && mesh.profile_name) || "nessuna"),
       h(
-        "button",
-        { onClick: () => send("G28", "Homing G28"), className: "icon-btn", title: "Homing G28", "aria-label": "Homing G28" },
-        h("svg", { viewBox: "0 0 24 24", width: 16, height: 16, fill: "currentColor" }, h("path", { d: "M12 2L2 12h3v8h6v-6h2v6h6v-8h3L12 2z" })),
+        "div",
+        { className: "oui-segmented mesh-which", role: "group", "aria-label": tx("Data") },
+        h("button", { type: "button", className: which === "probed" ? "is-selected" : "", "aria-pressed": which === "probed", onClick: () => setWhich("probed") }, tx("Probed")),
+        h("button", { type: "button", className: which === "mesh" ? "is-selected" : "", "aria-pressed": which === "mesh", onClick: () => setWhich("mesh") }, tx("Interpolated")),
       ),
+      !homed && h("button", { type: "button", onClick: () => run("G28", "Homing G28"), disabled: Boolean(lockReason), className: "icon-btn", title: "Homing G28", "aria-label": "Homing G28" }, h(Icons.House, { size: 16 })),
     ),
     !stats
-      ? h("div", { className: "mesh-well oui-well mesh-empty" }, loading ? tx("Loading...") : tx("No mesh"))
-      : viewMode === "2d"
-        ? h(MeshGrid, { stats })
-        : h(MeshSurface, { stats }),
-    h("div", { className: "mt-4" }, h("button", { onClick: () => send("BED_MESH_CALIBRATE", tx("CALIBRATE")), className: "oui-btn oui-btn--primary oui-btn--block" }, tx("Calibrate mesh"))),
+      ? h("div", { className: "mesh-well oui-well mesh-empty" }, loading ? tx("Loading...") : tx("No mesh loaded: calibrate, or load a profile."))
+      : h(React.Fragment, null, viewMode === "2d" ? h(MeshGrid, { stats }) : h(MeshSurface, { stats }), h(MeshStats, { stats })),
+    h(
+      "div",
+      { className: "mesh-actions" },
+      h("button", { type: "button", onClick: () => setCalibrating(true), disabled: Boolean(lockReason), className: "oui-btn oui-btn--primary" }, tx("Calibrate mesh")),
+      h("button", { type: "button", onClick: () => setSaving(true), disabled: !hasMesh, className: "oui-btn" }, tx("Save as…")),
+      h("button", { type: "button", onClick: () => run("BED_MESH_CLEAR", tx("Mesh cleared")), disabled: !hasMesh || Boolean(lockReason), className: "oui-btn oui-btn--quiet" }, tx("Clear")),
+    ),
+    lockReason && h("p", { className: "oui-caption mesh-lock" }, lockReason),
+    h(MeshProfiles, { mesh, locked: lockReason, run }),
+    h(MeshNameDialog, {
+      open: calibrating,
+      title: tx("Calibrate the mesh"),
+      initial: "default",
+      confirmLabel: tx("Calibrate"),
+      onCancel: () => setCalibrating(false),
+      onConfirm: (name) => {
+        setCalibrating(false);
+        run("BED_MESH_CALIBRATE PROFILE=" + name + (adaptive ? " ADAPTIVE=1" : ""), tx("Mesh calibration started ({name})", { name }));
+      },
+      extra: h(
+        "label",
+        { className: "mesh-adaptive" },
+        h("input", { type: "checkbox", className: "oui-check", checked: adaptive, onChange: (event) => setAdaptive(event.target.checked) }),
+        h("span", null, h("b", null, tx("Adaptive")), " — ", tx("only where the objects of the print are (needs [exclude_object] and a sliced file)")),
+      ),
+    }),
+    h(MeshNameDialog, {
+      open: saving,
+      title: tx("Save the mesh as a profile"),
+      initial: (mesh && mesh.profile_name) || "default",
+      confirmLabel: tx("Save"),
+      onCancel: () => setSaving(false),
+      onConfirm: (name) => {
+        setSaving(false);
+        run("BED_MESH_PROFILE SAVE=" + name, tx("Saved as {name}: save the configuration to keep it", { name }));
+      },
+    }),
   );
 }
