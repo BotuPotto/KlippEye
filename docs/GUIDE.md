@@ -148,6 +148,18 @@ reads the state (or none: it shows what was asked last).
   macro exactly as before. Only macros Klipper really has can be chosen (a wrong one would stop Klipper from starting);
 * a **line of the console** you write appears (*Printer paused due to filament runout!* is always recognised).
 
+### During a print
+
+The **print card** (Home) shows the file, the progress, the time, what is left and the layer; under them **when it ends**
+(clock time), the **speed** and the **volumetric flow** now. **More details** opens the estimates one by one (by the file,
+the filament and the slicer), the total time with pauses, the filament used (m and g), the height, the speed requested
+and the speed and flow factors.
+
+**Exclude an object**: when the slicer labels the objects (PrusaSlicer, OrcaSlicer, SuperSlicer "Label objects", Cura
+with a plugin) and Klipper has `[exclude_object]`, the card offers **Exclude an object**: a map of the bed with the
+objects (the one printing now in blue) and their list; choose one and **Exclude it**. It is not printed any more, the
+others go on; it cannot be put back in that print.
+
 ## 4. Updates
 
 **Settings → Updates → Check for a new release → Update KlippEye.** The backend restarts for a few seconds and the page reloads

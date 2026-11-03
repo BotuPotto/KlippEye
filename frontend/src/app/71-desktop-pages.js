@@ -89,7 +89,10 @@ function DesktopPrintCard({ status, controls, monitor }) {
         h(PrintStat, { label: tx("Remaining"), value: status.remaining }),
         h(PrintStat, { label: "Layer", value: status.layer }),
       ),
+      h(PrintLiveStats, { status, className: "desk-print__stats" }),
+      h(PrintDetails, { status }),
       h(AiAlarmQuestion, { monitor }),
+      h(ExcludeObjectButton, { status }),
       h(
         "div",
         { className: "oui-btn-row" },

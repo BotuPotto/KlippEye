@@ -151,6 +151,18 @@ scegli da dove il pulsante legge lo stato (oppure nessuna: mostra l'ultima richi
   impedirebbe a Klipper di partire);
 * compare una **riga della console** che scrivi tu (*Printer paused due to filament runout!* è sempre riconosciuta).
 
+### Durante la stampa
+
+La **card della stampa** (Home) mostra file, avanzamento, tempo, quanto manca e il layer; sotto, **a che ora finisce**,
+la **velocità** e il **flusso volumetrico** del momento. **Più dettagli** apre le stime una per una (secondo il file, il
+filamento e lo slicer), il tempo totale con le pause, il filamento usato (m e g), l'altezza, la velocità richiesta e i
+fattori di velocità e di flusso.
+
+**Escludi un oggetto**: quando lo slicer etichetta gli oggetti (PrusaSlicer, OrcaSlicer, SuperSlicer «Etichetta oggetti»,
+Cura con un plugin) e Klipper ha `[exclude_object]`, la card offre **Escludi un oggetto**: una mappa del piatto con gli
+oggetti (quello in stampa adesso in blu) e il loro elenco; scegline uno e **Escludilo**. Non viene più stampato, gli
+altri vanno avanti; in quella stampa non si può rimettere.
+
 ## 4. Aggiornamenti
 
 **Impostazioni → Aggiornamenti → Controlla se c'è una versione nuova → Aggiorna KlippEye.** Il backend si riavvia per qualche

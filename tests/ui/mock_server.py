@@ -26,6 +26,8 @@ def default_state():
         "calib_selected": ["PARK_TEST", "SHAPER_CALIBRATE"],
         "long_macro": False,        # adds a macro with a very long name and parameters (the parameter form must fit its buttons)
         "ai_key_ok": True,
+        "print_objects": [],        # 1.30: exclude_object objects of the print ([{name, center, polygon}])
+        "excluded": [],             # their names excluded with EXCLUDE_OBJECT
         "ai_cfg": None,             # ai.json of the backend (1.27, ai_services); None: a Groq key when ai_key_ok
         "ai_posts": [],             # the bodies of POST /api/ai/config
         "ai_models_fail": "",       # a service whose list of models cannot be read
@@ -193,7 +195,12 @@ def status_for(keys, fields=None):
         elif k == "toolhead":
             st[k] = {"position": [120.5, 80.2, 15.3, 0], "homed_axes": S["homed"]}
         elif k == "gcode_move":
-            st[k] = {"gcode_position": [120.5, 80.2, 15.3, 0], "homing_origin": [0, 0, S["z_offset"], 0]}
+            st[k] = {"gcode_position": [120.5, 80.2, 15.3, 0], "homing_origin": [0, 0, S["z_offset"], 0], "speed_factor": 1.1, "extrude_factor": 0.95, "speed": 6000.0}
+        elif k == "motion_report":
+            st[k] = {"live_velocity": 87.4 if p else 0.0, "live_extruder_velocity": 2.6 if p else 0.0, "live_position": [120.5, 80.2, 15.3, 0]}
+        elif k == "exclude_object":
+            if S["print_objects"]:
+                st[k] = {"objects": S["print_objects"], "excluded_objects": list(S["excluded"]), "current_object": next((o["name"] for o in S["print_objects"] if o["name"] not in S["excluded"]), None)}
         elif k == "extruder":
             st[k] = {"temperature": S["ext_t"], "target": S["ext_target"]}
         elif k == "heater_bed":
@@ -246,7 +253,7 @@ def mock_reset():
     S.clear(); S.update(default_state()); return jsonify(ok=True)
 @app.route("/__mock/state")
 def mock_state():
-    return jsonify({k: v for k, v in S.items() if k in ("light", "light_cmds", "light_reads", "actions", "webhooks", "webhooks_msg", "disconnected", "moonraker_down", "host_off", "services", "update_log", "brain_cfg_log", "brain_release", "brain_started", "klippeye_info", "pending_release", "logos", "app_apk_hits", "app_apk_downloads", "update_channel", "channel_posts", "rec_posts", "measure_starts", "measure_bodies", "ai_cfg", "ai_posts", "ai_model_reads", "recordings", "alerts", "pm_macros", "pm_wraps", "pm_posts", "gcode_log", "ntfy", "ntfy_posts", "ntfy_tests", "ntfy_app_reads", "ai_answers", "ai_answer")})
+    return jsonify({k: v for k, v in S.items() if k in ("light", "light_cmds", "light_reads", "actions", "webhooks", "webhooks_msg", "disconnected", "moonraker_down", "host_off", "services", "update_log", "brain_cfg_log", "brain_release", "brain_started", "klippeye_info", "pending_release", "logos", "app_apk_hits", "app_apk_downloads", "update_channel", "channel_posts", "rec_posts", "measure_starts", "measure_bodies", "ai_cfg", "ai_posts", "ai_model_reads", "excluded", "recordings", "alerts", "pm_macros", "pm_wraps", "pm_posts", "gcode_log", "ntfy", "ntfy_posts", "ntfy_tests", "ntfy_app_reads", "ai_answers", "ai_answer")})
 @app.route("/__mock/print_actions")
 def mock_print_actions():
     return jsonify(S.get("print_actions", []))
@@ -434,6 +441,8 @@ def gcode_script():
     cmd = words[0].upper() if words else ""
     if cmd == "M84":
         S["homed"] = ""
+    elif cmd == "EXCLUDE_OBJECT" and len(words) > 1 and words[1].upper().startswith("NAME="):
+        S["excluded"].append(words[1][5:])
     elif cmd in ("SCREWS_TILT_CALCULATE", "CARTOGRAPHER_AXIS_TWIST_COMPENSATION"):
         if S["tool_error"]:
             def fail():
@@ -594,7 +603,7 @@ def files_list():
 def files_meta():
     fn = request.args.get("filename", "")
     return jsonify(result={"filename": fn, "estimated_time": 7260 if "Benchy" in fn else 1800, "filament_weight_total": 12.4 if "Benchy" in fn else 0,
-                           "filament_total": 4200, "layer_count": 100, "thumbnails": [] if any(k in fn for k in S.get("no_thumbs", [])) else [
+                           "filament_total": 4200, "layer_count": 100, "object_height": 48.0, "thumbnails": [] if any(k in fn for k in S.get("no_thumbs", [])) else [
                                {"width": 32, "height": 32, "size": 100, "relative_path": ".thumbs/thumb-32x32.png"},
                                {"width": 300, "height": 300, "size": 900, "relative_path": ".thumbs/thumb-300x300.png"}]})
 def png(w=64, h=64, color=(200, 90, 40)):

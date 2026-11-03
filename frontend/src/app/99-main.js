@@ -52,7 +52,8 @@ function App() {
   const status = usePrinterStatus();
   const klipper = useKlipperState();
   const consoleFeed = useConsoleFeed(klipper.evaluateConsoleStore);
-  const printStatus = usePrintStatus();
+  const capabilities = usePrinterCapabilities();
+  const printStatus = usePrintStatus(capabilities);
   const printControls = usePrintControls(printStatus.state);
   const saveConfig = useSaveConfig(klipper.expectRestart);
   const power = usePowerMenu({ klipper, printing: printStatus.printing });
@@ -61,7 +62,6 @@ function App() {
   useAppNotifySync();
   usePrinterIdentity();
   const temperature = useTemperatureDialog();
-  const capabilities = usePrinterCapabilities();
   const motion = useMotion(consoleFeed.echo, capabilities);
   const lockReason = printLockReason(printStatus);
   const zOffset = useZOffset({ status, capabilities, onSaveConfig: saveConfig.confirm });
