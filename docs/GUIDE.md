@@ -161,6 +161,13 @@ nozzle stops above each screw and a sheet tells you what to do (the paper test);
 uses Cartographer's automatic calibration when there is one; otherwise Klipper's own, with the same paper test at a few
 points (− / + move the nozzle, *Accept* goes on), then SAVE_CONFIG.
 
+### Console
+
+The console (Control page on the phone, the bar at the bottom on a computer: its arrow opens the whole log) has, in its
+title bar: **clear** (empties the view; Klipper keeps its lines, the view shows what comes after), the **options** —
+*Autoscroll* (follow the newest line), *Newest on top*, *Show temperatures* (the temperature reports, hidden by default),
+kept on this device — and **full screen**. A tap on a command puts it back in the input field.
+
 ### Macros
 
 The macro cards (Control page on the phone, Calibration page on a computer) work like Mainsail's. **Settings → Macros**

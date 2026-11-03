@@ -66,16 +66,18 @@ const DOCK_PREVIEW_LINES = 3;
 
 function ConsoleDock({ entries }) {
   const [open, setOpen] = useState(false);
+  const [fullscreen, setFullscreen] = useState(false);
   const [command, setCommand] = useState("");
   const inputRef = useRef(null);
-  const recent = entries.filter((entry) => !isTemperatureReport(String(entry.msg || ""))).slice(-DOCK_PREVIEW_LINES);
+  const view = useConsoleView();
+  const recent = visibleConsoleEntries(entries, view, false).slice(-DOCK_PREVIEW_LINES);
 
   useEffect(() => {
-    if (!open) return undefined;
-    const onKey = (event) => event.key === "Escape" && setOpen(false);
+    if (!open || fullscreen) return undefined;
+    const onKey = (event) => event.key === "Escape" && !document.querySelector(".oui-menu") && setOpen(false);
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open]);
+  }, [open, fullscreen]);
 
   const send = () => {
     if (!command.trim()) return;
@@ -100,10 +102,16 @@ function ConsoleDock({ entries }) {
         h(
           "div",
           { className: "desk-drawer", role: "region", "aria-label": "Console" },
-          h("div", { className: "oui-card__head" }, h(SectionTitle, null, "Console"), h("span", { className: "oui-caption" }, tx("Tap a command to put it back in the input field"))),
+          h(
+            "div",
+            { className: "oui-card__head" },
+            h("div", { className: "desk-drawer__heading" }, h(SectionTitle, null, "Console"), h("span", { className: "oui-caption" }, tx("Tap a command to put it back in the input field"))),
+            h(ConsoleTools, { entries, fullscreen: false, onFullscreen: () => setFullscreen(true) }),
+          ),
           h(ConsoleLog, { entries, onPick: pick, className: "desk-drawer__log" }),
         ),
     ),
+    h(Presence, null, fullscreen && h(ConsoleFullscreen, { entries, onClose: () => setFullscreen(false) })),
     h(
       "div",
       { className: "desk-dock" },

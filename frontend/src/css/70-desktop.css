@@ -288,3 +288,4 @@
 .screen--inline .editor-search,
 .screen--inline .editor-tools { margin: 0 16px 8px; }
 .screen--inline .editor-body { margin: 0 16px 16px; }
+.desk-drawer__heading { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; min-width: 0; }

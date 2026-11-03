@@ -116,6 +116,9 @@ const Icons = {
   RotateCcw: ({ size = 18 }) => h(Svg, { size, strokeWidth: "2" }, h("path", { d: "M3 12a9 9 0 1 0 3-6.7" }), h("path", { d: "M3 4v5h5" })),
   ArrowUp: ({ size = 20 }) => h(Svg, { size, strokeWidth: "2.2" }, h("path", { d: "M12 19V5" }), h("path", { d: "M5 12l7-7 7 7" })),
   ArrowDown: ({ size = 20 }) => h(Svg, { size, strokeWidth: "2.2" }, h("path", { d: "M12 5v14" }), h("path", { d: "M19 12l-7 7-7-7" })),
+  /** Full screen on / off (the console, 1.34). */
+  Expand: ({ size = 18 }) => h(Svg, { size, strokeWidth: "2" }, h("path", { d: "M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" })),
+  Shrink: ({ size = 18 }) => h(Svg, { size, strokeWidth: "2" }, h("path", { d: "M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5" })),
   Check: ({ size = 18 }) => h(Svg, { size, strokeWidth: "2.4" }, h("path", { d: "M5 12.5l4.5 4.5L19 7.5" })),
   /** File manager (config files): folder, new folder, new file, upload, rename, move, picture, row menu, plus. */
   Folder: ({ size = 20 }) => h(Svg, { size, strokeWidth: "1.9" }, h("path", { d: "M3 7.5a2 2 0 0 1 2-2h4.2l2 2.5H19a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7.5z" })),
