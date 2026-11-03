@@ -1,0 +1,91 @@
+/* ============================================================================
+   Tune card (1.32): speed / flow, pressure advance, machine limits, retraction
+   ========================================================================= */
+.tune-group + .tune-group { margin-top: 16px; }
+.tune-group__title { margin-bottom: 6px; }
+.tune-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 52px;
+  padding: 6px 0;
+  border-top: 1px solid var(--oui-stroke);
+}
+.tune-group__title + .tune-row { border-top: 0; }
+.tune-row__text { display: flex; flex-direction: column; min-width: 0; }
+.tune-row__label { font-size: 14.5px; font-weight: 600; color: var(--oui-text); line-height: 1.25; }
+.tune-row__config { font-size: 12px; color: var(--oui-text-3); font-variant-numeric: tabular-nums; }
+.tune-row__controls { display: flex; flex: none; align-items: center; gap: 6px; }
+.tune-step {
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: var(--oui-r-field);
+  background: var(--oui-surface-2);
+  color: var(--oui-text);
+  font-size: 19px;
+  font-weight: 600;
+  line-height: 1;
+  transition: background var(--oui-dur-fast) var(--oui-ease), transform var(--oui-dur-press) var(--oui-ease);
+}
+.tune-step:hover:not(:disabled) { background: var(--oui-surface-3); }
+.tune-step:active:not(:disabled) { transform: scale(0.94); }
+.tune-step:disabled { opacity: 0.4; }
+.tune-value {
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 3px;
+  min-width: 92px;
+  height: 36px;
+  padding: 0 8px;
+  border-radius: var(--oui-r-field);
+  background: var(--oui-inset);
+  cursor: text;
+}
+.tune-value__input {
+  flex: none;
+  min-width: 0;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--oui-text);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  outline: none;
+}
+.tune-value:focus-within { box-shadow: 0 0 0 2px var(--oui-accent); }
+.tune-value__unit { flex: none; font-size: 11.5px; color: var(--oui-text-3); }
+.tune-reset {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: var(--oui-r-pill);
+  background: var(--oui-accent-soft);
+  color: var(--oui-accent-text);
+}
+.tune-reset.is-hidden { visibility: hidden; }
+.tune-note { margin-top: 14px; }
+@media (max-width: 480px) {
+  .tune-row { gap: 8px; }
+  .tune-row__controls { gap: 4px; }
+  .tune-value { min-width: 78px; padding: 0 6px; }
+  .tune-step { width: 34px; }
+  .tune-reset { width: 28px; height: 28px; }
+  .tune-row__label { font-size: 14px; }
+}
+
+/* ---- BED_SCREWS_ADJUST sheet ---- */
+.bed-screws__screw { display: flex; flex-direction: column; gap: 2px; padding: 14px 16px; border-radius: var(--oui-r-tile); background: var(--oui-surface-2); }
+.bed-screws__step { font-size: 12.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--oui-text-3); }
+.bed-screws__name { font-size: 20px; font-weight: 700; color: var(--oui-text); }
+.bed-screws__how { margin: 14px 0 10px; padding-left: 20px; font-size: 14px; line-height: 1.5; color: var(--oui-text-2); list-style: decimal; }
+.bed-screws__done { display: flex; align-items: center; gap: 10px; color: var(--oui-ok); font-weight: 600; }
+.bed-screws .sheet-footer { gap: 8px; }

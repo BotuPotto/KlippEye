@@ -1,6 +1,10 @@
 /* ============================================================================
    44a · BED & GANTRY TOOLS
    The "Calibrate" menu of the Movement card:
+     · QUAD_GANTRY_LEVEL / Z_TILT_ADJUST   level the gantry or the bed with the
+       probe (1.32: when printer.cfg has [quad_gantry_level] / [z_tilt]);
+     · BED_SCREWS_ADJUST   the paper test at each bed screw, step by step
+       (1.32: [bed_screws], printers with no probe);
      · SCREWS_TILT_CALCULATE   how much to turn each bed screw (result sheet);
      · CARTOGRAPHER_AXIS_TWIST_COMPENSATION AXIS=X|Y   measures the twist of an
        axis with the probe, then offers SAVE_CONFIG.
@@ -24,6 +28,16 @@ const bedToolsApi = {
     const status = await moonraker.queryObjects("screws_tilt_adjust").catch(() => ({}));
     return status.screws_tilt_adjust || null;
   },
+  /** A leveling run (QGL, Z tilt): { busy: Klipper runs G-code, applied } of `object`. */
+  async leveling(object) {
+    const status = await moonraker.queryObjects("idle_timeout=state&" + object + "=applied").catch(() => ({}));
+    return { busy: String((status.idle_timeout || {}).state || "") === "Printing", applied: Boolean((status[object] || {}).applied) };
+  },
+  /** The `bed_screws` object: { is_active, state: "adjust" | "fine", current_screw, accepted_screws }, or null. */
+  async bedScrews() {
+    const status = await moonraker.queryObjects("bed_screws").catch(() => ({}));
+    return status.bed_screws || null;
+  },
   /** The axis twist values waiting for the next SAVE_CONFIG, or null. */
   async pendingTwist() {
     const configfile = await moonraker.configfile("save_config_pending_items").catch(() => ({}));
@@ -38,6 +52,52 @@ const bedToolsApi = {
  */
 function buildBedTools(capabilities) {
   const tools = [];
+  // A leveling run is over when Klipper, having been busy with it, is idle again (`applied` may already be true from before).
+  const levelingDone = (observed, run) => {
+    if (observed && observed.busy) run.sawBusy = true;
+    return Boolean(observed && !observed.busy && run.sawBusy);
+  };
+  if (capabilities.quadGantry) {
+    tools.push({
+      id: "qgl",
+      kind: "level",
+      group: tx("Leveling"),
+      title: "Quad gantry level",
+      subtitle: tx("Level the gantry with the probe"),
+      short: "QGL",
+      icon: h(Icons.Level),
+      script: "QUAD_GANTRY_LEVEL",
+      observe: () => bedToolsApi.leveling("quad_gantry_level"),
+      isDone: levelingDone,
+    });
+  }
+  if (capabilities.zTilt) {
+    tools.push({
+      id: "z-tilt",
+      kind: "level",
+      group: tx("Leveling"),
+      title: "Z tilt adjust",
+      subtitle: tx("Level the bed with the Z motors and the probe"),
+      short: "Z tilt",
+      icon: h(Icons.Level),
+      script: "Z_TILT_ADJUST",
+      observe: () => bedToolsApi.leveling("z_tilt"),
+      isDone: levelingDone,
+    });
+  }
+  if (capabilities.bedScrews) {
+    tools.push({
+      id: "bed-screws",
+      kind: "bedscrews",
+      group: tx("Print bed"),
+      title: "Bed screws adjust",
+      subtitle: tx("The paper test at each screw, step by step"),
+      short: tx("Screws"),
+      icon: h(Icons.Screw),
+      script: "BED_SCREWS_ADJUST",
+      observe: bedToolsApi.bedScrews,
+    });
+  }
   if (capabilities.screwsTilt) {
     tools.push({
       id: "screws",
@@ -87,6 +147,7 @@ function useBedTools({ capabilities, homedAxes, lockReason, onSaveConfig }) {
   const [run, setRun] = useState(null); // { tool, since, startedAt, baseline } while a tool runs
   const [screws, setScrews] = useState(null); // { error, results } to show in the sheet
   const [twistDone, setTwistDone] = useState(null); // the twist tool whose values wait for SAVE_CONFIG
+  const [bedScrews, setBedScrews] = useState(false); // the BED_SCREWS_ADJUST sheet is open
   const runRef = useRef(null);
   const consoleClock = useRef(0); // newest gcode-store time seen so far
   runRef.current = run;
@@ -108,7 +169,9 @@ function useBedTools({ capabilities, homedAxes, lockReason, onSaveConfig }) {
   };
   const complete = (current, observed) => {
     if (!end(current)) return;
-    if (current.tool.kind === "screws") setScrews({ error: Boolean(observed && observed.error), results: (observed && observed.results) || {} });
+    if (current.tool.kind === "level") toast.action(tx("{tool} completed", { tool: current.tool.title }));
+    else if (current.tool.kind === "bedscrews") setBedScrews(true);
+    else if (current.tool.kind === "screws") setScrews({ error: Boolean(observed && observed.error), results: (observed && observed.results) || {} });
     else setTwistDone(current.tool);
   };
 
@@ -131,7 +194,7 @@ function useBedTools({ capabilities, homedAxes, lockReason, onSaveConfig }) {
       try {
         if (Date.now() - run.startedAt > BED_TOOL_TIMEOUT_MS) return fail(run, tx("no answer from Klipper"));
         const observed = await run.tool.observe().catch(() => null);
-        if (observed !== null && JSON.stringify(observed) !== run.baseline) complete(run, observed);
+        if (run.tool.isDone ? run.tool.isDone(observed, run) : observed !== null && JSON.stringify(observed) !== run.baseline) complete(run, observed);
       } finally {
         busy = false;
       }
@@ -148,7 +211,7 @@ function useBedTools({ capabilities, homedAxes, lockReason, onSaveConfig }) {
   }, [run]);
 
   const start = async (tool) => {
-    if (runRef.current || lockedReason || tool.unavailable) return;
+    if (runRef.current || lockedReason || tool.unavailable || bedScrews) return;
     const current = { tool, since: consoleClock.current, startedAt: Date.now(), baseline: JSON.stringify(await tool.observe().catch(() => null)) };
     runRef.current = current;
     setRun(current);
@@ -156,6 +219,8 @@ function useBedTools({ capabilities, homedAxes, lockReason, onSaveConfig }) {
     toast.action(tx("{tool} started", { tool: tool.title }));
     const sent = await sendLongGcode(tool.script);
     if (!sent.ok) fail(current, sent.message);
+    // BED_SCREWS_ADJUST answers once the nozzle is at the first screw: the rest is the sheet's
+    else if (tool.kind === "bedscrews") complete(current, null);
     // Answered before the proxy's 10 s: the script is over, whatever its result looks like next to the old one.
     else if (sent.finished) complete(current, await tool.observe().catch(() => null));
   };
@@ -173,6 +238,9 @@ function useBedTools({ capabilities, homedAxes, lockReason, onSaveConfig }) {
       const tool = tools.find((item) => item.kind === "screws");
       if (tool) start(tool);
     },
+    bedScrews,
+    closeBedScrews: () => setBedScrews(false),
+    bedScrewLayout: capabilities.bedScrewLayout || [],
     twistDone,
     dismissTwist: () => setTwistDone(null),
     saveTwist: () => {
@@ -288,6 +356,113 @@ function ScrewsSheet({ controller }) {
   );
 }
 
+/* ---------------------------------------------------------------------------
+   BED_SCREWS_ADJUST, step by step (1.32)
+   Klipper brings the nozzle above each screw in turn; the person does the paper
+   test and answers ADJUSTED (the screw was turned: the round starts again once it
+   is over) or ACCEPT (it was right already). It ends when a whole round is
+   accepted; ABORT stops it.
+   ------------------------------------------------------------------------- */
+const BED_SCREWS_POLL_MS = 1000;
+
+function BedScrewsSheet({ controller }) {
+  useBodyScrollLock(true);
+  const layout = controller.bedScrewLayout;
+  const [status, setStatus] = useState(null); // the bed_screws object
+  const [busy, setBusy] = useState(""); // the command being sent
+  const [finished, setFinished] = useState(false);
+  const seenActive = useRef(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    const poll = async () => {
+      const next = await bedToolsApi.bedScrews();
+      if (cancelled || !next) return;
+      setStatus(next);
+      if (next.is_active) seenActive.current = true;
+      else if (seenActive.current) setFinished(true);
+    };
+    poll();
+    const timer = setInterval(poll, BED_SCREWS_POLL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, []);
+
+  const answer = async (command) => {
+    if (busy) return;
+    setBusy(command);
+    const sent = await sendLongGcode(command);
+    setBusy("");
+    if (!sent.ok) toast.action("Bed screws adjust: " + String(sent.message || tx("unknown error")).replace(/^\s*!!\s*/, "").slice(0, BED_TOOL_ERROR_MAX_CHARS));
+    else if (command === "ABORT") controller.closeBedScrews();
+  };
+  const close = () => (status && status.is_active && !finished ? answer("ABORT") : controller.closeBedScrews());
+  useBackHandler(close, true);
+
+  const index = status ? Number(status.current_screw) || 0 : 0;
+  const screw = layout[index] || { name: tx("Screw") + " " + (index + 1) };
+  const total = layout.length || null;
+  const fine = status && status.state === "fine";
+  const active = status && status.is_active && !finished;
+
+  return h(
+    "div",
+    { className: "sheet-overlay sheet-overlay--screws", onClick: (event) => event.target === event.currentTarget && close() },
+    h(
+      "div",
+      { className: "sheet-card sheet-card--column bed-screws", "data-state": finished ? "done" : active ? status.state || "adjust" : "waiting" },
+      h(
+        "div",
+        { className: "sheet-header sheet-header--bar" },
+        h("div", null, h("div", { className: "dialog-title" }, tx("Bed screws")), h("div", { className: "dialog-sub" }, "Bed screws adjust")),
+        h("button", { className: "dialog-close", onClick: close, "aria-label": tx("Close") }, "✕"),
+      ),
+      h(
+        "div",
+        { className: "screws-body" },
+        finished
+          ? h("div", { className: "oui-tile oui-tile--ok bed-screws__done" }, h(Icons.Check, { size: 20 }), tx("Every screw was accepted: the bed is level."))
+          : !active
+            ? h("div", { className: "oui-notice" }, tx("Waiting for Klipper…"))
+            : h(
+                React.Fragment,
+                null,
+                h(
+                  "div",
+                  { className: "bed-screws__screw" },
+                  h("span", { className: "bed-screws__step" }, total ? tx("Screw {n} of {total}", { n: index + 1, total }) : tx("Screw") + " " + (index + 1), fine ? " · " + tx("fine adjustment") : ""),
+                  h("span", { className: "bed-screws__name" }, screw.name),
+                  screw.x !== undefined && screw.y !== undefined && h("span", { className: "oui-caption" }, "X " + screw.x + " · Y " + screw.y),
+                ),
+                h(
+                  "ol",
+                  { className: "bed-screws__how" },
+                  h("li", null, tx("Slide a sheet of paper between the nozzle and the bed.")),
+                  h("li", null, tx("Turn the screw until the paper drags a little as it moves.")),
+                  h("li", null, tx("Then: «Adjusted» if you turned the screw, «Accept» if it was right already.")),
+                ),
+                h("div", { className: "oui-caption" }, tx("After a round with an adjusted screw Klipper goes round again; it ends when every screw is accepted.")),
+              ),
+      ),
+      h(
+        "div",
+        { className: "sheet-footer" },
+        finished
+          ? h("button", { className: "oui-btn oui-btn--primary", onClick: controller.closeBedScrews }, tx("Done"))
+          : h(
+              React.Fragment,
+              null,
+              h("button", { className: "oui-btn", disabled: Boolean(busy) || !active, onClick: () => answer("ABORT") }, tx("Abort")),
+              h("button", { className: cx("oui-btn", busy === "ADJUSTED" && "is-busy"), disabled: Boolean(busy) || !active, onClick: () => answer("ADJUSTED") }, tx("Adjusted")),
+              h("button", { className: cx("oui-btn oui-btn--primary", busy === "ACCEPT" && "is-busy"), disabled: Boolean(busy) || !active, onClick: () => answer("ACCEPT") }, tx("Accept")),
+            ),
+      ),
+    ),
+  );
+}
+
 /** The result sheet and the "save the twist values?" question. */
 function BedToolsDialogs({ controller }) {
   const { twistDone } = controller;
@@ -295,6 +470,7 @@ function BedToolsDialogs({ controller }) {
     React.Fragment,
     null,
     h(Presence, null, controller.screws && h(ScrewsSheet, { controller })),
+    h(Presence, null, controller.bedScrews && h(BedScrewsSheet, { controller })),
     h(ConfirmDialog, {
       open: Boolean(twistDone),
       tone: "neutral",

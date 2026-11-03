@@ -150,11 +150,11 @@ function DesktopFansCard() {
 }
 
 /**
- * Left: camera, AI strip, progress. Right: heaters, what moves the machine, fans, extruder. While a job prints the
+ * Left: camera, AI strip, progress. Right: heaters, what moves the machine, fans, extruder, tune (1.32). While a job prints the
  * Z-offset card takes the movement card's place and the extruder is out of the way (a pause leaves both in view).
  * On a narrow wide-screen the four slots stack in that order; on an extra-wide one they form two columns (css/70).
  */
-function DesktopDevicePage({ printStatus, printControls, status, motion, bedTools, zOffset, lockReason, aiMonitor, onEditTemperature, onGcode, onNavigate }) {
+function DesktopDevicePage({ printStatus, printControls, status, capabilities, motion, bedTools, zOffset, lockReason, aiMonitor, onEditTemperature, onGcode, onNavigate }) {
   const placement = zOffsetPlacement(printStatus, status.zOffset);
   return h(
     "div",
@@ -185,6 +185,7 @@ function DesktopDevicePage({ printStatus, printControls, status, motion, bedTool
           placement !== "instead" && h(MovementCard, { position: status.position, homedAxes: status.homedAxes, motion, bedTools, lockReason }),
         ),
         printStatus.state !== "printing" && h("div", { className: "desk-slot desk-slot--extruder" }, h(ExtruderCard, { hotend: status.hotend, onGcode, onEditTemperature })),
+        h("div", { className: "desk-slot desk-slot--tune" }, h(TuneCard, { capabilities, onGcode })),
       ),
     ),
   );

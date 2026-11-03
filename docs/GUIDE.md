@@ -154,6 +154,19 @@ reads the state (or none: it shows what was asked last).
 Z arrows go — with the bed, ↑ brings it up towards the nozzle; with the toolhead, ↑ lifts it. The X/Y pad and the Z
 buttons always have 1 and 10 mm steps; 50 and 100 mm can be added (one more ring on the pad, two more Z buttons each).
 
+**Calibrate** (Movement card) also has the **leveling** Klipper offers on your printer: **Z tilt adjust** (`[z_tilt]`),
+**Quad gantry level** (`[quad_gantry_level]`) and, on printers with no probe, **Bed screws adjust** (`[bed_screws]`): the
+nozzle stops above each screw and a sheet tells you what to do (the paper test); answer *Adjusted* if you turned the screw,
+*Accept* if it was right already. Klipper goes round again until a whole round is accepted.
+
+### Tune
+
+The **Tune** card (Control page on the phone, Device page on a computer) changes, also during a print: the **speed** and
+**flow** factors (M220 / M221), **pressure advance** and its smooth time, the **machine limits** (velocity, acceleration,
+square corner velocity, minimum cruise ratio) and the **firmware retraction** (when `[firmware_retraction]` exists). Use
+− / + or type a value; under each one is the value of `printer.cfg`, and the round arrow goes back to it. Nothing is
+written to `printer.cfg`: a restart of Klipper brings its values back.
+
 ### During a print
 
 The **print card** (Home) shows the file, the progress, the time, what is left and the layer; under them **when it ends**
