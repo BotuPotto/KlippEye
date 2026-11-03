@@ -1,5 +1,22 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.37.0
+
+**Every light of the printer** (roadmap phase 6b, eighth part).
+
+* **Found by themselves**: each pair of light macros (`LUCI_ON` / `LUCI_OFF`…, read on the output of the same name), each
+  LED output (`[led]`, `[neopixel]`, `[dotstar]`, `[pca9533]`…) and the `[output_pin]`s whose name says light (not a
+  beeper or a relay). Universal: no names are fixed.
+* **The round button** on the camera (phone, computer, full screen) switches together the lights marked *Switched by the
+  round button*: off when any is on, else all on; each light keeps its own reading and retries, as before.
+* **The arrow** next to it opens **every light**: a switch each, the **brightness** (LEDs, PWM pins) and the **colour**
+  (RGB LEDs, with the colour wheel; white uses the white channel when there is one), and the **scenes**: *Save as a scene*
+  keeps how the lights are now under a name, a tap brings it back.
+* **Settings → Printer functions** in three parts: **Lights** (the list: name, how it is switched — an output, two macros,
+  G-code —, where the state is read, round button yes / no, order, remove, add, *Find the lights again*; the scenes),
+  **Buttons** (park, wipe, load, unload) and **Filament**. A light chosen in an earlier release is kept as the only one of
+  the list; one left on *Automatic* becomes the lights KlippEye finds.
+
 ## 1.36.1
 
 * **The 3D height map looks like Mainsail's**: Mainsail's colours (blue low → yellow → red high) as a smooth gradient

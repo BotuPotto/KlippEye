@@ -141,6 +141,14 @@ switches it, the button reads the output itself (and the *klipper-led_effect* ef
 when the light is switched from Mainsail, KlipperScreen, the console or a macro. With macros or G-code you choose where the button
 reads the state (or none: it shows what was asked last).
 
+**Lights** (1.37): as many as the printer has. KlippEye finds them by itself — each pair of light macros (`LUCI_ON` /
+`LUCI_OFF`…), each LED output (`[led]`, `[neopixel]`, `[dotstar]`…) and the pins whose name says light — and lists them
+under **Lights**: rename one, change how it is switched (an output, two macros, G-code) and where its state is read,
+remove it or add more; from the first change the list is yours (*Find the lights again* goes back to what KlippEye finds).
+The round button on the camera switches together the lights marked *Switched by the round button*; the arrow next to it
+opens every light — a switch each, the **brightness** (LEDs, PWM pins), the **colour** (RGB LEDs) — and the **scenes**:
+*Save as a scene* keeps how the lights are now under a name, a tap brings it back.
+
 **Filament change notification**: the phone gets *Filament run out* when
 * a **filament sensor** (`[filament_switch_sensor]`, `[filament_motion_sensor]`) says the filament is gone during a print;
 * one of the **macros you choose** runs (`M600` in the G-code, your runout macro...): KlippEye adds to `klippeye_macros.cfg` a

@@ -95,6 +95,7 @@ function App() {
     });
   const runFromConsole = (script) => sendFromConsole(script, consoleFeed.echo);
   const openMacroSettings = () => settingsMenu.openPage("macros");
+  lightSettingsLink.open = settingsMenu.openPage;
   const restartService = (name) => {
     settingsMenu.close();
     power.service("restart", name);

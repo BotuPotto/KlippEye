@@ -50,3 +50,9 @@
 .nt-invite__text { flex: 1 1 180px; font-size: 14px; font-weight: 600; }
 .nt-invite__buttons { display: flex; gap: 8px; margin-left: auto; }
 body:has(.modal, .confirm-overlay, .sheet-overlay, .screen, .drawer) .nt-invite { display: none; }
+
+/* ---- 1.37: the page in three parts; the lights list ---- */
+.fn-section { display: flex; align-items: center; gap: 10px; margin: 18px 4px 2px; font-size: 13px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--oui-accent-text); }
+.fn-light { display: flex; flex-direction: column; gap: 10px; padding: 14px; border-radius: var(--oui-r-card); background: var(--oui-surface); }
+.fn-light__icon { display: grid; flex: none; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: rgba(255, 200, 80, 0.18); color: #ffd27a; }
+.fn-light-add { display: flex; flex-wrap: wrap; gap: 8px; }

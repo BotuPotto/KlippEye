@@ -1,7 +1,8 @@
 /* ============================================================================
    59g · PRINTER FUNCTIONS
-   Settings → Printer functions: what the buttons of the dashboard that use the printer's own macros do (park, wipe,
-   filament load / unload, the case light) and what tells the notifications that the filament ran out. For each one:
+   Settings → Printer functions, in three parts (1.37): the lights (as many as the printer has: each with its name, how
+   it is switched, where its state is read, whether the round button switches it; the scenes), the buttons (park, wipe,
+   filament load / unload) and what tells the notifications that the filament ran out. For each button:
      · Automatic   what KlippEye found in Klipper (the usual macro names);
      · Macro       a macro of the printer, chosen from the list or typed;
      · G-code      a few lines written here (in the editor);
@@ -18,7 +19,7 @@ const FUNCTION_TITLES = {
   unload: tx("Unload the filament"),
 };
 const ACTION_MODE_LABELS = { auto: tx("Automatic"), macro: tx("Macro"), gcode: "G-code", off: tx("Not used") };
-const LIGHT_MODE_LABELS = { auto: tx("Automatic"), object: tx("Output"), macro: tx("Macro"), gcode: "G-code", off: tx("Not used") };
+const LIGHT_HOW_LABELS = { object: tx("Output"), macro: tx("Macro"), gcode: "G-code" };
 
 /** GET/POST to /api/printer-macros...; resolves { ok, data, message }. */
 async function macrosApi(path, body) {
@@ -41,13 +42,18 @@ function functionNow(resolved) {
   return resolved.chosen ? tx("Runs the macro {name}.", { name: resolved.command }) : tx("Found on your printer: the macro {name}.", { name: resolved.command });
 }
 
-function lightNow(light) {
-  if (light.mode === "off") return light.chosen ? tx("Off: the light button is not shown.") : tx("No light found on your printer: the button is not shown.");
+/** What one light does now, in a line (`light`: resolveLightItem, or undefined when it cannot be switched). */
+function lightNow(light, item) {
+  if (!light) {
+    if (item.mode === "object") return item.object ? tx("Klipper has no {object}: this light cannot be switched.", { object: item.object }) : tx("Choose the output of this light.");
+    return tx("Write both commands, on and off.");
+  }
   const how = light.mode === "object" ? tx("switched directly on {object}", { object: light.object.object }) : light.mode === "macro" ? tx("switched by the macros {on} / {off}", { on: light.on, off: light.off }) : tx("switched by your G-code");
   const state = light.object
     ? tx("the button shows the state of {object}", { object: light.object.object }) + (light.object.effects.length ? " " + tx("and of its {count} effects", { count: light.object.effects.length }) : "")
     : tx("the button cannot read the light: it shows what was asked last");
-  return (light.chosen ? "" : tx("Found on your printer:") + " ") + how + "; " + state + ".";
+  const extra = light.dim || light.color ? " " + (light.color ? tx("Brightness and colour can be set.") : tx("Brightness can be set.")) : "";
+  return how + "; " + state + "." + extra;
 }
 
 /** A text field with the printer's macros as suggestions. */
@@ -104,11 +110,12 @@ function ActionFunction({ id, settings, resolved, macros, update, editor, create
   );
 }
 
-function LightFunction({ settings, resolved, capabilities, update, editor, createMacro }) {
-  const light = settings.functions.light;
-  const set = (changes) => update((draft) => Object.assign(draft.functions.light, changes));
+/** One light of the list: its name, how it is switched, where its state is read, whether the round button switches it. */
+function LightItemEditor({ item, index, count, light, capabilities, change, move, remove, editor }) {
   const outputs = capabilities.lights || [];
-  const modes = LIGHT_MODES.map((mode) => ({ id: mode, label: LIGHT_MODE_LABELS[mode] }));
+  const [deleting, setDeleting] = useState(false);
+  const set = (changes) => change((draft) => Object.assign(draft, changes));
+  const title = item.name || tx("Light");
   const objectSelect = (label, value, onChange, withNone) =>
     h(
       "label",
@@ -124,44 +131,153 @@ function LightFunction({ settings, resolved, capabilities, update, editor, creat
       ),
     );
   return h(
-    SettingsGroup,
-    { title: tx("Case light") },
-    h("div", { "data-function-group": "light" }, h(ChipChoice, { options: modes, value: light.mode, label: tx("Case light"), onChange: (mode) => set({ mode }) })),
-    h("p", { className: "set-group__note fn-now", "data-now": "light" }, lightNow(resolved.light)),
-    light.mode === "object" &&
+    "section",
+    { className: "set-group fn-light", "data-light-item": item.id },
+    h(
+      "div",
+      { className: "macro-group-edit__head" },
+      h("span", { className: "fn-light__icon", "aria-hidden": "true" }, h(Icons.Bulb, { size: 16 })),
+      h("span", { className: "set-group__label macro-group-edit__title" }, title),
+      h(MacroEditButton, { label: tx("Move up"), icon: h(Icons.ArrowUp, { size: 16 }), disabled: index === 0, onClick: () => move(-1) }),
+      h(MacroEditButton, { label: tx("Move down"), icon: h(Icons.ArrowDown, { size: 16 }), disabled: index === count - 1, onClick: () => move(1) }),
+      h(MacroEditButton, { label: tx("Remove") + " " + title, icon: h(Icons.Trash, { size: 16 }), danger: true, onClick: () => setDeleting(true) }),
+    ),
+    h(TextSetting, { label: tx("Name"), value: item.name, placeholder: tx("e.g. Case light, LED strip"), validate: (text) => (text.trim().length <= LIGHT_NAME_MAX ? text.trim() : null), onCommit: (name) => set({ name }) }),
+    h("div", { "data-function-group": "light-" + item.id }, h(ChipChoice, { options: LIGHT_HOWS.map((how) => ({ id: how, label: LIGHT_HOW_LABELS[how] })), value: item.mode, label: tx("How it is switched"), onChange: (mode) => set({ mode }) })),
+    h("p", { className: "set-group__note fn-now", "data-now": "light-" + item.id }, lightNow(light, item)),
+    item.mode === "object" && objectSelect(tx("The output of the light"), item.object, (object) => set({ object }), false),
+    item.mode === "macro" &&
       h(
         React.Fragment,
         null,
-        objectSelect(tx("The output of the light"), light.object, (object) => set({ object }), false),
-        h("p", { className: "set-group__note" }, tx("KlippEye switches it with Klipper's own commands (SET_PIN, SET_LED) and always shows its real state, whoever changes it.")),
+        h(MacroField, { label: tx("Macro that switches it on"), value: item.onMacro, macros: capabilities.macros || [], testId: "light-on-" + item.id, onCommit: (onMacro) => set({ onMacro }) }),
+        h(MacroField, { label: tx("Macro that switches it off"), value: item.offMacro, macros: capabilities.macros || [], testId: "light-off-" + item.id, onCommit: (offMacro) => set({ offMacro }) }),
       ),
-    light.mode === "macro" &&
-      h(
-        React.Fragment,
-        null,
-        h(MacroField, { label: tx("Macro that switches it on"), value: light.onMacro, macros: capabilities.macros || [], testId: "light-on", onCommit: (onMacro) => set({ onMacro }) }),
-        h(MacroField, { label: tx("Macro that switches it off"), value: light.offMacro, macros: capabilities.macros || [], testId: "light-off", onCommit: (offMacro) => set({ offMacro }) }),
-      ),
-    light.mode === "gcode" &&
+    item.mode === "gcode" &&
       h(
         "div",
         { className: "fn-buttons" },
-        h("button", { type: "button", className: "oui-btn", "data-edit-gcode": "light-on", onClick: () => editor.open(tx("Case light") + " · " + tx("G-code: on"), light.onGcode || "; " + tx("write here the G-code that switches the light on") + "\n", async (text) => set({ onGcode: text })) }, h(Icons.Code, { size: 16 }), tx("G-code: on")),
-        h("button", { type: "button", className: "oui-btn", "data-edit-gcode": "light-off", onClick: () => editor.open(tx("Case light") + " · " + tx("G-code: off"), light.offGcode || "; " + tx("write here the G-code that switches the light off") + "\n", async (text) => set({ offGcode: text })) }, h(Icons.Code, { size: 16 }), tx("G-code: off")),
+        h("button", { type: "button", className: "oui-btn", "data-edit-gcode": "light-on-" + item.id, onClick: () => editor.open(title + " · " + tx("G-code: on"), item.onGcode || "; " + tx("write here the G-code that switches the light on") + "\n", async (text) => set({ onGcode: text })) }, h(Icons.Code, { size: 16 }), tx("G-code: on")),
+        h("button", { type: "button", className: "oui-btn", "data-edit-gcode": "light-off-" + item.id, onClick: () => editor.open(title + " · " + tx("G-code: off"), item.offGcode || "; " + tx("write here the G-code that switches the light off") + "\n", async (text) => set({ offGcode: text })) }, h(Icons.Code, { size: 16 }), tx("G-code: off")),
       ),
-    (light.mode === "macro" || light.mode === "gcode") &&
-      h(
-        React.Fragment,
-        null,
-        objectSelect(tx("Where the button reads whether the light is on"), light.stateFrom, (stateFrom) => set({ stateFrom }), true),
-        h("p", { className: "set-group__note" }, tx("Reading the output (and its effects) keeps the button right also when the light is switched from Mainsail, KlipperScreen or the console.")),
-      ),
+    item.mode !== "object" && objectSelect(tx("Where the button reads whether the light is on"), item.stateFrom, (stateFrom) => set({ stateFrom }), true),
+    h("div", { className: "oui-list" }, h(SwitchRow, { title: tx("Switched by the round button"), detail: tx("The light button on the camera switches together every light that has this on."), checked: item.main, onChange: (main) => set({ main }) })),
+    h(ConfirmDialog, {
+      open: deleting,
+      tone: "danger",
+      icon: h(Icons.Trash),
+      title: tx("Remove this light?"),
+      subtitle: title,
+      message: tx("It leaves KlippEye's list; nothing changes in Klipper."),
+      confirmLabel: tx("Remove"),
+      onConfirm: () => {
+        setDeleting(false);
+        remove();
+      },
+      onCancel: () => setDeleting(false),
+    }),
+  );
+}
+
+/** The lights: what KlippEye found or the person's list, each one's editor, adding one, finding them again, the scenes. */
+function LightsSettings({ settings, resolved, capabilities, update, editor, createMacro }) {
+  const lights = settings.functions.lights;
+  const items = resolved.lightItems;
+  const [refinding, setRefinding] = useState(false);
+  /** Every change keeps the list (the first one takes what KlippEye found as it is now). */
+  const edit = (fn) =>
+    update((draft) => {
+      const list = draft.functions.lights;
+      if (!list.configured) {
+        list.items = items.map((item) => ({ ...item }));
+        list.configured = true;
+      }
+      fn(list);
+    });
+  const add = (extra) =>
+    edit((list) => {
+      if (list.items.length >= LIGHTS_MAX) return;
+      list.items.push(cleanLightItem({ id: "l" + Date.now().toString(36), name: tx("Light") + " " + (list.items.length + 1), mode: "object", main: true, ...extra }, list.items.length));
+    });
+  return h(
+    React.Fragment,
+    null,
     h(
-      "button",
-      { type: "button", className: "oui-btn oui-btn--quiet oui-btn--sm set-inline-btn", "data-create": "light", onClick: () => createMacro("light_on", (on) => createMacro("light_off", (off) => set({ mode: "macro", onMacro: on, offMacro: off }))) },
-      h(Icons.Plus, { size: 16 }),
-      tx("Create the two macros (KlippEye proposes them)"),
+      SettingsGroup,
+      { title: tx("Lights"), help: ["functions", "lights"] },
+      h(
+        "p",
+        { className: "set-group__note", "data-lights-state": lights.configured ? "configured" : "found" },
+        lights.configured
+          ? tx("Your list of lights ({count}). The round button on the camera switches the ones marked; its arrow opens them all, with brightness, colour and scenes.", { count: items.length })
+          : items.length
+            ? tx("KlippEye found {count} lights on your printer (pairs of light macros, LED outputs, pins named as lights). Change anything and the list stays as you leave it.", { count: items.length })
+            : tx("KlippEye found no light on your printer: add one, or create the two macros."),
+      ),
+      lights.configured && h("button", { type: "button", className: "oui-btn oui-btn--quiet oui-btn--sm set-inline-btn", "data-refind": "1", onClick: () => setRefinding(true) }, h(Icons.Refresh, { size: 16 }), tx("Find the lights again")),
     ),
+    items.map((item, index) =>
+      h(LightItemEditor, {
+        key: item.id,
+        item,
+        index,
+        count: items.length,
+        light: resolved.lights.find((one) => one.id === item.id),
+        capabilities,
+        editor,
+        change: (fn) => edit((list) => fn(list.items[index])),
+        move: (direction) =>
+          edit((list) => {
+            const [moved] = list.items.splice(index, 1);
+            list.items.splice(index + direction, 0, moved);
+          }),
+        remove: () => edit((list) => list.items.splice(index, 1)),
+      }),
+    ),
+    h(
+      "div",
+      { className: "fn-light-add" },
+      items.length < LIGHTS_MAX && h("button", { type: "button", className: "oui-btn", "data-add-light": "1", onClick: () => add({}) }, h(Icons.Plus, { size: 16 }), tx("Add a light")),
+      h(
+        "button",
+        { type: "button", className: "oui-btn oui-btn--quiet", "data-create": "light", onClick: () => createMacro("light_on", (on) => createMacro("light_off", (off) => add({ name: tx("Light"), mode: "macro", onMacro: on, offMacro: off, stateFrom: "auto" }))) },
+        h(Icons.Plus, { size: 16 }),
+        tx("Create the two macros (KlippEye proposes them)"),
+      ),
+    ),
+    lights.scenes.length > 0 &&
+      h(
+        SettingsGroup,
+        { title: tx("Scenes"), note: tx("Saved from the lights panel (the arrow next to the light button). A tap there brings them back.") },
+        h(
+          "div",
+          { className: "oui-list" },
+          lights.scenes.map((scene, index) =>
+            h(
+              "div",
+              { key: scene.id, className: "oui-row", "data-scene-row": scene.id },
+              h("span", { className: "oui-row__text" }, h("span", { className: "oui-row__name" }, scene.name), h("span", { className: "oui-row__meta" }, tx("{count} lights", { count: Object.keys(scene.set).length }))),
+              h(MacroEditButton, { label: tx("Remove") + " " + scene.name, icon: h(Icons.Trash, { size: 16 }), danger: true, onClick: () => update((draft) => draft.functions.lights.scenes.splice(index, 1)) }),
+            ),
+          ),
+        ),
+      ),
+    h(ConfirmDialog, {
+      open: refinding,
+      tone: "neutral",
+      icon: h(Icons.Refresh),
+      title: tx("Find the lights again?"),
+      message: tx("Your list is replaced by what KlippEye finds on the printer now (the scenes stay)."),
+      confirmLabel: tx("Find again"),
+      onConfirm: () => {
+        setRefinding(false);
+        update((draft) => {
+          draft.functions.lights.configured = false;
+          draft.functions.lights.items = [];
+        });
+      },
+      onCancel: () => setRefinding(false),
+    }),
   );
 }
 
@@ -300,8 +416,11 @@ function PrinterFunctionsPage({ printing }) {
           !printing && h("button", { type: "button", className: "oui-btn oui-btn--sm", "data-restart": "1", onClick: restartKlipper }, tx("Restart Klipper now")),
         ),
       ),
-    h(LightFunction, { settings, resolved, capabilities, update, editor, createMacro }),
+    h("h3", { className: "fn-section", "data-section": "lights" }, h(Icons.Bulb, { size: 18 }), tx("Lights")),
+    h(LightsSettings, { settings, resolved, capabilities, update, editor, createMacro }),
+    h("h3", { className: "fn-section", "data-section": "buttons" }, h(Icons.Play, { size: 18 }), tx("Buttons")),
     ACTION_FUNCTIONS.map((id) => h(ActionFunction, { key: id, id, settings, resolved, macros: capabilities.macros || [], update, editor, createMacro })),
+    h("h3", { className: "fn-section", "data-section": "filament" }, h(Icons.Spool, { size: 18 }), tx("Filament")),
     h(FilamentFunction, { settings, capabilities, update, wraps: store.wraps || [], onWraps, busy }),
     editor.editor,
   );
@@ -311,6 +430,8 @@ function PrinterFunctionsPage({ printing }) {
 function printerFunctionsSummary(settings) {
   if (!settings.functions.reviewed) return ""; // the badge "To check" says it
   const functions = settings.functions;
-  const off = ACTION_FUNCTIONS.filter((id) => functions[id].mode === "off").length + (functions.light.mode === "off" ? 1 : 0);
-  return off ? tx("{count} off", { count: off }) : tx("All on");
+  const off = ACTION_FUNCTIONS.filter((id) => functions[id].mode === "off").length;
+  const lights = functions.lights.configured ? functions.lights.items.length : null;
+  const lightText = lights === null ? "" : lights === 1 ? tx("1 light") : tx("{count} lights", { count: lights });
+  return [lightText, off ? tx("{count} off", { count: off }) : tx("All on")].filter(Boolean).join(" • ");
 }
