@@ -190,6 +190,19 @@ Nell'app KlippEye (1.5.0 o più nuova) le barre di Android spariscono e lo scher
 browser che non può girare lo schermo (per esempio un iPhone) è l'immagine a girarsi, così riempie lo schermo tenuto di
 lato; il pulsante ↻ lo spegne. Un tocco fa ricomparire i pulsanti; ⤡, Esc o il tasto indietro del telefono escono.
 
+### Notifiche: testi e notifiche tue
+
+**Impostazioni → Notifiche**: sotto ogni notifica *Cambia il testo* ti fa scrivere il tuo; le parole tra graffe si
+riempiono quando parte — `{file}`, `{progress}`, `{layer}`, `{total_layers}`, `{elapsed}`, `{remaining}`, `{message}`
+(il motivo di Klipper per un errore), `{printer}`… Vuoto: il testo di sempre. La pausa si può avvisare subito o dopo
+qualche secondo (se un filamento esaurito la spiega parte quella notifica). La notifica di **errore** ora porta il messaggio
+di Klipper (perché si è fermato, l'errore della stampa, l'ultima riga `!!`).
+
+**Le tue notifiche** ne aggiunge altre: *Stampa avviata*, *Avanzamento raggiunto* (una percentuale), *Manca poco*
+(minuti), *Layer raggiunto*, *Una riga nella console* (parole che la tua macro scrive con `M118` / `RESPOND`),
+*Temperatura raggiunta* (piatto o ugello). Ognuna ha il suo testo e può essere *Importante* (arriva come un allarme).
+Avanzamento, tempo e layer partono una volta per stampa.
+
 ### Console
 
 La console (pagina Controllo sul telefono, la barra in basso sul computer: la sua freccia apre tutto il registro) ha, nella

@@ -186,6 +186,18 @@ the KlippEye app (1.5.0 or newer) Android's bars disappear and the screen turns 
 that cannot turn the screen (an iPhone, say) the picture itself is turned so it fills the screen held sideways; the ↻
 button switches that off. A tap shows the buttons again; ⤡, Esc or the phone's back leave.
 
+### Notifications: texts and your own
+
+**Settings → Notifications**: under each notification *Change the text* lets you write your own; words in braces are
+filled in when it goes out — `{file}`, `{progress}`, `{layer}`, `{total_layers}`, `{elapsed}`, `{remaining}`,
+`{message}` (Klipper's reason for an error), `{printer}`… Empty: the usual text. The pause can be announced at once or
+after a few seconds (a filament runout that explains it goes out instead). The **error** notification now carries
+Klipper's own message (why it shut down, the print's error, the last `!!` line).
+
+**Your notifications** adds more: *Print started*, *Progress reached* (a percent), *Little time left* (minutes), *Layer
+reached*, *A line in the console* (words your macro writes with `M118` / `RESPOND`), *Temperature reached* (bed or
+nozzle). Each has its text and can be *Important* (it arrives as an alarm). Progress, time and layer go out once a print.
+
 ### Console
 
 The console (Control page on the phone, the bar at the bottom on a computer: its arrow opens the whole log) has, in its

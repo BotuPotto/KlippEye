@@ -22,6 +22,14 @@ The events:
     ai_pause   the AI print monitor recommends a pause (verdict PAUSE)
     ai_cancel  the AI print monitor recommends cancelling (verdict CANCEL)
 
+From version 1.7 (KlippEye 1.38.0) the dashboard (Settings -> Notifications) also sets:
+    · the text of each notification, with placeholders filled in when it goes out ({file}, {progress}, {layer},
+      {elapsed}, {remaining}, {message}...; see PLACEHOLDERS);
+    · how long a pause waits before it is announced;
+    · notifications of your own ("rules"): print started, progress reached, little time left, a layer reached, a line in
+      the console, a temperature reached.
+The error notification carries Klipper's own message (the shutdown reason, the print's error, the last "!!" line).
+
 It READS from Moonraker and from the backend (the Flask backend is not touched) and it needs nothing but Python 3:
 no pip packages. The Google sign-in (OAuth2 with the service account key) is done here with the standard library only.
 
@@ -64,7 +72,7 @@ import urllib.request
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-__version__ = "1.6"
+__version__ = "1.7"
 
 LOG = logging.getLogger("klippeye-notifier")
 
@@ -88,6 +96,14 @@ MESSAGES = {
         "ai_pause_auto": "Print defects found: print paused automatically.",
         "ai_cancel_auto": "Serious print defects found: print cancelled automatically.",
         "test": "Test notification: everything works!",
+        # 1.7: the error with Klipper's own message; the defaults of the notifications of your own
+        "error_detail": "Printer error: {message}",
+        "rule_started": "Print started: {file}",
+        "rule_progress": "{file}: {progress}% done",
+        "rule_remaining": "{file}: about {remaining} left",
+        "rule_layer": "{file}: layer {layer} of {total_layers}",
+        "rule_line": "{line}",
+        "rule_temp": "{heater} at temperature: {temp}°C",
     },
     "it": {
         "error": "Stampante in errore! Effettuare riavvio.",
@@ -100,10 +116,42 @@ MESSAGES = {
         "ai_pause_auto": "Difetti di stampa rilevati: stampa messa in pausa automaticamente.",
         "ai_cancel_auto": "Difetti gravi di stampa rilevati: stampa interrotta automaticamente.",
         "test": "Notifica di prova: tutto funziona!",
+        "error_detail": "Stampante in errore: {message}",
+        "rule_started": "Stampa avviata: {file}",
+        "rule_progress": "{file}: {progress}% completato",
+        "rule_remaining": "{file}: mancano circa {remaining}",
+        "rule_layer": "{file}: layer {layer} di {total_layers}",
+        "rule_line": "{line}",
+        "rule_temp": "{heater} in temperatura: {temp}°C",
     },
 }
 LANGUAGES = tuple(MESSAGES)
 DEFAULT_MESSAGES = MESSAGES["en"]
+
+
+# the words that fill a notification's text when it goes out ({name}); an unknown one is left as it is
+PLACEHOLDERS = ("file", "progress", "layer", "total_layers", "elapsed", "remaining", "message", "line", "heater", "temp", "target", "printer")
+PLACEHOLDER = re.compile(r"\{(\w+)\}")
+HEATER_NAMES = {"en": {"extruder": "Nozzle", "heater_bed": "Bed"}, "it": {"extruder": "Ugello", "heater_bed": "Piatto"}}
+
+
+def fill(text: str, values: Dict[str, Any]) -> str:
+    """`text` with each {name} of PLACEHOLDERS replaced by its value ("" when it is not known now)."""
+    def one(match: "re.Match[str]") -> str:
+        name = match.group(1)
+        if name not in PLACEHOLDERS:
+            return match.group(0)
+        value = values.get(name)
+        return "" if value is None else str(value)
+    return re.sub(r"\s{2,}", " ", PLACEHOLDER.sub(one, text)).strip(" :-·") or text
+
+
+def duration_text(seconds: Optional[float]) -> Optional[str]:
+    """3725 -> "1h 02m"; 300 -> "5 min"."""
+    if seconds is None or seconds < 0:
+        return None
+    minutes = int(round(seconds / 60.0))
+    return "%dh %02dm" % (minutes // 60, minutes % 60) if minutes >= 60 else "%d min" % minutes
 
 
 def message_text(config: Dict[str, Any], language: Optional[str], key: str) -> str:
@@ -151,6 +199,8 @@ DEFAULT_CONFIG: Dict[str, Any] = {
 # the Android notification channel (created by the app) and the importance of each kind of notification; the ids are
 # the app's (alarms, warnings, print) and stay Italian until an app release renames them
 KIND_CHANNEL = {
+    "custom": "avvisi",  # 1.7: a notification of your own; "custom_high" an important one
+    "custom_high": "allarmi",
     "error": "allarmi",
     "runout": "allarmi",
     "ai_cancel": "allarmi",
@@ -164,6 +214,8 @@ KIND_CHANNEL = {
 
 # ntfy: the priority (5 urgent ... 3 default) and the emoji tags of each kind of notification
 KIND_NTFY = {
+    "custom": (4, "bell"),
+    "custom_high": (5, "loudspeaker"),
     "error": (5, "rotating_light"),
     "runout": (5, "warning"),
     "ai_cancel": (5, "x"),
@@ -252,6 +304,9 @@ class Snapshot:
     ai: Optional[AiVerdict] = None  # None: backend not reachable or nothing to say
     settings: Optional[Dict[str, Any]] = None  # the dashboard's settings document; {} = nothing stored yet; None = not known (keep the last)
     sensors: Optional[Dict[str, bool]] = None  # filament sensors: {name: filament detected} (enabled ones only); None = not read
+    # 1.7: what the texts and the rules need: file, print_duration, progress (0-1), layer, total_layers, print_message
+    # (print_stats.message), klippy_message (why Klipper stopped), heaters {"extruder": (temp, target), "heater_bed": ...}
+    info: Dict[str, Any] = field(default_factory=dict)
 
 
 KLIPPY_ERRORS = ("shutdown", "error")
@@ -296,8 +351,48 @@ def dash_settings(raw: Any) -> Dict[str, Any]:
         },
         "language": given.get("language") if given.get("language") in LANGUAGES else None,
         "filament": filament_settings(_dict(_dict(given.get("functions")).get("filament"))),
+        "notify": dict(notify_settings(_dict(given.get("notify"))), printer=str(_dict(given.get("printer")).get("name") or "")[:60]),
         "stamp": given.get("_t") if isinstance(given.get("_t"), (int, float)) and not isinstance(given.get("_t"), bool) else 0,
     }
+
+
+RULE_KINDS = ("started", "progress", "remaining", "layer", "line", "temp")
+RULE_HEATERS = ("extruder", "heater_bed")
+RULES_MAX = 20
+TEXT_MAX = 300
+
+
+def notify_settings(given: Dict[str, Any]) -> Dict[str, Any]:
+    """1.7: the texts of the notifications, the pause's delay and the notifications of your own, cleaned."""
+    texts = {key: value.strip()[:TEXT_MAX] for key, value in _dict(given.get("texts")).items()
+             if key in DASH_EVENTS and isinstance(value, str) and value.strip()}
+    delay = given.get("pauseDelay")
+    rules = []
+    for raw in given.get("rules") or []:
+        rule = _dict(raw)
+        kind = rule.get("kind")
+        rid = rule.get("id")
+        if kind not in RULE_KINDS or not isinstance(rid, str) or not re.match(r"^[a-z0-9-]{1,40}$", rid):
+            continue
+        value = rule.get("value")
+        if kind in ("progress", "remaining", "layer"):
+            if not isinstance(value, (int, float)) or isinstance(value, bool) or not 0 < value <= (100 if kind == "progress" else 100000):
+                continue
+        elif kind == "line":
+            if not isinstance(value, str) or not value.strip():
+                continue
+            value = value.strip()[:120]
+        elif kind == "temp":
+            value = value if value in RULE_HEATERS else "heater_bed"
+        else:
+            value = None
+        text = rule.get("text")
+        rules.append({"id": rid, "kind": kind, "value": value, "on": rule.get("on") is not False, "high": rule.get("high") is True,
+                      "text": text.strip()[:TEXT_MAX] if isinstance(text, str) and text.strip() else ""})
+        if len(rules) >= RULES_MAX:
+            break
+    return {"texts": texts, "pause_delay": float(delay) if isinstance(delay, (int, float)) and not isinstance(delay, bool) and 0 <= delay <= 120 else None,
+            "rules": rules, "printer": ""}
 
 
 def filament_settings(given: Dict[str, Any]) -> Dict[str, Any]:
@@ -332,6 +427,10 @@ class Watcher:
         self.runout_notified_at = float("-inf")
         self.sensors: Optional[Dict[str, bool]] = None
         self.pending_pause: Optional[float] = None
+        self.info: Dict[str, Any] = {}  # 1.7: the last file / progress / layer / heaters read (for the texts)
+        self.fired: set = set()  # the rules that went out during this print (once each)
+        self.heat_seen: Dict[str, Tuple[float, bool]] = {}  # heater -> (target, reached) of the temperature rules
+        self.last_error_line = ""
         self._actions: List[Action] = []
         self._results: List[Tuple[str, bool]] = []
         self._lock = threading.Lock()
@@ -341,7 +440,27 @@ class Watcher:
         chosen = self.dash["events"].get(kind)  # the dashboard's switch, when it has one
         return chosen if chosen is not None else bool(self.config["events"].get(kind, True))
 
-    def _emit(self, kind: str, now: float, out: List[Notice], text_key: Optional[str] = None) -> bool:
+    def _values(self, extra: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """What the placeholders of the texts become now."""
+        info = self.info
+        progress = info.get("progress")
+        elapsed = info.get("print_duration")
+        remaining = elapsed / progress * (1 - progress) if progress and progress > 0.01 and elapsed else None
+        name = info.get("file") or ""
+        values = {
+            "file": os.path.splitext(os.path.basename(name))[0] if name else "",
+            "progress": int(round(progress * 100)) if isinstance(progress, (int, float)) else None,
+            "layer": info.get("layer"),
+            "total_layers": info.get("total_layers"),
+            "elapsed": duration_text(elapsed),
+            "remaining": duration_text(remaining),
+            "message": "",
+            "printer": self.dash["notify"].get("printer") or self.config.get("title") or "KlippEye",
+        }
+        values.update(extra or {})
+        return values
+
+    def _emit(self, kind: str, now: float, out: List[Notice], text_key: Optional[str] = None, extra: Optional[Dict[str, Any]] = None) -> bool:
         """Adds the notice unless it is switched off or the same kind went out a moment ago."""
         if not self._enabled(kind):
             return False
@@ -351,8 +470,24 @@ class Watcher:
             return False
         self.sent_at[kind] = now
         key = text_key or kind
-        out.append(Notice(kind, message_text(self.config, self.dash["language"], key)))
+        values = self._values(extra)
+        own = self.dash["notify"]["texts"].get(kind) if key == kind else None  # the dashboard's text for this notification
+        if own:
+            text = fill(own, values)
+        elif kind == "error" and values.get("message") and not (self.config.get("messages") or {}).get("error"):
+            text = fill(message_text(self.config, self.dash["language"], "error_detail"), values)
+        else:
+            text = fill(message_text(self.config, self.dash["language"], key), values)
+        out.append(Notice(kind, text))
         return True
+
+    def _error_message(self, snap: Snapshot) -> str:
+        """Klipper's own words for an error: why it stopped, the print's error, else the last "!!" line of the console."""
+        for text in (snap.info.get("klippy_message"), snap.info.get("print_message"), self.last_error_line):
+            if isinstance(text, str) and text.strip():
+                first = text.strip().splitlines()[0].strip()
+                return re.sub(r"^!!\s*", "", first)[:200]
+        return ""
 
     def _recent_auto(self, action: str, now: float) -> bool:
         return now - self.auto_at.get(action, float("-inf")) < self.AUTO_QUIET_S
@@ -372,6 +507,8 @@ class Watcher:
     # -- the step
     def step(self, snap: Snapshot, now: float) -> List[Notice]:
         out: List[Notice] = []
+        if snap.info:
+            self.info = dict(snap.info)
         self._settings(snap)
         self._results_of_actions(now, out)
         self._klippy(snap, now, out)
@@ -380,6 +517,7 @@ class Watcher:
         self._print(snap, now, out)
         self._pause(snap, now, out)
         self._ai(snap, now, out)
+        self._rules(snap, now, out)
         return out
 
     def _settings(self, snap: Snapshot) -> None:
@@ -413,7 +551,7 @@ class Watcher:
         if snap.klippy is None:
             return  # Moonraker not reachable: nothing is known, nothing changes
         if self.klippy is not None and snap.klippy in KLIPPY_ERRORS and self.klippy not in KLIPPY_ERRORS:
-            self._emit("error", now, out)
+            self._emit("error", now, out, extra={"message": self._error_message(snap)})
         self.klippy = snap.klippy
         if snap.klippy != "ready":
             # Klipper is down or restarting: what the print was doing is not known any more (after the restart the print
@@ -435,6 +573,10 @@ class Watcher:
             return
         fresh = [text for time_, text in snap.lines if time_ > self.last_line_time]
         self.last_line_time = max(self.last_line_time, newest)
+        for text in fresh:
+            if text.lstrip().startswith("!!"):
+                self.last_error_line = text
+        self._rule_lines(fresh, now, out)
         phrases = [p.lower() for p in self.dash.get("filament", {}).get("phrases", [])]
         if any(RUNOUT_LINE.search(text) or FILAMENT_TAG.lower() in text.lower() or any(p in text.lower() for p in phrases) for text in fresh):
             self._runout(now, out)
@@ -466,13 +608,15 @@ class Watcher:
             if state == "printing" and previous not in ("paused", "printing"):
                 self.ai_levels = []  # a new print: the verdicts of the last one do not count, and the automatic actions are available again
                 self.auto_done = {"pause": False, "cancel": False}
+                self.fired = set()  # and the rules may go out again
+                self._rule_event("started", now, out)
             if state == "complete":
                 self._emit("complete", now, out)
             elif state == "cancelled" or (state == "standby" and previous in ("printing", "paused")):
                 if not self._recent_auto("cancel", now):  # when the service cancelled by itself, its own notice says so
                     self._emit("cancelled", now, out)
             elif state == "error":
-                self._emit("error", now, out)
+                self._emit("error", now, out, extra={"message": self._error_message(snap)})
             elif state == "paused" and previous == "printing":
                 if not self._recent_auto("pause", now):
                     self.pending_pause = now
@@ -485,9 +629,63 @@ class Watcher:
         window = float(self.config["runout_pause_window_seconds"])
         if now - self.runout_notified_at <= window:
             self.pending_pause = None
-        elif now - self.pending_pause >= float(self.config["pause_grace_seconds"]):
+        elif now - self.pending_pause >= (self.dash["notify"]["pause_delay"] if self.dash["notify"]["pause_delay"] is not None else float(self.config["pause_grace_seconds"])):
             self.pending_pause = None
             self._emit("paused", now, out)
+
+    # -- the notifications of your own (1.7)
+    def _rule_notice(self, rule: Dict[str, Any], now: float, out: List[Notice], extra: Optional[Dict[str, Any]] = None) -> None:
+        key = "rule:" + rule["id"]
+        if rule["kind"] in ("line", "temp") and now - self.sent_at.get(key, float("-inf")) < 30:
+            return  # the same line / heater twice in a moment: one notice
+        self.sent_at[key] = now
+        text = rule["text"] or message_text(self.config, self.dash["language"], "rule_" + rule["kind"])
+        out.append(Notice("custom_high" if rule["high"] else "custom", fill(text, self._values(extra))))
+
+    def _active_rules(self, kind: str) -> List[Dict[str, Any]]:
+        return [rule for rule in self.dash["notify"]["rules"] if rule["on"] and rule["kind"] == kind]
+
+    def _rule_event(self, kind: str, now: float, out: List[Notice]) -> None:
+        for rule in self._active_rules(kind):
+            self._rule_notice(rule, now, out)
+
+    def _rule_lines(self, fresh: List[str], now: float, out: List[Notice]) -> None:
+        for rule in self._active_rules("line"):
+            needle = str(rule["value"]).lower()
+            hit = next((text for text in fresh if needle in text.lower()), None)
+            if hit is not None:
+                self._rule_notice(rule, now, out, {"line": re.sub(r"^(//|echo:|!!)\s*", "", hit.strip())[:200]})
+
+    def _rules(self, snap: Snapshot, now: float, out: List[Notice]) -> None:
+        """Progress, time left and layer: once a print, while it prints; temperatures: when a heater reaches its target."""
+        info = snap.info
+        if self.print_state == "printing":
+            progress = info.get("progress")
+            elapsed = info.get("print_duration")
+            for rule in self._active_rules("progress") + self._active_rules("remaining") + self._active_rules("layer"):
+                if rule["id"] in self.fired:
+                    continue
+                if rule["kind"] == "progress":
+                    hit = isinstance(progress, (int, float)) and progress * 100 >= rule["value"]
+                elif rule["kind"] == "remaining":
+                    hit = isinstance(progress, (int, float)) and progress > 0.02 and bool(elapsed) and elapsed / progress * (1 - progress) <= rule["value"] * 60
+                else:
+                    hit = isinstance(info.get("layer"), int) and info["layer"] >= rule["value"]
+                if hit:
+                    self.fired.add(rule["id"])
+                    self._rule_notice(rule, now, out)
+        heaters = info.get("heaters") or {}
+        for name, reading in heaters.items():
+            temp, target = reading
+            before = self.heat_seen.get(name)
+            reached = target > 0 and temp >= target - 1.5
+            self.heat_seen[name] = (target, reached)
+            if before is None or not reached or (before[0] == target and before[1]):
+                continue  # the first reading is not news; already there for this target
+            for rule in self._active_rules("temp"):
+                if rule["value"] == name:
+                    names = HEATER_NAMES.get(self.dash["language"] or self.config.get("language") or "en", HEATER_NAMES["en"])
+                    self._rule_notice(rule, now, out, {"heater": names.get(name, name), "temp": int(round(temp)), "target": int(round(target))})
 
     # -- the AI monitor
     def _level(self, verdict: AiVerdict) -> int:
@@ -643,6 +841,27 @@ def ai_defects(response: Dict[str, Any]) -> Optional[Dict[str, Tuple[bool, float
     return None
 
 
+def printer_info(found: Dict[str, Any]) -> Dict[str, Any]:
+    """From Moonraker's objects: file, print_duration, progress, layer, total_layers, print_message, heaters."""
+    stats = _dict(found.get("print_stats"))
+    layers = _dict(stats.get("info"))
+    number = lambda value: value if isinstance(value, (int, float)) and not isinstance(value, bool) else None
+    out: Dict[str, Any] = {
+        "file": stats.get("filename") or "",
+        "print_duration": number(stats.get("print_duration")),
+        "progress": number(_dict(found.get("virtual_sdcard")).get("progress")),
+        "layer": layers.get("current_layer") if isinstance(layers.get("current_layer"), int) else None,
+        "total_layers": layers.get("total_layer") if isinstance(layers.get("total_layer"), int) else None,
+        "print_message": stats.get("message") if isinstance(stats.get("message"), str) else "",
+        "heaters": {},
+    }
+    for name in RULE_HEATERS:
+        heater = _dict(found.get(name))
+        if number(heater.get("temperature")) is not None and number(heater.get("target")) is not None:
+            out["heaters"][name] = (float(heater["temperature"]), float(heater["target"]))
+    return out
+
+
 class PrinterReader:
     def __init__(self, config: Dict[str, Any]) -> None:
         self.moonraker = config["moonraker_url"].rstrip("/")
@@ -690,16 +909,19 @@ class PrinterReader:
             self._note("moonraker", ok, "Moonraker")
             if ok:
                 snap.klippy = str((info.get("result") or {}).get("state") or "") or None
+                if snap.klippy in KLIPPY_ERRORS:
+                    snap.info["klippy_message"] = str((info.get("result") or {}).get("state_message") or "")
         except OSError:
             self._note("moonraker", False, "Moonraker")
         if snap.klippy == "ready":
             sensors = self._sensor_names()
             try:
-                query = "print_stats" + "".join("&" + urllib.parse.quote(name) for name in sensors)
+                query = "print_stats&virtual_sdcard=progress&extruder=temperature,target&heater_bed=temperature,target" + "".join("&" + urllib.parse.quote(name) for name in sensors)
                 status, stats = http_json(self.moonraker + "/printer/objects/query?" + query)
                 if status == 200 and isinstance(stats, dict):
                     found = (stats.get("result") or {}).get("status") or {}
                     snap.print_state = found.get("print_stats", {}).get("state") or None
+                    snap.info.update(printer_info(found))
                     snap.sensors = {name: bool(found[name].get("filament_detected")) for name in sensors
                                     if isinstance(found.get(name), dict) and found[name].get("enabled", True) is not False}
             except OSError:

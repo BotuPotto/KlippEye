@@ -226,3 +226,30 @@
 .set-brand__none { color: var(--oui-text-3, var(--oui-text-2)); font-size: 18px; }
 .set-command { padding: 10px 14px; overflow-x: auto; }
 .set-command code { font-family: var(--oui-font-mono); font-size: 13px; white-space: nowrap; }
+
+/* ---- 1.38: the texts of the notifications and the notifications of your own (app/59n-notify.js) ---- */
+.notify-kind { display: flex; flex-direction: column; }
+.notify-kind__edit {
+  display: inline-flex;
+  align-self: flex-start;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  margin: -4px 0 6px 6px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--oui-r-pill);
+  background: transparent;
+  color: var(--oui-accent-text);
+  font-size: 13px;
+  font-weight: 600;
+}
+.notify-kind__edit:hover { background: var(--oui-accent-soft); }
+.notify-kind__body { display: flex; flex-direction: column; gap: 8px; padding: 0 16px 14px; }
+.notify-text__input { min-height: 64px; resize: vertical; font-family: inherit; line-height: 1.4; }
+.notify-rule { display: flex; flex-direction: column; gap: 10px; padding: 14px; border-radius: var(--oui-r-card); background: var(--oui-surface); }
+.notify-rule.is-off { opacity: 0.6; }
+.notify-rule__icon { display: grid; flex: none; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: var(--oui-accent-soft); color: var(--oui-accent-text); }
+.notify-rule__warn { color: var(--oui-warn); }
+.notify-add .oui-chip { display: inline-flex; align-items: center; gap: 4px; }
+.notify-placeholders code { font-size: 12px; overflow-wrap: anywhere; }

@@ -81,7 +81,7 @@ ok("RUNOUT: and NO second push for the pause it caused", google.kinds()[n:] == [
 mset(print_state="printing", console_extra=[]); quiet(0.6)
 
 n = len(google.kinds()); mset(webhooks="shutdown", webhooks_msg="Shutdown due to M112 command")
-ok("ERROR: Klipper in shutdown", wait_for(lambda: google.kinds()[n:] == ["error"]) and google.bodies()[-1] == "Printer error! Restart it." , google.bodies())
+ok("ERROR: Klipper in shutdown, with its own message (1.7)", wait_for(lambda: google.kinds()[n:] == ["error"]) and google.bodies()[-1] == "Printer error: Shutdown due to M112 command", google.bodies())
 quiet(1.0); ok("ERROR: only one push while it stays in shutdown", google.kinds()[n:] == ["error"])
 mset(webhooks="startup"); quiet(0.4); mset(webhooks="ready", print_state="standby"); quiet(1.0)
 ok("a restart after the error says nothing more (and the print is not 'interrotta')", google.kinds()[n:] == ["error"], google.kinds()[n:])

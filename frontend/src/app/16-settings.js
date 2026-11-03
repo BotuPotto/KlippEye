@@ -52,6 +52,24 @@ const NOTIFICATION_KINDS = [
   { id: "ai_cancel", title: tx("AI: serious defects"), text: txn("Serious print defects found, check and cancel the print") },
 ];
 
+/**
+ * 1.38: notifications of your own (read by the notification service, notifier/klippeye_notifier.py "rules"). `defaultText`
+ * is the service's own text of each kind (the same words: tests/notifier/test_watcher.py checks them).
+ */
+const NOTIFY_RULE_KINDS = [
+  { id: "started", title: tx("Print started"), defaultText: txn("Print started: {file}") },
+  { id: "progress", title: tx("Progress reached"), unit: "%", min: 1, max: 99, initial: 50, defaultText: txn("{file}: {progress}% done") },
+  { id: "remaining", title: tx("Little time left"), unit: "min", min: 1, max: 600, initial: 10, defaultText: txn("{file}: about {remaining} left") },
+  { id: "layer", title: tx("Layer reached"), unit: "layer", min: 1, max: 100000, initial: 3, defaultText: txn("{file}: layer {layer} of {total_layers}") },
+  { id: "line", title: tx("A line in the console"), initial: "", defaultText: txn("{line}") },
+  { id: "temp", title: tx("Temperature reached"), initial: "heater_bed", defaultText: txn("{heater} at temperature: {temp}°C") },
+];
+const NOTIFY_RULES_MAX = 20;
+const NOTIFY_TEXT_MAX = 300;
+const NOTIFY_PAUSE_DELAYS = [0, 4, 10, 30, 60];
+/** The words that fill a text when it goes out (the service's PLACEHOLDERS). */
+const NOTIFY_PLACEHOLDERS = ["file", "progress", "layer", "total_layers", "elapsed", "remaining", "message", "line", "heater", "temp", "target", "printer"];
+
 /** What the AI print monitor looks for (the keys of its verdict, see app/53-ai-views.js). */
 const AI_DEFECTS = [
   { id: "spaghetti", title: "Spaghetti", detail: tx("The filament does not stick and piles up") },
@@ -115,6 +133,8 @@ const SETTINGS_DEFAULTS = {
     lights: { configured: false, items: [], scenes: [] },
     filament: { sensor: true, macros: [], phrases: [] }, // what tells the notification service that the filament ran out
   },
+  // 1.38: the texts of the notifications ("" or missing: the service's own), the pause's delay (null: 4 s), your own ones
+  notify: { texts: {}, pauseDelay: null, rules: [] },
   // 1.33: the macro cards (the old "Calibrations" choice, /api/calibration/selected, becomes a group: useMacroMigration)
   macros: { mode: "simple", hidden: [], groups: [] },
   // the guided set-up (59k, 1.22): shown by itself once on a new installation, until it is done or skipped
@@ -270,6 +290,33 @@ function cleanLights(raw, oldLight) {
   return { configured: asBool(raw.configured, false), items, scenes };
 }
 
+/** The "notify" part of the settings, cleaned. */
+function cleanNotify(raw) {
+  const given = isPlainObject(raw) ? raw : {};
+  const texts = isPlainObject(given.texts) ? given.texts : {};
+  const ids = new Set();
+  const rules = (Array.isArray(given.rules) ? given.rules : [])
+    .filter(isPlainObject)
+    .map((rule) => {
+      const kind = NOTIFY_RULE_KINDS.find((one) => one.id === rule.kind);
+      if (!kind || typeof rule.id !== "string" || !/^[a-z0-9-]{1,40}$/.test(rule.id) || ids.has(rule.id)) return null;
+      ids.add(rule.id);
+      let value = null;
+      if (kind.unit) value = Math.round(asNumber(rule.value, kind.min, kind.max, kind.initial));
+      else if (kind.id === "line") value = typeof rule.value === "string" ? rule.value.slice(0, 120) : "";
+      else if (kind.id === "temp") value = pickOne(rule.value, ["heater_bed", "extruder"], "heater_bed");
+      return { id: rule.id, kind: kind.id, value, text: typeof rule.text === "string" ? rule.text.slice(0, NOTIFY_TEXT_MAX) : "", on: asBool(rule.on, true), high: asBool(rule.high, false) };
+    })
+    .filter(Boolean)
+    .slice(0, NOTIFY_RULES_MAX);
+  const delay = given.pauseDelay === null || given.pauseDelay === undefined ? null : asNumber(given.pauseDelay, 0, 120, null);
+  return {
+    texts: Object.fromEntries(NOTIFICATION_KINDS.map((kind) => [kind.id, typeof texts[kind.id] === "string" ? texts[kind.id].slice(0, NOTIFY_TEXT_MAX) : ""]).filter(([, text]) => text.trim())),
+    pauseDelay: delay === null ? null : Math.round(delay),
+    rules,
+  };
+}
+
 function cleanFunctions(raw) {
   const given = isPlainObject(raw) ? raw : {};
   const light = isPlainObject(given.light) ? given.light : {};
@@ -341,6 +388,7 @@ function sanitizeSettings(raw) {
     },
     functions: cleanFunctions(given.functions),
     macros: cleanMacroSettings(given.macros),
+    notify: cleanNotify(given.notify),
     // settings saved before 1.22 (anything stored, without "setup"): an installation already set up, the guide is not forced on it
     setup: { done: isPlainObject(given.setup) ? asBool(given.setup.done, false) : Object.keys(given).length > 0 },
   };

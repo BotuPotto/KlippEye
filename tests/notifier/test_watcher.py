@@ -30,11 +30,12 @@ class Sim:
     def __init__(self, **over):
         self.w = vn.Watcher(cfg(**over)); self.t = 1000.0
         self.lines = []; self.state = "standby"; self.klippy = "ready"; self.ai = None
+        self.info = {}; self.settings = None
         self.log = []
     def step(self, dt=2.0, **kw):
         self.t += dt
         for k, v in kw.items(): setattr(self, k, v)
-        snap = vn.Snapshot(klippy=self.klippy, print_state=self.state, lines=list(self.lines), ai=self.ai)
+        snap = vn.Snapshot(klippy=self.klippy, print_state=self.state, lines=list(self.lines), ai=self.ai, settings=self.settings, info=dict(self.info))
         out = self.w.step(snap, self.t)
         self.log += [(self.t, n.kind, n.text) for n in out]
         return [n.kind for n in out]
@@ -51,6 +52,9 @@ _dash = dict(_re.findall(r'id: "(\w+)", title: [^}]*?text: txn\("([^"]+)"\)', op
 _it = json.load(open(os.path.join(_root, "frontend", "src", "i18n", "it.json"), encoding="utf-8"))
 ok("the dashboard shows the same English texts the service sends", len(_dash) == 7 and all(vn.MESSAGES["en"][k] == v for k, v in _dash.items()), _dash)
 ok("... and the same Italian ones", all(_it.get(v) == vn.MESSAGES["it"][k] for k, v in _dash.items()), {k: _it.get(v) for k, v in _dash.items()})
+_rules = dict(_re.findall(r'id: "(\w+)", title: [^}]*?defaultText: txn\("([^"]+)"\)', open(os.path.join(_root, "frontend", "src", "app", "16-settings.js"), encoding="utf-8").read()))
+ok("1.7: the dashboard's defaults of your own notifications are the service's (English)", sorted(_rules) == sorted(vn.RULE_KINDS) and all(vn.MESSAGES["en"]["rule_" + k] == v for k, v in _rules.items()), _rules)
+ok("... and Italian", all(_it.get(v) == vn.MESSAGES["it"]["rule_" + k] for k, v in _rules.items()), {k: _it.get(v) for k, v in _rules.items()})
 ok("every language has every text", all(set(texts) == set(vn.MESSAGES["en"]) and all(texts.values()) for texts in vn.MESSAGES.values()), {k: set(vn.MESSAGES["en"]) ^ set(t) for k, t in vn.MESSAGES.items()})
 
 # --------------------------------------------------------------------------------------------------- starting up says nothing
@@ -188,8 +192,8 @@ msg = vn.build_message(cfg(topic="klippeye-abc"), vn.Notice("runout", USER_TEXTS
 ok("message: topic, title and body", msg["topic"] == "klippeye-abc" and msg["notification"] == {"title": "KlippEye", "body": USER_TEXTS["runout"]}, msg)
 ok("message: high priority, channel 'allarmi', tag and collapse key = kind, ttl 6 h", msg["android"]["priority"] == "HIGH" and msg["android"]["notification"]["channel_id"] == "allarmi" and msg["android"]["notification"]["tag"] == "runout" and msg["android"]["collapse_key"] == "runout" and msg["android"]["ttl"] == "21600s", msg["android"])
 ok("message: channels by kind", {k: vn.build_message(cfg(topic="t"), vn.Notice(k, "x"))["message"]["android"]["notification"]["channel_id"] for k in vn.KIND_CHANNEL} == vn.KIND_CHANNEL)
-AUTO_ONLY = {"ai_pause_auto", "ai_cancel_auto"}
-ok("every kind has a channel (the two 'automatically' texts belong to the AI kinds)", set(vn.DEFAULT_MESSAGES) - AUTO_ONLY == set(vn.KIND_CHANNEL) and AUTO_ONLY <= set(vn.DEFAULT_MESSAGES))
+AUTO_ONLY = {"ai_pause_auto", "ai_cancel_auto", "error_detail"} | {"rule_" + k for k in vn.RULE_KINDS}
+ok("every kind has a channel (the 'automatically' texts belong to the AI kinds, the 1.7 texts to error and to your own)", set(vn.DEFAULT_MESSAGES) - AUTO_ONLY == set(vn.KIND_CHANNEL) - {"custom", "custom_high"} and AUTO_ONLY <= set(vn.DEFAULT_MESSAGES))
 
 # --------------------------------------------------------------------------------------------------- config
 c = vn.merge(vn.DEFAULT_CONFIG, {"messages": {"complete": "Ok"}, "events": {"paused": False}, "topic": "t"})
@@ -248,7 +252,7 @@ ok("the dashboard's choices are cleaned (not a list, empty, too long)", vn.dash_
 # ---- sanitising: the document comes from a browser
 ok("settings: nothing stored -> every notification as in notifier.json, automatic actions off, 1 verdict, no filters",
    vn.dash_settings({}) == {"events": {}, "ai": {"auto_pause": False, "auto_cancel": False, "confirmations": 1, "min_confidence": 0, "defects": {k: True for k in vn.DASH_DEFECTS}}, "language": None,
-                            "filament": {"sensor": True, "phrases": []}, "stamp": 0})
+                            "filament": {"sensor": True, "phrases": []}, "notify": {"texts": {}, "pause_delay": None, "rules": [], "printer": ""}, "stamp": 0})
 for junk in (None, "x", 5, [], {"ai": "x", "notifications": 3}, {"ai": {"autoPause": "yes", "autoCancel": 1, "confirmations": "2", "minConfidence": 60, "defects": {"warping": 0}}}):
     d = vn.dash_settings(junk)
     ok("settings: garbage %r changes nothing (no automatic action, defaults)" % (junk,), not d["ai"]["auto_pause"] and not d["ai"]["auto_cancel"] and d["ai"]["confirmations"] == 1 and d["ai"]["min_confidence"] == 0 and all(d["ai"]["defects"].values()) and d["events"] == {}, d)
@@ -430,7 +434,7 @@ time.sleep(0.02)
 open(watched, "w").write("y = 2\n")
 runner.join(5)
 ok("run(): file replaced -> the service ends by itself (systemd restarts it)", not runner.is_alive() and stop.is_set())
-ok("version is 1.6", vn.__version__ == "1.6", vn.__version__)
+ok("version is 1.7", vn.__version__ == "1.7", vn.__version__)
 
 # ---- 1.6: ntfy and the channels
 import tempfile
@@ -470,6 +474,63 @@ ok("... the retry does not send it again through the channel that had it", calls
 json.dump([1], open(cfg_path, "w"))
 channels.refresh()
 ok("a damaged notifier.json while running: the channels stay as they were", [name for name, _ in channels.senders] == ["ntfy", "firebase"])
+
+
+# --------------------------------------------------------------------------------------------------- 1.7: texts, error message, your own
+ok("fill: the placeholders, an unknown one left, an empty one dropped neatly", vn.fill("{file}: {progress}% {nope}", {"file": "Benchy", "progress": 42}) == "Benchy: 42% {nope}" and vn.fill("Error: {message}", {"message": ""}) == "Error")
+ok("durations: 3725 s -> 1h 02m, 300 s -> 5 min", vn.duration_text(3725) == "1h 02m" and vn.duration_text(300) == "5 min")
+cfg = lambda **over: vn.merge(vn.DEFAULT_CONFIG, over)  # (the name was used for a config further up)
+s = Sim(); s.step()
+s.info = {"klippy_message": "MCU 'mcu' shutdown: Timer too close\nOnce the underlying issue is corrected..."}
+ok("error: the notification carries Klipper's own message", s.step(klippy="shutdown") == ["error"] and s.log[-1][2] == "Printer error: MCU 'mcu' shutdown: Timer too close", s.log[-1:])
+s = Sim(); s.step(); s.line("!! Move out of range: 400.000 0.000 5.000 [0.000]"); s.step(state="printing"); s.info = {"print_message": ""}
+ok("a print ending in error: the last !! line of the console", s.step(state="error") == ["error"] and s.log[-1][2] == "Printer error: Move out of range: 400.000 0.000 5.000 [0.000]", s.log[-1:])
+s = Sim(language="it"); s.step(); s.info = {"klippy_message": "Lost communication with MCU 'mcu'"}
+ok("... in Italian", s.step(klippy="error") == ["error"] and s.log[-1][2] == "Stampante in errore: Lost communication with MCU 'mcu'", s.log[-1:])
+s = Sim(); s.step(); s.info = {}
+ok("... no message known: the usual text", s.step(klippy="shutdown") == ["error"] and s.log[-1][2] == vn.MESSAGES["en"]["error"])
+s = Sim(); s.settings = {"notify": {"texts": {"complete": "{file} pronto in {elapsed}!", "error": "Guasto: {message}"}}}
+s.info = {"file": "parts/Benchy_0.2mm.gcode", "print_duration": 3725, "progress": 1.0}
+s.step(); s.step(state="printing")
+ok("your text for 'complete', with the file's name and the time", s.step(state="complete") == ["complete"] and s.log[-1][2] == "Benchy_0.2mm pronto in 1h 02m!", s.log[-1:])
+s.info = {"klippy_message": "Heater extruder not heating at expected rate"}
+ok("your text for 'error' with {message}", s.step(klippy="shutdown") == ["error"] and s.log[-1][2] == "Guasto: Heater extruder not heating at expected rate", s.log[-1:])
+s = Sim(); s.settings = {"notify": {"pauseDelay": 0}}; s.step(); s.step(state="printing")
+ok("the pause's delay from the dashboard (0 s: at once)", s.step(state="paused") == ["paused"])
+
+RULES = [{"id": "start", "kind": "started"}, {"id": "half", "kind": "progress", "value": 50, "text": "{file} a metà ({progress}%)"},
+         {"id": "end10", "kind": "remaining", "value": 10, "high": True}, {"id": "l3", "kind": "layer", "value": 3},
+         {"id": "m118", "kind": "line", "value": "COLOR CHANGE"}, {"id": "bed", "kind": "temp", "value": "heater_bed"},
+         {"id": "off", "kind": "progress", "value": 10, "on": False}, {"id": "BAD ID", "kind": "started"}, {"id": "x", "kind": "nope"}]
+s = Sim(); s.settings = {"notify": {"rules": RULES}}
+s.info = {"file": "Benchy.gcode", "progress": 0.0, "print_duration": 0, "layer": 0, "total_layers": 100, "heaters": {"heater_bed": (25.0, 0.0)}}
+s.step()
+ok("the rules are cleaned: a bad id or kind is dropped, one switched off is kept off", [r["id"] for r in s.w.dash["notify"]["rules"]] == ["start", "half", "end10", "l3", "m118", "bed", "off"])
+s.info["heaters"] = {"heater_bed": (25.0, 60.0)}; s.step()
+s.info["heaters"] = {"heater_bed": (59.2, 60.0)}
+ok("bed at temperature: 'Bed at temperature: 59°C'", s.step() == ["custom"] and s.log[-1][2] == "Bed at temperature: 59°C", s.log[-1:])
+ok("... once for that target", s.step() == [])
+ok("print started: 'Print started: Benchy'", s.step(state="printing") == ["custom"] and s.log[-1][2] == "Print started: Benchy", s.log[-1:])
+s.info.update(progress=0.2, print_duration=600, layer=2)
+ok("nothing yet at 20 %, layer 2 (the rule switched off at 10 % says nothing)", s.step() == [])
+s.info.update(progress=0.3, print_duration=900, layer=3)
+ok("layer 3 reached", s.step() == ["custom"] and s.log[-1][2] == "Benchy: layer 3 of 100", s.log[-1:])
+s.info.update(progress=0.5, print_duration=1500, layer=50)
+ok("50 %: your text", s.step() == ["custom"] and s.log[-1][2] == "Benchy a metà (50%)", s.log[-1:])
+ok("... once a print", s.step() == [])
+s.line("// COLOR CHANGE now")
+ok("a console line with your words", s.step() == ["custom"] and s.log[-1][2] == "COLOR CHANGE now", s.log[-1:])
+s.info.update(progress=0.98, print_duration=2940)
+ok("about 1 min left (≤ 10): an important one", s.step() == ["custom_high"] and s.log[-1][2] == "Benchy: about 1 min left", s.log[-1:])
+s.step(state="complete"); s.step(state="standby")
+s.info.update(progress=0.0, print_duration=0, layer=0)
+s.step(state="printing")
+s.info.update(progress=0.55, print_duration=100, layer=60)
+ok("a new print: the rules go out again (half, layer, little time left)", sorted(s.step()) == ["custom", "custom", "custom_high"], s.log[-3:])
+msg = vn.build_message(cfg(topic="t"), vn.Notice("custom_high", "x"))
+ok("your own notifications: channel 'avvisi', the important ones 'allarmi'; ntfy priority 4 / 5", vn.KIND_CHANNEL["custom"] == "avvisi" and msg["message"]["android"]["notification"]["channel_id"] == "allarmi" and vn.KIND_NTFY["custom"][0] == 4 and vn.KIND_NTFY["custom_high"][0] == 5)
+ok("printer_info reads Moonraker's objects", vn.printer_info({"print_stats": {"filename": "a.gcode", "print_duration": 10.5, "info": {"current_layer": 4, "total_layer": 9}, "message": "x"}, "virtual_sdcard": {"progress": 0.25}, "extruder": {"temperature": 200.1, "target": 210}, "heater_bed": {"temperature": 60, "target": 60}})
+   == {"file": "a.gcode", "print_duration": 10.5, "progress": 0.25, "layer": 4, "total_layers": 9, "print_message": "x", "heaters": {"extruder": (200.1, 210.0), "heater_bed": (60.0, 60.0)}})
 
 print("\nFAILED: %d %s" % (len(FAILS), FAILS) if FAILS else "\nALL PASS")
 sys.exit(1 if FAILS else 0)

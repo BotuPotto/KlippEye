@@ -1,5 +1,22 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.38.0
+
+**Notifications of your own, and the error with Klipper's message** (roadmap phase 6b, ninth part; notification service 1.7).
+
+* **The error notification says why**: Klipper's own message — the reason of a shutdown (`Timer too close`, `Heater
+  extruder not heating at expected rate`…), the error of a print, else the last `!!` line of the console. In English
+  "Printer error: …", in Italian "Stampante in errore: …".
+* **Your texts**: Settings → Notifications, *Change the text* under each notification; placeholders filled in when it
+  goes out: `{file}`, `{progress}`, `{layer}`, `{total_layers}`, `{elapsed}`, `{remaining}`, `{message}`, `{printer}`…
+  Empty: the usual text, in the language of the notifications.
+* **The pause's delay**: at once, 4 (as before), 10, 30 or 60 seconds.
+* **Your notifications**: print started, progress reached (%), little time left (minutes), layer reached, a line in the
+  console (words of your macro: `M118`, `RESPOND`), temperature reached (bed or nozzle) — each with its text, *Important*
+  (an alarm instead of a notice) and on / off. Progress, time and layer go out once a print.
+* The notification service reads them from the shared settings, like the other choices: no restart needed.
+* Tests: the notifier's integration test no longer loses its report when it fails in CI.
+
 ## 1.37.0
 
 **Every light of the printer** (roadmap phase 6b, eighth part).
