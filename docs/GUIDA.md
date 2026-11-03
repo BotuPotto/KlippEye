@@ -165,6 +165,16 @@ hai girato la vite, *Va bene* se era già giusta. Klipper rifà il giro finché 
 compensation** usa la calibrazione automatica del Cartographer quando c'è; altrimenti quella di Klipper, con la stessa prova
 del foglio in alcuni punti (− / + muovono l'ugello, *Va bene* passa al successivo), poi SAVE_CONFIG.
 
+### Mappa dell'altezza (bed mesh)
+
+La card **Mappa dell'altezza / mesh** (pagina Controllo sul telefono, pagina Calibrazione sul computer), come in Mainsail:
+**2D** (vista dall'alto, il retro del piatto in alto, il valore di ogni punto; un tocco dice dov'è un punto) o **3D**
+(trascina per girare, pizzica o rotellina per lo zoom, ↻ per tornare); i punti **misurati** o la mesh **interpolata** che
+Klipper usa; minimo, massimo, escursione e numero di punti. **Calibra mesh** chiede il nome del profilo (e *Adattiva*:
+solo dove ci sono gli oggetti della stampa). **Salva come…** salva come profilo la mesh in uso, **Togli** smette di usarla.
+Sotto **Profili**: quelli di `printer.cfg`, con la loro escursione — *Carica*, rinomina, togli. Salvataggi, nomi nuovi e
+profili tolti si confermano con SAVE_CONFIG (il pulsante salva in alto).
+
 ### Camera a schermo intero
 
 Il pulsante ⛶ della camera (la sua card sul telefono, il riquadro della camera sul computer) la mostra su tutto lo schermo.

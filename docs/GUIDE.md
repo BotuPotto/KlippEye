@@ -161,6 +161,16 @@ nozzle stops above each screw and a sheet tells you what to do (the paper test);
 uses Cartographer's automatic calibration when there is one; otherwise Klipper's own, with the same paper test at a few
 points (− / + move the nozzle, *Accept* goes on), then SAVE_CONFIG.
 
+### Height map (bed mesh)
+
+The **Height map / mesh** card (Control page on the phone, Calibration page on a computer), like Mainsail's: **2D** (seen
+from above, the back of the bed at the top, the value of each point; a tap says where a point is) or **3D** (drag to turn,
+pinch or wheel to zoom, ↻ to go back); the **probed** points or the **interpolated** mesh Klipper uses; minimum, maximum,
+range and number of points. **Calibrate mesh** asks for the profile name (and *Adaptive*: only where the objects of the
+print are). **Save as…** saves the mesh in use as a profile, **Clear** stops using it. Under **Profiles**: the ones in
+`printer.cfg`, with their range — *Load*, rename, remove. Saving, renaming and removing are kept by SAVE_CONFIG (the
+save button at the top).
+
 ### Camera in full screen
 
 The ⛶ button of the camera (its card on the phone, the camera panel on a computer) shows it over the whole screen. In

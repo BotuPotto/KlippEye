@@ -196,11 +196,11 @@ function DesktopDevicePage({ printStatus, printControls, status, capabilities, m
 /* ---------------------------------------------------------------------------
    Calibrazione
    ------------------------------------------------------------------------- */
-function DesktopCalibrationPage({ capabilities, lockReason, printState, onGcode, onMacroSettings }) {
+function DesktopCalibrationPage({ capabilities, lockReason, homedAxes, printState, onGcode, onMacroSettings }) {
   return h(
     "div",
     { className: "desk-split" },
-    h("div", { className: "desk-col" }, h(BedMeshCard, { onGcode })),
+    h("div", { className: "desk-col" }, h(BedMeshCard, { onGcode, lockReason, homedAxes })),
     h("div", { className: "desk-col" }, h(MacroCards, { printState, onGcode, onSettings: onMacroSettings }), h(EndstopsCard, { capabilities, lockReason })),
   );
 }

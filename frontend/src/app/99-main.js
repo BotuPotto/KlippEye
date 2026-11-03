@@ -31,7 +31,7 @@ function ControlPage({ entries, status, capabilities, lockReason, printState, on
     h(MacroCards, { printState, onGcode, onSettings: onMacroSettings }),
     h(TuneCard, { capabilities, onGcode }),
     h(EndstopsCard, { capabilities, lockReason }),
-    h(BedMeshCard, { onGcode }),
+    h(BedMeshCard, { onGcode, lockReason, homedAxes: status.homedAxes }),
   );
 }
 
@@ -108,7 +108,7 @@ function App() {
       ? h(DesktopDevicePage, { printStatus, printControls, status, capabilities, motion, bedTools, zOffset, lockReason, aiMonitor, onEditTemperature: temperature.edit, onGcode: runFromConsole, onNavigate: selectTab })
       : h(HomePage, { printStatus, printControls, status, motion, bedTools, zOffset, lockReason, onEditTemperature: temperature.edit, aiMonitor }),
     controllo: desktop
-      ? h(DesktopCalibrationPage, { capabilities, lockReason, printState: printStatus.state, onGcode: runFromConsole, onMacroSettings: openMacroSettings })
+      ? h(DesktopCalibrationPage, { capabilities, lockReason, homedAxes: status.homedAxes, printState: printStatus.state, onGcode: runFromConsole, onMacroSettings: openMacroSettings })
       : h(ControlPage, { entries: consoleFeed.entries, status, capabilities, lockReason, printState: printStatus.state, onGcode: runFromConsole, onEditTemperature: temperature.edit, onMacroSettings: openMacroSettings }),
     files: desktop ? h(DesktopFilesPage, { list: files, onPrint: setPrintJob, fileActions }) : h(FilesCard, { list: files, onPrint: setPrintJob, onMenu: fileActions.openMenu }),
     config: desktop
