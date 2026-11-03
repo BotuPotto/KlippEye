@@ -161,6 +161,13 @@ nozzle stops above each screw and a sheet tells you what to do (the paper test);
 uses Cartographer's automatic calibration when there is one; otherwise Klipper's own, with the same paper test at a few
 points (− / + move the nozzle, *Accept* goes on), then SAVE_CONFIG.
 
+### Camera in full screen
+
+The ⛶ button of the camera (its card on the phone, the camera panel on a computer) shows it over the whole screen. In
+the KlippEye app (1.5.0 or newer) Android's bars disappear and the screen turns to landscape by itself. In a browser
+that cannot turn the screen (an iPhone, say) the picture itself is turned so it fills the screen held sideways; the ↻
+button switches that off. A tap shows the buttons again; ⤡, Esc or the phone's back leave.
+
 ### Console
 
 The console (Control page on the phone, the bar at the bottom on a computer: its arrow opens the whole log) has, in its

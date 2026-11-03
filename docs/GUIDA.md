@@ -165,6 +165,13 @@ hai girato la vite, *Va bene* se era già giusta. Klipper rifà il giro finché 
 compensation** usa la calibrazione automatica del Cartographer quando c'è; altrimenti quella di Klipper, con la stessa prova
 del foglio in alcuni punti (− / + muovono l'ugello, *Va bene* passa al successivo), poi SAVE_CONFIG.
 
+### Camera a schermo intero
+
+Il pulsante ⛶ della camera (la sua card sul telefono, il riquadro della camera sul computer) la mostra su tutto lo schermo.
+Nell'app KlippEye (1.5.0 o più nuova) le barre di Android spariscono e lo schermo si gira in orizzontale da solo. In un
+browser che non può girare lo schermo (per esempio un iPhone) è l'immagine a girarsi, così riempie lo schermo tenuto di
+lato; il pulsante ↻ lo spegne. Un tocco fa ricomparire i pulsanti; ⤡, Esc o il tasto indietro del telefono escono.
+
 ### Console
 
 La console (pagina Controllo sul telefono, la barra in basso sul computer: la sua freccia apre tutto il registro) ha, nella

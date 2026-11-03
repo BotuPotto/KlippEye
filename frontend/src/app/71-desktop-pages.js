@@ -18,12 +18,14 @@
 function CameraPanel() {
   const light = useCaseLight();
   const reloads = useCameraReloads();
+  const [full, setFull] = useState(false);
   return h(
     "div",
     { className: "desk-camera" },
-    h(CameraMedia, { className: "desk-camera__video", reloads }),
+    !full && h(CameraMedia, { className: "desk-camera__video", reloads }),
     h("span", { className: "desk-camera__tag" }, h("span", { className: "oui-dot desk-camera__live" }), "Camera"),
-    light.available && h("div", { className: "desk-camera__light" }, h(LightButton, light)),
+    h("div", { className: "desk-camera__light" }, light.available && h(LightButton, light), h(CameraFullscreenButton, { onOpen: () => setFull(true), className: "desk-camera__full" })),
+    h(Presence, null, full && h(CameraFullscreen, { onClose: () => setFull(false) })),
   );
 }
 
