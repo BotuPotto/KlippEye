@@ -81,6 +81,8 @@ const SETTINGS_DEFAULTS = {
   // "" = not set: the camera uses the address the dashboard was opened at (1.22: before, the maintainer's own addresses)
   network: { localIp: "", externalIp: "", route: "auto" },
   zOffset: { steps: [0.01, 0.025, 0.05, 0.1] },
+  // 1.31: the Motion card: which part Z moves ("auto": from Klipper's configuration) and the steps beyond 1 and 10 mm
+  motion: { zMoves: "auto", xyExtra: [], zExtra: [] },
   printer: { brand: "klippeye", name: "" }, // name "": the brand's own
   language: LANG, // of the notifications (shared by every phone): the language of the first device that saves the settings
   notifications: Object.fromEntries(NOTIFICATION_KINDS.map((kind) => [kind.id, true])),
@@ -207,6 +209,14 @@ function cleanFunctions(raw) {
   };
 }
 
+const MOTION_Z_MOVES = ["auto", "bed", "toolhead"];
+const MOTION_BASE_STEPS = [1, 10]; // always on the pad and the Z buttons
+const MOTION_EXTRA_STEPS = [50, 100]; // optional: at most four steps in all
+/** The optional steps chosen ([50], [100], [50, 100] or []), sorted, nothing else. */
+function cleanExtraSteps(value) {
+  return Array.isArray(value) ? MOTION_EXTRA_STEPS.filter((step) => value.map(Number).includes(step)) : [];
+}
+
 /** `raw` (anything: a stored document, nothing at all) as a complete, valid settings object. */
 function sanitizeSettings(raw) {
   const given = isPlainObject(raw) ? raw : {};
@@ -218,6 +228,7 @@ function sanitizeSettings(raw) {
   const ai = isPlainObject(given.ai) ? given.ai : {};
   const defects = isPlainObject(ai.defects) ? ai.defects : {};
   const zOffset = isPlainObject(given.zOffset) ? given.zOffset : {};
+  const motion = isPlainObject(given.motion) ? given.motion : {};
   const printer = isPlainObject(given.printer) ? given.printer : {};
   return {
     camera: {
@@ -234,6 +245,7 @@ function sanitizeSettings(raw) {
       route: pickOne(network.route, CAMERA_ROUTES, d.network.route),
     },
     zOffset: { steps: cleanZSteps(zOffset.steps) },
+    motion: { zMoves: pickOne(motion.zMoves, MOTION_Z_MOVES, d.motion.zMoves), xyExtra: cleanExtraSteps(motion.xyExtra), zExtra: cleanExtraSteps(motion.zExtra) },
     printer: { brand: pickOne(printer.brand, PRINTER_BRAND_IDS, d.printer.brand), name: cleanPrinterName(printer.name) || "" },
     language: pickOne(given.language, I18N_LANGUAGES.map((language) => language.code), d.language),
     notifications: Object.fromEntries(NOTIFICATION_KINDS.map((kind) => [kind.id, asBool(notifications[kind.id], true)])),

@@ -26,6 +26,7 @@ def default_state():
         "calib_selected": ["PARK_TEST", "SHAPER_CALIBRATE"],
         "long_macro": False,        # adds a macro with a very long name and parameters (the parameter form must fit its buttons)
         "ai_key_ok": True,
+        "z_kind": "bed",            # 1.31: "bed" (z_tilt) or "toolhead" (quad_gantry_level) in Klipper's settings
         "print_objects": [],        # 1.30: exclude_object objects of the print ([{name, center, polygon}])
         "excluded": [],             # their names excluded with EXCLUDE_OBJECT
         "ai_cfg": None,             # ai.json of the backend (1.27, ai_services); None: a Groq key when ai_key_ok
@@ -162,6 +163,11 @@ def settings_now():
     out["extruder"] = dict(out.get("extruder") or {}, max_temp=285)
     out["heater_bed"] = dict(out.get("heater_bed") or {}, max_temp=110)
     out["cartographer"] = {"serial": "/dev/serial/by-id/usb-cartographer"}
+    out["printer"] = {"kinematics": "corexy"}   # 1.31: the Motion card guesses what Z moves from these
+    if S.get("z_kind", "bed") == "bed":
+        out["z_tilt"] = {"z_positions": "0, 0"}
+    else:
+        out["quad_gantry_level"] = {"gantry_corners": "0, 0"}
     if S["has_screws"]:
         out["screws_tilt_adjust"] = {"screw1": [30, 30], "screw1_name": "front left", "screw2": [320, 30], "screw2_name": "front right",
                                      "screw3": [320, 320], "screw3_name": "rear right", "screw4": [30, 320], "screw4_name": "rear left", "horizontal_move_z": 5}

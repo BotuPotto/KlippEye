@@ -137,6 +137,13 @@ const HELP = {
       { id: "check", title: tx("«All right»"), text: [tx("The entry is marked «To check» until you look at it once and press «All right».")] },
     ],
   },
+  motion: {
+    title: tx("Motion"),
+    sections: [
+      { id: "z", title: tx("What Z moves"), text: [tx("On printers whose bed moves in Z (most CoreXY: VzBot, Voron Trident, RatRig) ↑ brings the bed up towards the nozzle, which is Z−. Where the toolhead moves (Voron 2.4, Prusa, Ender) ↑ lifts the toolhead, Z+. «Automatic» reads it from Klipper's configuration; choose by hand if the arrows go the wrong way.")] },
+      { id: "steps", title: tx("The steps"), text: [tx("The pad has a ring for each step and the Z column a button for each: 1 and 10 mm are always there, 50 and 100 mm can be added (big moves: watch the printer).")] },
+    ],
+  },
   zoffset: {
     title: "Z-offset",
     sections: [

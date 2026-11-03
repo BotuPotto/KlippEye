@@ -1,7 +1,9 @@
 /* ============================================================================
    44 · MOVEMENT
    Jog pad (XY rings with 10 mm and 1 mm steps), Z buttons, homing buttons and
-   the live X/Y/Z read-out. Tapping an axis in the read-out opens a "go to
+   the live X/Y/Z read-out. 1.31: the Z arrows follow the part that moves (the bed,
+   or the toolhead: Settings → Motion, automatic from Klipper's configuration), and
+   the pad and the Z buttons may also have 50 and 100 mm steps (at most four). Tapping an axis in the read-out opens a "go to
    position" dialog; the centre button homes everything (long press = PARK).
    Under the home row: motors off (M84) and the "Calibra" menu (44a).
    ========================================================================== */
@@ -26,6 +28,10 @@ const goToGcode = (axis, target) => `G90\nG1 ${axis}${target} F${feedrateFor(axi
  */
 function useMotion(echo, capabilities) {
   const limits = (capabilities && capabilities.axisLimits) || DEFAULT_AXIS_LIMITS;
+  const { settings } = useSettings();
+  const zMoves = settings.motion.zMoves === "auto" ? (capabilities && capabilities.zMoves) || "bed" : settings.motion.zMoves;
+  const xySteps = MOTION_BASE_STEPS.concat(settings.motion.xyExtra);
+  const zSteps = MOTION_BASE_STEPS.concat(settings.motion.zExtra);
   const parkCommand = usePrinterFunctions().park.command; // Settings → Printer functions ("" = no park)
   const [positionDialog, setPositionDialog] = useState({ open: false, axis: null, value: "" });
   // Where the "go to position" dialog starts. As in the original dashboard this is NOT the live
@@ -87,17 +93,26 @@ function useMotion(echo, capabilities) {
     fireGcode(gcode);
   };
 
-  return { jog, homeAxes, homeAll, park, motorsOff, positionDialog, openPositionDialog, closePositionDialog, setPositionValue, goToPosition };
+  return { jog, homeAxes, homeAll, park, motorsOff, positionDialog, openPositionDialog, closePositionDialog, setPositionValue, goToPosition, zMoves, xySteps, zSteps };
 }
 
 /* ---------------------------------------------------------------------------
    Jog pad geometry (SVG 280 × 280, centre at 140,140)
    ------------------------------------------------------------------------- */
 const PAD_CENTER = 140;
-const PAD_RINGS = {
-  outer: { from: 92, to: 134, step: 10, className: "bambu-outer cursor-pointer" },
-  inner: { from: 46, to: 86, step: 1, className: "bambu-inner cursor-pointer" },
-};
+const PAD_RING_FROM = 44; // the home button sits inside
+const PAD_RING_TO = 136;
+const PAD_RING_GAP = 5;
+/** The rings of the pad, one per step (smallest inside): { from, to, step, className }. */
+function padRings(steps) {
+  const width = (PAD_RING_TO - PAD_RING_FROM + PAD_RING_GAP) / steps.length;
+  return steps.map((step, index) => ({
+    from: PAD_RING_FROM + index * width,
+    to: PAD_RING_FROM + (index + 1) * width - PAD_RING_GAP,
+    step,
+    className: (index % 2 === 0 ? "bambu-inner" : "bambu-outer") + " cursor-pointer",
+  }));
+}
 /** Quadrants of each ring: which axis and direction a tap on it moves. */
 const PAD_QUADRANTS = [
   { axis: "Y", sign: 1, a0: 225, a1: 315 },
@@ -105,19 +120,29 @@ const PAD_QUADRANTS = [
   { axis: "Y", sign: -1, a0: 45, a1: 135 },
   { axis: "X", sign: -1, a0: 135, a1: 225 },
 ];
-const PAD_STEP_LABELS = [
-  { x: 220, y: 60, size: 11, text: "+10" },
-  { x: 187, y: 93, size: 10, text: "+1" },
-  { x: 93, y: 187, size: 10, text: "-1" },
-  { x: 60, y: 220, size: 11, text: "-10" },
-];
-/** Axis letters drawn on the pad, as offsets from its centre. */
-const PAD_AXIS_LABELS = [
-  { text: "Y", dx: 0, dy: -89 },
-  { text: "-Y", dx: 0, dy: 89 },
-  { text: "X", dx: 89, dy: 0 },
-  { text: "-X", dx: -94, dy: 0 },
-];
+/** The step of each ring written on the diagonal gaps: +step up-right, −step down-left. */
+function padStepLabels(rings) {
+  const size = rings.length > 3 ? 10 : rings.length > 2 ? 10.5 : 11;
+  return rings.flatMap((ring) => {
+    const middle = (ring.from + ring.to) / 2;
+    const up = polar(middle, -45);
+    const down = polar(middle, 135);
+    return [
+      { x: up.x, y: up.y, size, text: "+" + ring.step },
+      { x: down.x, y: down.y, size, text: "-" + ring.step },
+    ];
+  });
+}
+/** Axis letters drawn on the pad, as offsets from its centre (in the gap after the first ring). */
+function padAxisLabels(rings) {
+  const at = rings.length > 1 ? (rings[0].to + rings[1].from) / 2 : rings[0].to + 3;
+  return [
+    { text: "Y", dx: 0, dy: -at },
+    { text: "-Y", dx: 0, dy: at },
+    { text: "X", dx: at, dy: 0 },
+    { text: "-X", dx: -at - 5, dy: 0 },
+  ];
+}
 
 /** The four cuts between quadrants, in degrees. */
 const PAD_DIAGONALS = [45, 135, 225, 315];
@@ -139,7 +164,8 @@ function ringSegmentPath(innerRadius, outerRadius, startDeg, endDeg) {
   return `M ${a.x} ${a.y} L ${b.x} ${b.y} A ${outerRadius} ${outerRadius} 0 ${largeArc} 1 ${c.x} ${c.y} L ${d.x} ${d.y} A ${innerRadius} ${innerRadius} 0 ${largeArc} 0 ${a.x} ${a.y} Z`;
 }
 
-function JogPad({ onJog, onHomeAll, onPark }) {
+function JogPad({ onJog, onHomeAll, onPark, steps = MOTION_BASE_STEPS }) {
+  const rings = padRings(steps);
   const pressTimer = useRef(null);
   const wasLongPress = useRef(false);
   const stopTimer = () => {
@@ -185,9 +211,10 @@ function JogPad({ onJog, onHomeAll, onPark }) {
   const ringSegments = (ring) =>
     PAD_QUADRANTS.map((q) =>
       h("path", {
-        key: `${ring === PAD_RINGS.outer ? "outer" : "inner"}-${q.axis}${q.sign}`,
+        key: `ring${ring.step}-${q.axis}${q.sign}`,
         d: ringSegmentPath(ring.from, ring.to, q.a0, q.a1),
         className: ring.className,
+        "data-jog": q.axis + (q.sign > 0 ? "+" : "-") + ring.step,
         onClick: () => onJog(q.axis, q.sign * ring.step),
       }),
     );
@@ -198,14 +225,13 @@ function JogPad({ onJog, onHomeAll, onPark }) {
     h(
       "svg",
       { width: "280", height: "280", viewBox: "0 0 280 280", className: "absolute inset-0 w-full h-full select-none" },
-      ringSegments(PAD_RINGS.outer),
-      ringSegments(PAD_RINGS.inner),
+      rings.map(ringSegments),
       PAD_DIAGONALS.map((degrees) => {
-        const from = polar(PAD_RINGS.inner.from, degrees);
-        const to = polar(PAD_RINGS.outer.to, degrees);
+        const from = polar(rings[0].from, degrees);
+        const to = polar(rings[rings.length - 1].to, degrees);
         return h("line", { key: degrees, x1: from.x, y1: from.y, x2: to.x, y2: to.y, className: "pad-gap", strokeWidth: "3" });
       }),
-      PAD_STEP_LABELS.map((label) =>
+      padStepLabels(rings).map((label) =>
         h(
           "text",
           {
@@ -222,7 +248,7 @@ function JogPad({ onJog, onHomeAll, onPark }) {
         ),
       ),
     ),
-    PAD_AXIS_LABELS.map((label) =>
+    padAxisLabels(rings).map((label) =>
       h(
         "div",
         {
@@ -246,26 +272,31 @@ function JogPad({ onJog, onHomeAll, onPark }) {
   );
 }
 
-/** Z buttons: [label, delta, big step?] */
-const Z_BUTTONS = [
-  { label: "↑ 10", delta: -10, big: true },
-  { label: "↑ 1", delta: -1, big: false },
-  { label: "↓ 1", delta: 1, big: false },
-  { label: "↓ 10", delta: 10, big: true },
-];
+/**
+ * The Z buttons, the biggest step at the ends. The arrows show where the part that moves goes: on a printer whose bed moves
+ * (most CoreXY) ↑ brings the bed up, towards the nozzle (Z−); where the toolhead moves (Voron 2.4, i3 style) ↑ lifts the
+ * toolhead (Z+). 1.31
+ */
+function zButtons(steps, zMoves) {
+  const upSign = zMoves === "toolhead" ? 1 : -1;
+  const biggest = steps[steps.length - 1];
+  const up = steps.slice().reverse().map((step) => ({ label: "↑ " + step, delta: upSign * step, big: step >= 10 && step === biggest }));
+  const down = steps.map((step) => ({ label: "↓ " + step, delta: -upSign * step, big: step >= 10 && step === biggest }));
+  return { up, down };
+}
 
-function ZControls({ onJog }) {
+function ZControls({ onJog, steps = MOTION_BASE_STEPS, zMoves = "bed" }) {
+  const { up, down } = zButtons(steps, zMoves);
+  const compact = steps.length > 2;
   const button = (spec) =>
-    h("button", { key: spec.label, onClick: () => onJog("Z", spec.delta), className: cx("z-btn", spec.big && "z-btn--big") }, spec.label);
+    h("button", { key: spec.label, onClick: () => onJog("Z", spec.delta), title: "Z" + signed(spec.delta), "data-z": signed(spec.delta), className: cx("z-btn", spec.big && "z-btn--big", compact && "z-btn--compact") }, spec.label);
   return h(
     "div",
-    { className: "flex flex-col items-center gap-2" },
-    h("div", { className: "oui-label mb-1" }, "Z"),
-    button(Z_BUTTONS[0]),
-    button(Z_BUTTONS[1]),
+    { className: "flex flex-col items-center gap-2 z-controls", "data-z-moves": zMoves },
+    h("div", { className: "oui-label mb-1 z-controls__title" }, "Z", h("span", { className: "z-controls__part" }, zMoves === "toolhead" ? tx("toolhead") : tx("bed"))),
+    up.map(button),
     h("div", { className: "z-divider" }),
-    button(Z_BUTTONS[2]),
-    button(Z_BUTTONS[3]),
+    down.map(button),
   );
 }
 
@@ -327,8 +358,8 @@ function MovementCard({ position, homedAxes, motion, bedTools, lockReason }) {
     h(
       "div",
       { className: "flex items-center gap-6 justify-center my-3" },
-      h(JogPad, { onJog: motion.jog, onHomeAll: motion.homeAll, onPark: motion.park }),
-      h(ZControls, { onJog: motion.jog }),
+      h(JogPad, { onJog: motion.jog, onHomeAll: motion.homeAll, onPark: motion.park, steps: motion.xySteps }),
+      h(ZControls, { onJog: motion.jog, steps: motion.zSteps, zMoves: motion.zMoves }),
     ),
     h(
       "div",

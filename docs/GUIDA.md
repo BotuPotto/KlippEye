@@ -151,6 +151,13 @@ scegli da dove il pulsante legge lo stato (oppure nessuna: mostra l'ultima richi
   impedirebbe a Klipper di partire);
 * compare una **riga della console** che scrivi tu (*Printer paused due to filament runout!* è sempre riconosciuta).
 
+### Movimento
+
+**Impostazioni → Movimento**: **cosa muove Z** (il piatto o la testina: *Automatico* lo legge da Klipper) decide il verso
+delle frecce di Z — col piatto, ↑ lo alza verso l'ugello; con la testina, ↑ la alza. Il cerchio X/Y e i tasti Z hanno
+sempre i passi da 1 e 10 mm; si possono aggiungere 50 e 100 mm (una corona in più nel cerchio, due tasti Z in più per
+ognuno).
+
 ### Durante la stampa
 
 La **card della stampa** (Home) mostra file, avanzamento, tempo, quanto manca e il layer; sotto, **a che ora finisce**,

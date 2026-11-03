@@ -31,6 +31,7 @@ const UNKNOWN_CAPABILITIES = {
   axisLimits: DEFAULT_AXIS_LIMITS,
   maxTemp: DEFAULT_MAX_TEMP,
   filamentDiameter: 1.75,
+  zMoves: null, // not known yet
   macros: [],
   commands: {},
   lights: [],
@@ -67,6 +68,14 @@ function deriveParts(configfile, commands, objects) {
     });
   const sensors = objects.filter((object) => object.startsWith("filament_switch_sensor ") || object.startsWith("filament_motion_sensor "));
   return { macros, commands, lights, sensors };
+}
+
+/** "bed" or "toolhead": which part Z moves, from Klipper's configuration. */
+function guessZMoves(settings) {
+  if ("quad_gantry_level" in settings) return "toolhead";
+  const kinematics = String((settings.printer || {}).kinematics || "").toLowerCase();
+  if ("z_tilt" in settings || "z_tilt_ng" in settings || ["corexy", "hybrid_corexy", "corexz"].includes(kinematics)) return "bed";
+  return "toolhead";
 }
 
 /** The travel of each axis from [stepper_x] / [stepper_y] / [stepper_z] (position_min, default 0, and position_max). */
@@ -126,6 +135,9 @@ function deriveCapabilities(configfile, commands) {
     maxTemp: maxTempFrom(settings),
     // 1.30: the filament's diameter, for the volumetric flow of the print card ([extruder] filament_diameter)
     filamentDiameter: Number((settings.extruder || {}).filament_diameter) > 0 ? Number(settings.extruder.filament_diameter) : 1.75,
+    // 1.31: what Z moves, as the camera calibration guesses it (backend/camera_calibration.py guess_z_moves): a gantry that
+    // goes up and down (quad_gantry_level) moves the toolhead; z_tilt or a CoreXY moves the bed; else the toolhead (i3 style)
+    zMoves: guessZMoves(settings),
   };
 }
 

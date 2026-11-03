@@ -148,6 +148,12 @@ reads the state (or none: it shows what was asked last).
   macro exactly as before. Only macros Klipper really has can be chosen (a wrong one would stop Klipper from starting);
 * a **line of the console** you write appears (*Printer paused due to filament runout!* is always recognised).
 
+### Motion
+
+**Settings → Motion**: **what Z moves** (the bed or the toolhead: *Automatic* reads it from Klipper) decides which way the
+Z arrows go — with the bed, ↑ brings it up towards the nozzle; with the toolhead, ↑ lifts it. The X/Y pad and the Z
+buttons always have 1 and 10 mm steps; 50 and 100 mm can be added (one more ring on the pad, two more Z buttons each).
+
 ### During a print
 
 The **print card** (Home) shows the file, the progress, the time, what is left and the layer; under them **when it ends**
