@@ -214,6 +214,14 @@ const HELP = {
   notifications: {
     title: tx("Notifications"),
     sections: [
+      {
+        id: "own",
+        title: tx("Texts and notifications of your own"),
+        text: [
+          tx("Every notification can have a text of yours: tap «Change the text» under it. Words in braces are filled in when it goes out: {file} the file's name, {progress} the percent, {layer} and {total_layers}, {elapsed} and {remaining} the times, {message} Klipper's reason for an error, {printer} the printer's name."),
+          tx("«Your notifications» adds more: when a print starts, at a percent, when a few minutes are left, at a layer, when the console shows some words (your macro can write them with M118 or RESPOND), when the bed or the nozzle reaches its temperature. «Important» makes one arrive as an alarm."),
+        ],
+      },
       { id: "how", title: tx("How they arrive"), figure: "notifications", text: [tx("The Raspberry sends the notifications through ntfy, a free service, to a private address that only your phones know. No account, no key.")] },
       { id: "app", title: tx("On Android: the KlippEye app"), text: [tx("Open this page in the KlippEye app and follow «This phone»: five steps, and the app receives the notifications by itself, also when closed. A small fixed notification «KlippEye in ascolto» keeps the connection open: hold it to hide it.")] },
       { id: "ntfy", title: tx("iPhone and other phones: the ntfy app"), text: [tx("Install the free ntfy app, scan the QR code with the camera and send a test notification. Several phones can scan the same code.")] },

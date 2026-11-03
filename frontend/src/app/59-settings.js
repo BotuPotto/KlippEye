@@ -711,15 +711,10 @@ function NotificationsPage({ active }) {
     h(SettingsGroup, { title: IN_APP_WEBVIEW ? tx("Other phones (ntfy app, iPhone)") : tx("Where they arrive"), help: ["notifications", IN_APP_WEBVIEW ? "ntfy" : "how"] }, h(NotificationChannels, { store: channels })),
     h(
       SettingsGroup,
-      { title: tx("Which notifications to receive"), help: ["notifications", "which"], note: tx("They apply to every phone with the app. The text is the one of the notification.") },
-      h(
-        "div",
-        { className: "oui-list" },
-        NOTIFICATION_KINDS.map((kind) =>
-          h(SwitchRow, { key: kind.id, title: kind.title, detail: txIn(settings.language, kind.text), checked: settings.notifications[kind.id], onChange: (value) => update((draft) => (draft.notifications[kind.id] = value)) }),
-        ),
-      ),
+      { title: tx("Which notifications to receive"), help: ["notifications", "which"], note: tx("They apply to every phone with the app. Under each one, its text: change it if you like (1.38).") },
+      h("div", { className: "oui-list" }, NOTIFICATION_KINDS.map((kind) => h(NotifyKindRow, { key: kind.id, kind, settings, update }))),
     ),
+    h(NotifyRules, { settings, update }),
     h(
       SettingsGroup,
       { title: tx("Language of the notifications"), note: tx("The same for every phone, whatever language the dashboard shows.") },
