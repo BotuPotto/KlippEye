@@ -1,5 +1,11 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.30.1
+
+* **Computer: the console bar no longer covers the AI alarm.** On the Device page the column with the camera, the AI strip
+  and the print card did not scroll: when the card grew (an AI alarm to answer, *More details*) its bottom went under the
+  console bar and the answers could not be pressed. Now the camera takes the room left and the column scrolls.
+
 ## 1.30.0
 
 **More in the print card, and «Exclude an object»** (roadmap phase 6b, first part).
