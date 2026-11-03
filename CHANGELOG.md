@@ -2,6 +2,15 @@
 
 ## 1.33.1
 
+* **Fixed: "Waiting for the printer status" for ever.** After a print that ended later than the slicer had estimated
+  (the file still loaded, 100 %), the estimate of the remaining time hit a mistake made in 1.30 and the printer status
+  never loaded: the *Calibrate* menu and *Endstops and probe* stayed waiting. Now it loads, and a value nobody expected
+  can no longer stop it.
+* **Axis twist compensation without a Cartographer**: on printers whose probe is not a Cartographer KlippEye uses
+  Klipper's own `AXIS_TWIST_COMPENSATION_CALIBRATE` (when `[axis_twist_compensation]` exists; axis Y only with its
+  options in the config). At each point a sheet guides the **paper test**: − / + move the nozzle (TESTZ: 1, 0.1, 0.05,
+  0.01 mm), *Accept* goes on to the next point, *Abort* stops; at the end the values are offered for SAVE_CONFIG. With a
+  Cartographer its automatic calibration is used, as before.
 * **Macro groups in any colour**: besides the ready colours, *Custom* opens a **colour wheel** (hue around, strength from
   the centre), a **brightness** bar and the **colour code** (#rrggbb) to type one exactly.
 

@@ -13,3 +13,8 @@
 .screws-alert { margin-bottom: 12px; font-size: 14px; line-height: 1.45; color: var(--oui-danger); }
 .screws-legend { margin-top: 12px; }
 .screw-row__name { text-transform: capitalize; }
+
+/* ---- 1.33.1: the paper test of Klipper's own axis twist calibration ---- */
+.manual-probe__z { font-variant-numeric: tabular-nums; }
+.manual-probe__steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 4px; }
+.manual-probe__step { min-width: 0; padding: 0 4px; font-variant-numeric: tabular-nums; }

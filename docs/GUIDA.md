@@ -161,7 +161,9 @@ ognuno).
 **Calibra** (card Movimento) ha anche i **livellamenti** che Klipper offre sulla tua stampante: **Z tilt adjust**
 (`[z_tilt]`), **Quad gantry level** (`[quad_gantry_level]`) e, sulle stampanti senza sonda, **Bed screws adjust**
 (`[bed_screws]`): l'ugello si ferma sopra ogni vite e una scheda dice cosa fare (la prova del foglio); rispondi *Regolata* se
-hai girato la vite, *Va bene* se era già giusta. Klipper rifà il giro finché un giro intero va bene.
+hai girato la vite, *Va bene* se era già giusta. Klipper rifà il giro finché un giro intero va bene. L'**Axis twist
+compensation** usa la calibrazione automatica del Cartographer quando c'è; altrimenti quella di Klipper, con la stessa prova
+del foglio in alcuni punti (− / + muovono l'ugello, *Va bene* passa al successivo), poi SAVE_CONFIG.
 
 ### Macro
 
