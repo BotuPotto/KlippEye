@@ -15,17 +15,17 @@
 .mesh-grid { display: grid; gap: 2px; width: 100%; max-width: 420px; margin: 0 auto; }
 .mesh-cell { display: grid; place-items: center; min-width: 0; aspect-ratio: 1; padding: 0; border: 0; border-radius: 4px; cursor: pointer; }
 .mesh-cell.is-picked { outline: 2px solid #fff; outline-offset: -2px; }
-.mesh-cell__value { font-size: 10px; font-weight: 700; font-variant-numeric: tabular-nums; color: rgba(0, 0, 0, 0.72); }
+.mesh-cell__value { font-size: 10px; font-weight: 700; font-variant-numeric: tabular-nums; color: inherit; }
 .mesh-grid__foot { min-height: 20px; margin-top: 10px; font-size: 13px; color: var(--oui-text-2); text-align: center; font-variant-numeric: tabular-nums; }
 .mesh-pick b { color: var(--oui-text); }
 
-/* colour scale: blue (low) → green → orange (high), then the height variation on the right */
+/* colour scale: Mainsail's, blue (low) → yellow → red (high) */
 .mesh-legend { display: flex; align-items: center; gap: 10px; margin-top: 12px; font-size: 12px; color: var(--oui-text-2); font-variant-numeric: tabular-nums; }
 .mesh-legend__scale {
-  flex: 0 1 96px;
+  flex: 1 1 auto;
   height: 8px;
   border-radius: var(--oui-r-pill);
-  background: linear-gradient(90deg, rgb(60, 120, 220), rgb(200, 220, 180), rgb(255, 80, 40));
+  background: linear-gradient(90deg, #313695, #4575b4, #74add1, #abd9e9, #e0f3f8, #ffffbf, #fee090, #fdae61, #f46d43, #d73027, #a50026);
 }
 
 /* ---- 1.36: statistics, actions, profiles ---- */

@@ -11,8 +11,8 @@
 
 const MESH_POLL_MS = 2500;
 const MESH_ZOOM_RANGE = [0.5, 1.6];
-const MESH_TILT_RANGE = [-85, -15];
-const MESH_DEFAULT_VIEW = { tilt: -62, rotation: -30, zoom: 0.7 };
+const MESH_TILT_RANGE = [8, 85]; // the eye's height above the bed, degrees
+const MESH_DEFAULT_VIEW = { tilt: 30, rotation: -28, zoom: 1 };
 const MESH_WHEEL_UNLOCK_MS = 300;
 
 /* ---------------------------------------------------------------------------
@@ -77,40 +77,59 @@ function profileRange(profile) {
   return values.length ? Math.max(...values) - Math.min(...values) : null;
 }
 
-/** Blue (low) → light blue/green → orange/red (high). */
-function heightColor(value, { min, range }) {
+/** Mainsail's colours (blue low → yellow → red high), the scale running over the mesh's own range (1.36.1). */
+const MESH_COLORS = ["#313695", "#4575b4", "#74add1", "#abd9e9", "#e0f3f8", "#ffffbf", "#fee090", "#fdae61", "#f46d43", "#d73027", "#a50026"];
+const MESH_RGB = MESH_COLORS.map((hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)));
+/** White writing on the dark ends of the scale, black in the light middle. */
+const meshTextColor = (value, { min, range }) => {
   const t = (value - min) / (range || 0.001);
-  if (t < 0.5) {
-    const g = t * 2;
-    return "rgb(" + Math.round(60 + g * 140) + "," + Math.round(120 + g * 100) + "," + Math.round(220 - g * 40) + ")";
-  }
-  const g = (t - 0.5) * 2;
-  return "rgb(" + Math.round(200 + g * 55) + "," + Math.round(220 - g * 140) + "," + Math.round(180 - g * 140) + ")";
+  return t < 0.22 || t > 0.8 ? "rgba(255,255,255,0.92)" : "rgba(0,0,0,0.72)";
+};
+
+function heightColor(value, { min, range }) {
+  const t = clamp((value - min) / (range || 0.001), 0, 1) * (MESH_RGB.length - 1);
+  const i = Math.min(MESH_RGB.length - 2, Math.floor(t));
+  const f = t - i;
+  const [a, b] = [MESH_RGB[i], MESH_RGB[i + 1]];
+  return "rgb(" + Math.round(a[0] + (b[0] - a[0]) * f) + "," + Math.round(a[1] + (b[1] - a[1]) * f) + "," + Math.round(a[2] + (b[2] - a[2]) * f) + ")";
 }
 
 /* ---------------------------------------------------------------------------
-   3D drawing
+   3D drawing (1.36.1: like Mainsail's) — a smooth surface (each cell split in
+   small pieces, each coloured by its own height: the colour runs across the
+   cell instead of one colour a square), the mesh lines on it, and a box with a
+   grid and the X / Y / Z values on its edges. Seen from the front, above.
    ------------------------------------------------------------------------- */
 const degrees = (value) => (value * Math.PI) / 180;
+const MESH_SURFACE_PIECES = 2600; // about how many small quads the surface is split in
 
-/** Maps mesh coordinates (column, row from the front, height) to canvas pixels for a given view. */
+/** Maps (column, row from the front, height) to canvas pixels for a view: { rotation (around the vertical), tilt (height of the eye, degrees) }. */
 function createProjector(canvasSize, stats, view) {
   const { width, height } = canvasSize;
-  const baseScale = Math.min(width, height * 1.6) * 0.135 * view.zoom; // a taller canvas (phone, 4:3) gets a bigger map
-  const heightScale = (baseScale * 0.6 * 0.22) / (stats.range || 0.1); // heights are exaggerated
-  const boxHeight = baseScale;
+  const spanX = stats.area ? stats.area.max[0] - stats.area.min[0] : stats.cols - 1;
+  const spanY = stats.area ? stats.area.max[1] - stats.area.min[1] : stats.rows - 1;
+  const longest = Math.max(spanX, spanY) || 1;
+  const size = Math.min(width * 0.9, height * 1.25) * 0.58 * view.zoom; // the longer side of the bed, in pixels
+  const half = { x: (spanX / longest) * size * 0.5, y: (spanY / longest) * size * 0.5 };
+  const boxHeight = size * 0.42;
+  const mid = (stats.min + stats.max) / 2;
+  const heightScale = (boxHeight * 0.55) / (stats.range || 0.05);
   const [sinZ, cosZ] = [Math.sin(degrees(view.rotation)), Math.cos(degrees(view.rotation))];
-  const [sinX, cosX] = [Math.sin(degrees(view.tilt)), Math.cos(degrees(view.tilt))];
+  const [sinE, cosE] = [Math.sin(degrees(view.tilt)), Math.cos(degrees(view.tilt))];
+  const centre = { x: width / 2, y: height / 2 + boxHeight * 0.05 };
 
-  const project = (column, row, z, flatZ) => {
-    let x = column - (stats.cols - 1) / 2;
-    let y = (stats.rows - 1) / 2 - row;
-    let up = flatZ !== undefined ? flatZ : (stats.mean - z) * heightScale;
-    [x, y] = [x * cosZ - y * sinZ, x * sinZ + y * cosZ];
-    [y, up] = [y * cosX - up * sinX, y * sinX + up * cosX];
-    return { x: width * 0.5 + x * baseScale, y: height * 0.5 + y * baseScale * 0.6 - up, depth: y };
+  /** u, v from -1 (front left) to 1; `up` in pixels. */
+  const place = (u, v, up) => {
+    const x0 = u * half.x;
+    const y0 = v * half.y;
+    const x = x0 * cosZ - y0 * sinZ;
+    const y = x0 * sinZ + y0 * cosZ;
+    return { x: centre.x + x, y: centre.y - (up * cosE + y * sinE), depth: y * cosE - up * sinE };
   };
-  return { project, boxHeight };
+  const u = (column) => (stats.cols > 1 ? (column / (stats.cols - 1)) * 2 - 1 : 0);
+  const v = (row) => (stats.rows > 1 ? (row / (stats.rows - 1)) * 2 - 1 : 0);
+  const project = (column, row, z, flatUp) => place(u(column), v(row), flatUp !== undefined ? flatUp : (z - mid) * heightScale);
+  return { project, place, boxHeight, heightScale, mid };
 }
 
 function drawPath(ctx, points) {
@@ -118,92 +137,135 @@ function drawPath(ctx, points) {
   points.forEach((point, index) => (index === 0 ? ctx.moveTo(point.x, point.y) : ctx.lineTo(point.x, point.y)));
 }
 
-/** The translucent build volume: floor, ceiling, pillars and a quarter-step grid on both. */
-function drawBuildVolume(ctx, { project, boxHeight }, stats) {
-  const { cols, rows } = stats;
-  const floor = [project(0, 0, 0, -boxHeight / 2), project(cols - 1, 0, 0, -boxHeight / 2), project(cols - 1, rows - 1, 0, -boxHeight / 2), project(0, rows - 1, 0, -boxHeight / 2)];
-  const ceiling = [project(0, 0, 0, boxHeight / 2), project(cols - 1, 0, 0, boxHeight / 2), project(cols - 1, rows - 1, 0, boxHeight / 2), project(0, rows - 1, 0, boxHeight / 2)];
-  const between = (a, b, t) => ({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
-  const line = (a, b) => {
+/** The box: floor and the two walls at the back (as the view turns), each with a grid, and the values on the edges. */
+function drawBuildVolume(ctx, { place, boxHeight, heightScale, mid }, stats) {
+  const low = -boxHeight / 2;
+  const top = boxHeight / 2;
+  const line = (a, b, color, widthPx) => {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = widthPx || 0.8;
     drawPath(ctx, [a, b]);
     ctx.stroke();
   };
-
-  ctx.strokeStyle = "rgba(255,255,255,0.10)";
-  ctx.lineWidth = 0.7;
-  [floor, ceiling].forEach((ring) => {
-    drawPath(ctx, ring);
-    ctx.closePath();
-    ctx.stroke();
-  });
-  floor.forEach((corner, index) => line(corner, ceiling[index]));
-  for (let step = 1; step < 4; step++) {
-    const t = step / 4;
-    [floor, ceiling].forEach((ring) => line(between(ring[0], ring[1], t), between(ring[3], ring[2], t)));
-    line(between(floor[0], floor[3], t), between(ceiling[0], ceiling[3], t));
-    line(between(floor[1], floor[2], t), between(ceiling[1], ceiling[2], t));
-  }
-
-  ctx.fillStyle = "rgba(255,255,255,0.05)";
-  drawPath(ctx, floor);
+  const STEPS = 4;
+  const grid = "rgba(255,255,255,0.10)";
+  const edge = "rgba(255,255,255,0.28)";
+  // floor
+  ctx.fillStyle = "rgba(255,255,255,0.035)";
+  drawPath(ctx, [place(-1, -1, low), place(1, -1, low), place(1, 1, low), place(-1, 1, low)]);
   ctx.closePath();
   ctx.fill();
+  for (let i = 0; i <= STEPS; i++) {
+    const t = (i / STEPS) * 2 - 1;
+    line(place(t, -1, low), place(t, 1, low), i % STEPS ? grid : edge);
+    line(place(-1, t, low), place(1, t, low), i % STEPS ? grid : edge);
+  }
+  // the walls at the back: the side (x = ±1) and the end (y = ±1) farther from the eye
+  const sideX = place(1, 0, 0).depth > place(-1, 0, 0).depth ? 1 : -1;
+  const endY = place(0, 1, 0).depth > place(0, -1, 0).depth ? 1 : -1;
+  for (let i = 0; i <= STEPS; i++) {
+    const t = (i / STEPS) * 2 - 1;
+    const z = low + ((top - low) * i) / STEPS;
+    line(place(sideX, t, low), place(sideX, t, top), i % STEPS ? grid : edge);
+    line(place(sideX, -1, z), place(sideX, 1, z), grid);
+    line(place(t, endY, low), place(t, endY, top), i % STEPS ? grid : edge);
+    line(place(-1, endY, z), place(1, endY, z), grid);
+  }
+  // values: X along the front edge, Y along the near side, Z up the corner between the walls
+  ctx.fillStyle = "rgba(255,255,255,0.62)";
+  ctx.font = "500 10px system-ui, sans-serif";
+  ctx.textAlign = "center";
+  const area = stats.area;
+  const nearY = -endY;
+  const nearX = -sideX;
+  for (let i = 0; i <= STEPS; i += 2) {
+    const t = (i / STEPS) * 2 - 1;
+    const xValue = area ? area.min[0] + ((area.max[0] - area.min[0]) * i) / STEPS : null;
+    const yValue = area ? area.min[1] + ((area.max[1] - area.min[1]) * i) / STEPS : null;
+    const px = place(t, nearY * 1.14, low);
+    const py = place(nearX * 1.14, t, low);
+    if (xValue !== null) ctx.fillText(Math.round(xValue), px.x, px.y + 4);
+    if (yValue !== null) ctx.fillText(Math.round(yValue), py.x, py.y + 4);
+  }
+  const xLabel = place(0, nearY * 1.32, low);
+  const yLabel = place(nearX * 1.32, 0, low);
+  ctx.font = "700 11px system-ui, sans-serif";
+  ctx.fillStyle = "#ff8a8a";
+  ctx.fillText("X", xLabel.x, xLabel.y + 4);
+  ctx.fillStyle = "#7ee2a0";
+  ctx.fillText("Y", yLabel.x, yLabel.y + 4);
+  ctx.textAlign = "start";
 }
 
-/** The mesh as depth-sorted triangles (painter's algorithm). */
+/** The Z values on the back corner, written after the surface so it cannot cover them. */
+function drawZValues(ctx, { place, heightScale, mid }, stats) {
+  const sideX = place(1, 0, 0).depth > place(-1, 0, 0).depth ? 1 : -1;
+  const endY = place(0, 1, 0).depth > place(0, -1, 0).depth ? 1 : -1;
+  ctx.font = "500 10px system-ui, sans-serif";
+  ctx.fillStyle = "rgba(255,255,255,0.7)";
+  ctx.textAlign = "right";
+  for (const value of [stats.min, stats.max]) {
+    const p = place(sideX, endY, (value - mid) * heightScale);
+    ctx.fillText((value > 0 ? "+" : "") + value.toFixed(3), p.x - 6, p.y + 3);
+  }
+  ctx.textAlign = "start";
+}
+
+/** The surface: every cell split in small quads, each in the colour of its own height (bilinear), far ones first. */
 function drawSurface(ctx, { project }, stats, heightAt) {
-  const triangles = [];
+  const cells = Math.max(1, (stats.cols - 1) * (stats.rows - 1));
+  const split = clamp(Math.round(Math.sqrt(MESH_SURFACE_PIECES / cells)), 1, 10);
+  const pieces = [];
   for (let row = 0; row < stats.rows - 1; row++) {
     for (let column = 0; column < stats.cols - 1; column++) {
-      const [v00, v10, v01, v11] = [heightAt(row, column), heightAt(row, column + 1), heightAt(row + 1, column), heightAt(row + 1, column + 1)];
-      const [p00, p10, p01, p11] = [project(column, row, v00), project(column + 1, row, v10), project(column, row + 1, v01), project(column + 1, row + 1, v11)];
-      triangles.push({ points: [p00, p10, p11], value: (v00 + v10 + v11) / 3, depth: (p00.depth + p10.depth + p11.depth) / 3 });
-      triangles.push({ points: [p00, p11, p01], value: (v00 + v11 + v01) / 3, depth: (p00.depth + p11.depth + p01.depth) / 3 });
+      const [z00, z10, z01, z11] = [heightAt(row, column), heightAt(row, column + 1), heightAt(row + 1, column), heightAt(row + 1, column + 1)];
+      const at = (a, b) => z00 * (1 - a) * (1 - b) + z10 * a * (1 - b) + z01 * (1 - a) * b + z11 * a * b;
+      for (let j = 0; j < split; j++) {
+        for (let i = 0; i < split; i++) {
+          const [a0, a1, b0, b1] = [i / split, (i + 1) / split, j / split, (j + 1) / split];
+          const corners = [project(column + a0, row + b0, at(a0, b0)), project(column + a1, row + b0, at(a1, b0)), project(column + a1, row + b1, at(a1, b1)), project(column + a0, row + b1, at(a0, b1))];
+          pieces.push({ corners, value: at((a0 + a1) / 2, (b0 + b1) / 2), depth: (corners[0].depth + corners[1].depth + corners[2].depth + corners[3].depth) / 4 });
+        }
+      }
     }
   }
-  triangles.sort((a, b) => a.depth - b.depth);
-  ctx.lineWidth = 0.35;
-  triangles.forEach((triangle) => {
-    drawPath(ctx, triangle.points);
+  pieces.sort((a, b) => b.depth - a.depth);
+  ctx.lineWidth = 0.6;
+  ctx.lineJoin = "round";
+  for (const piece of pieces) {
+    const color = heightColor(piece.value, stats);
+    drawPath(ctx, piece.corners);
     ctx.closePath();
-    ctx.fillStyle = heightColor(triangle.value, stats);
-    ctx.globalAlpha = 0.92;
+    ctx.fillStyle = color;
     ctx.fill();
-    ctx.globalAlpha = 1;
-    ctx.strokeStyle = "rgba(0,0,0,0.18)";
+    ctx.strokeStyle = color; // closes the hairline seams between the pieces
     ctx.stroke();
-  });
+  }
+  // the mesh lines, faint, along the rows and columns Klipper measured
+  ctx.strokeStyle = "rgba(0,0,0,0.22)";
+  ctx.lineWidth = 0.7;
+  for (let row = 0; row < stats.rows; row++) {
+    drawPath(ctx, Array.from({ length: stats.cols }, (_, column) => project(column, row, heightAt(row, column))));
+    ctx.stroke();
+  }
+  for (let column = 0; column < stats.cols; column++) {
+    drawPath(ctx, Array.from({ length: stats.rows }, (_, row) => project(column, row, heightAt(row, column))));
+    ctx.stroke();
+  }
 }
 
-/** Red X axis, green Y axis and a white dot at the front-left probe point (0,0). */
+/** A white dot at the front-left point (0,0 of the mesh). */
 function drawOrigin(ctx, { project }, stats, heightAt) {
   const origin = project(0, 0, heightAt(0, 0));
-  const xEnd = Math.min(3, stats.cols - 1);
-  const yEnd = Math.min(3, stats.rows - 1);
-  const xAxis = project(xEnd, 0, heightAt(0, xEnd));
-  const yAxis = project(0, yEnd, heightAt(yEnd, 0));
-
-  ctx.lineWidth = 2.2;
   [
-    ["#ff6b6b", xAxis],
-    ["#4ade80", yAxis],
-  ].forEach(([color, end]) => {
-    ctx.strokeStyle = color;
-    drawPath(ctx, [origin, end]);
-    ctx.stroke();
-  });
-  [
-    ["#ffffff", 5],
-    ["#000000", 2],
+    ["#ffffff", 4.5],
+    ["#000000", 1.8],
   ].forEach(([color, radius]) => {
     ctx.fillStyle = color;
     ctx.beginPath();
     ctx.arc(origin.x, origin.y, radius, 0, Math.PI * 2);
     ctx.fill();
   });
-  ctx.fillStyle = "rgba(255,255,255,0.95)";
-  ctx.font = "600 12px system-ui, sans-serif";
-  ctx.fillText(tx("Origin (0,0)"), origin.x - 10, origin.y + 20);
 }
 
 function drawMesh3D(canvas, stats, view) {
@@ -223,6 +285,7 @@ function drawMesh3D(canvas, stats, view) {
   drawBuildVolume(ctx, projector, stats);
   drawSurface(ctx, projector, stats, heightAt);
   drawOrigin(ctx, projector, stats, heightAt);
+  drawZValues(ctx, projector, stats);
 }
 
 /* ---------------------------------------------------------------------------
@@ -354,7 +417,7 @@ function MeshGrid({ stats }) {
               key: index + "-" + column,
               type: "button",
               className: cx("mesh-cell", picked && picked.row === index && picked.col === column && "is-picked"),
-              style: { background: heightColor(value, stats) },
+              style: { background: heightColor(value, stats), color: meshTextColor(value, stats) },
               "data-row": index,
               "data-col": column,
               "aria-label": "X " + (stats.x[column] !== null ? Math.round(stats.x[column]) : column) + " Y " + (stats.y[index] !== null ? Math.round(stats.y[index]) : index) + ": " + meshSigned(value),
