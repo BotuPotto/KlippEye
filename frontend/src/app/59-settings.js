@@ -15,7 +15,7 @@
    What is stored and how is app/16-settings.js. Every change counts at once and is saved a moment later.
    ========================================================================== */
 
-const SETTINGS_PAGES = ["printer", "camera", "network", "zoffset", "notifications", "ai", "detector", "camcal", "recordings", "software"];
+const SETTINGS_PAGES = ["printer", "camera", "network", "motion", "zoffset", "notifications", "ai", "detector", "camcal", "recordings", "software"];
 const SETTINGS_TYPING_MS = 800; // a typed value is taken when the typing stops (and when the field is left or the menu closed)
 // a swipe to the left closes the menu: at least this long, mostly sideways, quick, and never started on a control
 // (1.24: it was too easy to close it while moving a slider or scrolling)
@@ -554,6 +554,59 @@ const parseStepText = (text) => {
   return text.trim() !== "" && Number.isFinite(number) && number >= Z_STEP_MIN && number <= Z_STEP_MAX ? Math.round(number * 1000) / 1000 : null;
 };
 
+/** One line for the menu: what Z moves and the steps. */
+function motionSummary(motion) {
+  const z = motion.zMoves === "bed" ? tx("Z moves the bed") : motion.zMoves === "toolhead" ? tx("Z moves the toolhead") : tx("Z: automatic");
+  return z + " • XY " + MOTION_BASE_STEPS.concat(motion.xyExtra).join("·") + " • Z " + MOTION_BASE_STEPS.concat(motion.zExtra).join("·") + " mm";
+}
+
+/** 1.31: the Motion card: which way the Z arrows go, and the steps of the pad and of the Z buttons. */
+function MotionPage() {
+  const { settings, update } = useSettings();
+  const capabilities = usePrinterCapabilities();
+  const motion = settings.motion;
+  const guess = capabilities.zMoves;
+  const guessText = guess === "toolhead" ? tx("the toolhead") : guess === "bed" ? tx("the bed") : tx("not known yet");
+  const steps = (key, title, note) =>
+    h(
+      SettingsGroup,
+      { title, note },
+      h(
+        "div",
+        { className: "oui-list" },
+        MOTION_BASE_STEPS.map((step) => h(SwitchRow, { key: step, title: "± " + step + " mm", detail: tx("always there"), checked: true, disabled: true, onChange: noop })),
+        MOTION_EXTRA_STEPS.map((step) =>
+          h(SwitchRow, {
+            key: step,
+            title: "± " + step + " mm",
+            checked: motion[key].includes(step),
+            onChange: (on) => update((draft) => (draft.motion[key] = cleanExtraSteps(on ? draft.motion[key].concat(step) : draft.motion[key].filter((s) => s !== step)))),
+          }),
+        ),
+      ),
+    );
+  return h(
+    React.Fragment,
+    null,
+    h(
+      SettingsGroup,
+      { title: tx("What Z moves"), help: ["motion", "z"], note: tx("The Z arrows show where the part that moves goes. Bed: ↑ brings the bed up, towards the nozzle (Z−). Toolhead: ↑ lifts the toolhead (Z+).") },
+      h(ChoiceRows, {
+        label: tx("What Z moves"),
+        value: motion.zMoves,
+        onChange: (id) => update((draft) => (draft.motion.zMoves = id)),
+        options: [
+          { id: "auto", label: tx("Automatic"), detail: tx("From Klipper's configuration: {part}.", { part: guessText }) },
+          { id: "bed", label: tx("The bed"), detail: tx("VzBot, Voron Trident, RatRig V-Core, most CoreXY") },
+          { id: "toolhead", label: tx("The toolhead"), detail: tx("Voron 2.4, Prusa, Ender and other i3-style printers") },
+        ],
+      }),
+    ),
+    steps("xyExtra", tx("Steps of the X / Y pad"), tx("One ring of the pad for each step, the smallest inside: at most four.")),
+    steps("zExtra", tx("Steps of the Z buttons"), tx("An ↑ and a ↓ button for each step.")),
+  );
+}
+
 function ZOffsetPage() {
   const { settings, update } = useSettings();
   const steps = settings.zOffset.steps;
@@ -718,6 +771,8 @@ function settingsSummary(page, settings, brain) {
       return network.localIp || network.externalIp ? [network.localIp, network.externalIp].filter(Boolean).join(" • ") : tx("Automatic (the address of this page)");
     case "zoffset":
       return zOffset.steps.join(" · ") + " mm";
+    case "motion":
+      return motionSummary(settings.motion);
     case "language":
       return languageSummary();
     case "functions":
@@ -739,6 +794,7 @@ const SETTINGS_GROUPS = [
 const SETTINGS_ENTRIES = [
   { id: "printer", group: "printer", title: tx("Name and logo"), icon: Icons.Cube },
   { id: "functions", group: "printer", title: tx("Printer functions"), icon: Icons.Bulb },
+  { id: "motion", group: "printer", title: tx("Motion"), icon: Icons.Move },
   { id: "zoffset", group: "printer", title: "Z-offset", icon: Icons.Layers },
   { id: "camera", group: "watch", title: "Camera", icon: Icons.Camera },
   { id: "ai", group: "watch", title: tx("AI monitor"), icon: Icons.Sparkle },
@@ -830,6 +886,7 @@ function SettingsDrawer({ menu, updates, printing, actions }) {
   else if (page === "camera") body = h(CameraPage, { menu });
   else if (page === "network") body = h(NetworkPage);
   else if (page === "zoffset") body = h(ZOffsetPage);
+  else if (page === "motion") body = h(MotionPage);
   else if (page === "notifications") body = h(NotificationsPage, { active: true });
   else if (page === "ai") body = h(AiPage, { active: true, menu });
   else if (page === "detector") body = h(DetectorPage, { active: true });

@@ -1,5 +1,17 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.31.0
+
+**Motion: the Z arrows follow your printer, and bigger steps** (roadmap phase 6b, second part).
+
+* **What Z moves**: on a printer whose bed moves in Z (most CoreXY) **↑** brings the bed up towards the nozzle (Z−); where
+  the toolhead moves (Voron 2.4, Prusa, Ender) **↑** lifts the toolhead (Z+). *Automatic* reads it from Klipper's
+  configuration (`quad_gantry_level`: the toolhead; `z_tilt` or a CoreXY: the bed); **Settings → Motion** chooses by hand.
+  The Z column says which part it moves.
+* **50 and 100 mm steps**: besides 1 and 10 mm, the X/Y pad (one more ring each) and the Z buttons (an ↑ and a ↓ each)
+  can have 50 and 100 mm: at most four steps; with more than two the Z buttons get smaller.
+* The pad no longer takes more width than it shows (its scale left room on the right): the Z column fits on a phone.
+
 ## 1.30.1
 
 * **Computer: the console bar no longer covers the AI alarm.** On the Device page the column with the camera, the AI strip

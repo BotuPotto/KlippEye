@@ -15,7 +15,7 @@
 .pad-axis { font-size: 19px; font-weight: 600; line-height: 1; color: var(--oui-text); }
 
 /* ---- jog pad: wheel container, home button, Z buttons ---- */
-.jog-pad { transform: scale(0.85); transform-origin: center center; }
+.jog-pad { transform: scale(0.85); transform-origin: center center; margin: -21px; } /* 1.31: the margin gives back the room the scale takes off (280 × 0.15 / 2), so the Z column fits on a phone */
 .jog-home {
   width: 64px;
   height: 64px;
@@ -87,3 +87,9 @@
 }
 .home-btn:hover { background: var(--oui-surface-3); }
 .home-btn:active { transform: scale(0.95); background: var(--oui-accent-soft); color: var(--oui-accent-text); }
+
+/* 1.31: the part Z moves under the "Z", smaller buttons when there are more steps */
+.z-controls__title { display: flex; flex-direction: column; align-items: center; gap: 1px; line-height: 1.1; }
+.z-controls__part { color: var(--oui-text-3); font-size: 10px; font-weight: 500; letter-spacing: 0; text-transform: none; }
+.z-btn--compact { height: 32px; font-size: 13px; }
+.z-controls:has(.z-btn--compact) { gap: 5px; }
