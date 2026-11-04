@@ -301,6 +301,9 @@ page). It stays on this device.
 In **Settings → Appearance → Look** the same page dresses after another phone: **One UI** (the usual), **Liquid
 Glass**, **Material 3 Expressive** or **HyperOS 4**, always with the chosen colour.
 
+The **side menu** has a **Go to** group (Print history and, when there, Timelapse) and the **This device** group
+(Appearance, Notifications, Language, Addresses).
+
 ### Print queue
 
 If `moonraker.conf` has `[job_queue]`, a file's menu (long press; on a computer the *Queue* button of the file panel) has

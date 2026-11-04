@@ -102,7 +102,8 @@ with sync_playwright() as p:
 
     # ------------------------------------------------------------------ the menu in groups
     groups = P.pg.locator("[data-group]").evaluate_all("els => els.map(e => [e.dataset.group, [...e.querySelectorAll('[data-page]')].map(x => x.dataset.page)])")
-    ok("the menu in four groups: printer / camera and AI / phone and network / system", groups == [["printer", ["printer", "functions", "macros", "motion", "zoffset"]], ["watch", ["camera", "ai"]], ["phone", ["notifications", "network", "appearance"]], ["system", ["access", "software", "language"]]], groups)
+    ok("the menu in five groups (1.54): printer / go to / camera and AI / this device / system",
+       groups == [["printer", ["printer", "functions", "macros", "motion", "zoffset"]], ["pages", ["go-history"]], ["watch", ["camera", "ai"]], ["phone", ["appearance", "notifications", "language", "network"]], ["system", ["access", "software"]]], groups)
     P.shot(out + "/menu.png")
     P.pg.locator(".drawer__help").click(); P.settle(500)
     ok("«?» on the menu: how the settings work", P.pg.locator('[data-help-open="home"]').count() == 1 and "Salvate sul Raspberry" in P.pg.locator(".help-sheet").inner_text())

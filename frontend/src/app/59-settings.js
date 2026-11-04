@@ -783,13 +783,19 @@ function settingsSummary(page, settings, brain) {
   }
 }
 
-/** The menu, in four groups (1.22): what a page is about decides where it is, the most used first. */
+/**
+ * The menu, in groups (1.22): what a page is about decides where it is, the most used first. 1.54: the pages of the
+ * dashboard that are not on the bottom bar ("Go to"), and "This device" for what is kept on this device only.
+ */
 const SETTINGS_GROUPS = [
   { id: "printer", title: tx("The printer") },
+  { id: "pages", title: tx("Go to") },
   { id: "watch", title: tx("Camera and AI monitor") },
-  { id: "phone", title: tx("Phone and network") },
+  { id: "phone", title: tx("This device") },
   { id: "system", title: tx("System") },
 ];
+/** Set by the app (99-main.js): goes to a page of the dashboard, and to a part of the Files page. */
+const appNavigation = { go: noop };
 const SETTINGS_ENTRIES = [
   { id: "printer", group: "printer", title: tx("Name and logo"), icon: Icons.Cube },
   { id: "functions", group: "printer", title: tx("Printer functions"), icon: Icons.Bulb },
@@ -798,12 +804,14 @@ const SETTINGS_ENTRIES = [
   { id: "zoffset", group: "printer", title: "Z-offset", icon: Icons.Layers },
   { id: "camera", group: "watch", title: "Camera", icon: Icons.Camera },
   { id: "ai", group: "watch", title: tx("AI monitor"), icon: Icons.Sparkle },
-  { id: "notifications", group: "phone", title: tx("Notifications"), icon: Icons.Bell },
-  { id: "network", group: "phone", title: tx("Addresses"), icon: Icons.Network },
+  { id: "go-history", group: "pages", title: tx("Print history"), icon: Icons.Clock, link: ["files", "history"], detail: tx("Statistics and every print") },
+  { id: "go-timelapse", group: "pages", title: "Timelapse", icon: Icons.Camera, link: ["files", "timelapse"], detail: tx("Videos and their settings"), component: "timelapse" },
   { id: "appearance", group: "phone", title: tx("Appearance"), icon: Icons.Sliders },
+  { id: "notifications", group: "phone", title: tx("Notifications"), icon: Icons.Bell },
+  { id: "language", group: "phone", title: tx("Language"), icon: Icons.Language },
+  { id: "network", group: "phone", title: tx("Addresses"), icon: Icons.Network },
   { id: "access", group: "system", title: tx("Access"), icon: Icons.Lock },
   { id: "software", group: "system", title: tx("Updates"), icon: Icons.Download },
-  { id: "language", group: "system", title: tx("Language"), icon: Icons.Language },
 ];
 /** The pages inside "AI monitor" (1.19: one entry for everything the monitor does, see 59h-ai-monitor-settings.js). */
 const AI_SUBPAGES = [
@@ -816,6 +824,22 @@ const PAGE_TITLES = Object.fromEntries([...SETTINGS_ENTRIES, ...AI_SUBPAGES].map
 
 /** One row of the menu: icon, name, what it is set to now, and a badge when something waits. */
 function SettingsEntry({ entry, settings, brain, menu }) {
+  if (entry.link)
+    return h(
+      "button",
+      {
+        type: "button",
+        className: "set-entry set-entry--link",
+        "data-page": entry.id,
+        onClick: () => {
+          menu.close();
+          appNavigation.go(entry.link[0], entry.link[1]);
+        },
+      },
+      h("span", { className: "oui-row__icon oui-row__icon--accent" }, h(entry.icon)),
+      h("span", { className: "oui-row__text" }, h("span", { className: "oui-row__name" }, entry.title), h("span", { className: "oui-row__meta set-entry__meta" }, entry.detail)),
+      h("span", { className: "set-entry__go", "aria-hidden": "true" }, h(Icons.Forward)),
+    );
   return h(
     "button",
     { type: "button", className: "set-entry", "data-page": entry.id, onClick: () => menu.goTo(entry.id) },
@@ -835,6 +859,15 @@ function SettingsEntry({ entry, settings, brain, menu }) {
 
 function SettingsHome({ menu }) {
   const { settings, sync } = useSettings();
+  const [components, setComponents] = useState(null);
+  useEffect(() => {
+    let cancelled = false;
+    moonrakerComponents().then((found) => !cancelled && setComponents(found));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  const shown = (entry) => !entry.component || (components && components.has(entry.component));
   const brain = { version: useBrainVersion(true), update: useProgramUpdate(true), app: useAppRelease(true), access: useAccessStatus(true)[0], recordings: useBackendJson("/api/recordings", true, BRAIN_POLL_MS), camcal: useBackendJson("/api/camera/calibration", true, BRAIN_POLL_MS) };
   return h(
     React.Fragment,
@@ -855,7 +888,7 @@ function SettingsHome({ menu }) {
         h(
           "div",
           { className: "oui-list" },
-          SETTINGS_ENTRIES.filter((entry) => entry.group === group.id).map((entry) => h(SettingsEntry, { key: entry.id, entry, settings, brain, menu })),
+          SETTINGS_ENTRIES.filter((entry) => entry.group === group.id && shown(entry)).map((entry) => h(SettingsEntry, { key: entry.id, entry, settings, brain, menu })),
         ),
       ),
     ),

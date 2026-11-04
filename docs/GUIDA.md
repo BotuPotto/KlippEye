@@ -309,6 +309,9 @@ adattato perché si legga sulla pagina scura). Resta su questo dispositivo.
 In **Impostazioni → Aspetto → Stile** la stessa pagina si veste come un altro telefono: **One UI** (il solito),
 **Liquid Glass**, **Material 3 Expressive** o **HyperOS 4**, sempre con il colore scelto.
 
+Il **menu laterale** ha un gruppo **Vai a** (Cronologia stampe e, se c'è, Timelapse) e il gruppo **Questo dispositivo**
+(Aspetto, Notifiche, Lingua, Indirizzi).
+
 ### Coda di stampa
 
 Se `moonraker.conf` ha `[job_queue]`, il menu di un file (tenendolo premuto; sul computer il pulsante *Coda* nel riquadro
