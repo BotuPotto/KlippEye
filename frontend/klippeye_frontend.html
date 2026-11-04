@@ -2227,7 +2227,6 @@ body.is-pulling { overscroll-behavior-y: none; }
 .oui-segmented--sm > button { min-height: 40px; padding: 0 12px; font-size: 13px; }
 
 .history-page { display: flex; flex-direction: column; gap: var(--oui-gutter); }
-.desk-split--history { align-items: start; }
 
 /* ---- statistics ---- */
 .history-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
@@ -2311,7 +2310,6 @@ body.is-pulling { overscroll-behavior-y: none; }
    ========================================================================== */
 
 .timelapse-page { display: flex; flex-direction: column; gap: var(--oui-gutter); }
-.desk-split--timelapse { align-items: start; }
 .timelapse-macro { margin-bottom: 12px; font-size: 13px; line-height: 1.4; }
 .timelapse-frames { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; margin-bottom: 12px; padding: 10px 12px; border-radius: var(--oui-r-tile); background: var(--oui-accent-soft); font-size: 13px; }
 .timelapse-frames__text { flex: 1 1 180px; color: var(--oui-accent-text); }
@@ -4375,6 +4373,9 @@ input[type="range"] { touch-action: pan-y; }
 .desk-col { display: flex; flex-direction: column; gap: 16px; min-width: 0; min-height: 0; overflow-y: auto; }
 .desk-col > * { flex: none; }
 .desk-split { display: grid; flex: 1; grid-template-columns: minmax(0, 1fr) 440px; gap: 16px; min-height: 0; }
+/* 1.66: the row is the page's height, never the content's: a long column scrolls inside it (the history and the
+   timelapse grew past the console bar, under it, and could not be scrolled) */
+.desk-split, .desk-system, .desk-device { grid-template-rows: minmax(0, 1fr); }
 .desk-split--files { grid-template-columns: minmax(0, 1fr) 420px; }
 .desk-split--config { grid-template-columns: 380px minmax(0, 1fr); }
 .desk-split--config > .desk-col > .oui-card { flex: 1 0 auto; } /* the list card runs down to the editor's bottom edge */
@@ -4497,6 +4498,8 @@ input[type="range"] { touch-action: pan-y; }
   height: 56px;
   padding: 0 10px 0 18px;
   background: var(--oui-glass);
+  -webkit-backdrop-filter: blur(var(--oui-blur)) saturate(1.6); /* 1.66: nothing reads through the bar */
+  backdrop-filter: blur(var(--oui-blur)) saturate(1.6);
   border: 1px solid var(--oui-stroke);
   border-radius: 20px;
 }
@@ -8964,7 +8967,7 @@ function usePrinterFunctions() {
    ========================================================================== */
 
 /** Written by build.py from the VERSION file of the release; stays as it is when the page is built by hand. */
-const DASHBOARD_RELEASE = "1.65.0";
+const DASHBOARD_RELEASE = "1.66.0";
 const dashboardRelease = () => (DASHBOARD_RELEASE.startsWith("__") ? "sviluppo" : DASHBOARD_RELEASE);
 
 /** The interface level this page needs from the backend (the backend says its own in /api/version). */

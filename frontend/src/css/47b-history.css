@@ -11,7 +11,6 @@
 .oui-segmented--sm > button { min-height: 40px; padding: 0 12px; font-size: 13px; }
 
 .history-page { display: flex; flex-direction: column; gap: var(--oui-gutter); }
-.desk-split--history { align-items: start; }
 
 /* ---- statistics ---- */
 .history-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
