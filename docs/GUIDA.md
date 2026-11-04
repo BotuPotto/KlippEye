@@ -241,6 +241,16 @@ cartella, dimensione, ultima modifica, ultima stampa, slicer, tempo stimato, alt
 dell'oggetto, layer, filamento (tipo, lunghezza, peso), ugello, temperature del primo layer — con *Avvia stampa*; poi
 l'editor ed *Elimina*. Sul computer anche il riquadro accanto all'elenco ha il pulsante *Dettagli*.
 
+### Temperature
+
+La card **Temperature** (Home sul telefono, sotto la camera e la stampa sul computer) elenca tutti i riscaldatori e i
+sensori di Klipper — ugelli, piatto, `heater_generic`, `temperature_fan`, `temperature_sensor` (quelli che iniziano con
+`_` restano nascosti) — con temperatura, target e potenza. Il **grafico** mostra gli ultimi 5, 10 o 20 minuti: una linea
+per ognuno, il target tratteggiato dello stesso colore; parte da quello che Moonraker ha già registrato e si aggiorna ogni
+2 secondi. Passando il dito o il puntatore sul grafico si leggono ora e valori di quel momento. Tocca un **nome** per
+nascondere o mostrare le sue linee, un **target** per cambiarlo (ugello e piatto con la solita finestra, gli altri con
+`SET_HEATER_TEMPERATURE` o `SET_TEMPERATURE_FAN_TARGET`, fino al loro `max_temp`).
+
 ### Cronologia delle stampe
 
 In cima alla pagina **File** un interruttore passa da *File di stampa* a **Cronologia** (la scelta resta su questo

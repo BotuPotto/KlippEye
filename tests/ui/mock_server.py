@@ -38,9 +38,17 @@ def default_history_totals(jobs):
     return {"total_jobs": len(jobs), "total_time": sum(j["total_duration"] for j in jobs), "total_print_time": sum(j["print_duration"] for j in jobs),
             "total_filament_used": sum(j["filament_used"] for j in jobs), "longest_job": max(j["total_duration"] for j in jobs), "longest_print": max(j["print_duration"] for j in jobs)}
 
+# 1.43: more heaters and sensors (with extra_temps); the last one starts with _ and stays hidden
+EXTRA_TEMPS = ["heater_generic chamber_heater", "temperature_sensor chamber", "temperature_sensor raspberry_pi", "temperature_fan mcu_fan", "temperature_sensor _internal"]
+def default_extra_temps():
+    return {"heater_generic chamber_heater": {"temperature": 38.0, "target": 45.0, "power": 0.6}, "temperature_sensor chamber": {"temperature": 36.5},
+            "temperature_sensor raspberry_pi": {"temperature": 52.3}, "temperature_fan mcu_fan": {"temperature": 41.0, "target": 40.0, "speed": 0.5},
+            "temperature_sensor _internal": {"temperature": 30.0}}
+
 def default_state():
     history = default_history()
     return {
+        "extra_temps": False, "extra_temp_values": default_extra_temps(),
         "history": history, "history_totals": default_history_totals(history), "history_log": [], "history_mode": "ok",  # ok | missing (no [history]: 404)
         "printing": False, "paused": False,
         "webhooks": "ready", "webhooks_msg": "",
@@ -220,6 +228,8 @@ def settings_now():
     out["stepper_y"] = {"position_max": 350}
     out["extruder"] = dict(out.get("extruder") or {}, max_temp=285)
     out["heater_bed"] = dict(out.get("heater_bed") or {}, max_temp=110)
+    if S.get("extra_temps"):
+        out["heater_generic chamber_heater"] = {"max_temp": 70}
     if S["twist_kind"] == "cartographer":
         out["cartographer"] = {"serial": "/dev/serial/by-id/usb-cartographer"}
     out["printer"] = {"kinematics": "corexy", "max_velocity": 300.0, "max_accel": 3000.0, "square_corner_velocity": 5.0}   # 1.31: the Motion card guesses what Z moves from these
@@ -314,9 +324,11 @@ def status_for(keys, fields=None):
             if S["print_objects"]:
                 st[k] = {"objects": S["print_objects"], "excluded_objects": list(S["excluded"]), "current_object": next((o["name"] for o in S["print_objects"] if o["name"] not in S["excluded"]), None)}
         elif k == "extruder":
-            st[k] = {"temperature": S["ext_t"], "target": S["ext_target"], "pressure_advance": S["tune"]["pa"], "smooth_time": S["tune"]["smooth"]}
+            st[k] = {"temperature": S["ext_t"], "target": S["ext_target"], "power": 0.45 if S["ext_target"] else 0.0, "pressure_advance": S["tune"]["pa"], "smooth_time": S["tune"]["smooth"]}
         elif k == "heater_bed":
-            st[k] = {"temperature": S["bed_t"], "target": S["bed_target"]}
+            st[k] = {"temperature": S["bed_t"], "target": S["bed_target"], "power": 0.3 if S["bed_target"] else 0.0}
+        elif k in EXTRA_TEMPS and S.get("extra_temps"):
+            st[k] = dict(S["extra_temp_values"][k])
         elif k in FANS:
             st[k] = FANS[k]
         elif k == "gcode_macro VAR_LUCI":
@@ -471,7 +483,22 @@ def notify_test():
     return jsonify(ok=True, results=results)
 @app.route("/printer/objects/list")
 def obj_list():
-    return jsonify(result={"objects": OBJECTS + (["neopixel STRIP", "output_pin caselight", "output_pin beeper"] if S.get("extra_lights") else [])})
+    return jsonify(result={"objects": OBJECTS + (["neopixel STRIP", "output_pin caselight", "output_pin beeper"] if S.get("extra_lights") else []) + (EXTRA_TEMPS if S.get("extra_temps") else [])})
+@app.route("/server/temperature_store")
+def temperature_store():
+    """Moonraker's last 20 minutes, a sample a second: the nozzle heated up to its target 10 minutes ago, the bed 15."""
+    n = 1200
+    def ramp(start, end, at):
+        return [round(start + (end - start) * min(1.0, max(0.0, (i - at) / 120.0)), 2) for i in range(n)]
+    out = {"extruder": {"temperatures": ramp(25, S["ext_t"], n - 600), "targets": [0.0] * (n - 600) + [float(S["ext_target"])] * 600, "powers": [0.0] * (n - 600) + [0.45] * 600},
+           "heater_bed": {"temperatures": ramp(24, S["bed_t"], n - 900), "targets": [0.0] * (n - 900) + [float(S["bed_target"])] * 900, "powers": [0.0] * (n - 900) + [0.3] * 900}}
+    if S.get("extra_temps"):
+        for name, v in S["extra_temp_values"].items():
+            entry = {"temperatures": ramp(25, v["temperature"], 300)}
+            if "target" in v: entry["targets"] = [v["target"]] * n
+            if "power" in v: entry["powers"] = [v["power"]] * n
+            out[name] = entry
+    return jsonify(result=out)
 @app.route("/printer/config")
 def printer_config():
     return jsonify(result={"config": CONFIG})
@@ -551,6 +578,11 @@ def gcode_script():
     cmd = words[0].upper() if words else ""
     if cmd == "M84":
         S["homed"] = ""
+    elif cmd in ("SET_HEATER_TEMPERATURE", "SET_TEMPERATURE_FAN_TARGET"):   # 1.43: the targets of the other heaters
+        args = {w.split("=")[0].upper(): w.split("=", 1)[1] for w in words[1:] if "=" in w}
+        name = ("heater_generic " + args.get("HEATER", "")) if cmd == "SET_HEATER_TEMPERATURE" else ("temperature_fan " + args.get("TEMPERATURE_FAN", ""))
+        if name in S["extra_temp_values"]:
+            S["extra_temp_values"][name]["target"] = float(args.get("TARGET", 0))
     elif cmd == "EXCLUDE_OBJECT" and len(words) > 1 and words[1].upper().startswith("NAME="):
         S["excluded"].append(words[1][5:])
     elif cmd in ("SCREWS_TILT_CALCULATE", "CARTOGRAPHER_AXIS_TWIST_COMPENSATION"):

@@ -1,5 +1,20 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.43.0
+
+**Temperatures: every sensor and the chart** (roadmap phase 6d, second part).
+
+* A **Temperatures** card (Home on the phone, under the camera and the print on the computer), like Mainsail's: every
+  heater and sensor Klipper has — nozzles, bed, `heater_generic`, `temperature_fan`, `temperature_sensor` (a name starting
+  with `_` stays hidden) — with its temperature, target and power.
+* The **chart**: each one a line in its own colour, the target dashed in the same colour; 5 / 10 / 20 minutes. It starts
+  from what Moonraker kept (`/server/temperature_store`) and goes on with a reading every 2 seconds while the card is on
+  screen. The pointer (or a finger) on the chart shows the time and every value at that moment.
+* A tap on a **name** hides or shows its lines; a tap on a **target** changes it (the nozzle and the bed with their usual
+  dialog, the other heaters with `SET_HEATER_TEMPERATURE`, a temperature fan with `SET_TEMPERATURE_FAN_TARGET`, up to their
+  `max_temp`). The hidden lines and the minutes are kept on this device.
+* The bars of the history's 14 days are at most 24 px wide.
+
 ## 1.42.0
 
 **Print history and statistics** (roadmap phase 6d, first part).
