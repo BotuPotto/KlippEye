@@ -1,5 +1,19 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.58.0
+
+**One long light button; notifications that are on stay out of the way; editable G-code** (requests of 4 November).
+
+* The light button and its arrow are **one long button**, split 70 / 30: the light on the left, the arrow that opens
+  every light on the right (on the camera card, the computer's camera and the full screen).
+* **Notifications**: once ntfy is on, the page says so and offers the test; pairing a phone (the app, the QR code) and
+  the other choices (new address, own server, turn off) are folded. In the app, a phone already set up when the page
+  opens has its steps folded, with the test at hand. With Firebase on, turning ntfy on for other phones is folded too.
+* **Editor**: selected text keeps its colours (on some phones it turned black on the dark editor and could not be
+  read); the selection is a little stronger.
+* **G-code files open editable up to 32 MB** (before: 256 KB, so almost every print opened read-only). A long file is
+  copied out of the editor once typing pauses, not at every key; only a file over 32 MB opens read-only.
+
 ## 1.57.0
 
 **Folding: the same chevron in the same place; Printer functions as a short list** (requests of 4 November).

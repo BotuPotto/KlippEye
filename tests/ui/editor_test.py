@@ -306,6 +306,24 @@ with sync_playwright() as p:
     pg.screenshot(path=out + "/gcode.png")
     P.close()
 
+    # ------------------------------------------------------------------ 1.58: a long G-code (3.4 MB) opens editable and saves
+    mock.reset()
+    P = Page(b, mock, 390, 844)
+    CUR[0] = P
+    P.goto("files", 2200)
+    pg = P.pg
+    pg.locator(".file-card", has_text="Bracket").first.locator(".file-card__more").click()
+    pg.wait_for_selector(".sheet-overlay--actions"); pg.wait_for_timeout(500)
+    ok("[long gcode] the menu offers to edit it (no 'solo lettura')", "Leggi e modifica" in pg.locator(".file-action", has_text="Editor").inner_text(), pg.locator(".file-action", has_text="Editor").inner_text())
+    pg.locator(".file-action", has_text="Editor").click()
+    ok("[long gcode] it opens whole, editable, with Salva", wait_until(lambda: pg.locator(".screen--editor .cm-editor").count() == 1, 10) and pg.locator(".editor-save").count() == 1 and pg.locator(".screen--editor .oui-badge", has_text="Solo lettura").count() == 0 and len(value(P)) > 2000000, len(value(P)) if pg.locator(".cm-editor").count() else 0)
+    pg.locator(".cm-content").click(); pg.keyboard.press("Control+Home"); pg.keyboard.type("; edited\n")
+    ok("[long gcode] after a pause it is marked changed", wait_until(lambda: pg.locator(".screen--editor .oui-badge", has_text="Modificato").count() == 1, 3))
+    pg.locator(".editor-save").click()
+    ok("[long gcode] Salva uploads it to gcodes", wait_until(lambda: any(g.startswith("UPLOAD_GCODES:") for g in mock.gcode()), 10), mock.gcode()[-2:])
+    ok("[long gcode] no page errors", not errs(P), errs(P)[:2])
+    P.close()
+
     # ------------------------------------------------------------------ moonraker.conf: Moonraker's reference
     P = open_cfg(b, "moonraker.conf")
     href = P.pg.locator(".editor-docs").get_attribute("href") if P.pg.locator(".editor-docs").count() else ""

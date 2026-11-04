@@ -89,7 +89,11 @@ body:has(.screen--editor:not(.screen--inline)) .oui-menu { z-index: 10004; }
 .editor-body .cm-dropCursor { border-left: 2px solid var(--oui-accent); }
 .editor-body .cm-selectionBackground,
 .editor-body .cm-editor.cm-focused .cm-selectionBackground,
-.editor-body .cm-content ::selection { background: rgba(120, 160, 255, 0.28); }
+.editor-body .cm-content ::selection { background: rgba(120, 160, 255, 0.38); }
+/* 1.58: selected text keeps its own colours (the overlays' rule gave it the system's HighlightText, black on some
+   phones: unreadable on the dark editor); CodeMirror draws the selection itself, under the text */
+.editor-body .cm-content ::selection,
+.editor-body .cm-content::selection { color: currentColor; }
 .editor-body .cm-activeLine { background: rgba(255, 255, 255, 0.035); }
 .editor-body .cm-gutters { background: #090a0d; color: #5d6371; border-right: 1px solid var(--oui-stroke); font-size: 11px; }
 .editor-body .cm-lineNumbers .cm-gutterElement { min-width: 30px; padding: 0 4px 0 8px; }

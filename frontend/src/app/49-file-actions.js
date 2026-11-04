@@ -1,16 +1,18 @@
 /* ============================================================================
    49 · FILE ACTIONS
    Long press (finger or mouse) or right click on a G-code file opens a menu:
-     · open it in the text editor (51). A file too long for the editor opens
-       read-only, just its first lines, so the app never freezes;
+     · open it in the text editor (51), to read and change it; only a huge file
+       (over 32 MB) opens read-only, just its first lines;
      · delete it, from the Raspberry's disk too (after a confirmation).
    ========================================================================== */
 
 const FILE_PRESS_MS = 500;
 const FILE_PRESS_SLOP_PX = 10; // a finger that moves further than this is scrolling, not pressing
 const FILE_MENU_GUARD_MS = 450; // after the menu appears, clicks are ignored: lifting the finger must not pick a row
-const GCODE_EDIT_MAX_BYTES = 256 * 1024; // up to here a file opens editable (it is all read into the page first)
-const GCODE_PREVIEW_BYTES = 192 * 1024; // beyond it only this much of the start is shown, read-only
+// 1.58: G-code files open editable up to 32 MB (CodeMirror draws only what is on screen; before, 256 KB): almost every
+// print. Beyond it only the start is shown, read-only, so a phone is never asked to hold a huge file.
+const GCODE_EDIT_MAX_BYTES = 32 * 1024 * 1024;
+const GCODE_PREVIEW_BYTES = 512 * 1024;
 
 /* ---------------------------------------------------------------------------
    Long press: spread the returned handlers on any element.
@@ -201,7 +203,7 @@ function FileActionSheet({ item, controller }) {
         h(FileActionRow, { icon: h(Icons.Info), title: tx("Details"), subtitle: tx("Slicer, times, filament, temperatures, last print"), onClick: controller.openDetails }),
         queue.available && h(FileActionRow, { icon: h(Icons.Queue), title: tx("Add to the queue"), subtitle: tx("Prints after the jobs already waiting; as many copies as you like"), onClick: () => controller.openQueueItem(item) }),
         h(FileActionRow, { icon: h(Icons.Layers), title: tx("See the layers"), subtitle: tx("The G-code drawn layer by layer"), onClick: () => (controller.closeMenu(), gcodeViewerStore.open(file.path)) }),
-        h(FileActionRow, { icon: h(Icons.Code), title: tx("Open in the editor"), subtitle: tooLong ? tx("Large file: read-only, first lines") : tx("Read and edit the G-code"), onClick: controller.openInEditor }),
+        h(FileActionRow, { icon: h(Icons.Code), title: tx("Open in the editor"), subtitle: tooLong ? tx("Huge file: read-only, first lines") : tx("Read and edit the G-code"), onClick: controller.openInEditor }),
         h(FileActionRow, { icon: h(Icons.Trash), title: tx("Delete from the Raspberry"), subtitle: tx("Deletes the file for good"), danger: true, onClick: controller.askDelete }),
       ),
       h("div", { className: "sheet-footer" }, h("button", { className: "oui-btn", onClick: controller.closeMenu }, tx("Cancel"))),

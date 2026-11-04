@@ -11,6 +11,8 @@
    ========================================================================== */
 
 const EDITOR_INDENT = "  ";
+const EDITOR_LONG_DOC_CHARS = 512 * 1024; // 1.58: beyond this the text is copied out of the editor after a pause
+const EDITOR_LONG_DOC_PAUSE_MS = 400;
 const EDITOR_SAVE_SETTLE_MS = 300;
 const EDITOR_AFTER_SAVE_CONFIG_MS = 1000;
 const EDITOR_SAVE_CONFIG_FAILED_MS = 1500;
@@ -366,6 +368,7 @@ function EditorScreen({ session, onClose, inline, onDirtyChange }) {
   const hostRef = useRef(null);
   const viewRef = useRef(null);
   const statusTimer = useRef(0);
+  const textTimer = useRef(0);
   const actions = useRef({}); // the latest save / comment, for CodeMirror's key bindings (set up once)
   const commentMark = commentMarkOf(isGcode);
   const sections = useMemo(() => (isGcode ? [] : configSections(text)), [text, isGcode]);
@@ -408,7 +411,13 @@ function EditorScreen({ session, onClose, inline, onDirtyChange }) {
       ),
       CM.keymap.of([].concat(CM.closeBracketsKeymap, CM.defaultKeymap, CM.searchKeymap, CM.historyKeymap, CM.foldKeymap, readOnly ? [] : [CM.indentWithTab])),
       CM.EditorView.updateListener.of((update) => {
-        if (update.docChanged) setText(update.state.doc.toString());
+        if (update.docChanged) {
+          // 1.58: a long G-code is copied out of the editor once typing pauses, not at every key
+          clearTimeout(textTimer.current);
+          const state = update.state;
+          if (state.doc.length > EDITOR_LONG_DOC_CHARS) textTimer.current = setTimeout(() => setText(state.doc.toString()), EDITOR_LONG_DOC_PAUSE_MS);
+          else setText(state.doc.toString());
+        }
         if (update.docChanged || update.transactions.length) setHistoryDepth((current) => {
           const undo = CM.undoDepth(update.state);
           const redo = CM.redoDepth(update.state);
@@ -435,7 +444,7 @@ function EditorScreen({ session, onClose, inline, onDirtyChange }) {
     };
   }, []);
 
-  useEffect(() => () => clearTimeout(statusTimer.current), []);
+  useEffect(() => () => (clearTimeout(statusTimer.current), clearTimeout(textTimer.current)), []);
 
   const dirty = text !== saved;
   // inline (wide screen): the page around the editor needs to know before it replaces or closes this file
@@ -501,7 +510,7 @@ function EditorScreen({ session, onClose, inline, onDirtyChange }) {
   const keepFocus = (event) => event.preventDefault();
 
   /* --- closing / saving --- */
-  const requestClose = () => (dirty ? setConfirmingDiscard(true) : onClose());
+  const requestClose = () => (dirty || (viewRef.current && viewRef.current.state.doc.toString() !== saved) ? setConfirmingDiscard(true) : onClose()); // the text of a long G-code may still wait for its pause
 
   /**
    * Uploads the file; "Save and restart" also sends SAVE_CONFIG to Klipper.
