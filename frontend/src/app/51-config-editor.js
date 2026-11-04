@@ -303,12 +303,51 @@ function commentLines(text, start, end, mode, mark) {
 const SAVE_STATUS = {
   saving: tx("Saving..."),
   saved: tx("Saved ✓"),
-  sendingSaveConfig: tx("Sending SAVE_CONFIG..."),
-  saveConfigSent: tx("SAVE_CONFIG sent ✓"),
-  manualSaveConfig: tx("Saved, send SAVE_CONFIG by hand"),
 };
+const restartingStatus = (name) => tx("Restarting {service}...", { service: name });
+const restartedStatus = (name) => tx("{service} restarts ✓", { service: name });
+const restartByHandStatus = (name) => tx("Saved, restart {service} by hand", { service: name });
 
-const SAVED_STATUSES = [SAVE_STATUS.saved, SAVE_STATUS.saveConfigSent, SAVE_STATUS.manualSaveConfig];
+/**
+ * 1.63: what «Save and restart» restarts: the service the file belongs to (moonraker.conf → Moonraker, crowsnest.conf →
+ * crowsnest, KlipperScreen.conf…), Klipper for the other .cfg files; null: nothing to restart (no button).
+ */
+const CONFIG_FILE_SERVICES = {
+  moonraker: "moonraker",
+  crowsnest: "crowsnest",
+  klipperscreen: "KlipperScreen",
+  sonar: "sonar",
+  "moonraker-obico": "moonraker-obico",
+  telegram: "moonraker-telegram-bot",
+  "moonraker-telegram-bot": "moonraker-telegram-bot",
+  octoeverywhere: "octoeverywhere",
+  mobileraker: "mobileraker",
+};
+function restartTargetOf(path) {
+  const name = String(path || "").split("/").pop().toLowerCase();
+  const stem = name.replace(/\.[^.]*$/, "");
+  if (CONFIG_FILE_SERVICES[stem]) return { kind: "service", service: CONFIG_FILE_SERVICES[stem], label: CONFIG_FILE_SERVICES[stem] === "moonraker" ? "Moonraker" : CONFIG_FILE_SERVICES[stem] };
+  if (name.endsWith(".cfg")) return { kind: "klipper", label: "Klipper" };
+  return null;
+}
+
+/**
+ * Restarts what the file belongs to: a service through Moonraker; Klipper with SAVE_CONFIG when it holds changes to save
+ * (they would be lost), otherwise FIRMWARE_RESTART (as Mainsail). While a print runs, Klipper restarts only if confirmed.
+ */
+async function restartForFile(target) {
+  if (target.kind === "service") {
+    const response = await moonraker.serviceAction("restart", target.service);
+    if (!response.ok) throw new Error("HTTP " + response.status);
+    return;
+  }
+  const status = await moonraker.queryObjects("print_stats=state&configfile=save_config_pending", { timeout: 4000 }).catch(() => ({}));
+  const state = (status.print_stats || {}).state;
+  if ((state === "printing" || state === "paused") && !window.confirm(tx("A print is running and it will fail!") + " " + tx("Restart Klipper anyway?"))) throw new Error("cancelled");
+  if ((status.configfile || {}).save_config_pending) return sendSaveConfig();
+  const response = await moonraker.firmwareRestart();
+  if (!response.ok) throw new Error("HTTP " + response.status);
+}
 
 /** Sends SAVE_CONFIG, falling back to the query-string form when the POST fails. */
 async function sendSaveConfig() {
@@ -371,6 +410,8 @@ function EditorScreen({ session, onClose, inline, onDirtyChange }) {
   const textTimer = useRef(0);
   const actions = useRef({}); // the latest save / comment, for CodeMirror's key bindings (set up once)
   const commentMark = commentMarkOf(isGcode);
+  const restartTarget = isGcode ? null : restartTargetOf(path);
+  const savedStatuses = [SAVE_STATUS.saved].concat(restartTarget ? [restartedStatus(restartTarget.label), restartByHandStatus(restartTarget.label)] : []);
   const sections = useMemo(() => (isGcode ? [] : configSections(text)), [text, isGcode]);
   const docsUrl = isGcode ? null : configDocsUrl(path, (sectionAtLine(sections, caretLine) || {}).name);
   const canOpenLinks = !IN_APP_WEBVIEW || APP_OPENS_LINKS;
@@ -513,7 +554,7 @@ function EditorScreen({ session, onClose, inline, onDirtyChange }) {
   const requestClose = () => (dirty || (viewRef.current && viewRef.current.state.doc.toString() !== saved) ? setConfirmingDiscard(true) : onClose()); // the text of a long G-code may still wait for its pause
 
   /**
-   * Uploads the file; "Save and restart" also sends SAVE_CONFIG to Klipper.
+   * Uploads the file; "Save and restart" also restarts what the file belongs to (1.63, restartTargetOf).
    * Over the whole screen (phone) the editor closes when done, after a moment to read the status; inline (wide
    * screen) the file stays open for the next change and the status stays on view.
    */
@@ -532,14 +573,14 @@ function EditorScreen({ session, onClose, inline, onDirtyChange }) {
     setSaved(content);
     setStatus(SAVE_STATUS.saved);
     await linger(EDITOR_SAVE_SETTLE_MS);
-    if (alsoSaveConfig) {
-      setStatus(SAVE_STATUS.sendingSaveConfig);
+    if (alsoSaveConfig && restartTarget) {
+      setStatus(restartingStatus(restartTarget.label));
       try {
-        await sendSaveConfig();
-        setStatus(SAVE_STATUS.saveConfigSent);
+        await restartForFile(restartTarget);
+        setStatus(restartedStatus(restartTarget.label));
         await linger(EDITOR_AFTER_SAVE_CONFIG_MS);
       } catch (error) {
-        setStatus(SAVE_STATUS.manualSaveConfig);
+        setStatus(restartByHandStatus(restartTarget.label));
         await linger(EDITOR_SAVE_CONFIG_FAILED_MS);
       }
     }
@@ -561,14 +602,14 @@ function EditorScreen({ session, onClose, inline, onDirtyChange }) {
         "div",
         { className: "editor-heading" },
         h("div", { className: "editor-title-row" }, h("span", { className: "editor-title" }, isGcode ? root + "/" + path : path), readOnly && h("span", { className: "oui-badge" }, tx("Read-only")), dirty && h("span", { className: "oui-badge oui-badge--warn" }, tx("Changed"))),
-        h("span", { className: "editor-status" }, dirty && SAVED_STATUSES.includes(status) ? "" : status), // typing again after a save: "Saved ✓" no longer applies
+        h("span", { className: "editor-status" }, dirty && savedStatuses.includes(status) ? "" : status), // typing again after a save: "Saved ✓" no longer applies
       ),
       h(
         "div",
         { className: "editor-actions" },
         h("button", { className: cx("oui-btn oui-btn--icon editor-search-btn", searchOpen && "oui-btn--accent-soft"), title: tx("Search (Ctrl+F)"), "aria-label": tx("Search"), "aria-pressed": searchOpen, onMouseDown: keepFocus, onClick: toggleSearch }, h(Icons.Search, { size: 20 })),
         !readOnly && h("button", { className: "oui-btn oui-btn--primary editor-save", disabled: saveDisabled, onClick: () => save(false) }, tx("Save")),
-        !readOnly && !isGcode && !session.onSave && h("button", { className: "oui-btn editor-save", disabled: saveDisabled, onClick: () => save(true) }, tx("Save and restart")),
+        !readOnly && !isGcode && !session.onSave && restartTarget && h("button", { className: "oui-btn editor-save", "data-restarts": restartTarget.kind === "service" ? restartTarget.service : "klipper", title: tx("Save and restart {service}", { service: restartTarget.label }), disabled: saveDisabled, onClick: () => save(true) }, tx("Save and restart")),
       ),
     ),
     (!readOnly || sections.length > 0) &&

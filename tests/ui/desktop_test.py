@@ -178,8 +178,7 @@ with sync_playwright() as p:
     P.pg.locator(".cm-content").click(); P.pg.keyboard.press("Control+End"); P.pg.keyboard.type("y"); P.pg.wait_for_timeout(250)
     ok("typing again clears 'Salvato' and re-enables Salva", P.pg.locator(".editor-status").inner_text() == "" and P.pg.locator(".editor-save", has_text=re.compile("^Salva$")).is_enabled(), P.pg.locator(".editor-status").inner_text())
     P.pg.locator(".editor-save", has_text="Salva e riavvia").click(); P.pg.wait_for_timeout(1500)
-    ok("Salva e riavvia: uploads, sends SAVE_CONFIG and stays open", len(gl("UPLOAD:")) == 2 and any("SAVE_CONFIG" in g for g in mock.gcode()) and P.pg.locator(".desk-editor .screen--inline").count() == 1, (gl("UPLOAD:"), mock.gcode()[-3:], P.pg.locator(".editor-status").inner_text()))
-    ok("…status shows SAVE_CONFIG inviato", "SAVE_CONFIG" in P.pg.locator(".editor-status").inner_text(), P.pg.locator(".editor-status").inner_text())
+    ok("Salva e riavvia: uploads, restarts Klipper (1.63: FIRMWARE_RESTART, nothing waits for SAVE_CONFIG) and stays open", len(gl("UPLOAD:")) == 2 and "Klipper si riavvia" in P.pg.locator(".editor-status").inner_text() and not any("SAVE_CONFIG" in g for g in mock.gcode()) and P.pg.locator(".desk-editor .screen--inline").count() == 1, (gl("UPLOAD:"), mock.gcode()[-3:], P.pg.locator(".editor-status").inner_text()))
     cfg_row("moonraker.conf").locator(".cfg-row__main").click(); P.pg.wait_for_timeout(900)
     ok("after saving, another file opens without any question", P.pg.locator(".confirm-overlay").count() == 0 and "moonraker.conf" in P.pg.locator(".desk-editor .editor-title").inner_text(), P.pg.locator(".desk-editor .editor-title").inner_text())
     # dirty again -> Continua really discards

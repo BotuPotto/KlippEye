@@ -3,7 +3,9 @@
 and replace in CodeMirror's panel (in Italian), Annulla / Ripristina, and the comment bar of the earlier editor
 (# in a config file, ; in G-code), Ctrl+S, Ctrl+/. Against the mock.
 Usage: editor_test.py <html> <outdir> <port>"""
+import json
 import os
+import urllib.request
 import re
 import sys
 import time
@@ -328,6 +330,20 @@ with sync_playwright() as p:
     P = open_cfg(b, "moonraker.conf")
     href = P.pg.locator(".editor-docs").get_attribute("href") if P.pg.locator(".editor-docs").count() else ""
     ok("moonraker.conf: the reference is Moonraker's configuration page", href.startswith("https://moonraker.readthedocs.io/en/latest/configuration/"), href)
+    # 1.63: «Salva e riavvia» restarts what the file belongs to
+    btn = P.pg.locator('.editor-save[data-restarts]')
+    ok("moonraker.conf: «Salva e riavvia» restarts Moonraker", btn.get_attribute("data-restarts") == "moonraker" and "Moonraker" in (btn.get_attribute("title") or ""), btn.get_attribute("data-restarts"))
+    P.pg.locator(".cm-content").click(); P.pg.keyboard.type("#")
+    btn.click()
+    st = lambda: json.loads(urllib.request.urlopen(mock.base + "/__mock/state").read())
+    ok("... saved, then the Moonraker service restarted (not SAVE_CONFIG)", wait_until(lambda: ["services/restart", "moonraker"] in [list(a) for a in st()["actions"]], 8) and "SAVE_CONFIG" not in mock.gcode(), (st()["actions"][-2:], mock.gcode()[-3:]))
+    P.close()
+    P = open_cfg(b, "printer.cfg")
+    btn = P.pg.locator('.editor-save[data-restarts]')
+    ok("printer.cfg: it restarts Klipper", btn.get_attribute("data-restarts") == "klipper")
+    P.pg.locator(".cm-content").click(); P.pg.keyboard.type("#")
+    btn.click()
+    ok("... with FIRMWARE_RESTART when nothing waits for SAVE_CONFIG", wait_until(lambda: ["printer/firmware_restart", ""] in [list(a) for a in st()["actions"]], 8) and "SAVE_CONFIG" not in mock.gcode(), (st()["actions"][-2:], mock.gcode()[-3:]))
     P.close()
 
     # ------------------------------------------------------------------ computer: the editor inline

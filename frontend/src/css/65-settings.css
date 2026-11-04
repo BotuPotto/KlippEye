@@ -299,7 +299,6 @@
 .look-choice__detail { font-size: 12px; color: var(--oui-text-3); }
 
 /* ---- a row of the menu that goes to a page of the dashboard (1.54) ---- */
-.set-entry--link .oui-row__icon { background: var(--oui-surface-3); color: var(--oui-text); }
 
 /* 1.59: Settings → Camera: a webcam's page (its fields in a fieldset, off when it is written in moonraker.conf) */
 .webcam-fields { display: flex; flex-direction: column; gap: 16px; min-width: 0; margin: 0; padding: 0; border: 0; }

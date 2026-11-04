@@ -70,16 +70,21 @@ function DropdownMenu({ menu, children }) {
     };
   }, [open]);
 
-  return h(
-    Presence,
-    null,
-    open &&
-      h(
-        React.Fragment,
-        null,
-        h("div", { className: "oui-menu-scrim", onClick: close, onContextMenu: (event) => event.preventDefault() }),
-        h("div", { ref: menuRef, className: "oui-menu", role: "menu", style: position || { visibility: "hidden" } }, children),
-      ),
+  // 1.63: on the page's body: inside the top bar (backdrop-filter) the scrim covered only the bar, so a tap outside did
+  // not close the menu, and the menu's own blur saw nothing behind it (it looked almost transparent)
+  return createPortal(
+    h(
+      Presence,
+      null,
+      open &&
+        h(
+          React.Fragment,
+          null,
+          h("div", { className: "oui-menu-scrim", onClick: close, onContextMenu: (event) => event.preventDefault() }),
+          h("div", { ref: menuRef, className: "oui-menu", role: "menu", style: position || { visibility: "hidden" } }, children),
+        ),
+    ),
+    document.body,
   );
 }
 

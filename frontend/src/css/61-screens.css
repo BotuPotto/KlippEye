@@ -57,8 +57,6 @@
 .editor-search-btn[aria-pressed="true"] { color: var(--oui-accent); }
 .editor-section-item .oui-menu__title { font-family: var(--oui-font-mono); font-size: 13px; }
 /* a menu opened from the editor goes over it (the editor covers the page) */
-body:has(.screen--editor:not(.screen--inline)) .oui-menu-scrim { z-index: 10003; }
-body:has(.screen--editor:not(.screen--inline)) .oui-menu { z-index: 10004; }
 /* the narrowest phones (320 px): the comment buttons keep their words and give up their icons */
 @media (max-width: 359px) {
   .editor-tools { gap: 6px; }

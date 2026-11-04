@@ -94,6 +94,19 @@ with sync_playwright() as p:
     ok("no page errors", not errs(P), errs(P)[:2])
     P.close()
 
+    # 1.63: a spiral vase (the height rises at every move): the slicer's ;LAYER_CHANGE marks, 20 layers, not 1200
+    mock.reset()
+    P = Page(b, mock, 390, 844)
+    CUR[0] = P
+    P.goto("files", 2200)
+    pg = P.pg
+    pg.locator(".file-card", has_text="Vase_mode").first.locator(".file-card__more").click()
+    pg.wait_for_selector(".sheet-overlay--actions"); pg.wait_for_timeout(600)
+    pg.locator(".file-action", has_text="Vedi i layer").click()
+    ok("vase mode: the layers the slicer marks (20), each a whole turn", wait_until(lambda: layer(P) is not None, 30) and layer(P)[1] == 20 and painted(P) > 200, (layer(P), painted(P) if layer(P) else None))
+    pg.screenshot(path=out + "/vase.png")
+    P.close()
+
     # following a print
     mock.reset()
     mock.set(printing=True, file_position=60000)
