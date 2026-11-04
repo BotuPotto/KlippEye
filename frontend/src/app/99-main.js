@@ -29,6 +29,7 @@ function ControlPage({ entries, status, capabilities, lockReason, printState, on
     { className: "grid grid-cols-1" },
     h(ConsoleCard, { entries }),
     h(ExtruderCard, { hotend: status.hotend, onGcode, onEditTemperature }),
+    h(DevicesCard),
     h(MacroCards, { printState, onGcode, onSettings: onMacroSettings }),
     h(TuneCard, { capabilities, onGcode }),
     h(EndstopsCard, { capabilities, lockReason }),

@@ -176,7 +176,7 @@ function DesktopDevicePage({ printStatus, printControls, status, capabilities, m
         "div",
         { className: "desk-side__group" },
         h("div", { className: "desk-slot desk-slot--heaters" }, h(DesktopHeatersCard, { hotend: status.hotend, bed: status.bed, onEditTemperature })),
-        h("div", { className: "desk-slot desk-slot--fans" }, h(DesktopFansCard)),
+        h("div", { className: "desk-slot desk-slot--fans" }, h(DesktopFansCard), h(DevicesCard)),
       ),
       h(
         "div",

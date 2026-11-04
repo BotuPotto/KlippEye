@@ -1,5 +1,19 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.45.0
+
+**Devices: power, outputs and filament sensors** (roadmap phase 6d, fourth part), like Mainsail's *Power control* and
+*Miscellaneous*.
+
+* A **Devices** card (Control page on the phone, under the fans on the computer's device page), shown only when there is
+  something in it:
+  * **Power**: Moonraker's `[power]` devices (smart plugs, relays, GPIO…) on / off; switching one off asks first (it may
+    be the printer's own power); a device locked while printing says so, and Moonraker's refusal is shown.
+  * **Outputs**: Klipper's `[output_pin]`s, a switch or, for a PWM pin, a slider (up to its `scale`).
+  * **Filament sensors**: filament detected or not, and the switch that turns the sensor on or off
+    (`SET_FILAMENT_SENSOR`).
+* A name starting with `_` stays hidden, as in Mainsail.
+
 ## 1.44.0
 
 **Print queue** (roadmap phase 6d, third part), with Moonraker's `[job_queue]`.

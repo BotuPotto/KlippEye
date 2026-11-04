@@ -245,6 +245,13 @@ the pointer on the chart reads the time and the values at that moment. Tap a **n
 **target** to change it (nozzle and bed with the usual dialog, the others with `SET_HEATER_TEMPERATURE` or
 `SET_TEMPERATURE_FAN_TARGET`, up to their `max_temp`).
 
+### Devices
+
+The **Devices** card (Control page on the phone, under the fans on a computer) shows up when there is something in it:
+Moonraker's `[power]` devices (smart plugs, relays, GPIO), on and off — switching off asks first, since it may be the
+printer's power; Klipper's `[output_pin]`s, a switch or, for a PWM pin, a slider; the **filament sensors**, with their
+state (filament or not) and the switch that turns them on or off. Names starting with `_` stay hidden.
+
 ### Print queue
 
 If `moonraker.conf` has `[job_queue]`, a file's menu (long press; on a computer the *Queue* button of the file panel) has
