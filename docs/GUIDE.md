@@ -268,6 +268,13 @@ in its colour, with maker, name, material and what is left (weight, length, a ba
 lists Spoolman's spools, the last used first, with a search: tap one to make it the spool in use, and Moonraker counts
 each print's filament on it; **No spool** leaves none. If Spoolman does not answer, the card says so.
 
+### More cameras
+
+Besides the camera of the settings (the one the AI monitor watches), the dashboard uses the webcams set up in Mainsail or
+Fluidd (Moonraker keeps them): with more than one, the camera card (and the computer's camera panel) has a **menu** to
+pick which to watch, and the full screen follows it. Each webcam keeps its own way of being shown and its flips; the
+choice stays on this device.
+
 ### Print queue
 
 If `moonraker.conf` has `[job_queue]`, a file's menu (long press; on a computer the *Queue* button of the file panel) has

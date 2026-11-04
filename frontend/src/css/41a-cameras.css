@@ -1,0 +1,8 @@
+/* ============================================================================
+   More cameras: the picker (app/41a-cameras.js)
+   ========================================================================== */
+
+.camera-picker { display: inline-flex; align-items: center; gap: 6px; max-width: 160px; min-height: 40px; padding: 0 12px; border: 1px solid var(--oui-stroke); border-radius: var(--oui-r-pill); background: var(--oui-surface-2); color: var(--oui-text); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+.camera-picker.is-open { border-color: var(--oui-accent); }
+.camera-picker__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.desk-camera__picker { position: absolute; top: 12px; left: 132px; z-index: 2; background: var(--oui-glass); border-color: var(--oui-stroke-strong); }

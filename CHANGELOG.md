@@ -1,5 +1,15 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.48.0
+
+**More cameras** (roadmap phase 6d, seventh part).
+
+* Besides the camera of the settings (the one the AI monitor watches), the webcams set up in Mainsail or Fluidd
+  (Moonraker keeps them) that the dashboard can show: with more than one, a **camera menu** on the camera card (and on
+  the computer's camera panel) picks which one to watch, and the full screen follows it. Each webcam keeps its own way of
+  being shown (WebRTC, MJPEG, MJPEG adaptive, web page) and its flips.
+* The same camera twice, and the kinds the dashboard cannot show, are left out. The choice is kept on this device.
+
 ## 1.47.0
 
 **Filament spools with Spoolman** (roadmap phase 6d, sixth part), through Moonraker's `[spoolman]`.
