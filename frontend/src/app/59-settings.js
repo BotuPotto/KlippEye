@@ -756,7 +756,7 @@ function settingsSummary(page, settings, brain) {
     case "zoffset":
       return zOffset.steps.join(" · ") + " mm";
     case "motion":
-      return motionSummary(settings.motion);
+      return motionSummary(settings.motion) + " • Z-offset " + zOffset.steps.join(" · ");
     case "macros":
       return macroSettingsSummary(settings.macros);
     case "language":
@@ -764,7 +764,7 @@ function settingsSummary(page, settings, brain) {
     case "functions":
       return printerFunctionsSummary(settings);
     case "appearance":
-      return appearanceSummary();
+      return [printerBrand(settings.printer.brand).label + (settings.printer.name ? " " + settings.printer.name : ""), appearanceSummary()].filter(Boolean).join(" • ");
     case "notifications":
       return tx("{count} of {total} on", { count: NOTIFICATION_KINDS.filter((kind) => notifications[kind.id]).length, total: NOTIFICATION_KINDS.length });
     default:
@@ -778,29 +778,36 @@ function settingsSummary(page, settings, brain) {
  */
 const SETTINGS_GROUPS = [
   { id: "printer", title: tx("The printer") },
-  { id: "pages", title: tx("Go to") },
   { id: "watch", title: tx("Camera and AI monitor") },
-  { id: "phone", title: tx("This device") },
+  { id: "yours", title: tx("Notifications and appearance") },
+  { id: "pages", title: tx("Go to") },
   { id: "system", title: tx("System") },
 ];
 /** Set by the app (99-main.js): goes to a page of the dashboard, and to a part of the Files page. */
 const appNavigation = { go: noop };
+/**
+ * 1.60: fewer, fuller pages. "Name and logo" is part of Appearance (with the colours, the look and the cards), the
+ * Z-offset steps part of Motion; the addresses are with the system pages. Their old pages still open (PAGES_INSIDE).
+ */
 const SETTINGS_ENTRIES = [
-  { id: "printer", group: "printer", title: tx("Name and logo"), icon: Icons.Cube },
   { id: "functions", group: "printer", title: tx("Printer functions"), icon: Icons.Bulb },
   { id: "macros", group: "printer", title: tx("Macros"), icon: Icons.Play },
-  { id: "motion", group: "printer", title: tx("Motion"), icon: Icons.Move },
-  { id: "zoffset", group: "printer", title: "Z-offset", icon: Icons.Layers },
+  { id: "motion", group: "printer", title: tx("Motion and Z-offset"), icon: Icons.Move },
   { id: "camera", group: "watch", title: "Camera", icon: Icons.Camera },
   { id: "ai", group: "watch", title: tx("AI monitor"), icon: Icons.Sparkle },
+  { id: "notifications", group: "yours", title: tx("Notifications"), icon: Icons.Bell },
+  { id: "appearance", group: "yours", title: tx("Appearance"), icon: Icons.Sliders },
+  { id: "language", group: "yours", title: tx("Language"), icon: Icons.Language },
   { id: "go-history", group: "pages", title: tx("Print history"), icon: Icons.Clock, link: ["files", "history"], detail: tx("Statistics and every print") },
   { id: "go-timelapse", group: "pages", title: "Timelapse", icon: Icons.Camera, link: ["files", "timelapse"], detail: tx("Videos and their settings") },
-  { id: "appearance", group: "phone", title: tx("Appearance"), icon: Icons.Sliders },
-  { id: "notifications", group: "phone", title: tx("Notifications"), icon: Icons.Bell },
-  { id: "language", group: "phone", title: tx("Language"), icon: Icons.Language },
-  { id: "network", group: "phone", title: tx("Addresses"), icon: Icons.Network },
+  { id: "network", group: "system", title: tx("Addresses"), icon: Icons.Network },
   { id: "access", group: "system", title: tx("Access"), icon: Icons.Lock },
   { id: "software", group: "system", title: tx("Updates"), icon: Icons.Download },
+];
+/** Pages that are now a part of another one: still opened by a link (the guided set-up, the help). */
+const PAGES_INSIDE = [
+  { id: "printer", title: tx("Name and logo"), parent: "appearance" },
+  { id: "zoffset", title: "Z-offset", parent: "motion" },
 ];
 /** The pages inside "AI monitor" (1.19: one entry for everything the monitor does, see 59h-ai-monitor-settings.js). */
 const AI_SUBPAGES = [
@@ -813,8 +820,8 @@ const CAMERA_SUBPAGES = [
   { id: "camera-main", title: tx("Main camera"), icon: Icons.Camera },
   { id: "camera-timelapse", title: "Timelapse", icon: Icons.Play },
 ];
-const PAGE_PARENT = Object.fromEntries([...AI_SUBPAGES.map((entry) => [entry.id, "ai"]), ...CAMERA_SUBPAGES.map((entry) => [entry.id, "camera"])]);
-const PAGE_TITLES = Object.fromEntries([...SETTINGS_ENTRIES, ...AI_SUBPAGES, ...CAMERA_SUBPAGES].map((entry) => [entry.id, entry.title]));
+const PAGE_PARENT = Object.fromEntries([...AI_SUBPAGES.map((entry) => [entry.id, "ai"]), ...CAMERA_SUBPAGES.map((entry) => [entry.id, "camera"]), ...PAGES_INSIDE.map((entry) => [entry.id, entry.parent])]);
+const PAGE_TITLES = Object.fromEntries([...SETTINGS_ENTRIES, ...AI_SUBPAGES, ...CAMERA_SUBPAGES, ...PAGES_INSIDE].map((entry) => [entry.id, entry.title]));
 
 /** One row of the menu: icon, name, what it is set to now, and a badge when something waits. */
 function SettingsEntry({ entry, settings, brain, menu }) {
@@ -917,7 +924,7 @@ function SettingsDrawer({ menu, updates, printing, actions }) {
   else if (page && page.startsWith(WEBCAM_PAGE_PREFIX)) body = h(WebcamPage, { key: page, uid: page.slice(WEBCAM_PAGE_PREFIX.length), menu });
   else if (page === "network") body = h(NetworkPage);
   else if (page === "zoffset") body = h(ZOffsetPage);
-  else if (page === "motion") body = h(MotionPage);
+  else if (page === "motion") body = h(React.Fragment, null, h(MotionPage), h("h3", { className: "fn-section", "data-section": "zoffset" }, h(Icons.Layers, { size: 18 }), "Z-offset"), h(ZOffsetPage));
   else if (page === "macros") body = h(MacrosPage);
   else if (page === "notifications") body = h(NotificationsPage, { active: true });
   else if (page === "ai") body = h(AiPage, { active: true, menu });
@@ -926,7 +933,7 @@ function SettingsDrawer({ menu, updates, printing, actions }) {
   else if (page === "camcal") body = h(CameraCalibrationPage, { active: true });
   else if (page === "access") body = h(AccessPage, { active: true });
   else if (page === "language") body = h(LanguagePage);
-  else if (page === "appearance") body = h(AppearancePage);
+  else if (page === "appearance") body = h(React.Fragment, null, h("h3", { className: "fn-section", "data-section": "printer" }, h(Icons.Cube, { size: 18 }), tx("The printer, on every device")), h(PrinterPage), h("h3", { className: "fn-section", "data-section": "device" }, h(Icons.Sliders, { size: 18 }), tx("On this device")), h(AppearancePage));
   else if (page === "functions") body = h(PrinterFunctionsPage, { printing });
   else if (page === "software") body = h(SoftwarePage, { active: true, menu, updates, printing, actions });
   else body = h(SettingsHome, { menu });
