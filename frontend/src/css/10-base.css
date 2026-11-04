@@ -38,6 +38,12 @@ button:not(:disabled),
 label[for],
 select:not(:disabled),
 summary { cursor: pointer; }
+/* 1.56: every fold-out section («More details»…) shows a chevron at its right end, turning when it opens */
+summary { display: flex; align-items: center; gap: 8px; list-style: none; }
+summary::-webkit-details-marker { display: none; }
+summary::after { content: ""; flex: none; width: 7px; height: 7px; margin: 0 4px 0 auto; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; opacity: 0.75; transform: translateY(-2px) rotate(45deg); transition: transform var(--oui-dur-fast) var(--oui-ease); }
+details[open] > summary::after { transform: translateY(2px) rotate(-135deg); }
+.ai-sec__head::after { content: none; } /* the AI report draws its own chevron */
 
 ::selection { background: rgba(var(--oui-accent-rgb), 0.35); }
 

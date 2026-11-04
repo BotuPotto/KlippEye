@@ -11,7 +11,7 @@ def fresh(w=390, h=844, wait=2300, preopen=False, **state):
     if state: mock.set(**state)
     P = Page(b, mock, w, h)
     P.ctx.add_init_script(FONT)
-    if preopen: P.ctx.add_init_script("try{localStorage.setItem('ke_endstops_open','1')}catch(e){}")
+    if preopen == "old-folded": P.ctx.add_init_script("try{if(!sessionStorage.getItem('x')){sessionStorage.setItem('x','1');localStorage.setItem('ke_endstops_open','0')}}catch(e){}")
     P.goto("controllo", wait)
     return P
 _FAILED = []
@@ -28,10 +28,10 @@ with sync_playwright() as p:
     for w in (390, 320, 1280):
         P = fresh(w, 844 if w < 1000 else 800)
         c = card(P)
-        ok(f"[{w}] collapsed: header only, nothing queried", c.locator(".endstops-head").count() == 1 and c.locator(".endstops-body").count() == 0 and "QUERY_ENDSTOPS" not in mock.gcode())
-        c.locator(".endstops-head").click(); P.pg.wait_for_timeout(1500)
+        ok(f"[{w}] 1.56: a foldable card like the others (chevron in the header), open", c.locator(".oui-card__fold").count() == 1 and c.locator(".endstops-body").is_visible())
+        P.pg.wait_for_timeout(1000)
         body = c.locator(".endstops-body").inner_text()
-        ok(f"[{w}] opening the section reads nothing: it says to press Aggiorna", c.locator(".endstops-body .oui-row").count() == 0 and not asked(P) and "Premi Aggiorna" in body and "Non ancora letti" in body and c.locator("button:has-text('Aggiorna')").is_enabled(), (body, P.reqs[-3:], mock.gcode()))
+        ok(f"[{w}] the open card reads nothing: it says to press Aggiorna", c.locator(".endstops-body .oui-row").count() == 0 and not asked(P) and "Premi Aggiorna" in body and "Non ancora letti" in body and c.locator("button:has-text('Aggiorna')").is_enabled(), (body, P.reqs[-3:], mock.gcode()))
         press_update(P, c)
         ok(f"[{w}] Aggiorna reads endstops and probe", c.locator(".endstops-body .oui-row").count() == 4 and "QUERY_ENDSTOPS" in mock.gcode() and "QUERY_PROBE" in mock.gcode() and "Aggiornato alle" in c.locator(".endstops-body").inner_text(), mock.gcode())
         ov = P.pg.evaluate(OVER); ok(f"[{w}] no horizontal overflow", ov["sw"] <= ov["cw"], ov)
@@ -39,7 +39,7 @@ with sync_playwright() as p:
         P.close()
     # states
     P = fresh(endstops={"x": "TRIGGERED", "y": "open", "z": "open"}, probe_triggered=True)
-    c = card(P); c.locator(".endstops-head").click(); P.pg.wait_for_timeout(600); press_update(P, c)
+    c = card(P); press_update(P, c)
     rows = c.locator(".endstops-body .oui-row")
     txt = [rows.nth(i).inner_text().replace("\n", " ") for i in range(rows.count())]
     ok("row contents", txt[0].startswith("X") and "Attivato" in txt[0] and "Aperto" in txt[1] and "Probe" in txt[3] and "cartographer" in txt[3] and "Attivato" in txt[3], txt)
@@ -51,25 +51,28 @@ with sync_playwright() as p:
     rows = c.locator(".endstops-body .oui-row")
     txt = [rows.nth(i).inner_text().replace("\n", " ") for i in range(rows.count())]
     ok("refresh updates", "Aperto" in txt[0] and "Attivato" in txt[1] and "Aperto" in txt[3], txt)
-    # persistence of open/closed
+    # folded and opened with the card's chevron, kept on this device
+    card(P).locator(".oui-card__fold").click(); P.pg.wait_for_timeout(300)
+    ok("folded: the body hides", not card(P).locator(".endstops-body").is_visible())
     n_before = n_queries()
     P.take_reqs(); P.pg.reload(); P.pg.wait_for_timeout(2800)
-    ok("open state remembered", card(P).locator(".endstops-body").count() == 1)
-    ok("coming back to the page with the section open reads nothing", not any("query_endstops" in r["u"] for r in P.reqs) and n_queries() == n_before and card(P).locator(".endstops-body .oui-row").count() == 0 and "Premi Aggiorna" in card(P).locator(".endstops-body").inner_text(), (P.reqs[-3:], n_queries(), n_before))
-    card(P).locator(".endstops-head").click(); P.pg.wait_for_timeout(300)
-    ok("collapse: the content stays while the section folds (350 ms)", card(P).locator(".endstops-body").count() == 1)
-    P.pg.wait_for_timeout(500)
-    ok("collapse", card(P).locator(".endstops-body").count() == 0)
+    ok("folded state remembered", "is-collapsed" in card(P).get_attribute("class"))
+    card(P).locator(".oui-card__fold").click(); P.pg.wait_for_timeout(300)
+    ok("opening the card again reads nothing by itself", not any("query_endstops" in r["u"] for r in P.reqs) and n_queries() == n_before and card(P).locator(".endstops-body .oui-row").count() == 0 and "Premi Aggiorna" in card(P).locator(".endstops-body").inner_text(), (P.reqs[-3:], n_queries(), n_before))
+    P.close()
+    # the old fold of 1.33 left closed: the card starts folded, once
+    P = fresh(preopen="old-folded")
+    ok("the old folded state (ke_endstops_open = 0) becomes the card folded", "is-collapsed" in card(P).get_attribute("class") and P.pg.evaluate("() => localStorage.getItem('ke_endstops_open')") is None)
     P.close()
     # no probe
-    P = fresh(has_probe=False, preopen=True)
+    P = fresh(has_probe=False)
     c = card(P); P.pg.wait_for_timeout(500)
     ok("page opened with the section open: nothing read by itself", not asked(P), (P.reqs[-3:], mock.gcode()))
     press_update(P, c)
     ok("probe object missing: still 3 endstops, no probe row", c.locator(".endstops-body .oui-row").count() == 3 and "Probe" not in c.locator(".endstops-body").inner_text())
     P.close()
     # error
-    P = fresh(endstops_error="Klippy Host not ready", preopen=True)
+    P = fresh(endstops_error="Klippy Host not ready")
     c = card(P); P.pg.wait_for_timeout(500)
     ok("error: nothing read until Aggiorna", not asked(P) and "Klippy Host not ready" not in c.locator(".endstops-body").inner_text())
     press_update(P, c)
@@ -81,7 +84,7 @@ with sync_playwright() as p:
     ok("error: after the fault clears, Aggiorna reads normally", c.locator(".endstops-body .oui-row").count() == 4, c.locator(".endstops-body").inner_text())
     P.close()
     # printing
-    P = fresh(printing=True, preopen=True)
+    P = fresh(printing=True)
     c = card(P); P.pg.wait_for_timeout(500)
     ok("printing: notice, nothing queried", "durante una stampa" in c.locator(".endstops-body").inner_text() and "QUERY_ENDSTOPS" not in mock.gcode() and "QUERY_PROBE" not in mock.gcode(), mock.gcode())
     P.close()

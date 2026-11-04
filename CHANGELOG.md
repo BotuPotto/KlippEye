@@ -1,5 +1,21 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.57.0
+
+**Folding: the same chevron in the same place; Printer functions as a short list** (requests of 4 November).
+
+* The chevron that folds a card is at the same place on every card: top right, on the title's line, also when the
+  card's own buttons go to a second line (Temperatures, bed mesh on a phone).
+* **Endstops and probe** is a foldable card like the others (its own fold, with a different arrow, is gone). It is open
+  unless it had been left folded.
+* Every fold-out section («More details» on the print card, the AI keys, your own ntfy server…) has a chevron at its
+  right end that turns when it opens.
+* **Settings → Printer functions**: every light, every button (park, wipe, load, unload) and the filament change
+  notification is a row with its icon, its name and what it does now in a few words («Automatic · CLEAN_NOZZLE»,
+  «Macro · LUCI_ON / LUCI_OFF · round button»); a tap opens its settings under it. A light's move and remove buttons
+  are at the bottom of its settings.
+* The printer's macros to choose for the filament notification are folded under a line that says which ones are chosen.
+
 ## 1.56.0
 
 **Files: a menu button on every file; Timelapse always there** (requests of 4 November).

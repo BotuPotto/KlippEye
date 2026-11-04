@@ -414,5 +414,5 @@ function MacroCards({ printState, onGcode, onSettings }) {
 
 /** The endstops and the probe (57a), a card of their own since the macros left the "Calibrations" card (1.33). */
 function EndstopsCard({ capabilities, lockReason }) {
-  return h(Card, { className: "endstops-card" }, h(EndstopsSection, { capabilities, lockReason }));
+  return h(Card, { cardId: "endstops", className: "endstops-card" }, h(EndstopsSection, { capabilities, lockReason }));
 }

@@ -14,5 +14,5 @@
   .camera-head-actions { gap: 6px; }
 }
 /* the narrowest phones: the buttons go under the title rather than out of the card */
-.oui-card[data-card="camera"] > .oui-card__head { flex-wrap: wrap; row-gap: 8px; }
-.oui-card[data-card="camera"] .oui-card__tools { margin-left: auto; }
+.oui-card[data-card="camera"] > .oui-card__head:not(.has-fold) { flex-wrap: wrap; row-gap: 8px; }
+.oui-card[data-card="camera"] .oui-card__head:not(.has-fold) .oui-card__tools { margin-left: auto; }

@@ -10,6 +10,8 @@
    and "Create a macro": KlippEye proposes one, it opens in the editor, and when saved it goes into klippeye_macros.cfg
    (backend/printer_macros.py), included by printer.cfg; Klipper reads it after a restart (never during a print).
    Until the person has looked at this page once, the menu says "To check".
+   1.56: every light, button and the filament notification is a row that opens (FnFold), with what it does now in a
+   few words; the printer's macros for the filament are folded too.
    ========================================================================== */
 
 const FUNCTION_TITLES = {
@@ -89,13 +91,49 @@ function useFunctionEditor() {
   return { open, editor };
 }
 
+/**
+ * 1.56: each function is a row that opens (like the menu's rows): its icon, its name, what it does now in a few words, a
+ * chevron; a tap opens its settings under it. The page reads as a short list instead of every setting at once.
+ */
+function FnFold({ id, icon, tint, title, summary, children, ...rest }) {
+  const [open, setOpen] = useState(false);
+  return h(
+    "section",
+    { className: cx("fn-fold", open && "is-open"), "data-fold": id, ...rest },
+    h(
+      "button",
+      { type: "button", className: "fn-fold__head", "aria-expanded": open, onClick: () => setOpen(!open) },
+      h("span", { className: cx("fn-fold__icon", tint && "fn-fold__icon--" + tint), "aria-hidden": "true" }, icon),
+      h("span", { className: "fn-fold__text" }, h("span", { className: "fn-fold__title" }, title), summary && h("span", { className: "fn-fold__summary", "data-summary": id }, summary)),
+      h("span", { className: cx("menu-chevron fn-fold__chevron", open && "is-open") }, h(Icons.Chevron, { size: 18 })),
+    ),
+    h(Collapse, { open }, h("div", { className: "fn-fold__body" }, children)),
+  );
+}
+
+const FUNCTION_ICONS = { park: Icons.Move, wipe: Icons.Sparkle, load: Icons.ArrowDown, unload: Icons.ArrowUp };
+
+/** The few words under a function's name: how it is done and with what. */
+function functionShort(one, resolved) {
+  if (resolved.mode === "off") return one.mode === "off" ? tx("Not used") : tx("Automatic: nothing found");
+  const what = resolved.mode === "gcode" ? tx("your G-code") : resolved.command;
+  return ACTION_MODE_LABELS[one.mode] + " · " + what;
+}
+
+/** The same for a light. */
+function lightShort(item) {
+  const what = item.mode === "object" ? item.object || tx("output not chosen") : item.mode === "macro" ? [item.onMacro, item.offMacro].filter(Boolean).join(" / ") || tx("macros not chosen") : tx("your G-code");
+  return LIGHT_HOW_LABELS[item.mode] + " · " + what + (item.main ? " · " + tx("round button") : "");
+}
+
 function ActionFunction({ id, settings, resolved, macros, update, editor, createMacro }) {
   const one = settings.functions[id];
   const set = (changes) => update((draft) => Object.assign(draft.functions[id], changes));
   const modes = ACTION_MODES.map((mode) => ({ id: mode, label: ACTION_MODE_LABELS[mode] }));
+  const Icon = FUNCTION_ICONS[id];
   return h(
-    SettingsGroup,
-    { title: FUNCTION_TITLES[id] },
+    FnFold,
+    { id, icon: h(Icon, { size: 18 }), title: FUNCTION_TITLES[id], summary: functionShort(one, resolved[id]) },
     h("div", { "data-function-group": id }, h(ChipChoice, { options: modes, value: one.mode, label: FUNCTION_TITLES[id], onChange: (mode) => set({ mode }) })),
     h("p", { className: "set-group__note fn-now", "data-now": id }, functionNow(resolved[id])),
     one.mode === "macro" && h(MacroField, { label: tx("Macro"), value: one.macro, macros, testId: id, onCommit: (macro) => set({ macro }) }),
@@ -131,17 +169,8 @@ function LightItemEditor({ item, index, count, light, capabilities, change, move
       ),
     );
   return h(
-    "section",
-    { className: "set-group fn-light", "data-light-item": item.id },
-    h(
-      "div",
-      { className: "macro-group-edit__head" },
-      h("span", { className: "fn-light__icon", "aria-hidden": "true" }, h(Icons.Bulb, { size: 16 })),
-      h("span", { className: "set-group__label macro-group-edit__title" }, title),
-      h(MacroEditButton, { label: tx("Move up"), icon: h(Icons.ArrowUp, { size: 16 }), disabled: index === 0, onClick: () => move(-1) }),
-      h(MacroEditButton, { label: tx("Move down"), icon: h(Icons.ArrowDown, { size: 16 }), disabled: index === count - 1, onClick: () => move(1) }),
-      h(MacroEditButton, { label: tx("Remove") + " " + title, icon: h(Icons.Trash, { size: 16 }), danger: true, onClick: () => setDeleting(true) }),
-    ),
+    FnFold,
+    { id: "light-" + item.id, icon: h(Icons.Bulb, { size: 18 }), tint: "light", title, summary: lightShort(item), "data-light-item": item.id },
     h(TextSetting, { label: tx("Name"), value: item.name, placeholder: tx("e.g. Case light, LED strip"), validate: (text) => (text.trim().length <= LIGHT_NAME_MAX ? text.trim() : null), onCommit: (name) => set({ name }) }),
     h("div", { "data-function-group": "light-" + item.id }, h(ChipChoice, { options: LIGHT_HOWS.map((how) => ({ id: how, label: LIGHT_HOW_LABELS[how] })), value: item.mode, label: tx("How it is switched"), onChange: (mode) => set({ mode }) })),
     h("p", { className: "set-group__note fn-now", "data-now": "light-" + item.id }, lightNow(light, item)),
@@ -162,6 +191,13 @@ function LightItemEditor({ item, index, count, light, capabilities, change, move
       ),
     item.mode !== "object" && objectSelect(tx("Where the button reads whether the light is on"), item.stateFrom, (stateFrom) => set({ stateFrom }), true),
     h("div", { className: "oui-list" }, h(SwitchRow, { title: tx("Switched by the round button"), detail: tx("The light button on the camera switches together every light that has this on."), checked: item.main, onChange: (main) => set({ main }) })),
+    h(
+      "div",
+      { className: "fn-light-tools" },
+      h(MacroEditButton, { label: tx("Move up"), icon: h(Icons.ArrowUp, { size: 16 }), disabled: index === 0, onClick: () => move(-1) }),
+      h(MacroEditButton, { label: tx("Move down"), icon: h(Icons.ArrowDown, { size: 16 }), disabled: index === count - 1, onClick: () => move(1) }),
+      h("button", { type: "button", className: "oui-btn oui-btn--sm oui-btn--danger-soft fn-light-remove", "aria-label": tx("Remove") + " " + title, onClick: () => setDeleting(true) }, h(Icons.Trash, { size: 16 }), tx("Remove")),
+    ),
     h(ConfirmDialog, {
       open: deleting,
       tone: "danger",
@@ -204,7 +240,7 @@ function LightsSettings({ settings, resolved, capabilities, update, editor, crea
     null,
     h(
       SettingsGroup,
-      { title: tx("Lights"), help: ["functions", "lights"] },
+      {},
       h(
         "p",
         { className: "set-group__note", "data-lights-state": lights.configured ? "configured" : "found" },
@@ -216,24 +252,29 @@ function LightsSettings({ settings, resolved, capabilities, update, editor, crea
       ),
       lights.configured && h("button", { type: "button", className: "oui-btn oui-btn--quiet oui-btn--sm set-inline-btn", "data-refind": "1", onClick: () => setRefinding(true) }, h(Icons.Refresh, { size: 16 }), tx("Find the lights again")),
     ),
-    items.map((item, index) =>
-      h(LightItemEditor, {
-        key: item.id,
-        item,
-        index,
-        count: items.length,
-        light: resolved.lights.find((one) => one.id === item.id),
-        capabilities,
-        editor,
-        change: (fn) => edit((list) => fn(list.items[index])),
-        move: (direction) =>
-          edit((list) => {
-            const [moved] = list.items.splice(index, 1);
-            list.items.splice(index + direction, 0, moved);
+    items.length > 0 &&
+      h(
+        "div",
+        { className: "fn-folds" },
+        items.map((item, index) =>
+          h(LightItemEditor, {
+            key: item.id,
+            item,
+            index,
+            count: items.length,
+            light: resolved.lights.find((one) => one.id === item.id),
+            capabilities,
+            editor,
+            change: (fn) => edit((list) => fn(list.items[index])),
+            move: (direction) =>
+              edit((list) => {
+                const [moved] = list.items.splice(index, 1);
+                list.items.splice(index + direction, 0, moved);
+              }),
+            remove: () => edit((list) => list.items.splice(index, 1)),
           }),
-        remove: () => edit((list) => list.items.splice(index, 1)),
-      }),
-    ),
+        ),
+      ),
     h(
       "div",
       { className: "fn-light-add" },
@@ -291,9 +332,10 @@ function FilamentFunction({ settings, capabilities, update, wraps, onWraps, busy
   const [phrases, setPhrases] = useState(filament.phrases.join("\n"));
   const changed = chosen.join(",") !== wraps.join(",");
   const toggle = (name) => setChosen(chosen.includes(name) ? chosen.filter((n) => n !== name) : [...chosen, name]);
+  const summary = [filament.sensor && sensors.length > 0 && tx("sensor"), wraps.length && (wraps.length === 1 ? tx("1 macro") : tx("{count} macros", { count: wraps.length })), filament.phrases.length && (filament.phrases.length === 1 ? tx("1 console line") : tx("{count} console lines", { count: filament.phrases.length }))].filter(Boolean).join(" · ");
   return h(
-    SettingsGroup,
-    { title: tx("Filament change notification") },
+    FnFold,
+    { id: "filament", icon: h(Icons.Spool, { size: 18 }), title: tx("Filament change notification"), summary: summary ? tx("From: {what}", { what: summary }) : tx("Only «Printer paused due to filament runout!»") },
     h("p", { className: "set-group__note" }, tx("When one of these happens during a print, the phone gets «Filament run out, change the spool!».")),
     h(
       "div",
@@ -307,11 +349,17 @@ function FilamentFunction({ settings, capabilities, update, wraps, onWraps, busy
       }),
     ),
     h("div", { className: "set-field__label fn-subtitle" }, tx("A macro of yours runs (M600, your runout macro...)")),
+    // 1.56: the printer's macros are many: folded under a line that says which are chosen
     macros.length
       ? h(
-          "div",
-          { className: "set-chips fn-wraps", role: "group", "aria-label": tx("Macros that announce a filament change") },
-          [...new Set([...macros, ...chosen])].map((name) => h("button", { key: name, type: "button", "data-wrap": name, className: cx("oui-chip", chosen.includes(name) && "is-selected"), "aria-pressed": chosen.includes(name), onClick: () => toggle(name) }, name)),
+          "details",
+          { className: "fn-wraps-fold" },
+          h("summary", null, h("span", { className: "fn-wraps-fold__text" }, chosen.length ? tx("Chosen: {names}", { names: chosen.join(", ") }) : tx("None chosen"), h("span", { className: "fn-wraps-fold__more" }, tx("Choose among {count} macros", { count: macros.length })))),
+          h(
+            "div",
+            { className: "set-chips fn-wraps", role: "group", "aria-label": tx("Macros that announce a filament change") },
+            [...new Set([...macros, ...chosen])].map((name) => h("button", { key: name, type: "button", "data-wrap": name, className: cx("oui-chip", chosen.includes(name) && "is-selected"), "aria-pressed": chosen.includes(name), onClick: () => toggle(name) }, name)),
+          ),
         )
       : h("p", { className: "set-group__note" }, tx("Klipper has not said its macros yet.")),
     h("p", { className: "set-group__note" }, tx("KlippEye adds to klippeye_macros.cfg a small wrapper with the same name: it writes «KlippEye: filament change» in the console and then runs your macro exactly as before. Your macro is not changed. Klipper must restart to read it.")),
@@ -416,12 +464,12 @@ function PrinterFunctionsPage({ printing }) {
           !printing && h("button", { type: "button", className: "oui-btn oui-btn--sm", "data-restart": "1", onClick: restartKlipper }, tx("Restart Klipper now")),
         ),
       ),
-    h("h3", { className: "fn-section", "data-section": "lights" }, h(Icons.Bulb, { size: 18 }), tx("Lights")),
+    h("h3", { className: "fn-section", "data-section": "lights" }, h(Icons.Bulb, { size: 18 }), tx("Lights"), h(HelpButton, { page: "functions", section: "lights", className: "help-btn--small" })),
     h(LightsSettings, { settings, resolved, capabilities, update, editor, createMacro }),
     h("h3", { className: "fn-section", "data-section": "buttons" }, h(Icons.Play, { size: 18 }), tx("Buttons")),
-    ACTION_FUNCTIONS.map((id) => h(ActionFunction, { key: id, id, settings, resolved, macros: capabilities.macros || [], update, editor, createMacro })),
+    h("div", { className: "fn-folds" }, ACTION_FUNCTIONS.map((id) => h(ActionFunction, { key: id, id, settings, resolved, macros: capabilities.macros || [], update, editor, createMacro }))),
     h("h3", { className: "fn-section", "data-section": "filament" }, h(Icons.Spool, { size: 18 }), tx("Filament")),
-    h(FilamentFunction, { settings, capabilities, update, wraps: store.wraps || [], onWraps, busy }),
+    h("div", { className: "fn-folds" }, h(FilamentFunction, { settings, capabilities, update, wraps: store.wraps || [], onWraps, busy })),
     editor.editor,
   );
 }
