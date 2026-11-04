@@ -143,6 +143,7 @@ function App() {
     "div",
     { className: desktop ? "desk-app" : "min-h-screen" },
     h(AppHeader, {
+      onPrinters: () => settingsMenu.openPage("printers"),
       onSettings: settingsMenu.show,
       onPower: power.toggle,
       onSaveConfig: saveConfig.open,
@@ -169,6 +170,8 @@ function App() {
     h(PowerMenuDialogs, { menu: power, klipper }),
     h(SettingsMenuLayer, { menu: settingsMenu, updates, printing: printStatus.printing, actions: { restartService } }),
     h(NotifyInvite, { onOpen: () => settingsMenu.openPage("notifications") }),
+    h(PrinterArrivalInvite),
+    h(PrintersOverviewLayer),
     h(SetupGuideLayer, { menu: settingsMenu, printing: printStatus.printing }),
     h(AiPanelLayer, { monitor: aiMonitor, onSettings: () => settingsMenu.openPage("ai") }),
     h(PhotoViewerLayer),

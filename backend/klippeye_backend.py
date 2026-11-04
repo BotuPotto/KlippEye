@@ -3193,6 +3193,55 @@ def api_measure_start():
 # === end RECORDINGS ===================================================================================================
 
 
+# === MORE PRINTERS (1.61): this printer for another dashboard, another printer for this one ============================
+import printers_peek  # noqa: E402
+
+PRINTER_SELF_OBJECTS = "print_stats&display_status&virtual_sdcard&extruder&heater_bed"
+
+
+@app.route("/api/printers/self", methods=["GET"])
+def api_printers_self():
+    """This printer as another KlippEye shows it (its switcher and overview): name, logo, state, progress, temperatures."""
+    try:
+        status = _klipper_query(PRINTER_SELF_OBJECTS)
+    except Exception:
+        status = {}
+    try:
+        settings = (requests.get(MOONRAKER_URL + "/server/database/item?namespace=klippeye&key=settings", timeout=2).json().get("result") or {}).get("value") or {}
+    except Exception:
+        settings = {}
+    answer = printers_peek.summary(status, settings, RELEASE)
+    if not status:
+        answer["state"] = "offline"  # the KlippEye service answers, Klipper (or Moonraker) does not
+    return jsonify(answer)
+
+
+@app.route("/api/printers/peek", methods=["GET"])
+def api_printers_peek():
+    """Another printer of the home network, asked through this service (?host=192.168.1.50 or name.local[:port])."""
+    host = printers_peek.clean_host(request.args.get("host"))
+    # answers 200 with ok false (as for a printer that is off): the dashboard shows why, the browser logs no error
+    if not host:
+        return jsonify({"ok": False, "error": "address"})
+    if not printers_peek.reachable(host):
+        return jsonify({"ok": False, "error": "outside"})
+    try:
+        r = requests.get(printers_peek.base_url(host) + "/api/printers/self", timeout=4)
+    except requests.RequestException:
+        return jsonify({"ok": False, "error": "unreachable"})
+    if r.status_code in (401, 403):
+        return jsonify({"ok": False, "error": "locked"})
+    if r.status_code == 404:
+        return jsonify({"ok": False, "error": "old"})  # a KlippEye older than 1.61
+    try:
+        data = r.json()
+    except ValueError:
+        return jsonify({"ok": False, "error": "not_klippeye"})
+    if not isinstance(data, dict) or not data.get("ok"):
+        return jsonify({"ok": False, "error": "not_klippeye"})
+    return jsonify(data)
+
+
 # === SNAPSHOT (1.23.0): the camera's photo, as the Raspberry itself gets it ==================================================
 SNAPSHOT_MESSAGES = (btn("the camera did not send a photo ({detail})"), btn("not a camera address"))
 

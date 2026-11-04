@@ -755,6 +755,8 @@ function settingsSummary(page, settings, brain) {
       return network.localIp || network.externalIp ? [network.localIp, network.externalIp].filter(Boolean).join(" • ") : tx("Automatic (the address of this page)");
     case "zoffset":
       return zOffset.steps.join(" · ") + " mm";
+    case "printers":
+      return printersSummary(settings);
     case "motion":
       return motionSummary(settings.motion) + " • Z-offset " + zOffset.steps.join(" · ");
     case "macros":
@@ -790,6 +792,7 @@ const appNavigation = { go: noop };
  * Z-offset steps part of Motion; the addresses are with the system pages. Their old pages still open (PAGES_INSIDE).
  */
 const SETTINGS_ENTRIES = [
+  { id: "printers", group: "printer", title: tx("Your printers"), icon: Icons.Cube },
   { id: "functions", group: "printer", title: tx("Printer functions"), icon: Icons.Bulb },
   { id: "macros", group: "printer", title: tx("Macros"), icon: Icons.Play },
   { id: "motion", group: "printer", title: tx("Motion and Z-offset"), icon: Icons.Move },
@@ -919,6 +922,7 @@ function SettingsDrawer({ menu, updates, printing, actions }) {
   let body;
   if (page === "printer") body = h(PrinterPage);
   else if (page === "camera") body = h(CamerasPage, { menu });
+  else if (page === "printers") body = h(PrintersPage);
   else if (page === "camera-main") body = h(CameraPage);
   else if (page === "camera-timelapse") body = h(CameraTimelapsePage);
   else if (page && page.startsWith(WEBCAM_PAGE_PREFIX)) body = h(WebcamPage, { key: page, uid: page.slice(WEBCAM_PAGE_PREFIX.length), menu });
