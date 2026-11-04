@@ -13,7 +13,6 @@
    ========================================================================== */
 
 const AI_MONITOR_POLL_MS = 4000;
-const AI_VERDICT_MAX_AGE_MS = 2 * 60 * 60 * 1000;
 
 /** The action ("CONTINUE" | "PAUSE" | "CANCEL") a verdict recommends, or "". */
 function recommendedAction(verdict) {
