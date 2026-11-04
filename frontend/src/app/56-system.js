@@ -230,7 +230,7 @@ function describeComponent(key, info) {
     key,
     raw: info,
     isSystem,
-    name: key === PROGRAM_COMPONENT ? tx("KlippEye (backend, dashboard, notifications)") : info.name || key,
+    name: key === PROGRAM_COMPONENT ? tx("KlippEye (service, dashboard, notifications)") : info.name || key,
     current,
     remote,
     behind,
@@ -313,7 +313,7 @@ function ProgramUpdateInfo({ component }) {
       h("div", { className: "update-info-right" }, h("div", { className: "update-info-label" }, txc("release", "New")), h("div", { className: "update-version update-version--new" }, remote || (behind === 1 ? tx("1 change") : tx("{count} changes", { count: behind })))),
     ),
     h(CommitList, { commits: raw.commits_behind }),
-    h("p", { className: "update-note" }, tx("Moonraker downloads the new files and restarts the backend: the page does not answer for a few seconds, then reloads by itself. Settings, AI key and notifications are not touched.")),
+    h("p", { className: "update-note" }, tx("Moonraker downloads the new files and restarts the KlippEye service: the page does not answer for a few seconds, then reloads by itself. Settings, AI key and notifications are not touched.")),
   );
 }
 
@@ -329,14 +329,14 @@ function confirmationFor(kind, subject) {
         info: h(
           InfoBox,
           null,
-          h("p", { className: "update-note" }, tx("The program files on the Raspberry were changed by hand, so Moonraker does not update them. Restoring brings them back as they are on GitHub; then the backend restarts.")),
+          h("p", { className: "update-note" }, tx("The program files on the Raspberry were changed by hand, so Moonraker does not update them. Restoring brings them back as they are on GitHub; then the KlippEye service restarts.")),
           h("p", { className: "update-note" }, tx("Settings, AI key and notifications live in another folder and are not touched.")),
         ),
       },
     };
   }
   if (kind === "update" && subject.key === PROGRAM_COMPONENT) {
-    return { mode: "confirm-update", confirmText: tx("Update"), view: { title: tx("Update KlippEye?"), sub: tx("backend, dashboard and notifications"), info: h(ProgramUpdateInfo, { component: subject }) } };
+    return { mode: "confirm-update", confirmText: tx("Update"), view: { title: tx("Update KlippEye?"), sub: tx("service, dashboard and notifications"), info: h(ProgramUpdateInfo, { component: subject }) } };
   }
   if (kind === "rollback" && subject.key === PROGRAM_COMPONENT) {
     return {
@@ -345,7 +345,7 @@ function confirmationFor(kind, subject) {
       view: {
         title: tx("Go back to the previous release?"),
         sub: tx("Release ") + subject.rollbackVersion,
-        info: h(InfoBox, null, h("p", { className: "update-note" }, tx("KlippEye goes back to how it was before the last update and the backend restarts. Settings do not change. To update again just press Update."))),
+        info: h(InfoBox, null, h("p", { className: "update-note" }, tx("KlippEye goes back to how it was before the last update and the KlippEye service restarts. Settings do not change. To update again just press Update."))),
       },
     };
   }
@@ -437,7 +437,7 @@ function useUpdateDialog() {
   const showDone = (info) => patch({ mode: "progress-done", info, cancel: null, confirm: { text: tx("Reload") } });
   const brainLost = () =>
     showFailure(
-      tx("The backend did not come back within two and a half minutes. In Mainsail open Updates and use Rollback on the klippeye entry (or restart the klippeye service); from the terminal: klippeye log."),
+      tx("The KlippEye service did not come back within two and a half minutes. In Mainsail open Updates and use Rollback on the klippeye entry (or restart the klippeye service); from the terminal: klippeye log."),
     );
   function showFailure(message) {
     patch({ cancel: { text: tx("Close") }, confirm: null, info: h(ResultBox, { tone: "error", title: tx("Failed"), text: message }) });
@@ -472,23 +472,23 @@ function useUpdateDialog() {
    * reload the page. If Moonraker did the work but did not restart the backend, restart it here: the new files must run.
    */
   const finishAfterBrainRestart = async (before, doneTitle, verify) => {
-    progress(40, tx("The backend is restarting..."));
-    patch({ info: h(UpdateWorking, { text: tx("The backend is restarting: the page reconnects by itself...") }) });
-    let result = await waitForBrain(before, (seconds) => progress(Math.min(92, 40 + seconds), tx("Waiting for the backend... ") + seconds + " s"), verify);
+    progress(40, tx("The KlippEye service is restarting..."));
+    patch({ info: h(UpdateWorking, { text: tx("The KlippEye service is restarting: the page reconnects by itself...") }) });
+    let result = await waitForBrain(before, (seconds) => progress(Math.min(92, 40 + seconds), tx("Waiting for the KlippEye service... ") + seconds + " s"), verify);
     if (result.ok && result.restarted === false) {
-      log(tx("The backend did not restart by itself: restarting it."));
+      log(tx("The KlippEye service did not restart by itself: restarting it."));
       const again = await readBrainVersion();
       try {
         await moonraker.serviceAction("restart", PROGRAM_COMPONENT);
       } catch (error) {} // the connection is cut as the backend goes down: expected
-      result = await waitForBrain(again, (seconds) => progress(Math.min(95, 60 + seconds), tx("Waiting for the backend... ") + seconds + " s"));
+      result = await waitForBrain(again, (seconds) => progress(Math.min(95, 60 + seconds), tx("Waiting for the KlippEye service... ") + seconds + " s"));
     }
     if (!result.ok) {
-      progress(100, tx("The backend did not come back"));
-      log(tx("The backend no longer answers."));
+      progress(100, tx("The KlippEye service did not come back"));
+      log(tx("The KlippEye service no longer answers."));
       return brainLost();
     }
-    log(tx("The backend is back (release {release}).", { release: result.info.release }));
+    log(tx("The KlippEye service is back (release {release}).", { release: result.info.release }));
     const outcome = await verify();
     if (outcome !== true) {
       progress(100, tx("Not completed"));
@@ -508,7 +508,7 @@ function useUpdateDialog() {
     const verify = async () => {
       const entry = await readProgramEntry();
       if (!entry) return true; // Moonraker did not answer: the backend is back, which is what could be checked
-      return Number(entry.commits_behind_count) > 0 ? tx("The backend is back but the update does not look completed: Mainsail's Updates page tells why.") : true;
+      return Number(entry.commits_behind_count) > 0 ? tx("The KlippEye service is back but the update does not look completed: Mainsail's Updates page tells why.") : true;
     };
     try {
       progress(20, tx("Connecting..."));
@@ -550,7 +550,7 @@ function useUpdateDialog() {
     const before = await readBrainVersion();
     const verify = async () => {
       const entry = await readProgramEntry();
-      return !entry || (entry.is_valid !== false && !entry.is_dirty && !entry.corrupt) ? true : tx("The backend is back but Moonraker still marks the program as not in order: try restoring it from Mainsail (Updates, klippeye entry).");
+      return !entry || (entry.is_valid !== false && !entry.is_dirty && !entry.corrupt) ? true : tx("The KlippEye service is back but Moonraker still marks the program as not in order: try restoring it from Mainsail (Updates, klippeye entry).");
     };
     const attempt = async (hard) => {
       try {

@@ -388,7 +388,7 @@ function SnapshotSetting({ camera, update }) {
       const blob = await response.blob();
       setTrial({ phase: "ok", src: URL.createObjectURL(blob), text: response.headers.get("X-Snapshot-Url") || address });
     } catch (error) {
-      setTrial({ phase: "error", text: tx("the backend does not answer") });
+      setTrial({ phase: "error", text: tx("the KlippEye service does not answer") });
     }
   };
   useEffect(() => () => trial && trial.src && URL.revokeObjectURL(trial.src), [trial]);

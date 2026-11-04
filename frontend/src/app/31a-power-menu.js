@@ -39,7 +39,7 @@ const PRINT_WARNING = tx("A print is running and it will fail!");
 /** What each confirmation says. `always`: asked even when nothing prints. `service`: the systemd name, for the ones that need their own words. */
 function powerConfirmation(kind, label, service) {
   if (kind === "restart" && service === "klippeye") {
-    return { title: tx("Restart the backend?"), message: tx("The backend (dashboard, AI monitor, link to Moonraker) restarts: the page does not answer for a few seconds, then reloads by itself. A running print does not stop."), confirmLabel: tx("Restart") };
+    return { title: tx("Restart the KlippEye service?"), message: tx("The KlippEye service (dashboard, AI monitor, link to Moonraker) restarts: the page does not answer for a few seconds, then reloads by itself. A running print does not stop."), confirmLabel: tx("Restart") };
   }
   switch (kind) {
     case "klipper":

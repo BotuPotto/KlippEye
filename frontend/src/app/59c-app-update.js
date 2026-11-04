@@ -156,9 +156,9 @@ function AppUpdateProgress({ progress, offer, onRetry }) {
 /** The block itself: what is installed, what the Raspberry has, and the way to get from one to the other. */
 function AppBlock({ app, installed }) {
   const updater = useAppUpdater();
-  if (app.state === "loading") return h(AppStatus, null, tx("Asking the backend whether there is an app…"));
-  if (app.state === "old") return h(AppStatus, { tone: "warn" }, tx("The backend on the Raspberry does not know the app yet: update KlippEye (above) and check again."));
-  if (app.state === "down") return h(AppStatus, { tone: "warn" }, tx("The backend does not answer: cannot know whether there is an app."));
+  if (app.state === "loading") return h(AppStatus, null, tx("Asking the KlippEye service whether there is an app…"));
+  if (app.state === "old") return h(AppStatus, { tone: "warn" }, tx("The KlippEye service on the Raspberry does not know the app yet: update KlippEye (above) and check again."));
+  if (app.state === "down") return h(AppStatus, { tone: "warn" }, tx("The KlippEye service does not answer: cannot know whether there is an app."));
   const info = app.info;
   if (!info.available) {
     const none = /nessuna app/i.test(String(info.reason));

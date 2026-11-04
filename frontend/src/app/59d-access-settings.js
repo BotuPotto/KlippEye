@@ -56,7 +56,7 @@ async function accessPost(url, body) {
     const weak = json && json.error === "weak";
     return { ok: response.ok && json.ok !== false, message: weak ? tx("The password must have 6 to 256 characters") : (json && json.message) || (response.ok ? "" : tx("Error {status}", { status: response.status })) };
   } catch (error) {
-    return { ok: false, message: tx("The backend does not answer") };
+    return { ok: false, message: tx("The KlippEye service does not answer") };
   }
 }
 
@@ -126,7 +126,7 @@ function AccessPage({ active }) {
     return h(
       SettingsGroup,
       { title: "Password" },
-      h("div", { className: "set-status set-status--warn" }, h("span", { className: "set-status__dot" }), status.phase === "old" ? tx("The installed backend has no password yet: update KlippEye (release 1.2.0 or later).") : tx("The backend does not answer: try again shortly.")),
+      h("div", { className: "set-status set-status--warn" }, h("span", { className: "set-status__dot" }), status.phase === "old" ? tx("The installed KlippEye service has no password yet: update KlippEye (release 1.2.0 or later).") : tx("The KlippEye service does not answer: try again shortly.")),
     );
   }
 

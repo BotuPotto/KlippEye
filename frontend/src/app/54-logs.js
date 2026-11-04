@@ -211,7 +211,7 @@ function logsListNotice(list) {
       { className: "oui-tile oui-tile--danger" },
       h("div", { className: "logs-key__title" }, tx("Error loading the logs")),
       h("div", { className: "logs-key__message mt-1" }, list.error),
-      h("div", { className: "oui-caption mt-2" }, tx("Check the backend: /api/logs/list")),
+      h("div", { className: "oui-caption mt-2" }, tx("The logs cannot be read now: try again shortly")),
     );
   if (list.status === "empty") return h("div", { className: "logs-notice" }, tx("No .log in ") + list.dir);
   return null;

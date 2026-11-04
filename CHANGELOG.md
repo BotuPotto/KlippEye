@@ -1,5 +1,15 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.55.0
+
+**Texts: "the KlippEye service", not "the backend"** (roadmap phase 7, first part of the text review).
+
+* The dashboard no longer talks about "the backend" (a developer's word): the program on the Raspberry is **the KlippEye
+  service** everywhere (updates, restart, access, AI monitor, recordings, calibration, notifications, the app), in English
+  and Italian; the AI monitor's own descriptions (written by the service) too.
+* A leftover developer message of the logs card ("Check the backend: /api/logs/list") now says the logs cannot be read and
+  to try again.
+
 ## 1.54.0
 
 **The side menu, reorganised** (roadmap phase 6e, fifth and last part).

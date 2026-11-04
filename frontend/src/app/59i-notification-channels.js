@@ -30,7 +30,7 @@ function useNotifyChannels(active) {
       const data = await response.json().catch(() => ({}));
       setBusy("");
       if (response.status === 404) {
-        setProblem(tx("The backend is older than the dashboard: update KlippEye (Settings → Updates)"));
+        setProblem(tx("The KlippEye service is older than the dashboard: update KlippEye (Settings → Updates)"));
         return null;
       }
       if (!response.ok || data.ok === false) {
@@ -41,7 +41,7 @@ function useNotifyChannels(active) {
       return data;
     } catch (error) {
       setBusy("");
-      setProblem(tx("the backend does not answer"));
+      setProblem(tx("the KlippEye service does not answer"));
       return null;
     }
   };
@@ -177,8 +177,8 @@ function NtfyPairing({ ntfy, store, onPhone }) {
 /** "Where they arrive": the first group of Settings → Notifications. */
 function NotificationChannels({ store }) {
   const onPhone = useMemo(() => /Android|iPhone|iPad/i.test(navigator.userAgent || ""), []);
-  if (store.phase === "old") return h("div", { className: "set-status set-status--warn" }, h("span", { className: "set-status__dot" }), tx("The backend is older than the dashboard: update KlippEye (Settings → Updates)"));
-  if (store.phase !== "ok") return h("div", { className: "set-status" }, h("span", { className: "set-status__dot" }), store.phase === "loading" ? tx("Checking the Raspberry…") : tx("the backend does not answer"));
+  if (store.phase === "old") return h("div", { className: "set-status set-status--warn" }, h("span", { className: "set-status__dot" }), tx("The KlippEye service is older than the dashboard: update KlippEye (Settings → Updates)"));
+  if (store.phase !== "ok") return h("div", { className: "set-status" }, h("span", { className: "set-status__dot" }), store.phase === "loading" ? tx("Checking the Raspberry…") : tx("the KlippEye service does not answer"));
   const { ntfy, firebase } = store.data;
   return h(
     React.Fragment,

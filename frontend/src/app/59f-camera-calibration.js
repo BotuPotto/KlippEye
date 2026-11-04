@@ -56,7 +56,7 @@ async function camcalPost(path, body) {
     } catch (error) {}
     return { ok: response.ok && !(data && data.ok === false), data, message: (data && data.error) || (response.ok ? "" : "HTTP " + response.status) };
   } catch (error) {
-    return { ok: false, data: null, message: tx("the backend does not answer") };
+    return { ok: false, data: null, message: tx("the KlippEye service does not answer") };
   }
 }
 
@@ -778,7 +778,7 @@ function CameraCalibrationPage({ active }) {
     reload();
     return here ? reply : reply.ok;
   };
-  if (state.phase === "old") return h("div", { className: "set-status set-status--warn" }, h("span", { className: "set-status__dot" }), tx("The backend on the Raspberry cannot calibrate the camera yet: update KlippEye (Settings → Updates)."));
+  if (state.phase === "old") return h("div", { className: "set-status set-status--warn" }, h("span", { className: "set-status__dot" }), tx("The KlippEye service on the Raspberry cannot calibrate the camera yet: update KlippEye (Settings → Updates)."));
   if (state.phase !== "ok") return h(BrainNotice, { phase: state.phase === "loading" ? "loading" : "down" });
   const saved = state.saved;
   const drafting = calibrating || Boolean(state.draft && state.draft.z_moves);

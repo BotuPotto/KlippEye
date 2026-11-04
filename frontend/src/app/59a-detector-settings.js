@@ -139,7 +139,7 @@ function RoiPreview({ area, band }) {
       "div",
       { className: "set-roi__frame" },
       !failed && h("img", { className: "set-roi__img", src: "/api/print/snapshot?t=" + stamp, alt: tx("Camera picture"), draggable: false, onError: () => setFailed(true), onLoad: () => setFailed(false) }),
-      failed && h("div", { className: "set-roi__empty" }, tx("No picture from the camera (the camera is off or the backend cannot reach it)")),
+      failed && h("div", { className: "set-roi__empty" }, tx("No picture from the camera (the camera is off or the KlippEye service cannot reach it)")),
       ok && h("div", { className: "set-roi__box", style: { left: area[0] + "%", top: area[1] + "%", width: area[2] + "%", height: area[3] + "%" } }, h("div", { className: "set-roi__inner", style: { top: band + "%", bottom: band + "%", left: band + "%", right: band + "%" } })),
     ),
     h(
@@ -220,16 +220,16 @@ function BrainSettingControl({ spec, config }) {
 
 /** Why the thresholds are not there, in words. */
 function BrainNotice({ phase }) {
-  if (phase === "loading") return h("div", { className: "set-status" }, h("span", { className: "set-status__dot" }), tx("Reading the thresholds from the backend…"));
+  if (phase === "loading") return h("div", { className: "set-status" }, h("span", { className: "set-status__dot" }), tx("Reading the thresholds from the KlippEye service…"));
   if (phase === "old") {
     return h(
       "div",
       { className: "set-status set-status--warn" },
       h("span", { className: "set-status__dot" }),
-      h("span", null, tx("The backend on the Raspberry is older than 1.0: it has no thresholds to change. Install KlippEye 1.0 (guide: "), h("code", null, tx("docs/GUIDE.md")), tx(") and the thresholds appear here.")),
+      h("span", null, tx("The KlippEye service on the Raspberry is older than 1.0: it has no thresholds to change. Install KlippEye 1.0 (guide: "), h("code", null, tx("docs/GUIDE.md")), tx(") and the thresholds appear here.")),
     );
   }
-  return h("div", { className: "set-status set-status--warn" }, h("span", { className: "set-status__dot" }), tx("The backend does not answer: the thresholds cannot be read or changed now."));
+  return h("div", { className: "set-status set-status--warn" }, h("span", { className: "set-status__dot" }), tx("The KlippEye service does not answer: the thresholds cannot be read or changed now."));
 }
 
 /**
@@ -270,7 +270,7 @@ function DetectorPage({ active }) {
     ),
     data.has_cv2 === false && h("div", { className: "set-status set-status--warn" }, h("span", { className: "set-status__dot" }), h("span", null, tx("OpenCV is missing on the Raspberry: the monitor cannot compare the pictures. Install it with"), " ", h("code", null, "sudo apt install python3-opencv"), ".")),
     config.problem && h("div", { className: "set-status set-status--warn", role: "alert" }, h("span", { className: "set-status__dot" }), config.problem),
-    data.saved === false && !changed && h("p", { className: "set-group__note" }, tx("These are the default values: until you change something the backend writes no file.")),
+    data.saved === false && !changed && h("p", { className: "set-group__note" }, tx("These are the default values: until you change something the KlippEye service writes no file.")),
     data.groups.map((group) => {
       const specs = thresholds.filter((spec) => spec.group === group.id && !FALLBACK_KEYS.includes(spec.key));
       if (!specs.length) return null;
@@ -327,7 +327,7 @@ function DetectorPage({ active }) {
 
 /** One line for the menu list: what the monitor is doing, from the backend (null while it is not known). */
 function detectorSummary(version) {
-  if (version.state === "old") return tx("Backend to update");
-  if (version.state === "down") return tx("Backend not reachable");
+  if (version.state === "old") return tx("KlippEye service to update");
+  if (version.state === "down") return tx("KlippEye service not reachable");
   return tx("Sensitivity, watched area, pauses");
 }

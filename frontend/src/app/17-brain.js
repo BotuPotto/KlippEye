@@ -120,7 +120,7 @@ async function brainPost(url, body) {
     } catch (error) {}
     return { ok: response.ok && !(data && data.ok === false), data, message: (data && data.error) || (response.ok ? "" : "HTTP " + response.status) };
   } catch (error) {
-    return { ok: false, data: null, message: tx("the backend does not answer") };
+    return { ok: false, data: null, message: tx("the KlippEye service does not answer") };
   }
 }
 
@@ -188,11 +188,11 @@ function useBrainConfig(active) {
       take(reply);
       if (reply.ok) {
         setErrors((previous) => Object.fromEntries(Object.entries(previous).filter(([key]) => !(key in changes))));
-        setProblem(reply.data && reply.data.save_error ? tx("The backend accepted the thresholds but cannot write them to disk (") + reply.data.save_error + tx("): after a restart the previous ones come back.") : "");
+        setProblem(reply.data && reply.data.save_error ? tx("The KlippEye service accepted the thresholds but cannot write them to disk (") + reply.data.save_error + tx("): after a restart the previous ones come back.") : "");
       } else if (reply.data && isPlainObject(reply.data.errors)) {
         setErrors((previous) => ({ ...previous, ...reply.data.errors }));
         setProblem("");
-      } else setProblem(tx("The change was not saved: ") + (reply.message || tx("the backend does not answer")) + ".");
+      } else setProblem(tx("The change was not saved: ") + (reply.message || tx("the KlippEye service does not answer")) + ".");
       setEdits((previous) => Object.fromEntries(Object.entries(previous).filter(([key]) => key in waiting.current)));
     }
     if (Object.keys(waiting.current).length) flush();
@@ -215,7 +215,7 @@ function useBrainConfig(active) {
     const reply = await brainPost("/api/backend/config/reset", keys ? { keys } : {});
     if (!alive.current) return;
     take(reply);
-    setProblem(reply.ok ? "" : tx("The reset did not work: ") + (reply.message || tx("the backend does not answer")) + ".");
+    setProblem(reply.ok ? "" : tx("The reset did not work: ") + (reply.message || tx("the KlippEye service does not answer")) + ".");
   };
 
   const values = { ...(data ? data.values : {}), ...edits };

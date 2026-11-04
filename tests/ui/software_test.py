@@ -140,7 +140,7 @@ with sync_playwright() as p:
 
     P = fresh(b, brain="old")
     open_menu(P)
-    ok("an old backend: both new entries say it must be updated", wait_until(lambda: "Backend da aggiornare" in P.pg.locator('.set-entry[data-page="software"] .set-entry__meta').inner_text()), P.pg.locator('.set-entry[data-page="software"] .set-entry__meta').inner_text())
+    ok("an old backend: both new entries say it must be updated", wait_until(lambda: "Servizio KlippEye da aggiornare" in P.pg.locator('.set-entry[data-page="software"] .set-entry__meta').inner_text()), P.pg.locator('.set-entry[data-page="software"] .set-entry__meta').inner_text())
     P.close()
 
     # ====================================================================================== the thresholds
@@ -255,7 +255,7 @@ with sync_playwright() as p:
     ok("... with the commit and the branch", "a1b2c3d" in txt and "main" in txt, txt)
     ok("an up-to-date system says so", wait_until(lambda: "KlippEye è aggiornato" in pg.locator(".drawer__body").inner_text(), 4.0))
     ok("no update button then", pg.locator("button", has_text="Aggiorna KlippEye").count() == 0)
-    ok("the restart rows are there (the notification service exists)", wait_until(lambda: "Riavvia il backend" in pg.locator(".drawer__body").inner_text() and "Riavvia le notifiche" in pg.locator(".drawer__body").inner_text(), 3.0), pg.locator(".drawer__body").inner_text()[-300:])
+    ok("the restart rows are there (the notification service exists)", wait_until(lambda: "Riavvia il servizio KlippEye" in pg.locator(".drawer__body").inner_text() and "Riavvia le notifiche" in pg.locator(".drawer__body").inner_text(), 3.0), pg.locator(".drawer__body").inner_text()[-300:])
     row = pg.locator(".file-action", has_text="Scarica il rapporto di diagnostica")
     ok("1.9.0: a 'Diagnostica' block offers the diagnostic report", row.count() == 1 and "klippeye diagnose" in row.inner_text(), pg.locator(".drawer__body").inner_text()[-500:])
     with pg.expect_download(timeout=8000) as info:
@@ -281,10 +281,10 @@ with sync_playwright() as p:
     pg.locator("button", has_text="Aggiorna KlippEye").click(); P.settle(700)
     ok("the menu closes and the confirmation opens", pg.locator(".drawer").count() == 0 and "Aggiornare KlippEye?" in pg.locator(".sheet-card").inner_text())
     sheet = pg.locator(".sheet-card").inner_text()
-    ok("it shows the installed and the new release, the commits and what will happen", "1.0.0" in sheet and "1.0.1" in sheet and "Soglie nuove" in sheet and "riavvia il backend" in sheet, sheet)
+    ok("it shows the installed and the new release, the commits and what will happen", "1.0.0" in sheet and "1.0.1" in sheet and "Soglie nuove" in sheet and "riavvia il servizio KlippEye" in sheet, sheet)
     P.shot(out + "/update_confirm.png", tall=False)
     pg.locator(".sheet-footer button", has_text="Aggiorna").click()
-    ok("the dialog goes to the progress and says the backend is restarting", wait_until(lambda: "Il backend si riavvia" in pg.locator(".sheet-card").inner_text(), 8.0), pg.locator(".sheet-card").inner_text()[:400])
+    ok("the dialog goes to the progress and says the backend is restarting", wait_until(lambda: "Il servizio KlippEye si riavvia" in pg.locator(".sheet-card").inner_text(), 8.0), pg.locator(".sheet-card").inner_text()[:400])
     ok("... the upgrade request went out for klippeye", ("upgrade", "klippeye") in [tuple(a) for a in state()["update_log"]])
     ok("... no failure is shown for the cut connection", "Fallito" not in pg.locator(".sheet-card").inner_text())
     P.shot(out + "/update_progress.png", tall=False)
@@ -364,17 +364,17 @@ with sync_playwright() as p:
     P = fresh(b, brain_release="2.0.0")
     pg = P.pg
     open_menu(P); go(P, "software")
-    ok("the page asks to reload when the backend is a newer release", wait_until(lambda: "ma il backend è la" in pg.locator(".drawer__body").inner_text(), 4.0) and pg.locator("button", has_text="Ricarica").count() == 1, pg.locator(".drawer__body").inner_text()[:400])
+    ok("the page asks to reload when the backend is a newer release", wait_until(lambda: "ma il servizio KlippEye è la" in pg.locator(".drawer__body").inner_text(), 4.0) and pg.locator("button", has_text="Ricarica").count() == 1, pg.locator(".drawer__body").inner_text()[:400])
     P.close()
 
     # restart of the backend from the page
     P = fresh(b)
     pg = P.pg
     open_menu(P); go(P, "software")
-    wait_until(lambda: pg.locator("button:has-text('Riavvia il backend'), .file-action-row:has-text('Riavvia il backend')").count() >= 1, 5.0)
-    pg.locator("text=Riavvia il backend").first.click()
+    wait_until(lambda: pg.locator("button:has-text('Riavvia il servizio KlippEye'), .file-action-row:has-text('Riavvia il servizio KlippEye')").count() >= 1, 5.0)
+    pg.locator("text=Riavvia il servizio KlippEye").first.click()
     ok("restarting the backend: the menu closes, the request goes to Moonraker for the service klippeye", wait_until(lambda: ("services/restart", "klippeye") in actions(), 4.0) and wait_until(lambda: pg.locator(".drawer").count() == 0, 3.0), actions())
-    ok("... the ring shows 'Riavvio del backend' while it is away", wait_until(lambda: "Riavvio del backend" in pg.locator("body").inner_text(), 4.0), pg.locator("body").inner_text()[:300])
+    ok("... the ring shows 'Riavvio del servizio KlippEye' while it is away", wait_until(lambda: "Riavvio del servizio KlippEye" in pg.locator("body").inner_text(), 4.0), pg.locator("body").inner_text()[:300])
     ok("... and the page reloads by itself afterwards", reloaded(P, 60.0))
     P.close()
 
@@ -382,8 +382,8 @@ with sync_playwright() as p:
     P = fresh(b, disconnected=True)
     pg = P.pg
     open_menu(P); go(P, "software")
-    wait_until(lambda: "Riavvia il backend" in pg.locator(".drawer__body").inner_text(), 5.0)
-    pg.locator("text=Riavvia il backend").first.click()
+    wait_until(lambda: "Riavvia il servizio KlippEye" in pg.locator(".drawer__body").inner_text(), 5.0)
+    pg.locator("text=Riavvia il servizio KlippEye").first.click()
     ok("[no Klipper] restarting the backend reloads the page once the backend answers again", wait_until(lambda: ("services/restart", "klippeye") in actions(), 4.0) and reloaded(P, 40.0), actions())
     P.close()
 
@@ -402,8 +402,8 @@ with sync_playwright() as p:
     P = fresh(b, printing=True)
     pg = P.pg
     open_menu(P); go(P, "software")
-    pg.locator("text=Riavvia il backend").first.click(); P.settle(600)
-    ok("printing: the restart of the backend asks first and says the print goes on", "Riavviare il backend?" in pg.locator(".confirm-card").inner_text() and "non si ferma" in pg.locator(".confirm-card").inner_text() and ("services/restart", "klippeye") not in actions(), pg.locator("body").inner_text()[:300])
+    pg.locator("text=Riavvia il servizio KlippEye").first.click(); P.settle(600)
+    ok("printing: the restart of the backend asks first and says the print goes on", "Riavviare il servizio KlippEye?" in pg.locator(".confirm-card").inner_text() and "non si ferma" in pg.locator(".confirm-card").inner_text() and ("services/restart", "klippeye") not in actions(), pg.locator("body").inner_text()[:300])
     pg.locator(".confirm-card button", has_text="Annulla").click(); P.settle(300)
     ok("... 'Annulla' sends nothing", ("services/restart", "klippeye") not in actions())
     P.close()
