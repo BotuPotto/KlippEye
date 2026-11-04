@@ -191,7 +191,6 @@ with sync_playwright() as p:
     go(P, "Config")
     ok("coming back to Config shows the placeholder (no stale editor, discarded edit not saved)", P.pg.locator(".desk-empty").count() == 1 and len(gl("UPLOAD:")) == 2, (P.pg.locator(".desk-empty").count(), gl("UPLOAD:")))
     # close button (the editor's own guard)
-    cfg_row("crowsnest.conf").locator(".cfg-row__main").click(); P.pg.wait_for_timeout(900)
     P.pg.locator(".cm-content").click(); P.pg.keyboard.type("z"); P.pg.wait_for_timeout(200)
     P.pg.locator(".editor-close").click(); P.pg.wait_for_timeout(400)
     ok("close with unsaved edit asks (editor's own dialog)", P.pg.locator(".confirm-overlay").count() == 1, P.pg.locator(".confirm-overlay").count())
