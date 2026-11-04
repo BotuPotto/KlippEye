@@ -1,0 +1,90 @@
+/* ============================================================================
+   Print history and statistics (app/47b-history.js) and the Files page's switch
+   ========================================================================== */
+
+.files-section-bar { display: flex; justify-content: center; margin: 0 0 14px; }
+.files-section-switch > button { min-width: 132px; }
+.is-wide .files-section-bar { justify-content: flex-start; margin-bottom: 16px; }
+
+.oui-segmented--sm { padding: 3px; }
+.oui-segmented--sm > button { min-height: 40px; padding: 0 12px; font-size: 13px; }
+
+.history-page { display: flex; flex-direction: column; gap: var(--oui-gutter); }
+.desk-split--history { align-items: start; }
+
+/* ---- statistics ---- */
+.history-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.history-stat { min-width: 0; padding: 12px 10px; border-radius: var(--oui-r-tile); background: var(--oui-inset); text-align: center; }
+.history-stat__value { overflow: hidden; font-size: 18px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.history-stat__label { margin-top: 2px; font-size: 12px; line-height: 1.3; color: var(--oui-text-3); }
+.history-reset { min-height: 40px; }
+.history-error { margin-top: 4px; }
+
+/* how the prints ended: one bar in parts, 2 px apart, the words and counts under it */
+.history-outcome { margin-top: 16px; }
+.history-outcome__bar { display: flex; gap: 2px; height: 10px; overflow: hidden; border-radius: 999px; }
+.history-outcome__part { min-width: 4px; }
+.history-outcome__part.is-ok,
+.history-outcome__dot.is-ok { background: var(--oui-ok); }
+.history-outcome__part.is-muted,
+.history-outcome__dot.is-muted { background: var(--oui-text-3); }
+.history-outcome__part.is-danger,
+.history-outcome__dot.is-danger { background: var(--oui-danger); }
+.history-outcome__legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 8px; font-size: 13px; color: var(--oui-text-2); }
+.history-outcome__key { display: inline-flex; align-items: center; gap: 6px; }
+.history-outcome__key b { color: var(--oui-text); font-variant-numeric: tabular-nums; }
+.history-outcome__dot { width: 8px; height: 8px; border-radius: 50%; }
+
+/* the last 14 days: a bar a day */
+.history-days { margin-top: 18px; }
+.history-days__head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.history-days__readout { min-height: 20px; margin: 10px 0 6px; font-size: 13px; color: var(--oui-text-2); font-variant-numeric: tabular-nums; }
+.history-days__readout b { color: var(--oui-text); }
+.history-days__plot { display: flex; align-items: flex-end; gap: 2px; height: 110px; padding-bottom: 1px; border-bottom: 1px solid var(--oui-stroke); }
+.history-days__slot { display: flex; flex: 1; align-items: flex-end; height: 100%; min-width: 0; padding: 0; border: 0; border-radius: 4px 4px 0 0; background: transparent; cursor: pointer; }
+.history-days__slot:hover,
+.history-days__slot.is-picked { background: rgba(255, 255, 255, 0.04); }
+.history-days__bar { display: block; width: 100%; border-radius: 4px 4px 0 0; background: var(--oui-accent); opacity: 0.8; transition: height var(--oui-dur-base) var(--oui-ease); }
+.history-days__slot.is-picked .history-days__bar { opacity: 1; }
+.history-days__axis { display: flex; justify-content: space-between; margin-top: 4px; font-size: 11px; color: var(--oui-text-3); }
+
+/* ---- the list ---- */
+.history-filters { margin-bottom: 10px; }
+.history-list { display: flex; flex-direction: column; gap: 6px; }
+.history-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 64px;
+  padding: 8px 10px;
+  border: 1px solid transparent;
+  border-radius: var(--oui-r-row);
+  background: var(--oui-surface-2);
+  color: var(--oui-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--oui-dur-fast) var(--oui-ease);
+}
+.history-row:hover,
+.history-row:active { background: var(--oui-surface-3); }
+.history-row.is-selected { border-color: var(--oui-accent); }
+.history-row__thumb { display: flex; flex: 0 0 48px; align-items: center; justify-content: center; width: 48px; height: 48px; overflow: hidden; border-radius: var(--oui-r-field); color: var(--oui-text-3); }
+.history-row__thumb .file-thumb { max-width: 100%; max-height: 100%; object-fit: contain; }
+.history-row__body { display: flex; flex: 1; flex-direction: column; gap: 4px; min-width: 0; }
+.history-row__name { overflow: hidden; font-size: 14px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.history-row__meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; font-size: 12px; color: var(--oui-text-3); font-variant-numeric: tabular-nums; }
+.history-row__status { font-size: 11px; }
+.history-row__fact { display: inline-flex; align-items: center; gap: 3px; }
+.history-row__note { display: flex; align-items: center; gap: 4px; overflow: hidden; font-size: 12px; color: var(--oui-text-2); text-overflow: ellipsis; white-space: nowrap; }
+.history-more { margin-top: 10px; }
+
+/* ---- a job ---- */
+.history-note { display: block; margin-top: 14px; }
+.history-note__input { min-height: 64px; resize: vertical; }
+.history-remove { margin-right: auto; }
+.history-reprint { white-space: nowrap; }
+.history-search { min-width: 0; }
+.history-stats-card,
+.history-list-card { min-width: 0; }

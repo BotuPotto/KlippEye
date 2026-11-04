@@ -70,7 +70,8 @@ function App() {
   const zOffset = useZOffset({ status, capabilities, onSaveConfig: saveConfig.confirm });
   const bedTools = useBedTools({ capabilities, homedAxes: status.homedAxes, lockReason, onSaveConfig: saveConfig.confirm });
   const desktop = useIsDesktop();
-  const files = useFileList(tab === "files", desktop ? FILES_METADATA_LIMIT_WIDE : FILES_METADATA_LIMIT);
+  const filesSection = useFilesSection();
+  const files = useFileList(tab === "files" && filesSection === "files", desktop ? FILES_METADATA_LIMIT_WIDE : FILES_METADATA_LIMIT);
   const aiMonitor = useAiMonitor();
   const updates = useUpdateDialog();
 
@@ -111,7 +112,10 @@ function App() {
     controllo: desktop
       ? h(DesktopCalibrationPage, { capabilities, lockReason, homedAxes: status.homedAxes, printState: printStatus.state, onGcode: runFromConsole, onMacroSettings: openMacroSettings })
       : h(ControlPage, { entries: consoleFeed.entries, status, capabilities, lockReason, printState: printStatus.state, onGcode: runFromConsole, onEditTemperature: temperature.edit, onMacroSettings: openMacroSettings }),
-    files: desktop ? h(DesktopFilesPage, { list: files, onPrint: setPrintJob, fileActions }) : h(FilesCard, { list: files, onPrint: setPrintJob, onMenu: fileActions.openMenu }),
+    files: h(FilesPage, {
+      desktop,
+      files: { onPrint: setPrintJob, content: desktop ? h(DesktopFilesPage, { list: files, onPrint: setPrintJob, fileActions }) : h(FilesCard, { list: files, onPrint: setPrintJob, onMenu: fileActions.openMenu }) },
+    }),
     config: desktop
       ? h(DesktopConfigPage, {
           onEditFile: openEditorAskingFirst,

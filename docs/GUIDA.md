@@ -241,6 +241,17 @@ cartella, dimensione, ultima modifica, ultima stampa, slicer, tempo stimato, alt
 dell'oggetto, layer, filamento (tipo, lunghezza, peso), ugello, temperature del primo layer — con *Avvia stampa*; poi
 l'editor ed *Elimina*. Sul computer anche il riquadro accanto all'elenco ha il pulsante *Dettagli*.
 
+### Cronologia delle stampe
+
+In cima alla pagina **File** un interruttore passa da *File di stampa* a **Cronologia** (la scelta resta su questo
+dispositivo). Le **statistiche** vengono dal `[history]` di Moonraker: stampe, tempo di stampa, filamento usato, stampa più
+lunga e media, quante completate; una barra dice come sono finite (completate, annullate, fallite) e un grafico mostra gli
+**ultimi 14 giorni**, tempo di stampa o filamento per giorno (tocca una barra per il valore). *Azzera* riporta a zero i
+totali di Moonraker. Sotto, l'**elenco** delle stampe con anteprima, esito, data, tempo e filamento, con ricerca (anche
+nelle note) e filtri. Toccando una stampa si vedono i dettagli, si scrive una **nota** (salvata sul Raspberry, la vedono
+tutti i dispositivi), si **ristampa** il file se c'è ancora o la si **toglie** dalla cronologia. Se Moonraker non ha
+`[history]` in `moonraker.conf`, la pagina dice di aggiungerlo.
+
 ### File di configurazione
 
 La card **File di configurazione** (pagina Config) mostra prima le cartelle, poi i file. Il pulsante ⇅ accanto alla ricerca

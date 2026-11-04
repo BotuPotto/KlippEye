@@ -5,12 +5,15 @@
    dialog.
    ========================================================================== */
 
-.sheet-overlay {
+/* the defaults weigh nothing (:where), so a variant set in an earlier file (.sheet-overlay--details in 47-files.css…)
+   still wins over them: before 1.42 these came later and undid the sizes of those variants */
+:where(.sheet-overlay) {
   --sheet-z: 9999;
   --sheet-gutter: 16px;
   --sheet-width: 420px;
   --sheet-max-height: none;
-
+}
+.sheet-overlay {
   position: fixed;
   inset: 0;
   z-index: var(--sheet-z);
