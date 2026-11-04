@@ -115,7 +115,7 @@ function ZOffsetCard({ zOffset: controller, printing }) {
 
   return h(
     Card,
-    null,
+    { cardId: "zoffset" },
     h(CardHeader, { title: "Z-offset" }, h("span", { className: cx("oui-badge", printing ? "oui-badge--info" : "oui-badge--warn") }, printing ? "Live" : tx("At the end of the print"))),
     h(
       "div",

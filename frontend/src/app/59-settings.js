@@ -15,7 +15,7 @@
    What is stored and how is app/16-settings.js. Every change counts at once and is saved a moment later.
    ========================================================================== */
 
-const SETTINGS_PAGES = ["printer", "camera", "network", "macros", "motion", "zoffset", "notifications", "ai", "detector", "camcal", "recordings", "software"];
+const SETTINGS_PAGES = ["printer", "camera", "network", "macros", "motion", "zoffset", "notifications", "ai", "detector", "camcal", "recordings", "software", "appearance"];
 const SETTINGS_TYPING_MS = 800; // a typed value is taken when the typing stops (and when the field is left or the menu closed)
 // a swipe to the left closes the menu: at least this long, mostly sideways, quick, and never started on a control
 // (1.24: it was too easy to close it while moving a slider or scrolling)
@@ -774,6 +774,8 @@ function settingsSummary(page, settings, brain) {
       return languageSummary();
     case "functions":
       return printerFunctionsSummary(settings);
+    case "appearance":
+      return appearanceSummary();
     case "notifications":
       return tx("{count} of {total} on", { count: NOTIFICATION_KINDS.filter((kind) => notifications[kind.id]).length, total: NOTIFICATION_KINDS.length });
     default:
@@ -798,6 +800,7 @@ const SETTINGS_ENTRIES = [
   { id: "ai", group: "watch", title: tx("AI monitor"), icon: Icons.Sparkle },
   { id: "notifications", group: "phone", title: tx("Notifications"), icon: Icons.Bell },
   { id: "network", group: "phone", title: tx("Addresses"), icon: Icons.Network },
+  { id: "appearance", group: "phone", title: tx("Appearance"), icon: Icons.Sliders },
   { id: "access", group: "system", title: tx("Access"), icon: Icons.Lock },
   { id: "software", group: "system", title: tx("Updates"), icon: Icons.Download },
   { id: "language", group: "system", title: tx("Language"), icon: Icons.Language },
@@ -893,6 +896,7 @@ function SettingsDrawer({ menu, updates, printing, actions }) {
   else if (page === "camcal") body = h(CameraCalibrationPage, { active: true });
   else if (page === "access") body = h(AccessPage, { active: true });
   else if (page === "language") body = h(LanguagePage);
+  else if (page === "appearance") body = h(AppearancePage);
   else if (page === "functions") body = h(PrinterFunctionsPage, { printing });
   else if (page === "software") body = h(SoftwarePage, { active: true, menu, updates, printing, actions });
   else body = h(SettingsHome, { menu });

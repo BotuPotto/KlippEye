@@ -719,7 +719,7 @@ function CameraCard() {
     null,
     h(
       Card,
-      null,
+      { cardId: "camera" },
       h(CardHeader, { title: "Camera" }, h("div", { className: "camera-head-actions" }, h(CameraPicker), light.available && h(LightButton, light), h(CameraFullscreenButton, { onOpen: () => setFull(true) }))),
       h("div", { className: "camera-frame" }, !full && h(CameraMedia, { className: "camera-frame__video", reloads })),
     ),

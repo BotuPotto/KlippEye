@@ -6,6 +6,6 @@
    ========================================================================== */
 const React = Pt();
 const { createRoot } = af();
-const { useState, useEffect, useLayoutEffect, useMemo, useRef, useSyncExternalStore } = React;
+const { useState, useEffect, useLayoutEffect, useMemo, useRef, useSyncExternalStore, useContext } = React;
 /** Hyperscript helper: h(type, props, ...children) */
 const h = React.createElement;

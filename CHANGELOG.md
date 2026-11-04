@@ -1,5 +1,16 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.50.0
+
+**Cards that fold, and the order of the pages** (roadmap phase 6e, first part).
+
+* Every main card (camera, heaters, temperatures, spool, movement, Z-offset, console, extruder, devices, the macro cards,
+  tuning, bed mesh, the computer's fans) has a **chevron** in its title bar that folds it down to the title; it stays so on
+  this device.
+* **Settings → Appearance** (new): the order of the cards of **Home** and **Control** (arrows) and which of them show
+  (a switch), kept on this device; how many cards are folded, with *Open them all*; *Usual order, everything shown*. The
+  print card always stays on top.
+
 ## 1.49.0
 
 **G-code viewer** (roadmap phase 6d, eighth and last part): a file seen layer by layer from above, like the 2D view of

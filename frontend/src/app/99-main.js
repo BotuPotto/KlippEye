@@ -11,30 +11,35 @@ function startPrint(job) {
 function HomePage({ printStatus, printControls, status, motion, bedTools, zOffset, lockReason, onEditTemperature, aiMonitor }) {
   const placement = zOffsetPlacement(printStatus, status.zOffset);
   const zOffsetCard = placement && h("div", { className: "md:col-span-2" }, h(ZOffsetCard, { zOffset, printing: placement === "instead" }));
+  useLayout(); // 1.50: the order and the hidden cards of Settings → Appearance
   return h(
     "div",
     { className: "grid grid-cols-1 md:grid-cols-2" },
     printStatus.printing && h(PrintProgressCard, { status: printStatus, controls: printControls, monitor: aiMonitor }),
-    h("div", { className: "md:col-span-2" }, h(CameraCard)),
-    h("div", { className: "md:col-span-2" }, h(HeatersFansCard, { hotend: status.hotend, bed: status.bed, onEditTemperature })),
-    h("div", { className: "md:col-span-2" }, h(TemperatureCard, { onEditTemperature })),
-    h(SpoolCard),
-    zOffsetCard,
-    placement !== "instead" && h("div", { className: "md:col-span-2" }, h(MovementCard, { position: status.position, homedAxes: status.homedAxes, motion, bedTools, lockReason })),
+    arrangeCards("home", {
+      camera: h("div", { className: "md:col-span-2" }, h(CameraCard)),
+      heaters: h("div", { className: "md:col-span-2" }, h(HeatersFansCard, { hotend: status.hotend, bed: status.bed, onEditTemperature })),
+      temps: h("div", { className: "md:col-span-2" }, h(TemperatureCard, { onEditTemperature })),
+      spool: h(SpoolCard),
+      movement: h(React.Fragment, null, zOffsetCard, placement !== "instead" && h("div", { className: "md:col-span-2" }, h(MovementCard, { position: status.position, homedAxes: status.homedAxes, motion, bedTools, lockReason }))),
+    }),
   );
 }
 
 function ControlPage({ entries, status, capabilities, lockReason, printState, onGcode, onEditTemperature, onMacroSettings }) {
+  useLayout();
   return h(
     "div",
     { className: "grid grid-cols-1" },
-    h(ConsoleCard, { entries }),
-    h(ExtruderCard, { hotend: status.hotend, onGcode, onEditTemperature }),
-    h(DevicesCard),
-    h(MacroCards, { printState, onGcode, onSettings: onMacroSettings }),
-    h(TuneCard, { capabilities, onGcode }),
-    h(EndstopsCard, { capabilities, lockReason }),
-    h(BedMeshCard, { onGcode, lockReason, homedAxes: status.homedAxes }),
+    arrangeCards("control", {
+      console: h(ConsoleCard, { entries }),
+      extruder: h(ExtruderCard, { hotend: status.hotend, onGcode, onEditTemperature }),
+      devices: h(DevicesCard),
+      macros: h(MacroCards, { printState, onGcode, onSettings: onMacroSettings }),
+      tune: h(TuneCard, { capabilities, onGcode }),
+      endstops: h(EndstopsCard, { capabilities, lockReason }),
+      bedmesh: h(BedMeshCard, { onGcode, lockReason, homedAxes: status.homedAxes }),
+    }),
   );
 }
 

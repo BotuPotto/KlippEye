@@ -351,7 +351,7 @@ function ConsoleCard({ entries }) {
 
   return h(
     Card,
-    null,
+    { cardId: "console" },
     h(CardHeader, { title: "Console" }, h(ConsoleTools, { entries, fullscreen: false, onFullscreen: () => setFullscreen(true) })),
     h(ConsoleLog, { entries, onPick: pick }),
     h(Presence, null, fullscreen && h(ConsoleFullscreen, { entries, onClose: () => setFullscreen(false) })),

@@ -14,9 +14,16 @@ const cx = (...parts) => parts.filter(Boolean).join(" ");
 /** Glass pill button shared by the macro, extrusion and filament buttons (each adds size and layout). */
 const PILL_BUTTON_CLASS = "oui-btn";
 
-/** Rounded glass panel used for every dashboard section. `flush` lets the body run edge to edge. */
-function Card({ className, flush, children, ...rest }) {
-  return h("div", { className: cx("oui-card", flush && "oui-card--flush", className), ...rest }, children);
+/**
+ * Rounded glass panel used for every dashboard section. `flush` lets the body run edge to edge.
+ * 1.50: with a `cardId` the card can be folded down to its header (the chevron the CardHeader then shows), kept on this device.
+ */
+const CardFoldContext = React.createContext(null);
+function Card({ className, flush, cardId, children, ...rest }) {
+  const layout = useLayout();
+  const collapsed = Boolean(cardId && layout.collapsed[cardId]);
+  const card = h("div", { className: cx("oui-card", flush && "oui-card--flush", cardId && "oui-card--foldable", collapsed && "is-collapsed", className), "data-card": cardId || undefined, ...rest }, children);
+  return cardId ? h(CardFoldContext.Provider, { value: { id: cardId, collapsed } }, card) : card;
 }
 
 /** Large page title under the top bar (One UI "viewing area"); it scrolls away with the page. */
@@ -29,9 +36,21 @@ function SectionTitle({ children, className }) {
   return h("span", { className: cx("oui-card-title", className) }, children);
 }
 
-/** Card header: title on the left, optional actions on the right. */
+/** Card header: title on the left, optional actions on the right (and the fold chevron of a foldable card). */
 function CardHeader({ title, children }) {
-  return h("div", { className: "oui-card__head" }, h(SectionTitle, null, title), children);
+  const fold = useContext(CardFoldContext);
+  if (!fold) return h("div", { className: "oui-card__head" }, h(SectionTitle, null, title), children);
+  return h(
+    "div",
+    { className: "oui-card__head" },
+    h(SectionTitle, null, title),
+    h(
+      "div",
+      { className: "oui-card__tools" },
+      !fold.collapsed && children,
+      h("button", { type: "button", className: "oui-card__fold", "aria-expanded": !fold.collapsed, "aria-label": fold.collapsed ? tx("Open «{name}»", { name: title }) : tx("Fold «{name}»", { name: title }), title: fold.collapsed ? txc("card", "Open") : txc("card", "Fold"), onClick: () => layoutStore.toggleCollapsed(fold.id) }, h(Icons.Chevron, { size: 18 })),
+    ),
+  );
 }
 
 /* ---------------------------------------------------------------------------

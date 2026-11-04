@@ -394,7 +394,7 @@ function MacroCards({ printState, onGcode, onSettings }) {
     cards.map((card) =>
       h(
         Card,
-        { key: card.id, className: cx("macro-card", macroColorProps(card.color).className), style: macroColorProps(card.color).style, "data-macro-card": card.id },
+        { key: card.id, cardId: "macro:" + card.id, className: cx("macro-card", macroColorProps(card.color).className), style: macroColorProps(card.color).style, "data-macro-card": card.id },
         h(CardHeader, { title: card.title }, h("button", { className: "icon-btn", title: tx("Manage macros"), "aria-label": tx("Manage macros"), onClick: onSettings }, h(Icons.Gear, { size: 20 }))),
         h(
           "div",

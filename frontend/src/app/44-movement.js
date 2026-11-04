@@ -352,7 +352,7 @@ function MovementActions({ motion, bedTools, lockReason }) {
 function MovementCard({ position, homedAxes, motion, bedTools, lockReason }) {
   return h(
     Card,
-    null,
+    { cardId: "movement" },
     h(CardHeader, { title: tx("Motion") }),
     h(PositionReadout, { position, homedAxes, onPickAxis: motion.openPositionDialog }),
     h(

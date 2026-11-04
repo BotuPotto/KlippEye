@@ -138,7 +138,7 @@ function IdlePrintCard({ status, onOpenFiles }) {
 function DesktopHeatersCard({ hotend, bed, onEditTemperature }) {
   return h(
     Card,
-    null,
+    { cardId: "heaters" },
     h(CardHeader, { title: tx("Heaters") }),
     h(
       "div",
@@ -150,7 +150,7 @@ function DesktopHeatersCard({ hotend, bed, onEditTemperature }) {
 }
 
 function DesktopFansCard() {
-  return h(Card, null, h(CardHeader, { title: tx("Fans") }), h(FanList));
+  return h(Card, { cardId: "fans" }, h(CardHeader, { title: tx("Fans") }), h(FanList));
 }
 
 /**

@@ -53,7 +53,7 @@ function ExtruderCard({ hotend, onGcode, onEditTemperature }) {
 
   return h(
     Card,
-    null,
+    { cardId: "extruder" },
     h(CardHeader, { title: tx("Extruder") }),
     h(
       "div",

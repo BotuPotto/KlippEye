@@ -292,6 +292,13 @@ ponti, supporti, skirt / brim), il layer sotto è in grigio e gli spostamenti si
 nella legenda lo nascondi. Pizzica o usa la rotella per lo zoom, trascina per spostarti. Durante la stampa di quel file,
 **Segui la stampa** mostra il layer dell'ugello, cosa è già stampato e cosa no, e l'ugello stesso.
 
+### Card richiudibili e ordine delle pagine
+
+Le card principali hanno una **freccia** in alto a destra che le richiude lasciando solo il titolo (resta così su questo
+dispositivo). In **Impostazioni → Aspetto** scegli l'**ordine** delle card di Home e Controllo (con le frecce) e quali
+mostrare (con l'interruttore), vedi quante card sono richiuse (*Riaprile tutte*) e torni all'ordine solito. La card della
+stampa resta sempre in cima.
+
 ### Coda di stampa
 
 Se `moonraker.conf` ha `[job_queue]`, il menu di un file (tenendolo premuto; sul computer il pulsante *Coda* nel riquadro

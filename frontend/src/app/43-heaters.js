@@ -33,7 +33,7 @@ function HeaterTile({ kind, heater, onEdit, className }) {
 function HeatersFansCard({ hotend, bed, onEditTemperature }) {
   return h(
     Card,
-    null,
+    { cardId: "heaters" },
     h(CardHeader, { title: tx("Heaters and fans") }),
     h(
       "div",
