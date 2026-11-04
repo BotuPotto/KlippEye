@@ -1,5 +1,18 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.46.0
+
+**Timelapse** (roadmap phase 6d, fifth part), with moonraker-timelapse.
+
+* The Files page gets a third part, **Timelapse**, when Moonraker has the component:
+  * the **videos**, newest first, with their preview picture, date and size: a tap plays one full screen, *Download*,
+    delete (asks first; the preview goes with it);
+  * the **frames** of the last print not yet a video, with **Make the video**; the new video appears when ready;
+  * the **settings**: on / off, a photo every layer or every few seconds (hyperlapse), park the head for the photo and
+    where, make the video at the end of the print, frames a second or a video length to aim at, repeat the last frame,
+    quality (CRF), preview picture, keep the frames. A setting fixed in `moonraker.conf` is shown locked.
+* Without the `TIMELAPSE_TAKE_FRAME` macro (`[include timelapse.cfg]`) the page says that no photo is taken.
+
 ## 1.45.0
 
 **Devices: power, outputs and filament sensors** (roadmap phase 6d, fourth part), like Mainsail's *Power control* and
