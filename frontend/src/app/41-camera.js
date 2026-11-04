@@ -579,15 +579,15 @@ function CameraSnapshots({ className, url, fps, style }) {
   );
 }
 
-/** The camera as the settings describe it. `reloads` (useCameraReloads) loads everything afresh. */
+/** The camera being watched (the settings' one, or another picked in 41a-cameras.js). `reloads` (useCameraReloads) loads everything afresh. */
 function CameraMedia({ className, reloads }) {
   const { settings } = useSettings();
-  const camera = settings.camera;
-  const url = cameraUrl(settings);
+  const camera = useCurrentCamera().current;
+  const url = cameraAddress(settings, camera.address);
   const style = flipStyle(camera);
   if (camera.method === "mjpeg") return h(CameraStream, { key: "mjpeg" + reloads + url, className, url, style });
-  if (camera.method === "adaptive") return h(CameraSnapshots, { key: "adaptive" + reloads, className, url, fps: camera.fps, style });
-  return h("iframe", { key: camera.method + reloads, className, src: url, style, allow: "autoplay; fullscreen", loading: "eager", title: "Camera" });
+  if (camera.method === "adaptive") return h(CameraSnapshots, { key: "adaptive" + reloads + url, className, url, fps: camera.fps, style });
+  return h("iframe", { key: camera.method + reloads + url, className, src: url, style, allow: "autoplay; fullscreen", loading: "eager", title: camera.name });
 }
 
 /* ---------------------------------------------------------------------------
@@ -720,7 +720,7 @@ function CameraCard() {
     h(
       Card,
       null,
-      h(CardHeader, { title: "Camera" }, h("div", { className: "camera-head-actions" }, light.available && h(LightButton, light), h(CameraFullscreenButton, { onOpen: () => setFull(true) }))),
+      h(CardHeader, { title: "Camera" }, h("div", { className: "camera-head-actions" }, h(CameraPicker), light.available && h(LightButton, light), h(CameraFullscreenButton, { onOpen: () => setFull(true) }))),
       h("div", { className: "camera-frame" }, !full && h(CameraMedia, { className: "camera-frame__video", reloads })),
     ),
     h(Presence, null, full && h(CameraFullscreen, { onClose: () => setFull(false) })),

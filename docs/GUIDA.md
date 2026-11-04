@@ -276,6 +276,13 @@ bobina** elenca le bobine di Spoolman, le ultime usate prima, con la ricerca: to
 Moonraker scala da lei il filamento di ogni stampa; **Nessuna bobina** non ne lascia nessuna. Se Spoolman non risponde,
 la card lo dice.
 
+### Più camere
+
+Oltre alla camera delle impostazioni (quella che guarda il monitor IA), la dashboard usa le webcam configurate in
+Mainsail o Fluidd (Moonraker le conserva): se ce n'è più di una, la card della camera (e il riquadro della camera sul
+computer) ha un **menu** per scegliere quale guardare, e lo schermo intero la segue. Ogni webcam mantiene il suo modo di
+essere mostrata e i suoi ribaltamenti; la scelta resta su questo dispositivo.
+
 ### Coda di stampa
 
 Se `moonraker.conf` ha `[job_queue]`, il menu di un file (tenendolo premuto; sul computer il pulsante *Coda* nel riquadro
