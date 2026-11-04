@@ -95,6 +95,7 @@ button.oui-tile:active { transform: scale(0.985); background: var(--oui-surface-
 .oui-row__meta { font-size: 12px; color: var(--oui-text-3); font-variant-numeric: tabular-nums; }
 
 /* ---- a card folded down to its header (1.50; the chevron of CardHeader) ---- */
+.oui-card--foldable { position: relative; }
 .oui-card__tools { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .oui-card__fold { display: grid; flex-shrink: 0; place-items: center; width: 36px; height: 36px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--oui-text-3); cursor: pointer; transition: transform var(--oui-dur-fast) var(--oui-ease), background var(--oui-dur-fast) var(--oui-ease); }
 .oui-card__fold:hover { background: var(--oui-surface-3); color: var(--oui-text); }
