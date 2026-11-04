@@ -1,5 +1,22 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.42.0
+
+**Print history and statistics** (roadmap phase 6d, first part).
+
+* The **Files** page has a switch at the top: *Print files* | *History* (kept on this device).
+* **Statistics** (Moonraker's `[history]`): prints, print time, filament used, longest and average print, how many
+  completed; **how the prints ended** (completed / cancelled / failed, one bar with the counts); the **last 14 days**, a bar
+  a day for print time or filament (tap a bar for its day and value). *Reset* sets Moonraker's totals back to zero.
+* **The list**: every print newest first with its thumbnail, how it ended (Klipper shutdown, error, cancelled…), date,
+  print time and filament; search (also in the notes), filters *All / Completed / Cancelled / Failed*.
+* **A print**: started, ended, print and total time, slicer estimate, filament used and in the file, slicer, layer and
+  object height, whether the file is still there; a **note** (kept in Moonraker's database, every device sees it);
+  **Print again**; **Remove** from the history.
+* Without `[history]` in `moonraker.conf` the page says what to add.
+* Fix: the sheets that set their own size in an earlier stylesheet (file details, lights, folders, bed screws) lost it
+  to the defaults: a long one could run off the screen. The defaults now weigh nothing (`:where`).
+
 ## 1.41.0
 
 **The text editor on CodeMirror 6, like Mainsail** (roadmap phase 6c, third part).

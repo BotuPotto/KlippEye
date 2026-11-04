@@ -15,8 +15,33 @@ def klippeye_default_info():
             "remote_hash": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678", "is_dirty": False, "is_valid": True, "detached": False, "commits_behind": [], "commits_behind_count": 0,
             "git_messages": [], "pristine": True, "corrupt": False, "warnings": [], "anomalies": [], "channel": "dev"}
 
+def default_history():
+    """Moonraker's [history] (1.42): the jobs newest first, timed from the real clock (the page draws the last 14 days): the
+    Benchy a minute ago, the others whole days before, so each falls on its own day whatever the hour."""
+    now = time.time()
+    day = 86400
+    thumbs = [{"width": 32, "height": 32, "size": 100, "relative_path": ".thumbs/thumb-32x32.png"}, {"width": 300, "height": 300, "size": 900, "relative_path": ".thumbs/thumb-300x300.png"}]
+    def job(uid, name, status, ago, duration, filament, exists=True):
+        start = now - ago
+        meta = {"size": 123456, "slicer": "OrcaSlicer", "slicer_version": "2.1.1", "layer_height": 0.2, "object_height": 48.0, "estimated_time": duration * 1.1,
+                "filament_total": filament * 1.05, "filament_type": "PLA", "filament_name": "Generic PLA", "thumbnails": thumbs}
+        return {"job_id": uid, "user": "_TRUSTED_USER_", "filename": name, "exists": exists, "status": status, "start_time": start,
+                "end_time": start + duration + 300, "print_duration": duration, "total_duration": duration + 300, "filament_used": filament, "metadata": meta, "auxiliary_data": []}
+    return [job("000006", "Benchy_0.2mm_PLA.gcode", "completed", 60, 7000, 4200.0),
+            job("000005", "Calibration_cube_long_filename_for_wrapping_test.gcode", "cancelled", 1 * day, 1200, 800.0),
+            job("000004", "Vase_mode.gcode", "completed", 2 * day, 3600, 9000.0),
+            job("000003", "Bracket.gcode", "klippy_shutdown", 3 * day, 5400, 3000.0),
+            job("000002", "Old_deleted.gcode", "completed", 5 * day, 1800, 1500.0, exists=False),
+            job("000001", "Test/Nested_part.gcode", "completed", 20 * day, 600, 500.0)]
+
+def default_history_totals(jobs):
+    return {"total_jobs": len(jobs), "total_time": sum(j["total_duration"] for j in jobs), "total_print_time": sum(j["print_duration"] for j in jobs),
+            "total_filament_used": sum(j["filament_used"] for j in jobs), "longest_job": max(j["total_duration"] for j in jobs), "longest_print": max(j["print_duration"] for j in jobs)}
+
 def default_state():
+    history = default_history()
     return {
+        "history": history, "history_totals": default_history_totals(history), "history_log": [], "history_mode": "ok",  # ok | missing (no [history]: 404)
         "printing": False, "paused": False,
         "webhooks": "ready", "webhooks_msg": "",
         "homed": "xyz",
@@ -338,7 +363,7 @@ def mock_reset():
     S.clear(); S.update(default_state()); return jsonify(ok=True)
 @app.route("/__mock/state")
 def mock_state():
-    return jsonify({k: v for k, v in S.items() if k in ("light", "light_cmds", "light_reads", "actions", "webhooks", "webhooks_msg", "disconnected", "moonraker_down", "host_off", "services", "update_log", "brain_cfg_log", "brain_release", "brain_started", "klippeye_info", "pending_release", "logos", "app_apk_hits", "app_apk_downloads", "update_channel", "channel_posts", "rec_posts", "measure_starts", "measure_bodies", "ai_cfg", "ai_posts", "ai_model_reads", "excluded", "strip", "caselight", "mesh_profiles", "mesh_active", "mp", "mp_points", "tune", "speed_factor", "extrude_factor", "bs", "level_applied", "recordings", "alerts", "pm_macros", "pm_wraps", "pm_posts", "gcode_log", "ntfy", "ntfy_posts", "ntfy_tests", "ntfy_app_reads", "ai_answers", "ai_answer")})
+    return jsonify({k: v for k, v in S.items() if k in ("light", "light_cmds", "light_reads", "actions", "webhooks", "webhooks_msg", "disconnected", "moonraker_down", "host_off", "services", "update_log", "brain_cfg_log", "brain_release", "brain_started", "klippeye_info", "pending_release", "logos", "app_apk_hits", "app_apk_downloads", "update_channel", "channel_posts", "rec_posts", "measure_starts", "measure_bodies", "ai_cfg", "ai_posts", "ai_model_reads", "excluded", "strip", "caselight", "mesh_profiles", "mesh_active", "mp", "mp_points", "tune", "speed_factor", "extrude_factor", "bs", "level_applied", "recordings", "alerts", "pm_macros", "pm_wraps", "pm_posts", "gcode_log", "ntfy", "ntfy_posts", "ntfy_tests", "ntfy_app_reads", "ai_answers", "ai_answer", "history_log")})
 @app.route("/__mock/print_actions")
 def mock_print_actions():
     return jsonify(S.get("print_actions", []))
@@ -1444,6 +1469,33 @@ def last_analysis_answer():
     S["ai_answer"] = answer
     S["ai_answers"].append(answer)
     return jsonify(ok=True, answer=answer)
+
+@app.route("/server/history/list")
+def history_list():
+    if S["history_mode"] == "missing": return jsonify(error={"code": 404, "message": "Not Found"}), 404
+    limit, start = int(request.args.get("limit", 50)), int(request.args.get("start", 0))
+    jobs = S["history"] if request.args.get("order", "desc") == "desc" else list(reversed(S["history"]))
+    return jsonify(result={"count": len(jobs), "jobs": copy.deepcopy(jobs[start:start + limit])})
+@app.route("/server/history/totals")
+def history_totals():
+    if S["history_mode"] == "missing": return jsonify(error={"code": 404, "message": "Not Found"}), 404
+    return jsonify(result={"job_totals": S["history_totals"], "auxiliary_totals": []})
+@app.route("/server/history/job", methods=["GET", "DELETE"])
+def history_job():
+    uid = request.args.get("uid", "")
+    found = [j for j in S["history"] if j["job_id"] == uid]
+    if not found: return jsonify(error={"code": 404, "message": "Invalid job uid: %s" % uid}), 404
+    if request.method == "DELETE":
+        S["history"] = [j for j in S["history"] if j["job_id"] != uid]
+        S["history_log"].append("DELETE:" + uid)
+        return jsonify(result={"deleted_jobs": [uid]})
+    return jsonify(result={"job": found[0]})
+@app.route("/server/history/reset_totals", methods=["POST"])
+def history_reset_totals():
+    last = S["history_totals"]
+    S["history_totals"] = {k: 0 for k in last}
+    S["history_log"].append("RESET")
+    return jsonify(result={"last_totals": last})
 
 @app.route("/server/database/item", methods=["GET", "POST"])
 def db_item():

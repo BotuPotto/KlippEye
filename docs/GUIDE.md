@@ -235,6 +235,16 @@ slicer, estimated time, layer and first layer height, object height, layers, fil
 first layer temperatures — with *Start print*; then the editor and *Delete*. On a computer the panel next to the list has
 a *Details* button too.
 
+### Print history
+
+At the top of the **Files** page a switch goes from *Print files* to **History** (kept on this device). The
+**statistics** come from Moonraker's `[history]`: prints, print time, filament used, longest and average print, how many
+completed; a bar shows how they ended (completed, cancelled, failed) and a chart the **last 14 days**, print time or
+filament a day (tap a bar for its value). *Reset* sets Moonraker's totals back to zero. Below, the **list** of prints with
+thumbnail, outcome, date, time and filament, with a search (notes too) and filters. Tap a print for its details, a
+**note** (kept on the Raspberry, every device sees it), **Print again** if the file is still there, or **Remove** it from
+the history. If Moonraker has no `[history]` in `moonraker.conf`, the page says to add it.
+
 ### Configuration files
 
 The **Configuration files** card (Config page) lists folders first, then files. The ⇅ button next to the search box chooses
