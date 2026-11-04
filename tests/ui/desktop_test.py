@@ -179,7 +179,6 @@ with sync_playwright() as p:
     ok("typing again clears 'Salvato' and re-enables Salva", P.pg.locator(".editor-status").inner_text() == "" and P.pg.locator(".editor-save", has_text=re.compile("^Salva$")).is_enabled(), P.pg.locator(".editor-status").inner_text())
     P.pg.locator(".editor-save", has_text="Salva e riavvia").click(); P.pg.wait_for_timeout(1500)
     ok("Salva e riavvia: uploads, restarts Klipper (1.63: FIRMWARE_RESTART, nothing waits for SAVE_CONFIG) and stays open", len(gl("UPLOAD:")) == 2 and "Klipper si riavvia" in P.pg.locator(".editor-status").inner_text() and not any("SAVE_CONFIG" in g for g in mock.gcode()) and P.pg.locator(".desk-editor .screen--inline").count() == 1, (gl("UPLOAD:"), mock.gcode()[-3:], P.pg.locator(".editor-status").inner_text()))
-    ok("…status shows SAVE_CONFIG inviato", "SAVE_CONFIG" in P.pg.locator(".editor-status").inner_text(), P.pg.locator(".editor-status").inner_text())
     cfg_row("moonraker.conf").locator(".cfg-row__main").click(); P.pg.wait_for_timeout(900)
     ok("after saving, another file opens without any question", P.pg.locator(".confirm-overlay").count() == 0 and "moonraker.conf" in P.pg.locator(".desk-editor .editor-title").inner_text(), P.pg.locator(".desk-editor .editor-title").inner_text())
     # dirty again -> Continua really discards
@@ -191,6 +190,7 @@ with sync_playwright() as p:
     go(P, "Config")
     ok("coming back to Config shows the placeholder (no stale editor, discarded edit not saved)", P.pg.locator(".desk-empty").count() == 1 and len(gl("UPLOAD:")) == 2, (P.pg.locator(".desk-empty").count(), gl("UPLOAD:")))
     # close button (the editor's own guard)
+    cfg_row("crowsnest.conf").locator(".cfg-row__main").click(); P.pg.wait_for_timeout(900)
     P.pg.locator(".cm-content").click(); P.pg.keyboard.type("z"); P.pg.wait_for_timeout(200)
     P.pg.locator(".editor-close").click(); P.pg.wait_for_timeout(400)
     ok("close with unsaved edit asks (editor's own dialog)", P.pg.locator(".confirm-overlay").count() == 1, P.pg.locator(".confirm-overlay").count())
