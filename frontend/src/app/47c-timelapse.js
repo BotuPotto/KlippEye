@@ -256,6 +256,41 @@ function TimelapseSettingsCard({ timelapse }) {
 }
 
 /* ---------------------------------------------------------------------------
+   Without moonraker-timelapse (1.56): what it is and how to install it
+   ------------------------------------------------------------------------- */
+const TIMELAPSE_INSTALL = "cd ~\ngit clone https://github.com/mainsail-crew/moonraker-timelapse.git\ncd ~/moonraker-timelapse\nmake install";
+const TIMELAPSE_MOONRAKER_CONF = "[timelapse]\n\n[update_manager timelapse]\ntype: git_repo\nprimary_branch: main\npath: ~/moonraker-timelapse\norigin: https://github.com/mainsail-crew/moonraker-timelapse.git\nmanaged_services: klipper moonraker";
+
+function TimelapseStep({ number, title, children }) {
+  return h("li", { className: "timelapse-step" }, h("span", { className: "timelapse-step__number", "aria-hidden": "true" }, number), h("div", { className: "timelapse-step__body" }, h("div", { className: "timelapse-step__title" }, title), children));
+}
+
+function TimelapseMissingCard() {
+  return h(
+    Card,
+    { className: "timelapse-missing" },
+    h(CardHeader, { title: "Timelapse" }),
+    h("p", { className: "timelapse-missing__intro" }, tx("To record a video of every print, Moonraker needs moonraker-timelapse: a free add-on by the Mainsail team. Once it is installed, the videos and their settings appear here.")),
+    h(
+      "ol",
+      { className: "timelapse-steps" },
+      h(TimelapseStep, { number: 1, title: tx("Install it") }, h("p", { className: "oui-caption" }, tx("On the Raspberry, in a terminal (SSH). With KIAUH you can install it from its menu instead.")), h(CodeBlock, { code: TIMELAPSE_INSTALL, lang: "bash" })),
+      h(
+        TimelapseStep,
+        { number: 2, title: tx("Check the configuration") },
+        h("p", { className: "oui-caption" }, tx("The installer usually adds these lines by itself. If they are missing, add them in Config: in moonraker.conf (the second section keeps it updated)…")),
+        h(CodeBlock, { code: TIMELAPSE_MOONRAKER_CONF, lang: "conf" }),
+        h("p", { className: "oui-caption" }, tx("…and in printer.cfg:")),
+        h(CodeBlock, { code: "[include timelapse.cfg]", lang: "cfg" }),
+      ),
+      h(TimelapseStep, { number: 3, title: tx("Restart") }, h("p", { className: "oui-caption" }, tx("Restart Moonraker and Klipper (the power button at the top), then come back here."))),
+      h(TimelapseStep, { number: 4, title: tx("In the slicer") }, h("p", { className: "oui-caption" }, tx("To take a picture at every layer, add TIMELAPSE_TAKE_FRAME to the slicer's layer change G-code. Without it, choose «Every few seconds» in the settings."))),
+    ),
+    h("button", { type: "button", className: "oui-btn oui-btn--block timelapse-recheck", onClick: () => window.location.reload() }, h(Icons.Refresh, { size: 16 }), tx("Installed: check again")),
+  );
+}
+
+/* ---------------------------------------------------------------------------
    The page
    ------------------------------------------------------------------------- */
 function TimelapsePage({ desktop }) {

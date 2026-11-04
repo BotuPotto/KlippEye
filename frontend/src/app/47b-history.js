@@ -230,7 +230,7 @@ function historyDays(jobs, days = HISTORY_DAYS, now = Date.now()) {
 }
 
 /* ---------------------------------------------------------------------------
-   The page's switch: print files | history | timelapse (1.46, when Moonraker has it), kept on this device
+   The page's switch: print files | history | timelapse (1.46; 1.56: always, with how to install it when Moonraker lacks it), kept on this device
    ------------------------------------------------------------------------- */
 const FILES_SECTION_KEY = "ke_files_section";
 const FILES_SECTIONS = ["files", "history", "timelapse"];
@@ -255,14 +255,14 @@ const filesSectionStore = (() => {
 })();
 const useFilesSection = () => useSyncExternalStore(filesSectionStore.subscribe, filesSectionStore.snapshot);
 
-function FilesSectionSwitch({ section, timelapse }) {
+function FilesSectionSwitch({ section }) {
   const option = (id, label) => h("button", { type: "button", className: cx(section === id && "is-selected"), "aria-pressed": section === id, "data-files-section": id, onClick: () => filesSectionStore.set(id) }, label);
-  return h("div", { className: cx("oui-segmented files-section-switch", timelapse && "has-three"), role: "group", "aria-label": tx("Files") }, option("files", tx("Print files")), option("history", tx("History")), timelapse && option("timelapse", "Timelapse"));
+  return h("div", { className: "oui-segmented files-section-switch has-three", role: "group", "aria-label": tx("Files") }, option("files", tx("Print files")), option("history", tx("History")), option("timelapse", "Timelapse"));
 }
 
-/** Whether Moonraker has the timelapse component (moonraker-timelapse), asked once. */
+/** Whether Moonraker has the timelapse component (moonraker-timelapse), asked once: null until known. */
 function useHasTimelapse() {
-  const [has, setHas] = useState(false);
+  const [has, setHas] = useState(null);
   useEffect(() => {
     let cancelled = false;
     moonrakerComponents().then((components) => !cancelled && setHas(components.has("timelapse")));
@@ -613,12 +613,11 @@ function HistoryPage({ desktop, onPrint }) {
 
 /** The Files page: the switch, then the print files or the history. */
 function FilesPage({ desktop, files }) {
-  const chosen = useFilesSection();
+  const section = useFilesSection();
   const timelapse = useHasTimelapse();
-  const section = chosen === "timelapse" && !timelapse ? "files" : chosen; // a choice made on a printer that had it
   let content;
   if (section === "history") content = h(HistoryPage, { desktop, onPrint: files.onPrint });
-  else if (section === "timelapse") content = h(TimelapsePage, { desktop });
+  else if (section === "timelapse") content = timelapse === null ? h("div", { className: "oui-caption files-notice" }, tx("Loading...")) : timelapse ? h(TimelapsePage, { desktop }) : h(TimelapseMissingCard);
   else content = h(React.Fragment, null, h(QueueCard), files.content);
-  return h(React.Fragment, null, h("div", { className: "files-section-bar" }, h(FilesSectionSwitch, { section, timelapse })), content);
+  return h(React.Fragment, null, h("div", { className: "files-section-bar" }, h(FilesSectionSwitch, { section })), content);
 }

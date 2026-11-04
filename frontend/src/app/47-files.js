@@ -234,7 +234,7 @@ function GcodeSortButton({ view }) {
 }
 
 /**
- * `onMenu({ file, fileName, meta, thumbnail })` runs on a long press (or right click) anywhere on the tile.
+ * `onMenu({ file, fileName, meta, thumbnail })` runs on a long press (or right click) anywhere on the tile, and on its ⋯ button (1.56).
  * On a wide screen a tap also selects the tile (`onSelect`) and the detail panel shows it.
  */
 function FileCard({ file, meta, thumbnail, onPrint, onMenu, selected, onSelect }) {
@@ -244,6 +244,22 @@ function FileCard({ file, meta, thumbnail, onPrint, onMenu, selected, onSelect }
     "div",
     { className: cx("file-card", selected && "is-selected"), title: fileName, onClick: onSelect, ...press },
     h("div", { className: "file-card__preview" }, thumbnail ? h("img", { src: thumbnail, className: "file-thumb", draggable: false }) : h(PrintPlaceholder)),
+    h(
+      "button",
+      {
+        type: "button",
+        className: "file-card__more",
+        title: tx("Actions"),
+        "aria-label": tx("Actions for ") + fileName,
+        // its own button: no long press timer, and the tile under it is not selected
+        onPointerDown: (event) => event.stopPropagation(),
+        onClick: (event) => {
+          event.stopPropagation();
+          onMenu({ file, fileName, meta, thumbnail });
+        },
+      },
+      h(Icons.Dots, { size: 18 }),
+    ),
     h(
       "div",
       { className: "file-card__body" },
@@ -315,7 +331,7 @@ function FilesCard({ list, onPrint, onMenu, selectedPath, onSelect }) {
       h(GcodeSortButton, { view }),
       h("span", { className: "oui-badge" }, list.loading ? "..." : (view.query.trim() ? files.length + " / " : "") + list.files.length + tx(" files")),
     ),
-    !list.loading && !list.error && list.files.length > 0 && h("div", { className: "oui-caption files-hint ui-hint" }, tx("Long-press a file for its details, the editor or to delete it")),
+    !list.loading && !list.error && list.files.length > 0 && h("div", { className: "oui-caption files-hint ui-hint" }, tx("Tap ⋯ or long-press a file for its details, the layers, the editor or to delete it")),
     h("div", { className: "grid grid-cols-2 files-grid" }, body),
   );
 }

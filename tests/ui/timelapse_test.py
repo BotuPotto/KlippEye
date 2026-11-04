@@ -62,7 +62,11 @@ with sync_playwright() as p:
     b = p.chromium.launch()
 
     P = fresh(b)
-    ok("without the timelapse component: two parts only", P.pg.locator('[data-files-section="timelapse"]').count() == 0 and P.pg.locator("[data-files-section]").count() == 2)
+    ok("without the timelapse component: still three parts (1.56)", P.pg.locator("[data-files-section]").count() == 3)
+    P.pg.locator('[data-files-section="timelapse"]').click()
+    ok("... the timelapse part says what to install, with the commands", wait_until(lambda: P.pg.locator(".timelapse-missing").count() == 1) and "moonraker-timelapse" in P.pg.locator(".timelapse-missing").inner_text() and P.pg.locator(".timelapse-missing .ai-codeblock").count() == 3)
+    ok("... and asks Moonraker for nothing of the timelapse", not [r for r in P.take_reqs() if "/machine/timelapse" in r["u"]])
+    P.shot(out + "/timelapse_missing.png")
     P.close()
 
     P = fresh(b, timelapse_on=True, timelapse_frames=42)

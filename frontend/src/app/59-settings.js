@@ -804,7 +804,7 @@ const SETTINGS_ENTRIES = [
   { id: "camera", group: "watch", title: "Camera", icon: Icons.Camera },
   { id: "ai", group: "watch", title: tx("AI monitor"), icon: Icons.Sparkle },
   { id: "go-history", group: "pages", title: tx("Print history"), icon: Icons.Clock, link: ["files", "history"], detail: tx("Statistics and every print") },
-  { id: "go-timelapse", group: "pages", title: "Timelapse", icon: Icons.Camera, link: ["files", "timelapse"], detail: tx("Videos and their settings"), component: "timelapse" },
+  { id: "go-timelapse", group: "pages", title: "Timelapse", icon: Icons.Camera, link: ["files", "timelapse"], detail: tx("Videos and their settings") },
   { id: "appearance", group: "phone", title: tx("Appearance"), icon: Icons.Sliders },
   { id: "notifications", group: "phone", title: tx("Notifications"), icon: Icons.Bell },
   { id: "language", group: "phone", title: tx("Language"), icon: Icons.Language },
