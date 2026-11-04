@@ -228,6 +228,8 @@ function TimelapseSettingsFields({ timelapse }) {
     "div",
     { className: "timelapse-settings__fields" },
     h("div", { className: "oui-list" }, switchRow("enabled", tx("Timelapse on"), tx("Every print makes a video"))),
+    // 1.66: where they live (timelapse.cfg is a file of moonraker-timelapse: changed, its updates would stop)
+    h("p", { className: "oui-caption timelapse-where" }, tx("Saved by moonraker-timelapse, which gives them to Klipper at every start: timelapse.cfg stays as it is (it belongs to moonraker-timelapse).")),
     settings.enabled &&
       h(
         React.Fragment,

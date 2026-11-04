@@ -8,6 +8,8 @@
   could read them through it) and could not be scrolled. Their columns now keep to the window and scroll by themselves,
   like the other pages.
 * The console bar blurs what is behind it.
+* Timelapse settings: a line says where they are kept (moonraker-timelapse, which gives them to Klipper at every start;
+  timelapse.cfg is its own file and stays as it is).
 
 ## 1.65.0
 
