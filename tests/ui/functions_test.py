@@ -63,7 +63,15 @@ def open_page(P):
 
 
 def group(P, fid):
-    return P.pg.locator("section.set-group", has=P.pg.locator('[data-function-group="%s"]' % fid))
+    return P.pg.locator('[data-fold="%s"]' % fid)
+
+
+def unfold(P, fid):
+    """1.56: every function is a row that opens; opens it (if closed)."""
+    head = P.pg.locator('[data-fold="%s"] > .fn-fold__head' % fid)
+    head.scroll_into_view_if_needed()
+    if head.get_attribute("aria-expanded") != "true":
+        head.click(); P.settle(450)
 
 
 with sync_playwright() as p:
@@ -88,9 +96,14 @@ with sync_playwright() as p:
     ok("the menu has 'Funzioni della stampante', marked 'Da controllare'", entry.count() == 1 and "Da controllare" in entry.inner_text(), entry.inner_text() if entry.count() else "")
     entry.click(); P.settle(700)
     text = body(P)
-    ok("the page asks to check, and says what it found for the light", "controlla ogni funzione" in text and "LUCI_ON / LUCI_OFF" in text and "neopixel LUCI" in text and "effetti (1)" in text, text[:900])
-    ok("... park: nothing found, the button is not shown; wipe: CLEAN_NOZZLE", "Niente trovato" in P.pg.locator('[data-now="park"]').inner_text() and "CLEAN_NOZZLE" in P.pg.locator('[data-now="wipe"]').inner_text())
+    ok("the page asks to check; every function is a closed row with what it does in a few words", "controlla ogni funzione" in text and P.pg.locator('.fn-fold__head[aria-expanded="true"]').count() == 0
+       and P.pg.locator("[data-fold]").count() == 6 and "LUCI_ON / LUCI_OFF" in group(P, "light-m-luci-on").inner_text() and "CLEAN_NOZZLE" in P.pg.locator('[data-summary="wipe"]').inner_text()
+       and "non trovata" in P.pg.locator('[data-summary="park"]').inner_text(), text[:900])
     P.shot(out + "/functions_page.png")
+    unfold(P, "light-m-luci-on")
+    ok("... the light opened: what it found, read on neopixel LUCI and its effect", "neopixel LUCI" in group(P, "light-m-luci-on").inner_text() and "effetti (1)" in group(P, "light-m-luci-on").inner_text(), group(P, "light-m-luci-on").inner_text())
+    unfold(P, "park"); unfold(P, "wipe")
+    ok("... park: nothing found, the button is not shown; wipe: CLEAN_NOZZLE", "Niente trovato" in P.pg.locator('[data-now="park"]').inner_text() and "CLEAN_NOZZLE" in P.pg.locator('[data-now="wipe"]').inner_text())
 
     # park -> macro PARK_TEST
     group(P, "park").locator(".oui-chip", has_text="Macro").click(); P.settle(300)
@@ -99,7 +112,10 @@ with sync_playwright() as p:
     ok("park -> macro: typed in lower case, kept as PARK_TEST, saved in the shared settings", wait_until(lambda: stored().get("functions", {}).get("park") == {"mode": "macro", "macro": "PARK_TEST", "gcode": ""}), stored().get("functions"))
     ok("... the page says it runs PARK_TEST", "PARK_TEST" in P.pg.locator('[data-now="park"]').inner_text())
 
+    ok("... the row's few words follow", "Macro · PARK_TEST" in P.pg.locator('[data-summary="park"]').inner_text(), P.pg.locator('[data-summary="park"]').inner_text())
+
     # load -> G-code written in the editor
+    unfold(P, "load")
     group(P, "load").locator(".oui-chip", has_text="G-code").click(); P.settle(300)
     P.pg.locator('[data-edit-gcode="load"]').click(); P.settle(600)
     ok("G-code: the dashboard's editor opens over the page", P.pg.locator(".screen--editor .cm-editor").count() == 1 and P.pg.locator(".editor-save").count() >= 1)
@@ -109,6 +125,7 @@ with sync_playwright() as p:
     ok("... saving keeps the G-code in the settings and closes the editor", wait_until(lambda: stored().get("functions", {}).get("load", {}).get("gcode") == "M109 S220\nG1 E50 F300") and P.pg.locator(".editor-save").count() == 0, stored().get("functions", {}).get("load"))
 
     # unload -> create a macro
+    unfold(P, "unload")
     P.pg.locator('[data-create="unload"]').scroll_into_view_if_needed()
     P.pg.locator('[data-create="unload"]').click(); P.settle(800)
     ok("create a macro: the proposed KLIPPEYE_UNLOAD_FILAMENT opens in the editor", "KLIPPEYE_UNLOAD_FILAMENT" in P.pg.evaluate("() => CM.EditorView.findFromDOM(document.querySelector('.screen--editor .cm-editor')).state.doc.toString()"))
@@ -123,10 +140,13 @@ with sync_playwright() as p:
     ok("wipe -> Off", wait_until(lambda: stored().get("functions", {}).get("wipe", {}).get("mode") == "off"))
 
     # the filament change
-    fil = P.pg.locator("section.set-group", has_text="Notifica di cambio filamento")
-    fil.scroll_into_view_if_needed()
+    fil = group(P, "filament")
+    unfold(P, "filament")
     ok("filament: no sensor in this printer (the switch says so and is off)", "Nessun sensore del filamento" in fil.inner_text())
+    ok("filament: the printer's macros are folded under 'Nessuna scelta'", fil.locator(".fn-wraps-fold:not([open])").count() == 1 and "Nessuna scelta" in fil.locator(".fn-wraps-fold summary").inner_text() and not fil.locator('[data-wrap="LUCI_OFF"]').is_visible())
+    fil.locator(".fn-wraps-fold summary").click(); P.settle(200)
     fil.locator('[data-wrap="LUCI_OFF"]').click(); P.settle(200)
+    ok("... choosing one says so on the fold's line", "Scelte: LUCI_OFF" in fil.locator(".fn-wraps-fold summary").inner_text())
     fil.locator('[data-apply-wraps="1"]').click(); P.settle(900)
     ok("filament: a macro chosen is sent to the backend as an announcer", wait_until(lambda: state()["pm_wraps"] == ["LUCI_OFF"]) and wait_until(lambda: stored().get("functions", {}).get("filament", {}).get("macros") == ["LUCI_OFF"]), (state()["pm_wraps"], stored().get("functions", {}).get("filament")))
     ph = P.pg.locator('[data-phrases="1"]')
@@ -157,6 +177,7 @@ with sync_playwright() as p:
     P.pg.click('button[aria-label="Impostazioni"]'); P.pg.wait_for_selector(".drawer"); P.settle(450)
     P.pg.locator('.set-entry[data-page="functions"]').click(); P.settle(700)
     item = P.pg.locator('[data-light-item="m-luci-on"]')
+    unfold(P, "light-m-luci-on")
     ok("1.37: the light found by itself is in the list (LUCI_ON / LUCI_OFF, read on neopixel LUCI)", item.count() == 1 and "LUCI_ON / LUCI_OFF" in item.inner_text() and "neopixel LUCI" in item.inner_text(), item.inner_text() if item.count() else "")
     group(P, "light-m-luci-on").locator(".oui-chip", has_text="Uscita").click(); P.settle(300)
     item.locator('[data-light-select="object"]').select_option("neopixel LUCI"); P.settle(600)
@@ -173,6 +194,7 @@ with sync_playwright() as p:
     P = fresh(b, "home")
     P.pg.click('button[aria-label="Impostazioni"]'); P.pg.wait_for_selector(".drawer"); P.settle(450)
     P.pg.locator('.set-entry[data-page="functions"]').click(); P.settle(700)
+    unfold(P, "light-m-luci-on")
     P.pg.locator('[data-light-item="m-luci-on"] button[aria-label^="Togli"]').click(); P.settle(400)
     P.pg.locator(".confirm-card").get_by_role("button", name="Togli", exact=True).click(); P.settle(600)
     P.pg.click('.drawer button[aria-label="Chiudi"]'); P.settle(600)

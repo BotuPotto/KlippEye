@@ -14,7 +14,6 @@ const STORAGE_KEYS = {
   calibrationSelected: "ke_calibration_selected",
   calibrationMacrosCache: "ke_calibration_macros_cache",
   calibrationCacheTime: "ke_calibration_cache_time",
-  endstopsOpen: "ke_endstops_open",
   zOffsetStep: "ke_zoffset_step",
   settings: "ke_settings", // the dashboard settings as this device knows them (app/16-settings.js)
 };

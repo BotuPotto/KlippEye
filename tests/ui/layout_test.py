@@ -91,7 +91,7 @@ with sync_playwright() as p:
     # Control
     pg.locator('.bottom-nav__tab[data-tab="controllo"]').click()
     P.settle(1200)
-    ok("Control in the usual order", wait_until(lambda: [c for c in order(P) if not c.startswith("macro:")][:4] == ["console", "extruder", "tune", "bedmesh"]), order(P))
+    ok("Control in the usual order", wait_until(lambda: [c for c in order(P) if not c.startswith("macro:")][:5] == ["console", "extruder", "tune", "endstops", "bedmesh"]), order(P))
     open_appearance(P)
     pg.locator('[data-layout-page="control"] [data-layout-card="bedmesh"]').get_by_role("button", name="Su: Bed mesh").click()
     pg.locator('[data-layout-page="control"] [data-layout-card="console"] [role=switch]').click()

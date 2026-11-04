@@ -57,57 +57,37 @@ function EndstopRow({ icon, name, detail, triggered }) {
 }
 
 /** `capabilities` says whether there is a probe to ask; a `lockReason` (printLockReason) switches the queries off. */
+/** 1.56: a foldable card like the others (its own fold, kept since 1.x in ke_endstops_open, gave way to the card's). */
 function EndstopsSection({ capabilities, lockReason }) {
-  const [open, setOpen] = useState(() => storage.get(STORAGE_KEYS.endstopsOpen) === "1");
   const state = useEndstops(capabilities);
-
-  const toggle = () => {
-    storage.set(STORAGE_KEYS.endstopsOpen, open ? "0" : "1");
-    setOpen(!open);
-  };
-
-  let body = null;
-  if (open) {
-    if (lockReason) body = h("div", { className: "oui-notice" }, lockReason + ".");
-    else {
-      const { endstops, probe, loading, error, updatedAt } = state;
-      let content;
-      if (error && !endstops) content = h("div", { className: "oui-tile oui-tile--danger oui-notice" }, tx("Cannot read the endstops: ") + error);
-      else if (!endstops) content = h("div", { className: "oui-notice" }, loading ? tx("Reading...") : tx("Press Refresh to read the endstops and the probe."));
-      else if (endstops.length === 0 && !probe) content = h("div", { className: "oui-notice" }, tx("Klipper has no endstops registered."));
-      else
-        content = h(
-          "div",
-          { className: "oui-list" },
-          endstops.map((endstop) => h(EndstopRow, { key: endstop.name, icon: h(Icons.Endstop), name: endstop.name.toUpperCase(), detail: "Endstop", triggered: endstop.triggered })),
-          probe && h(EndstopRow, { key: "probe", icon: h(Icons.Probe), name: "Probe", detail: probe.name, triggered: probe.triggered }),
-        );
-      // the caption says how old what is shown is (nothing is read on its own)
-      const caption = !endstops ? (error ? tx("Reading failed") : tx("Not read yet")) : error ? tx("Last refresh failed: ") + error : tx("Updated at ") + updatedAt;
-      body = h(
-        React.Fragment,
-        null,
-        content,
-        h(
-          "div",
-          { className: "endstops-foot" },
-          h("span", { className: "oui-caption" }, caption),
-          h("button", { className: "oui-btn oui-btn--sm", disabled: loading, onClick: state.refresh }, h(Icons.Refresh, { size: 16 }), tx("Refresh")),
-        ),
+  let body;
+  if (lockReason) body = h("div", { className: "oui-notice" }, lockReason + ".");
+  else {
+    const { endstops, probe, loading, error, updatedAt } = state;
+    let content;
+    if (error && !endstops) content = h("div", { className: "oui-tile oui-tile--danger oui-notice" }, tx("Cannot read the endstops: ") + error);
+    else if (!endstops) content = h("div", { className: "oui-notice" }, loading ? tx("Reading...") : tx("Press Refresh to read the endstops and the probe."));
+    else if (endstops.length === 0 && !probe) content = h("div", { className: "oui-notice" }, tx("Klipper has no endstops registered."));
+    else
+      content = h(
+        "div",
+        { className: "oui-list" },
+        endstops.map((endstop) => h(EndstopRow, { key: endstop.name, icon: h(Icons.Endstop), name: endstop.name.toUpperCase(), detail: "Endstop", triggered: endstop.triggered })),
+        probe && h(EndstopRow, { key: "probe", icon: h(Icons.Probe), name: "Probe", detail: probe.name, triggered: probe.triggered }),
       );
-    }
+    // the caption says how old what is shown is (nothing is read on its own)
+    const caption = !endstops ? (error ? tx("Reading failed") : tx("Not read yet")) : error ? tx("Last refresh failed: ") + error : tx("Updated at ") + updatedAt;
+    body = h(
+      React.Fragment,
+      null,
+      content,
+      h(
+        "div",
+        { className: "endstops-foot" },
+        h("span", { className: "oui-caption" }, caption),
+        h("button", { className: "oui-btn oui-btn--sm", disabled: loading, onClick: state.refresh }, h(Icons.Refresh, { size: 16 }), tx("Refresh")),
+      ),
+    );
   }
-
-  return h(
-    "div",
-    { className: "endstops" },
-    h(
-      "button",
-      { className: "endstops-head", "aria-expanded": open, onClick: toggle },
-      h("span", { className: "endstops-head__icon" }, h(Icons.Endstop, { size: 20 })),
-      h("span", { className: "endstops-head__title" }, tx("Endstops and probe")),
-      h("span", { className: cx("menu-chevron", open && "is-open") }, h(Icons.Chevron, { size: 18 })),
-    ),
-    h(Collapse, { open }, body && h("div", { className: "endstops-body" }, body)),
-  );
+  return h(React.Fragment, null, h(CardHeader, { title: tx("Endstops and probe") }), h("div", { className: "endstops-body" }, body));
 }

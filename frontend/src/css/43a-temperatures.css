@@ -2,7 +2,7 @@
    Temperatures: every sensor and the chart (app/43a-temperatures.js)
    ========================================================================== */
 
-.temp-card .oui-card__head { flex-wrap: wrap; gap: 8px; }
+.temp-card .oui-card__head:not(.has-fold) { flex-wrap: wrap; gap: 8px; }
 .temp-ranges > button { padding: 0 10px; }
 
 /* the chart: hairline grid, 2 px lines, the target dashed in the same colour */

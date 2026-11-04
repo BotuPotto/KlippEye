@@ -45,9 +45,6 @@
 
 /* the alarms that belong to no recording: folded at the bottom */
 .rec-loose > summary { display: flex; align-items: center; gap: 8px; min-height: 40px; cursor: pointer; list-style: none; }
-.rec-loose > summary::-webkit-details-marker { display: none; }
-.rec-loose > summary::after { content: ""; width: 8px; height: 8px; margin-left: auto; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(45deg); transition: transform 0.15s; }
-.rec-loose[open] > summary::after { transform: rotate(-135deg); }
 
 /* which recorded prints the measurement uses */
 .rec-choose { margin: 4px 0 8px; background: var(--oui-surface-2); border-radius: var(--oui-r-field); }

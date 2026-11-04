@@ -40,16 +40,13 @@ function SectionTitle({ children, className }) {
 function CardHeader({ title, children }) {
   const fold = useContext(CardFoldContext);
   if (!fold) return h("div", { className: "oui-card__head" }, h(SectionTitle, null, title), children);
+  // 1.56: the chevron sits outside the part that wraps, so it is in the same place on every card (top right, centred on
+  // the title's line), whether the card's own buttons fit next to the title or go to a second line
   return h(
     "div",
-    { className: "oui-card__head" },
-    h(SectionTitle, null, title),
-    h(
-      "div",
-      { className: "oui-card__tools" },
-      !fold.collapsed && children,
-      h("button", { type: "button", className: "oui-card__fold", "aria-expanded": !fold.collapsed, "aria-label": fold.collapsed ? tx("Open «{name}»", { name: title }) : tx("Fold «{name}»", { name: title }), title: fold.collapsed ? txc("card", "Open") : txc("card", "Fold"), onClick: () => layoutStore.toggleCollapsed(fold.id) }, h(Icons.Chevron, { size: 18 })),
-    ),
+    { className: "oui-card__head has-fold" },
+    h("div", { className: "oui-card__main" }, h(SectionTitle, null, title), !fold.collapsed && children && h("div", { className: "oui-card__tools" }, children)),
+    h("button", { type: "button", className: "oui-card__fold", "aria-expanded": !fold.collapsed, "aria-label": fold.collapsed ? tx("Open «{name}»", { name: title }) : tx("Fold «{name}»", { name: title }), title: fold.collapsed ? txc("card", "Open") : txc("card", "Fold"), onClick: () => layoutStore.toggleCollapsed(fold.id) }, h(Icons.Chevron, { size: 18 })),
   );
 }
 

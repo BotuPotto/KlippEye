@@ -53,6 +53,24 @@ body:has(.modal, .confirm-overlay, .sheet-overlay, .screen, .drawer) .nt-invite 
 
 /* ---- 1.37: the page in three parts; the lights list ---- */
 .fn-section { display: flex; align-items: center; gap: 10px; margin: 18px 4px 2px; font-size: 13px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--oui-accent-text); }
-.fn-light { display: flex; flex-direction: column; gap: 10px; padding: 14px; border-radius: var(--oui-r-card); background: var(--oui-surface); }
-.fn-light__icon { display: grid; flex: none; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: rgba(255, 200, 80, 0.18); color: #ffd27a; }
 .fn-light-add { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* ---- 1.56: every function a row that opens (FnFold) ---- */
+.fn-folds { display: flex; flex-direction: column; gap: 2px; overflow: hidden; border-radius: var(--oui-r-card); }
+.fn-fold { background: var(--oui-surface); }
+.fn-fold__head { display: flex; align-items: center; gap: 14px; width: 100%; min-height: 64px; padding: 10px 14px 10px 12px; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; transition: background var(--oui-dur-fast) var(--oui-ease); }
+.fn-fold__head:hover, .fn-fold__head:active { background: var(--oui-surface-3); }
+.fn-fold__icon { display: grid; flex: none; place-items: center; width: 36px; height: 36px; border-radius: 50%; background: var(--oui-accent-soft); color: var(--oui-accent-text); }
+.fn-fold__icon--light { background: rgba(255, 200, 80, 0.18); color: #ffd27a; }
+.fn-fold__text { display: flex; flex: 1; flex-direction: column; gap: 2px; min-width: 0; }
+.fn-fold__title { font-size: 15px; font-weight: 600; }
+.fn-fold__summary { overflow: hidden; color: var(--oui-text-3); font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.fn-fold__chevron { flex: none; color: var(--oui-text-3); }
+.fn-fold__body { display: flex; flex-direction: column; gap: 10px; padding: 4px 14px 16px; }
+.fn-light-tools { display: flex; align-items: center; gap: 8px; }
+.fn-light-remove { margin-left: auto; }
+.fn-wraps-fold { border-radius: var(--oui-r-field); background: var(--oui-surface-2); }
+.fn-wraps-fold > summary { min-height: 48px; padding: 6px 12px; }
+.fn-wraps-fold__text { display: flex; flex: 1; flex-direction: column; gap: 2px; min-width: 0; font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
+.fn-wraps-fold__more { color: var(--oui-text-3); font-size: 12px; font-weight: 400; }
+.fn-wraps-fold > .fn-wraps { padding: 4px 12px 12px; }

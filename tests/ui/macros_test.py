@@ -91,7 +91,7 @@ with sync_playwright() as p:
     ok("... saved in the shared settings: groups mode", wait_until(lambda: (stored() or {}).get("mode") == "groups" and stored()["groups"][0]["macros"] == ["PARK_TEST", "SHAPER_CALIBRATE"]), stored())
     ok("... and the old list emptied (it happens once)", wait_until(lambda: json.loads(urllib.request.urlopen(mock.base + "/api/calibration/selected").read())["selected"] == []))
     ok("... with its buttons, in the same order", card_buttons(P, "calib") == ["Park test", "Shaper calibrate"], card_buttons(P, "calib"))
-    ok("the endstops have a card of their own", pg.locator(".endstops-card .endstops-head").count() == 1)
+    ok("the endstops have a card of their own", pg.locator(".endstops-card .endstops-body").count() == 1)
     pg.locator('[data-macro-card="calib"] .macro-split-run').click()
     ok("a tap on a macro runs it", wait_until(lambda: "PARK_TEST" in gcodes()))
     pg.locator('[data-macro-card="calib"] .macro-split-gear').click()

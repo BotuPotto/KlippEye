@@ -111,3 +111,16 @@ button.oui-tile:active { transform: scale(0.985); background: var(--oui-surface-
    pushing them out of the card */
 .oui-card__head { flex-wrap: wrap; row-gap: 8px; }
 .oui-card__head > :not(.oui-card-title) { margin-left: auto; }
+
+/* 1.56: a foldable card's header is [title + its buttons, wrapping] + the chevron, which stays top right on every card,
+   centred on the title's line (the title's line is as tall as the chevron) */
+.oui-card__head.has-fold { --head-line: 36px; flex-wrap: nowrap; align-items: flex-start; gap: 8px; }
+.oui-card__head.has-fold > .oui-card__fold { margin-left: 0; margin-top: calc((var(--head-line) - 36px) / 2); }
+.oui-card__main { display: flex; flex: 1; flex-wrap: wrap; align-items: center; gap: 8px 12px; min-width: 0; }
+.oui-card__main > .oui-card-title { display: flex; align-items: center; min-height: var(--head-line); margin-right: auto; }
+/* cards whose buttons are taller than the chevron: the title's line is as tall as them */
+.oui-card[data-card="camera"] > .oui-card__head { --head-line: 44px; }
+.oui-card[data-card="temps"] > .oui-card__head { --head-line: 46px; }
+.oui-card[data-card="spool"] > .oui-card__head,
+.oui-card[data-card^="macro"] > .oui-card__head { --head-line: 40px; }
+.oui-card__main > .oui-card__tools { flex-wrap: wrap; justify-content: flex-end; margin-left: auto; }

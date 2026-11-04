@@ -41,6 +41,14 @@ const layoutStore = (() => {
     const saved = JSON.parse(localStorage.getItem(LAYOUT_KEY) || "null");
     if (saved && typeof saved === "object") state = { ...empty(), ...saved };
   } catch (e) {}
+  // 1.56: the endstops card folds like the others (open unless it was folded again with its own old fold)
+  try {
+    if (localStorage.getItem("ke_endstops_open") === "0" && !("endstops" in state.collapsed)) {
+      state = { ...state, collapsed: { ...state.collapsed, endstops: true } };
+      localStorage.setItem(LAYOUT_KEY, JSON.stringify(state));
+    }
+    localStorage.removeItem("ke_endstops_open");
+  } catch (e) {}
   const save = (next) => {
     state = next;
     try {

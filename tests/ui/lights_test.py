@@ -131,6 +131,9 @@ with sync_playwright() as p:
     ok("it says the lights were found by KlippEye (3)", "3 luci" in pg.locator('[data-lights-state="found"]').inner_text(), pg.locator("[data-lights-state]").inner_text())
     ok("... each with its editor", pg.locator("[data-light-item]").count() == 3)
     pg.screenshot(path=out + "/settings.png")
+    ok("1.57: each light is a closed row with how it is switched", pg.locator('[data-light-item] > .fn-fold__head[aria-expanded="false"]').count() == 3 and "pulsante tondo" in pg.locator('[data-light-item="o-output-pin-caselight"] .fn-fold__summary').inner_text())
+    for one in ("o-output-pin-caselight", "o-neopixel-strip"):
+        pg.locator('[data-light-item="%s"] > .fn-fold__head' % one).click(); P.settle(450)
     item = pg.locator('[data-light-item="o-output-pin-caselight"]')
     item.locator(".set-switch", has_text="Comandata dal pulsante tondo").click()
     ok("taking the pin out of the round button keeps the list as the person's", wait_until(lambda: stored().get("configured") is True and [i["main"] for i in stored()["items"]] == [True, True, False]), stored())
