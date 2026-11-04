@@ -433,7 +433,7 @@ function MeshGrid({ stats }) {
       { className: "mesh-grid__foot" },
       at !== null
         ? h("span", { className: "mesh-pick", "data-pick": "" }, (stats.x[picked.col] !== null ? "X " + stats.x[picked.col].toFixed(1) + " · Y " + stats.y[picked.row].toFixed(1) : tx("Point") + " " + (picked.col + 1) + "," + (picked.row + 1)) + ": ", h("b", null, meshSigned(at) + " mm"))
-        : h("span", { className: "oui-caption" }, tx("Back of the bed at the top. Tap a point to see where it is.")),
+        : h("span", { className: "oui-caption ui-hint" }, tx("Back of the bed at the top. Tap a point to see where it is.")),
     ),
     h(MeshLegend, { stats }),
   );

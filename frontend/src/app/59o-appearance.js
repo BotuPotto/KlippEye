@@ -3,7 +3,8 @@
    Settings → Appearance, what this device shows and how (kept on it):
      · the order of the cards of Home and Control, and the ones hidden there;
      · the folded cards (every card with a chevron can be folded on its page):
-       how many, and "open them all".
+       how many, and "open them all";
+     · 1.51: the hints, the small texts that explain how to use a page.
    ========================================================================== */
 
 function LayoutPageEditor({ page, title }) {
@@ -36,6 +37,11 @@ function AppearancePage() {
   return h(
     React.Fragment,
     null,
+    h(
+      SettingsGroup,
+      { title: tx("Hints") },
+      h("div", { className: "oui-list", "data-setting": "hints" }, h(SwitchRow, { title: tx("Show the hints"), detail: tx("The small texts that explain how to use a page: «Tap to change», «Long-press a file…»"), checked: !layout.hideHints, onChange: layoutStore.setHints })),
+    ),
     h(LayoutPageEditor, { page: "home", title: tx("Home: the cards") }),
     h(LayoutPageEditor, { page: "control", title: tx("Control: the cards") }),
     h(

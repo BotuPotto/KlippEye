@@ -1,5 +1,13 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.51.0
+
+**Hints on or off** (roadmap phase 6e, second part).
+
+* **Settings → Appearance → Show the hints**: the small texts that explain how to use a page (*Tap to change* under the
+  heaters, *Tap X/Y/Z to move to a position*, *Long-press a file…*, the temperature chart's and the bed mesh's, the
+  computer's console drawer) can be hidden on this device. The notes that say what something does stay.
+
 ## 1.50.0
 
 **Cards that fold, and the order of the pages** (roadmap phase 6e, first part).

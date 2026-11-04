@@ -291,6 +291,9 @@ The main cards have a **chevron** at the top right that folds them down to their
 switch), see how many cards are folded (*Open them all*) and go back to the usual order. The print card always stays on
 top.
 
+In **Settings → Appearance → Show the hints** you can hide on this device the small texts that explain how to use a page
+(*Tap to change*, *Long-press a file…* and the like).
+
 ### Print queue
 
 If `moonraker.conf` has `[job_queue]`, a file's menu (long press; on a computer the *Queue* button of the file panel) has

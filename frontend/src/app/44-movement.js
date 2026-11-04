@@ -328,7 +328,7 @@ function PositionReadout({ position, homedAxes, onPickAxis }) {
         ),
       ),
     ),
-    h("div", { className: "oui-caption text-center mt-2" }, tx("Tap X/Y/Z to move to a position")),
+    h("div", { className: "oui-caption text-center mt-2 ui-hint" }, tx("Tap X/Y/Z to move to a position")),
   );
 }
 

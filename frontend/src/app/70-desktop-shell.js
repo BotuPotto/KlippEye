@@ -105,7 +105,7 @@ function ConsoleDock({ entries }) {
           h(
             "div",
             { className: "oui-card__head" },
-            h("div", { className: "desk-drawer__heading" }, h(SectionTitle, null, "Console"), h("span", { className: "oui-caption" }, tx("Tap a command to put it back in the input field"))),
+            h("div", { className: "desk-drawer__heading" }, h(SectionTitle, null, "Console"), h("span", { className: "oui-caption ui-hint" }, tx("Tap a command to put it back in the input field"))),
             h(ConsoleTools, { entries, fullscreen: false, onFullscreen: () => setFullscreen(true) }),
           ),
           h(ConsoleLog, { entries, onPick: pick, className: "desk-drawer__log" }),

@@ -456,7 +456,7 @@ function TemperatureCard({ onEditTemperature }) {
               h("div", { className: "temp-row temp-row--head", "aria-hidden": "true" }, h("span", null, tx("Sensor")), h("span", null, tx("Power")), h("span", null, tx("Now")), h("span", null, tx("Target"))),
               history.names.map((name) => h(TemperatureRow, { key: name, name, reading: latest(name), color: colors[name], hidden: view.hidden.includes(name), onToggle: () => view.toggle(name), onEdit: () => edit(name) })),
             ),
-            h("div", { className: "oui-caption temp-hint" }, tx("Tap a name to hide or show its lines; tap a target to change it. Dashed: the target.")),
+            h("div", { className: "oui-caption temp-hint ui-hint" }, tx("Tap a name to hide or show its lines; tap a target to change it. Dashed: the target.")),
           ),
     ),
     h(Presence, null, editing && h(TempTargetDialog, { name: editing, value: latest(editing).target, max: history.maxTemp[editing], onClose: () => setEditing(null) })),
