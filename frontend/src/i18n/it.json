@@ -1392,6 +1392,7 @@
  "Save the mesh as a profile": "Salva la mesh come profilo",
  "Save the server": "Salva il server",
  "Saved as {name}: save the configuration to keep it": "Salvata come {name}: salva la configurazione per tenerla",
+ "Saved by moonraker-timelapse, which gives them to Klipper at every start: timelapse.cfg stays as it is (it belongs to moonraker-timelapse).": "Le salva moonraker-timelapse, che le passa a Klipper a ogni avvio: timelapse.cfg resta com'è (è un file di moonraker-timelapse).",
  "Saved from the lights panel (the arrow next to the light button). A tap there brings them back.": "Salvate dal pannello delle luci (la freccia accanto al pulsante della luce). Lì un tocco le richiama.",
  "Saved in klippeye_macros.cfg. Klipper reads it at its next restart.": "Salvato in klippeye_macros.cfg. Klipper lo legge al prossimo riavvio.",
  "Saved in klippeye_macros.cfg. Klipper reads it at its next restart: after the print.": "Salvato in klippeye_macros.cfg. Klipper lo legge al prossimo riavvio: dopo la stampa.",

@@ -57,6 +57,9 @@
 .desk-col { display: flex; flex-direction: column; gap: 16px; min-width: 0; min-height: 0; overflow-y: auto; }
 .desk-col > * { flex: none; }
 .desk-split { display: grid; flex: 1; grid-template-columns: minmax(0, 1fr) 440px; gap: 16px; min-height: 0; }
+/* 1.66: the row is the page's height, never the content's: a long column scrolls inside it (the history and the
+   timelapse grew past the console bar, under it, and could not be scrolled) */
+.desk-split, .desk-system, .desk-device { grid-template-rows: minmax(0, 1fr); }
 .desk-split--files { grid-template-columns: minmax(0, 1fr) 420px; }
 .desk-split--config { grid-template-columns: 380px minmax(0, 1fr); }
 .desk-split--config > .desk-col > .oui-card { flex: 1 0 auto; } /* the list card runs down to the editor's bottom edge */
@@ -179,6 +182,8 @@
   height: 56px;
   padding: 0 10px 0 18px;
   background: var(--oui-glass);
+  -webkit-backdrop-filter: blur(var(--oui-blur)) saturate(1.6); /* 1.66: nothing reads through the bar */
+  backdrop-filter: blur(var(--oui-blur)) saturate(1.6);
   border: 1px solid var(--oui-stroke);
   border-radius: 20px;
 }

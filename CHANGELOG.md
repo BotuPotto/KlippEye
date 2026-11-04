@@ -1,5 +1,16 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.66.0
+
+**Computer: the history and the timelapse scroll, nothing under the console bar.**
+
+* On a computer the **history** and the **timelapse** grew taller than the window: they went under the console bar (you
+  could read them through it) and could not be scrolled. Their columns now keep to the window and scroll by themselves,
+  like the other pages.
+* The console bar blurs what is behind it.
+* Timelapse settings: a line says where they are kept (moonraker-timelapse, which gives them to Klipper at every start;
+  timelapse.cfg is its own file and stays as it is).
+
 ## 1.65.0
 
 **Settings in full pages (phone) and one panel (computer); the cards' layout dragged, one per kind of device.**

@@ -87,6 +87,14 @@ with sync_playwright() as p:
     ok("1.64: the wheel over the 3D bed mesh scrolls the column (zoom: Ctrl + wheel)", col.evaluate("e => e.scrollTop") > before, (before, col.evaluate("e => e.scrollTop")))
     P.close()
 
+    # ------------------------------------------------------------------ 1.66: history and timelapse scroll in their columns
+    P = fresh(1366, 768, tab="files", wait=2500, timelapse_on=True)
+    for section in ("history", "timelapse"):
+        P.pg.locator('[data-files-section="%s"]' % section).click(); P.pg.wait_for_timeout(1500)
+        r = P.pg.evaluate("""() => { const p = document.querySelector('.desk-page'); const d = document.querySelector('.desk-dock').getBoundingClientRect(); return { over: p.scrollHeight - p.clientHeight, bottom: p.getBoundingClientRect().bottom, dock: d.top, cols: [...p.querySelectorAll('.desk-col')].map(c => c.getBoundingClientRect().bottom) }; }""")
+        ok("1.66: %s on a computer: the page stays above the console bar, its columns scroll" % section, r["over"] <= 1 and r["bottom"] <= r["dock"] and all(c <= r["dock"] for c in r["cols"]), r)
+    P.close()
+
     # ------------------------------------------------------------------ console bar
     P = fresh()
     inp = P.pg.locator(".desk-dock__input")
