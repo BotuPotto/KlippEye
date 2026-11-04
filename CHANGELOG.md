@@ -1,5 +1,15 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.56.0
+
+**Files: a menu button on every file; Timelapse always there** (requests of 4 November).
+
+* Every file tile has a **⋯** button in the corner of its preview: it opens the same menu as the long press (details,
+  queue, layers, editor, delete). The long press stays.
+* The **Timelapse** part of the Files page (and its line in the side menu) is there also when Moonraker does not have
+  moonraker-timelapse: it says what the add-on is and how to install it, step by step, with the commands and the
+  configuration lines to copy; once it is installed the videos and settings appear as before.
+
 ## 1.55.3
 
 **Narrow phones: nothing out of its card** (roadmap phase 8).

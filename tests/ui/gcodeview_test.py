@@ -82,6 +82,12 @@ with sync_playwright() as p:
     search.fill("")
     pg.screenshot(path=out + "/list.png")
 
+    # 1.56: the ⋯ button of a tile opens the same menu (the long press stays)
+    pg.locator(".file-card", has_text="Benchy").first.locator(".file-card__more").click()
+    ok("the ⋯ button opens the file's menu", wait_until(lambda: pg.locator(".sheet-overlay--actions .file-action", has_text="Dettagli").count() == 1))
+    pg.locator(".sheet-overlay--actions .sheet-footer button").click()
+    ok("... which closes with Annulla", wait_until(lambda: pg.locator(".sheet-overlay--actions").count() == 0))
+
     # details
     card = pg.locator(".file-card", has_text="Benchy").first
     box = card.bounding_box()

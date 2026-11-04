@@ -30,3 +30,13 @@
   .timelapse-row__preview { flex-basis: 88px; width: 88px; height: 64px; }
   .timelapse-row__actions .oui-btn { padding: 0 10px; }
 }
+
+/* without moonraker-timelapse (1.56) */
+.timelapse-missing__intro { margin: 0 0 16px; font-size: 14px; line-height: 1.45; color: var(--oui-text-2); }
+.timelapse-steps { display: flex; flex-direction: column; gap: 16px; margin: 0 0 16px; padding: 0; list-style: none; }
+.timelapse-step { display: flex; gap: 12px; }
+.timelapse-step__number { display: grid; flex: 0 0 28px; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--oui-accent-soft); color: var(--oui-accent-text); font-size: 13px; font-weight: 700; }
+.timelapse-step__body { display: flex; flex: 1; flex-direction: column; gap: 8px; min-width: 0; }
+.timelapse-step__title { padding-top: 4px; font-size: 14px; font-weight: 600; }
+.timelapse-step__body .oui-caption { margin: 0; line-height: 1.4; }
+.timelapse-step__body .ai-codeblock__code { overflow-x: auto; }

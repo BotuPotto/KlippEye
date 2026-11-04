@@ -19,6 +19,7 @@
 .files-notice { grid-column: 1 / -1; padding: 12px 4px; }
 
 .file-card {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -49,6 +50,25 @@
 .file-card__meta { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 8px; font-size: 12px; color: var(--oui-text-3); font-variant-numeric: tabular-nums; }
 .file-card__fact { display: inline-flex; align-items: center; gap: 5px; }
 .file-card__print-short { display: none; }
+/* 1.56: the tile's menu, on the corner of the preview (a long press opens it too) */
+.file-card__more {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(10, 10, 14, 0.62);
+  color: #fff;
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  cursor: pointer;
+}
+.file-card__more:active { transform: scale(0.92); }
 
 /* phones: three tiles per row, so the tile is a compact one */
 @media (max-width: 600px) {
@@ -62,6 +82,7 @@
   .file-card .oui-btn { padding-left: 4px; padding-right: 4px; }
   .file-card__print-long { display: none; }
   .file-card__print-short { display: inline; }
+  .file-card__more { top: 9px; right: 9px; width: 28px; height: 28px; }
 }
 
 .print-preview {
