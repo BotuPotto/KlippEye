@@ -284,6 +284,13 @@ layer below is grey and the travels show on request; tap a kind in the legend to
 drag moves. While that file prints, **Follow the print** shows the nozzle's layer, what is printed and what is not yet,
 and the nozzle.
 
+### Folding cards and the order of the pages
+
+The main cards have a **chevron** at the top right that folds them down to their title (it stays so on this device). In
+**Settings → Appearance** choose the **order** of the cards of Home and Control (the arrows) and which to show (the
+switch), see how many cards are folded (*Open them all*) and go back to the usual order. The print card always stays on
+top.
+
 ### Print queue
 
 If `moonraker.conf` has `[job_queue]`, a file's menu (long press; on a computer the *Queue* button of the file panel) has

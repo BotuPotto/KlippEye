@@ -253,3 +253,14 @@
 .notify-rule__warn { color: var(--oui-warn); }
 .notify-add .oui-chip { display: inline-flex; align-items: center; gap: 4px; }
 .notify-placeholders code { font-size: 12px; overflow-wrap: anywhere; }
+
+/* ---- Appearance: the order of the cards (1.50, app/59o-appearance.js) ---- */
+.layout-row { display: flex; align-items: center; gap: 4px; min-height: 52px; padding: 4px 8px 4px 16px; }
+.layout-row__name { flex: 1; min-width: 0; overflow: hidden; font-size: 15px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.layout-row.is-hidden .layout-row__name { color: var(--oui-text-3); }
+.layout-row__btn { display: grid; place-items: center; width: 40px; height: 40px; padding: 0; border: 0; border-radius: 12px; background: transparent; color: var(--oui-text-2); cursor: pointer; }
+.layout-row__btn:hover { background: var(--oui-surface-3); }
+.layout-row__btn:disabled { opacity: 0.3; pointer-events: none; }
+.layout-row__switch { display: grid; place-items: center; min-width: 56px; min-height: 40px; padding: 0 4px; border: 0; background: transparent; cursor: pointer; }
+.layout-expand { min-height: 40px; }
+.layout-reset { margin-top: 8px; }

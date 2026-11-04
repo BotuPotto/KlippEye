@@ -224,7 +224,7 @@ function TuneCard({ capabilities, onGcode }) {
 
   return h(
     Card,
-    { className: "tune-card" },
+    { cardId: "tune", className: "tune-card" },
     h(CardHeader, { title: tx("Tune") }),
     !values
       ? h("div", { className: "oui-notice" }, tx("Waiting for Klipper…"))

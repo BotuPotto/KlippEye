@@ -580,7 +580,7 @@ function BedMeshCard({ onGcode, lockReason, homedAxes }) {
 
   return h(
     Card,
-    { className: "mesh-card" },
+    { cardId: "bedmesh", className: "mesh-card" },
     h(
       CardHeader,
       { title: tx("Height map / mesh") },

@@ -165,7 +165,7 @@ function SpoolCard() {
     null,
     h(
       Card,
-      { className: "spool-card" },
+      { cardId: "spool", className: "spool-card" },
       h(CardHeader, { title: tx("Spool") }, spoolman.connected && h("button", { type: "button", className: "oui-btn oui-btn--sm spool-change", onClick: () => setPicking(true) }, h(Icons.Spool, { size: 16 }), tx("Change spool"))),
       body,
     ),

@@ -432,7 +432,7 @@ function TemperatureCard({ onEditTemperature }) {
     null,
     h(
     Card,
-    { className: "temp-card" },
+    { cardId: "temps", className: "temp-card" },
     h(
       CardHeader,
       { title: tx("Temperatures") },

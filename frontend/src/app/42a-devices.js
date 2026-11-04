@@ -171,7 +171,7 @@ function DevicesCard() {
     null,
     h(
       Card,
-      { className: "devices-card" },
+      { cardId: "devices", className: "devices-card" },
       h(CardHeader, { title: tx("Devices") }),
       power.length > 0 &&
         h(
