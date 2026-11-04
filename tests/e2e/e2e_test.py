@@ -859,7 +859,7 @@ if scenario("blackout"):
 
     def corrupt_all():
         open(dash, "wb").close()                                   # empty (the classic: a blank page)
-        open(be, "wb").write(good[be][: len(good[be]) // 2])       # half written
+        open(be, "wb").write(good[be][: len(good[be]) // 2] + b"(")  # half written, cut in the middle of a line
         open(nt, "wb").write(b"\x00" * len(good[nt]))              # all zeros
         os.remove(cli)                                             # gone
 
