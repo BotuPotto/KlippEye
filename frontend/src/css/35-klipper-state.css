@@ -4,7 +4,7 @@
    ========================================================================== */
 
 .klipper-state { --ks-color: var(--oui-text-2); --ks-soft: var(--oui-surface-3); --ks-border: var(--oui-stroke-strong); display: block; box-sizing: border-box; width: 100%; margin: 0 0 16px; }
-.klipper-state[data-tone="info"] { --ks-color: var(--oui-accent); --ks-soft: var(--oui-accent-soft); --ks-border: rgba(183, 156, 255, 0.4); }
+.klipper-state[data-tone="info"] { --ks-color: var(--oui-accent); --ks-soft: var(--oui-accent-soft); --ks-border: rgba(var(--oui-accent-rgb), 0.4); }
 .klipper-state[data-tone="warn"] { --ks-color: var(--oui-warn); --ks-soft: var(--oui-warn-soft); --ks-border: rgba(255, 183, 64, 0.42); }
 .klipper-state[data-tone="error"] { --ks-color: var(--oui-danger); --ks-soft: var(--oui-danger-soft); --ks-border: rgba(255, 93, 93, 0.42); }
 

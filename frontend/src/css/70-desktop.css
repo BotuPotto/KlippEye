@@ -244,7 +244,7 @@
 .desk-col--files .file-card .oui-btn { display: none; } /* the detail panel prints; a tile only selects */
 .desk-col--files .file-card { cursor: pointer; }
 .desk-col--files .files-grid { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); }
-.file-card.is-selected { background: var(--oui-accent-soft); box-shadow: inset 0 0 0 1px rgba(183, 156, 255, 0.55); }
+.file-card.is-selected { background: var(--oui-accent-soft); box-shadow: inset 0 0 0 1px rgba(var(--oui-accent-rgb), 0.55); }
 
 .desk-detail { display: flex; flex-direction: column; gap: 14px; }
 .desk-detail__preview { width: 100%; height: 240px; border-radius: 18px; }

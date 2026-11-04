@@ -33,7 +33,8 @@
   /* ---- accent ---- */
   --oui-accent: #b79cff;                        /* the light violet of the logo */
   --oui-accent-strong: #b79cff;                 /* filled controls: primary button, home button, switch, ticked box */
-  --oui-accent-soft: rgba(183, 156, 255, 0.18);
+  --oui-accent-rgb: 183, 156, 255;              /* the same, for rgba(): a colour of Settings → Appearance replaces them all (1.52) */
+  --oui-accent-soft: rgba(var(--oui-accent-rgb), 0.18);
   --oui-accent-text: #cdbcff;                   /* accent-coloured text and the light end of bars */
   --oui-on-accent: #1a1240;                     /* text and ticks on a filled accent control (the deep violet of the logo) */
 

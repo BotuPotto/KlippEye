@@ -39,7 +39,7 @@ label[for],
 select:not(:disabled),
 summary { cursor: pointer; }
 
-::selection { background: rgba(183, 156, 255, 0.35); }
+::selection { background: rgba(var(--oui-accent-rgb), 0.35); }
 
 /* phones: never scroll sideways */
 @media (max-width: 768px) {

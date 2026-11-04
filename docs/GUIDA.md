@@ -302,6 +302,10 @@ stampa resta sempre in cima.
 In **Impostazioni → Aspetto → Mostra i suggerimenti** puoi nascondere su questo dispositivo i testi piccoli che spiegano
 come usare la pagina (*Tocca per modificare*, *Tieni premuto un file…* e simili).
 
+In **Impostazioni → Aspetto → Colore** scegli il colore di pulsanti, interruttori ed evidenziazioni: il viola del logo,
+blu, verde acqua, verde, ambra, rosa o **il tuo** dalla ruota dei colori (un colore troppo scuro o troppo chiaro viene
+adattato perché si legga sulla pagina scura). Resta su questo dispositivo.
+
 ### Coda di stampa
 
 Se `moonraker.conf` ha `[job_queue]`, il menu di un file (tenendolo premuto; sul computer il pulsante *Coda* nel riquadro

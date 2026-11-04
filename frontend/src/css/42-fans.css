@@ -132,5 +132,5 @@
 .fan-lock__label { font-size: 15px; font-weight: 600; }
 .fan-lock__hint { font-size: 12px; color: var(--oui-text-3); }
 .fan-lock.is-unlocked { background: var(--oui-accent-soft); }
-.fan-lock.is-unlocked .fan-lock__icon { background: rgba(183, 156, 255, 0.28); color: var(--oui-accent-text); }
+.fan-lock.is-unlocked .fan-lock__icon { background: rgba(var(--oui-accent-rgb), 0.28); color: var(--oui-accent-text); }
 .fan-lock.is-unlocked .fan-lock__hint { color: var(--oui-accent-text); }

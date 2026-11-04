@@ -294,6 +294,10 @@ top.
 In **Settings → Appearance → Show the hints** you can hide on this device the small texts that explain how to use a page
 (*Tap to change*, *Long-press a file…* and the like).
 
+In **Settings → Appearance → Colour** choose the colour of buttons, switches and highlights: the logo's violet, blue,
+teal, green, amber, pink or **your own** from the colour wheel (one too dark or too pale is adjusted to read on the dark
+page). It stays on this device.
+
 ### Print queue
 
 If `moonraker.conf` has `[job_queue]`, a file's menu (long press; on a computer the *Queue* button of the file panel) has

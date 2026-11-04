@@ -12,7 +12,7 @@
 .cal-cross--tap line { stroke: #ffd84a; }
 .cal-cross--saved line { stroke: var(--oui-ok); }
 .cal-cross--nozzle line { stroke: #ff5d5d; stroke-width: 2.5px; }
-.cal-toolhead { fill: rgba(183, 156, 255, 0.22); stroke: var(--oui-accent); stroke-width: 2px; }
+.cal-toolhead { fill: rgba(var(--oui-accent-rgb), 0.22); stroke: var(--oui-accent); stroke-width: 2px; }
 .cal-bed { fill: none; stroke: rgba(255, 255, 255, 0.8); stroke-width: 1.5px; stroke-dasharray: 6 5; }
 
 .cal-loupe { position: relative; width: 100%; background-color: #0b0c0f; background-repeat: no-repeat; border: 2px solid var(--oui-accent); border-radius: var(--oui-r-field); cursor: crosshair; }
