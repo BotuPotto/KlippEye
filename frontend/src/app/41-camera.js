@@ -435,13 +435,16 @@ function LightsPanel({ controller, onClose }) {
  * The round bulb button (css/41-camera.css): amber when on. It is a switch for screen readers; while a command
  * waits for Klipper it carries aria-busy / .is-waiting (no visible change: the button simply shows what was asked).
  */
-/** The round button and, next to it, the arrow that opens every light (`controller`: useCaseLight()). */
+/**
+ * The light button and the arrow that opens every light (`controller`: useCaseLight()). 1.58: one long button, split
+ * 70 / 30: the light on the left, the arrow on the right.
+ */
 function LightButton(controller) {
   const { on, waiting, failures, toggle } = controller;
   const [panel, setPanel] = useState(false);
   return h(
     "span",
-    { className: "light-group" },
+    { className: cx("light-group", controller.lights && "is-split") },
     h(LightMainButton, { on, waiting, failures, toggle }),
     controller.lights && h("button", { type: "button", className: "light-more", "aria-label": tx("All the lights"), title: tx("All the lights"), "aria-haspopup": "dialog", onClick: () => setPanel(true) }, h(Icons.Chevron, { size: 14 })),
     h(Presence, null, panel && h(LightsPanel, { controller, onClose: () => setPanel(false) })),

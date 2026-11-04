@@ -125,52 +125,58 @@ function NtfyPairing({ ntfy, store, onPhone }) {
     React.Fragment,
     null,
     h("div", { className: "set-status set-status--ok", "data-ntfy": "on" }, h("span", { className: "set-status__dot" }), tx("ntfy on: private address made for this printer")),
+    // 1.58: once on, the page says so and offers the test; pairing a phone and the other choices are folded
+    h("div", null, h("button", { type: "button", className: "oui-btn oui-btn--sm", disabled: Boolean(store.busy), "data-ntfy-test": "1", onClick: test }, store.busy === "test" ? tx("Sending…") : tx("Send a test notification"))),
+    h(TestResults, { results }),
     h(
-      "ol",
-      { className: "nt-steps" },
+      "details",
+      { className: "nt-fold", "data-ntfy-pair": "1" },
+      h("summary", null, tx("Pair a phone (the ntfy app)")),
       h(
-        "li",
-        null,
-        h("b", null, tx("Install the free ntfy app on the phone")),
-        IN_APP_WEBVIEW && !APP_OPENS_LINKS
-          ? h("p", { className: "set-group__note" }, tx("Look for «ntfy» in Google Play, F-Droid or the App Store."))
-          : h("div", { className: "nt-links" }, NTFY_APPS.map((app) => h("a", { key: app.id, className: "oui-btn oui-btn--sm", href: app.href, target: "_blank", rel: "noopener noreferrer" }, app.label))),
-      ),
-      h(
-        "li",
-        null,
-        h("b", null, onPhone && (!IN_APP_WEBVIEW || APP_OPENS_LINKS) ? tx("Tap «Open in the ntfy app»: it subscribes by itself") : tx("Scan this code with the phone's camera: the ntfy app opens and subscribes")),
-        h("div", { className: "nt-pair" }, h(QrCode, { text: ntfy.link }), onPhone && (!IN_APP_WEBVIEW || APP_OPENS_LINKS) && h("a", { className: "oui-btn oui-btn--primary", href: ntfy.link, "data-ntfy-link": "1" }, tx("Open in the ntfy app"))),
+        "ol",
+        { className: "nt-steps" },
         h(
-          "p",
-          { className: "set-group__note" },
-          tx("Or add it by hand in the app (the + button): server"),
-          " ",
-          h("code", null, ntfy.server),
-          ", ",
-          tx("topic"),
-          " ",
-          h("code", { "data-ntfy-topic": ntfy.topic }, ntfy.topic),
-          " ",
-          h(CopyButton, { text: ntfy.topic, label: tx("Copy the topic") }),
+          "li",
+          null,
+          h("b", null, tx("Install the free ntfy app on the phone")),
+          IN_APP_WEBVIEW && !APP_OPENS_LINKS
+            ? h("p", { className: "set-group__note" }, tx("Look for «ntfy» in Google Play, F-Droid or the App Store."))
+            : h("div", { className: "nt-links" }, NTFY_APPS.map((app) => h("a", { key: app.id, className: "oui-btn oui-btn--sm", href: app.href, target: "_blank", rel: "noopener noreferrer" }, app.label))),
+        ),
+        h(
+          "li",
+          null,
+          h("b", null, onPhone && (!IN_APP_WEBVIEW || APP_OPENS_LINKS) ? tx("Tap «Open in the ntfy app»: it subscribes by itself") : tx("Scan this code with the phone's camera: the ntfy app opens and subscribes")),
+          h("div", { className: "nt-pair" }, h(QrCode, { text: ntfy.link }), onPhone && (!IN_APP_WEBVIEW || APP_OPENS_LINKS) && h("a", { className: "oui-btn oui-btn--primary", href: ntfy.link, "data-ntfy-link": "1" }, tx("Open in the ntfy app"))),
+          h(
+            "p",
+            { className: "set-group__note" },
+            tx("Or add it by hand in the app (the + button): server"),
+            " ",
+            h("code", null, ntfy.server),
+            ", ",
+            tx("topic"),
+            " ",
+            h("code", { "data-ntfy-topic": ntfy.topic }, ntfy.topic),
+            " ",
+            h(CopyButton, { text: ntfy.topic, label: tx("Copy the topic") }),
+          ),
         ),
       ),
-      h(
-        "li",
-        null,
-        h("b", null, tx("Check that it arrives")),
-        h("div", null, h("button", { type: "button", className: "oui-btn oui-btn--sm", disabled: Boolean(store.busy), "data-ntfy-test": "1", onClick: test }, store.busy === "test" ? tx("Sending…") : tx("Send a test notification"))),
-        h(TestResults, { results }),
-      ),
+      h("p", { className: "set-group__note" }, tx("Whoever knows this address can read the notifications: do not share the code. If notifications arrive late on Android, open the topic in the ntfy app and turn on «Instant delivery». Several phones can scan the same code.")),
     ),
-    h("p", { className: "set-group__note" }, tx("Whoever knows this address can read the notifications: do not share the code. If notifications arrive late on Android, open the topic in the ntfy app and turn on «Instant delivery». Several phones can scan the same code.")),
     h(
-      "div",
-      { className: "oui-btn-row" },
-      h("button", { type: "button", className: "oui-btn oui-btn--sm", disabled: Boolean(store.busy), "data-ntfy-new": "1", onClick: () => window.confirm(tx("Make a new address? The phones paired now stop receiving until they scan the new code.")) && store.ntfy({ new_topic: true }) }, tx("New address")),
-      h("button", { type: "button", className: "oui-btn oui-btn--sm oui-btn--quiet", disabled: Boolean(store.busy), "data-ntfy-off": "1", onClick: () => store.ntfy({ enabled: false }) }, tx("Turn ntfy off")),
+      "details",
+      { className: "nt-fold", "data-ntfy-more": "1" },
+      h("summary", null, tx("Other choices: new address, own server, turn off")),
+      h(
+        "div",
+        { className: "oui-btn-row" },
+        h("button", { type: "button", className: "oui-btn oui-btn--sm", disabled: Boolean(store.busy), "data-ntfy-new": "1", onClick: () => window.confirm(tx("Make a new address? The phones paired now stop receiving until they scan the new code.")) && store.ntfy({ new_topic: true }) }, tx("New address")),
+        h("button", { type: "button", className: "oui-btn oui-btn--sm oui-btn--quiet", disabled: Boolean(store.busy), "data-ntfy-off": "1", onClick: () => store.ntfy({ enabled: false }) }, tx("Turn ntfy off")),
+      ),
+      h(OwnServer, { ntfy, store }),
     ),
-    h(OwnServer, { ntfy, store }),
   );
 }
 
@@ -186,8 +192,10 @@ function NotificationChannels({ store }) {
     ntfy.enabled
       ? h(NtfyPairing, { ntfy, store, onPhone })
       : h(
-          React.Fragment,
-          null,
+          // 1.58: notifications already on (Firebase): turning ntfy on, for other phones, is folded
+          firebase.on ? "details" : React.Fragment,
+          firebase.on ? { className: "nt-fold", "data-ntfy-offer": "folded" } : null,
+          firebase.on && h("summary", null, tx("Also on other phones, with the ntfy app")),
           !firebase.on && h("div", { className: "set-status set-status--warn", "data-ntfy": "off" }, h("span", { className: "set-status__dot" }), tx("No channel is on: the notifications do not reach any phone.")),
           h("p", { className: "set-group__note" }, tx("With the free ntfy app (Android and iPhone) the notifications arrive with no account and no key: KlippEye makes a private address that only your phones know.")),
           h("button", { type: "button", className: "oui-btn oui-btn--primary oui-btn--block", disabled: Boolean(store.busy), "data-ntfy-on": "1", onClick: () => store.ntfy({ enabled: true, click: window.location.origin + "/" }) }, h(Icons.Bell, { size: 18 }), tx("Turn on notifications with ntfy")),
@@ -281,6 +289,7 @@ function PhoneNotifications({ store }) {
   const [proof, setProof] = useState(null); // null | "waiting" | "arrived" | "late" | "failed"
   const [proofText, setProofText] = useState("");
   const [busy, setBusy] = useState(false);
+  const readyAtOpen = useRef(null);
   if (!APP_CAN_NOTIFY) {
     return h("div", { className: "set-status set-status--warn", "data-phone": "old-app" }, h("span", { className: "set-status__dot" }), tx("Update the KlippEye app (Settings → Updates → Android app) to receive the notifications in the app itself, without ntfy."));
   }
@@ -303,6 +312,10 @@ function PhoneNotifications({ store }) {
     { id: "proof", done: proof === "arrived" },
   ];
   const current = (steps.find((step) => !step.done) || {}).id;
+  // 1.58: a phone already set up when the page opens: the steps fold away (not while they are being done)
+  const allSet = steps.every((one) => one.id === "proof" || one.done);
+  if (readyAtOpen.current === null) readyAtOpen.current = allSet;
+  const ready = readyAtOpen.current && allSet;
   const isDone = (id) => (steps.find((step) => step.id === id) || {}).done;
   const prove = async () => {
     const before = Number(state.lastMessageAt) || 0;
@@ -326,6 +339,13 @@ function PhoneNotifications({ store }) {
     }
     setProof("late");
   };
+  const proofLines = h(
+    React.Fragment,
+    null,
+    proof === "arrived" && h("p", { className: "nt-ok", "data-proof": "arrived" }, tx("Arrived on this phone. All set!")),
+    proof === "late" && h("p", { className: "nt-bad", "data-proof": "late" }, tx("Sent, but it has not arrived here within 30 seconds. Check that the phone is online and that the notifications of KlippEye are on in Android.")),
+    proof === "failed" && h("p", { className: "nt-bad", "data-proof": "failed" }, tx("The Raspberry could not send it") + (proofText ? " (" + proofText + ")" : store.problem ? " (" + store.problem + ")" : "") + "."),
+  );
   let number = 0;
   const step = (id, title, ...children) => h(PhoneStep, { key: id, number: (number += 1), done: isDone(id), current: current === id, title }, ...children);
   return h(
@@ -339,43 +359,53 @@ function PhoneNotifications({ store }) {
           state.mode === "firebase" ? tx("This phone receives the notifications (Firebase).") : state.connected ? tx("This phone receives the notifications: connected.") : tx("This phone receives the notifications: connecting…"),
         )
       : h("p", { className: "set-group__note", "data-phone": "off" }, tx("A few steps and the notifications of the printer arrive on this phone, also with the app closed. Nothing else to install.")),
+    ready &&
+      h(
+        "div",
+        { className: "nt-ready" },
+        h("button", { type: "button", className: "oui-btn oui-btn--sm", disabled: proof === "waiting", "data-phone-action": "proof-quick", onClick: prove }, proof === "waiting" ? tx("Waiting for it…") : tx("Send a test notification")),
+        proofLines,
+      ),
     h(
-      "ol",
-      { className: "nt-phone" },
-      step(
-        "permission",
-        tx("Allow the notifications"),
-        !state.permission && h("button", { type: "button", className: "oui-btn oui-btn--primary oui-btn--sm", "data-phone-action": "permission", onClick: () => nativeBridge().askNotificationPermission() }, tx("Allow")),
-      ),
-      !useFirebase &&
+      ready ? "details" : React.Fragment,
+      ready ? { className: "nt-fold", "data-phone-steps": "folded" } : null,
+      ready && h("summary", null, tx("The steps (all done)")),
+      h(
+        "ol",
+        { className: "nt-phone" },
         step(
-          "channel",
-          tx("Make the private address on the Raspberry"),
-          ntfy.enabled
-            ? h("p", { className: "set-group__note" }, tx("Done: only your phones know it."))
-            : h("button", { type: "button", className: "oui-btn oui-btn--primary oui-btn--sm", disabled: Boolean(store.busy), "data-phone-action": "channel", onClick: async () => (await store.ntfy({ enabled: true, click: window.location.origin + "/" })) && sync() }, tx("Make it")),
+          "permission",
+          tx("Allow the notifications"),
+          !state.permission && h("button", { type: "button", className: "oui-btn oui-btn--primary oui-btn--sm", "data-phone-action": "permission", onClick: () => nativeBridge().askNotificationPermission() }, tx("Allow")),
         ),
-      step(
-        "receive",
-        tx("Receive on this phone"),
-        receiving
-          ? null
-          : h("button", { type: "button", className: "oui-btn oui-btn--primary oui-btn--sm", disabled: busy || !channelReady, "data-phone-action": "receive", onClick: () => sync({ ricevi: true }) }, tx("Receive here")),
-      ),
-      !useFirebase &&
+        !useFirebase &&
+          step(
+            "channel",
+            tx("Make the private address on the Raspberry"),
+            ntfy.enabled
+              ? h("p", { className: "set-group__note" }, tx("Done: only your phones know it."))
+              : h("button", { type: "button", className: "oui-btn oui-btn--primary oui-btn--sm", disabled: Boolean(store.busy), "data-phone-action": "channel", onClick: async () => (await store.ntfy({ enabled: true, click: window.location.origin + "/" })) && sync() }, tx("Make it")),
+          ),
         step(
-          "battery",
-          tx("Let KlippEye stay awake"),
-          h("p", { className: "set-group__note" }, tx("To receive at once KlippEye keeps a connection open, shown by a small fixed notification «KlippEye in ascolto» (hold it to hide it). Android puts still apps to sleep: allow KlippEye to run without battery limits.")),
-          !state.battery && h("button", { type: "button", className: "oui-btn oui-btn--primary oui-btn--sm", "data-phone-action": "battery", onClick: () => nativeBridge().askBatteryExemption() }, tx("Allow")),
+          "receive",
+          tx("Receive on this phone"),
+          receiving
+            ? null
+            : h("button", { type: "button", className: "oui-btn oui-btn--primary oui-btn--sm", disabled: busy || !channelReady, "data-phone-action": "receive", onClick: () => sync({ ricevi: true }) }, tx("Receive here")),
         ),
-      step(
-        "proof",
-        tx("Check that it arrives"),
-        h("button", { type: "button", className: "oui-btn oui-btn--sm", disabled: proof === "waiting" || !receiving, "data-phone-action": "proof", onClick: prove }, proof === "waiting" ? tx("Waiting for it…") : tx("Send a test notification")),
-        proof === "arrived" && h("p", { className: "nt-ok", "data-proof": "arrived" }, tx("Arrived on this phone. All set!")),
-        proof === "late" && h("p", { className: "nt-bad", "data-proof": "late" }, tx("Sent, but it has not arrived here within 30 seconds. Check that the phone is online and that the notifications of KlippEye are on in Android.")),
-        proof === "failed" && h("p", { className: "nt-bad", "data-proof": "failed" }, tx("The Raspberry could not send it") + (proofText ? " (" + proofText + ")" : store.problem ? " (" + store.problem + ")" : "") + "."),
+        !useFirebase &&
+          step(
+            "battery",
+            tx("Let KlippEye stay awake"),
+            h("p", { className: "set-group__note" }, tx("To receive at once KlippEye keeps a connection open, shown by a small fixed notification «KlippEye in ascolto» (hold it to hide it). Android puts still apps to sleep: allow KlippEye to run without battery limits.")),
+            !state.battery && h("button", { type: "button", className: "oui-btn oui-btn--primary oui-btn--sm", "data-phone-action": "battery", onClick: () => nativeBridge().askBatteryExemption() }, tx("Allow")),
+          ),
+        step(
+          "proof",
+          tx("Check that it arrives"),
+          h("button", { type: "button", className: "oui-btn oui-btn--sm", disabled: proof === "waiting" || !receiving, "data-phone-action": "proof", onClick: prove }, proof === "waiting" ? tx("Waiting for it…") : tx("Send a test notification")),
+          !ready && proofLines,
+        ),
       ),
     ),
     h(

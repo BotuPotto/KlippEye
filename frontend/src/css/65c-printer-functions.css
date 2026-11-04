@@ -74,3 +74,12 @@ body:has(.modal, .confirm-overlay, .sheet-overlay, .screen, .drawer) .nt-invite 
 .fn-wraps-fold__text { display: flex; flex: 1; flex-direction: column; gap: 2px; min-width: 0; font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
 .fn-wraps-fold__more { color: var(--oui-text-3); font-size: 12px; font-weight: 400; }
 .fn-wraps-fold > .fn-wraps { padding: 4px 12px 12px; }
+
+/* 1.58: notifications already on: pairing, other choices and the done steps folded */
+.nt-fold { border-radius: var(--oui-r-field); background: var(--oui-surface-2); }
+.nt-fold > summary { min-height: 44px; padding: 0 12px; color: var(--oui-text-2); font-size: 14px; font-weight: 600; }
+.nt-fold[open] { padding-bottom: 12px; }
+.nt-fold > :not(summary) { margin-right: 12px; margin-left: 12px; }
+.nt-fold > .nt-steps { margin-left: 12px; padding-left: 22px; }
+.nt-fold > .nt-own { margin-top: 10px; }
+.nt-ready { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }

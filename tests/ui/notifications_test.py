@@ -85,7 +85,10 @@ with sync_playwright() as p:
     st = state()
     ok("turned on with one tap: the backend is asked to turn ntfy on and to open this dashboard from the notification", st["ntfy_posts"] and st["ntfy_posts"][0].get("enabled") is True and st["ntfy_posts"][0].get("click") == mock.base + "/", st["ntfy_posts"])
     topic = st["ntfy"]["topic"]
-    ok("... the page shows the three steps, the private topic and the QR code that subscribes the ntfy app", P.pg.locator('[data-ntfy="on"]').count() == 1 and P.pg.locator(".nt-steps > li").count() == 3
+    ok("1.58: on, the page says so and offers the test; pairing and the other choices are folded", P.pg.locator('[data-ntfy="on"]').is_visible() and P.pg.locator("[data-ntfy-test]").is_visible()
+       and P.pg.locator("[data-ntfy-pair]:not([open])").count() == 1 and P.pg.locator("[data-ntfy-more]:not([open])").count() == 1 and not P.pg.locator("svg.nt-qr").is_visible())
+    P.pg.locator("[data-ntfy-pair] > summary").click(); P.settle(300)
+    ok("... the pairing shows the two steps, the private topic and the QR code that subscribes the ntfy app", P.pg.locator('[data-ntfy="on"]').count() == 1 and P.pg.locator(".nt-steps > li").count() == 2
        and P.pg.locator('[data-ntfy-topic="%s"]' % topic).count() == 1 and P.pg.locator('svg.nt-qr[data-qr="ntfy://ntfy.sh/%s?display=KlippEye"]' % topic).count() == 1, body(P)[:900])
     ok("... the QR code is drawn (black squares on white), big enough to scan", P.pg.locator("svg.nt-qr path").get_attribute("d").count("h1v1h-1z") > 200 and P.pg.locator("svg.nt-qr").bounding_box()["width"] >= 180)
     ok("... the links of the app stores are there (Google Play, F-Droid, App Store)", P.pg.locator(".nt-links a").count() == 3)
@@ -97,6 +100,7 @@ with sync_playwright() as p:
     P.pg.locator("[data-ntfy-test]").click()
     ok("... and when it fails, why (in plain words)", wait_until(lambda: P.pg.locator('[data-test-result="failed"]').count() == 1) and "NON inviata (ntfy not reachable" in body(P), body(P)[-600:])
 
+    P.pg.locator("[data-ntfy-more] > summary").click(); P.settle(300)
     P.pg.locator("[data-ntfy-new]").click(); P.settle(900)
     ok("a new address (after a confirmation): another topic, another QR code", state()["ntfy"]["topic"] != topic and P.pg.locator('svg.nt-qr[data-qr*="%s"]' % state()["ntfy"]["topic"]).count() == 1)
 
@@ -151,6 +155,9 @@ with sync_playwright() as p:
     P.pg.evaluate("() => { window.__app.s.lastMessageAt = Date.now(); }")
     ok("... the app says it arrived: 'Arrivata su questo telefono', every step done", wait_until(lambda: P.pg.locator('[data-proof="arrived"]').count() == 1, 6) and P.pg.locator('.nt-phone-step[data-done="1"]').count() == 5)
     P.shot(out + "/app_steps_done.png")
+    P.pg.click('.drawer button[aria-label="Indietro"]'); P.settle(400)
+    P.pg.locator('.set-entry[data-page="notifications"]').click(); P.settle(900)
+    ok("1.58: coming back with everything set up: the steps are folded, the test is at hand", P.pg.locator('[data-phone-steps="folded"]:not([open])').count() == 1 and P.pg.locator('[data-phone-action="proof-quick"]').is_visible() and not P.pg.locator('[data-phone-action="battery"]').is_visible())
     P.pg.locator('[data-phone-action="stop"]').click(); P.settle(1500)
     ok("'Non ricevere su questo telefono': the app stops listening", P.pg.evaluate("() => window.__app.s.receive") is False and wait_until(lambda: P.pg.locator('[data-phone="off"]').count() == 1))
     ok("app: no store links and no ntfy:// button inside the app (the app cannot open them)", P.pg.locator(".nt-links a").count() == 0 and P.pg.locator("[data-ntfy-link]").count() == 0)
