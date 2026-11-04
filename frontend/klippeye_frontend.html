@@ -4486,23 +4486,20 @@ input[type="range"] { touch-action: pan-y; }
 .desk-dock__expand svg { transform: rotate(180deg); transition: transform var(--oui-dur-base) var(--oui-ease); }
 .desk-dock__expand.is-open svg { transform: none; }
 
+/* 1.64: the whole console takes its place above the bar (the page's columns get shorter) instead of floating over the
+   cards and hiding them */
 .desk-drawer {
-  position: absolute;
-  right: 24px;
-  bottom: 92px; /* the bar (56) + its margin (20) + a gap (16) */
-  left: 24px;
-  z-index: 40;
+  position: relative;
+  z-index: 1;
   display: flex;
+  flex: none;
   flex-direction: column;
   box-sizing: border-box;
-  height: min(56%, 520px);
+  height: min(42vh, 440px);
   padding: 16px 20px 20px;
   background: var(--oui-glass);
-  -webkit-backdrop-filter: blur(var(--oui-blur)) saturate(1.6);
-  backdrop-filter: blur(var(--oui-blur)) saturate(1.6);
   border: 1px solid var(--oui-stroke-strong);
   border-radius: var(--oui-r-card);
-  box-shadow: var(--oui-shadow-float);
 }
 .desk-drawer .oui-card__head { margin-bottom: 12px; }
 .desk-drawer__log { flex: 1; min-height: 0; height: auto; }
@@ -8921,7 +8918,7 @@ function usePrinterFunctions() {
    ========================================================================== */
 
 /** Written by build.py from the VERSION file of the release; stays as it is when the page is built by hand. */
-const DASHBOARD_RELEASE = "1.63.0";
+const DASHBOARD_RELEASE = "1.64.0";
 const dashboardRelease = () => (DASHBOARD_RELEASE.startsWith("__") ? "sviluppo" : DASHBOARD_RELEASE);
 
 /** The interface level this page needs from the backend (the backend says its own in /api/version). */
@@ -23409,6 +23406,9 @@ function useOrbitControls(canvasRef, viewRef, redraw, enabled) {
       unlockScroll();
     };
     const onWheel = (event) => {
+      // 1.64: the wheel scrolls the page (on a computer the card was a dead spot for scrolling); Ctrl / ⌘ + wheel, and a
+      // trackpad's pinch (which the browser sends as a wheel with ctrlKey), zoom the 3D view
+      if (!event.ctrlKey && !event.metaKey) return;
       event.preventDefault();
       lockScroll();
       zoomBy(event.deltaY < 0 ? 1.08 : 0.92);

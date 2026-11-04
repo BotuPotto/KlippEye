@@ -340,6 +340,9 @@ function useOrbitControls(canvasRef, viewRef, redraw, enabled) {
       unlockScroll();
     };
     const onWheel = (event) => {
+      // 1.64: the wheel scrolls the page (on a computer the card was a dead spot for scrolling); Ctrl / ⌘ + wheel, and a
+      // trackpad's pinch (which the browser sends as a wheel with ctrlKey), zoom the 3D view
+      if (!event.ctrlKey && !event.metaKey) return;
       event.preventDefault();
       lockScroll();
       zoomBy(event.deltaY < 0 ? 1.08 : 0.92);
