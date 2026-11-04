@@ -12,6 +12,12 @@ import atexit; atexit.register(mock.stop)
 FAILS = []
 
 
+
+def back_if(P):
+    """The menu's arrow back, when there is one (1.65: on a computer the menu is one panel, a page has no arrow back to the list)."""
+    if P.pg.locator('.drawer button[aria-label="Indietro"]').count():
+        P.pg.click('.drawer button[aria-label="Indietro"]')
+
 def ok(name, cond, extra=""):
     if not cond: FAILS.append(name)
     print(("PASS " if cond else "FAIL ") + name + ((" :: " + str(extra)[:600]) if (extra != "" and not cond) else ""))
@@ -98,12 +104,12 @@ def go(P, name):
     for _ in range(2):
         if P.pg.locator('.set-entry[data-page="%s"]' % name).count() or P.pg.locator('.set-entry[data-page="ai"]').count():
             break
-        P.pg.click('.drawer button[aria-label="Indietro"]'); P.settle(400)
+        back_if(P); P.settle(400)
     if not P.pg.locator('.set-entry[data-page="%s"]' % name).count() and name in ("camcal", "detector", "recordings"):
         P.pg.click('.set-entry[data-page="ai"]'); P.settle(600)
     if name == "camera":  # 1.59: Camera lists the cameras; the main one has its page
         if not P.pg.locator('.set-entry[data-page="camera"]').count():
-            P.pg.click('.drawer button[aria-label="Indietro"]'); P.settle(400)
+            back_if(P); P.settle(400)
         P.pg.click('.set-entry[data-page="camera"]'); P.settle(450)
         P.pg.click('.set-entry[data-page="camera-main"]'); P.settle(450)
         return
@@ -111,7 +117,7 @@ def go(P, name):
 
 
 def back(P):
-    P.pg.click('.drawer button[aria-label="Indietro"]'); P.settle(450)
+    back_if(P); P.settle(450)
 
 
 def switch(P, title):
@@ -658,7 +664,10 @@ with sync_playwright() as p:
             if name != "home": back(P)
         ok("[%d] every page of the menu: no sideways overflow, buttons big enough to touch, no clipped text" % w, not bad, bad)
         box = pg.locator(".drawer").bounding_box()
-        ok("[%d] the menu fits the screen" % w, box["x"] == 0 and box["width"] <= min(420, w - 40) + 0.5 and box["y"] == 0 and box["height"] <= h + 1, box)
+        if w >= 1100:  # 1.65: on a computer one panel in the middle of the screen
+            ok("[%d] the menu is a panel in the middle, inside the screen" % w, box["x"] > 0 and box["y"] > 0 and abs(box["x"] * 2 + box["width"] - w) <= 2 and box["y"] + box["height"] <= h and box["width"] > 700, box)
+        else:
+            ok("[%d] the menu fits the screen" % w, box["x"] == 0 and box["width"] <= min(420, w - 40) + 0.5 and box["y"] == 0 and box["height"] <= h + 1, box)
         close_menu(P)
         hdr = pg.evaluate("() => { const r = document.querySelector('.app-header__actions').getBoundingClientRect(); const m = document.querySelector('.header-btn--menu').getBoundingClientRect(); return { right: r.right, vw: innerWidth, menu: [m.left, m.right], page: document.documentElement.scrollWidth - document.documentElement.clientWidth }; }")
         ok("[%d] the top bar still fits with the new button" % w, hdr["right"] <= w and hdr["page"] <= 0 and hdr["menu"][0] >= 0, hdr)

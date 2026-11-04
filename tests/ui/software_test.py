@@ -11,6 +11,12 @@ import atexit; atexit.register(mock.stop)
 FAILS = []
 
 
+
+def back_if(P):
+    """The menu's arrow back, when there is one (1.65: on a computer the menu is one panel, a page has no arrow back to the list)."""
+    if P.pg.locator('.drawer button[aria-label="Indietro"]').count():
+        P.pg.click('.drawer button[aria-label="Indietro"]')
+
 def ok(name, cond, extra=""):
     if not cond: FAILS.append(name)
     print(("PASS " if cond else "FAIL ") + name + ((" :: " + str(extra)[:700]) if (extra != "" and not cond) else ""), flush=True)
@@ -183,7 +189,7 @@ with sync_playwright() as p:
     ok("two quick changes are sent as one request", wait_until(lambda: last_post() == {"cooldown": 120, "warmup_seconds": 60}, 3.0), cfg_log()[-3:])
 
     # the switch (1.19: on the AI monitor page, at the top)
-    pg.click('.drawer button[aria-label="Indietro"]'); P.settle(600)
+    back_if(P); P.settle(600)
     pg.click(".set-switch:has-text('Monitor attivo')"); P.settle(300)
     ok("switching the monitor off (AI monitor page) is sent", wait_until(lambda: last_post() == {"enabled": False}, 3.0), cfg_log()[-2:])
     pg.click(".set-switch:has-text('Monitor attivo')"); P.settle(300)
@@ -416,7 +422,7 @@ with sync_playwright() as p:
         o = pg.evaluate("() => { const b = document.querySelector('.drawer__body'); return { page: document.documentElement.scrollWidth - document.documentElement.clientWidth, body: b.scrollWidth - b.clientWidth }; }")
         ok("[%dpx] software page: nothing sticks out sideways" % vw, o["page"] <= 0 and o["body"] <= 0, o)
         P.shot(out + "/software_%d.png" % vw, tall=False)
-        pg.click('.drawer button[aria-label="Indietro"]'); P.settle(400); go(P, "detector"); P.settle(900)
+        back_if(P); P.settle(400); go(P, "detector"); P.settle(900)
         o = pg.evaluate("() => { const b = document.querySelector('.drawer__body'); return { page: document.documentElement.scrollWidth - document.documentElement.clientWidth, body: b.scrollWidth - b.clientWidth }; }")
         ok("[%dpx] thresholds page: nothing sticks out sideways" % vw, o["page"] <= 0 and o["body"] <= 0, o)
         P.shot(out + "/detector_%d.png" % vw, tall=False)
