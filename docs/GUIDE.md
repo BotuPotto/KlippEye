@@ -242,6 +242,17 @@ the **order** (name A→Z or Z→A, last change first or oldest first, largest f
 (the `printer-YYYYMMDD_HHMMSS.cfg` written by SAVE_CONFIG, `.bak`, `.bkp`…) and the **hidden files** (names starting with
 a dot). The choice stays on this device; a line under the list says how many are left out, and a tap on it shows them.
 
+### The text editor
+
+Configuration and G-code files open in the dashboard's editor, built on **CodeMirror 6** like Mainsail's: line numbers,
+colours (sections, keys, pins, values, comments, the G-code and Jinja2 of macros), the caret's line marked, brackets
+matched. The arrow next to a `[section]` **folds and unfolds** it; the **Sections of the file** button lists them all (tap
+one to go there) and folds or unfolds them all at once. The page button opens the **reference** for the section the caret
+is in: Klipper's Config Reference for `.cfg` files (`[stepper_x]` leads to `[stepper]`), Moonraker's configuration page
+for `moonraker.conf`. The magnifier (or Ctrl+F) opens **Find and replace**: next / previous, all, match case, regexp, by
+word, replace, replace all. **Undo / Redo** (Ctrl+Z / Ctrl+Y), **Comment / Uncomment** (Ctrl+/; `#` in configuration
+files, `;` in G-code), Ctrl+S to save and *Save and restart* (SAVE_CONFIG) stay.
+
 ### During a print
 
 The **print card** (Home) shows the file, the progress, the time, what is left and the layer; under them **when it ends**

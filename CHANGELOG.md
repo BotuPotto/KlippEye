@@ -1,5 +1,22 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.41.0
+
+**The text editor on CodeMirror 6, like Mainsail** (roadmap phase 6c, third part).
+
+* The editor of the configuration and G-code files is now **CodeMirror 6** (the engine of Mainsail's editor), bundled in
+  the dashboard (`frontend/vendor/codemirror-6.js`, MIT, built by `frontend/tools/codemirror/build.sh`): line numbers,
+  colours for Klipper's files (sections, keys, pins, values, comments, G-code and Jinja2 in macros) and for G-code, the
+  active line, matching brackets, multiple selections, smooth on long files and on phones.
+* **Sections**: the arrow next to a `[section]` folds it; *Sections of the file* lists them (tap one to go there) and folds
+  or unfolds them all.
+* **Reference**: a button opens Klipper's Config Reference at the section under the caret (`[stepper_x]` → `[stepper]`),
+  or Moonraker's configuration page for `moonraker.conf`.
+* **Find and replace** (the magnifier or Ctrl+F): next / previous, select all, match case, regexp, whole word, replace,
+  replace all — in the dashboard's language.
+* Kept from the earlier editor: Undo / Redo (now CodeMirror's history), Comment / Uncomment and Ctrl+/ (`#`, `;` in
+  G-code), Ctrl+S, *Save and restart*, the question before closing with unsaved changes.
+
 ## 1.40.0
 
 **Print files: search, order and details** (roadmap phase 6c, second part).

@@ -10,6 +10,10 @@ import atexit; atexit.register(mock.stop)
 FAILS = []
 
 
+def edtext(P):
+    """The text in the editor (CodeMirror, 1.41)."""
+    return P.pg.evaluate("() => CM.EditorView.findFromDOM(document.querySelector('.screen--editor .cm-editor')).state.doc.toString()")
+
 def ok(name, cond, extra=""):
     if not cond: FAILS.append(name)
     print(("PASS " if cond else "FAIL ") + name + ((" :: " + str(extra)) if extra != "" else ""))
@@ -145,8 +149,8 @@ with sync_playwright() as p:
     cfg_row("printer.cfg").locator(".cfg-row__main").click(); P.pg.wait_for_timeout(1200)
     ok("config: file opens inline next to the list", P.pg.locator(".desk-editor .screen--inline").count() == 1 and "printer.cfg" in P.pg.locator(".desk-editor .editor-title").inner_text() and P.pg.locator(".desk-empty").count() == 0)
     ok("config: list stays visible beside the editor", cfg_row("moonraker.conf").is_visible())
-    ed = P.pg.locator(".editor-input")
-    ok("config: editor holds the file text", "stepper_x" in ed.input_value(), ed.input_value()[:40])
+    ed = P.pg.locator(".cm-content")
+    ok("config: editor holds the file text", "stepper_x" in edtext(P), edtext(P)[:40])
     ok("config: Salva disabled while nothing changed", P.pg.locator(".editor-save", has_text=re.compile("^Salva$")).is_disabled())
     bb = P.pg.locator(".desk-editor").bounding_box(); vp = P.pg.viewport_size
     dk = P.pg.locator(".desk-dock").bounding_box()
@@ -160,18 +164,18 @@ with sync_playwright() as p:
     ok("guard: opening another file asks first", P.pg.locator(".confirm-overlay").count() == 1 and "Modifiche non salvate" in P.pg.locator(".confirm-overlay").inner_text(), P.pg.locator(".confirm-overlay").inner_text()[:60])
     P.pg.screenshot(path=f"{out}/config_guard.png", animations="disabled")
     P.pg.locator(".confirm-card .oui-btn").first.click(); P.pg.wait_for_timeout(400)
-    ok("guard: Annulla keeps printer.cfg and the typed text", "printer.cfg" in P.pg.locator(".desk-editor .editor-title").inner_text() and "; prova" in P.pg.locator(".editor-input").input_value())
+    ok("guard: Annulla keeps printer.cfg and the typed text", "printer.cfg" in P.pg.locator(".desk-editor .editor-title").inner_text() and "; prova" in edtext(P))
     # tab switch -> guard
     go(P, "File")
     ok("guard: switching tab asks first and stays", P.pg.locator(".confirm-overlay").count() == 1 and tab_stored(P) == "config", tab_stored(P))
     P.pg.locator(".confirm-card .oui-btn").first.click(); P.pg.wait_for_timeout(400)
-    ok("guard: Annulla stays on Config with the edit", P.pg.locator(".desk-split--config").count() == 1 and "; prova" in P.pg.locator(".editor-input").input_value())
+    ok("guard: Annulla stays on Config with the edit", P.pg.locator(".desk-split--config").count() == 1 and "; prova" in edtext(P))
     # save
     P.pg.locator(".editor-save", has_text=re.compile("^Salva$")).click(); P.pg.wait_for_timeout(1200)
     ok("save: upload to config/printer.cfg", gl("UPLOAD:") and gl("UPLOAD:")[-1] == "UPLOAD:/printer.cfg", gl("UPLOAD:"))
     ok("save: no longer dirty (Salva disabled) and the file stays open", P.pg.locator(".editor-save", has_text=re.compile("^Salva$")).is_disabled() and "printer.cfg" in P.pg.locator(".desk-editor .editor-title").inner_text())
     ok("save: status says Salvato", "Salvato" in P.pg.locator(".editor-status").inner_text(), P.pg.locator(".editor-status").inner_text())
-    P.pg.locator(".editor-input").click(); P.pg.keyboard.press("Control+End"); P.pg.keyboard.type("y"); P.pg.wait_for_timeout(250)
+    P.pg.locator(".cm-content").click(); P.pg.keyboard.press("Control+End"); P.pg.keyboard.type("y"); P.pg.wait_for_timeout(250)
     ok("typing again clears 'Salvato' and re-enables Salva", P.pg.locator(".editor-status").inner_text() == "" and P.pg.locator(".editor-save", has_text=re.compile("^Salva$")).is_enabled(), P.pg.locator(".editor-status").inner_text())
     P.pg.locator(".editor-save", has_text="Salva e riavvia").click(); P.pg.wait_for_timeout(1500)
     ok("Salva e riavvia: uploads, sends SAVE_CONFIG and stays open", len(gl("UPLOAD:")) == 2 and any("SAVE_CONFIG" in g for g in mock.gcode()) and P.pg.locator(".desk-editor .screen--inline").count() == 1, (gl("UPLOAD:"), mock.gcode()[-3:], P.pg.locator(".editor-status").inner_text()))
@@ -179,7 +183,7 @@ with sync_playwright() as p:
     cfg_row("moonraker.conf").locator(".cfg-row__main").click(); P.pg.wait_for_timeout(900)
     ok("after saving, another file opens without any question", P.pg.locator(".confirm-overlay").count() == 0 and "moonraker.conf" in P.pg.locator(".desk-editor .editor-title").inner_text(), P.pg.locator(".desk-editor .editor-title").inner_text())
     # dirty again -> Continua really discards
-    ed = P.pg.locator(".editor-input"); ed.click(); P.pg.keyboard.press("Control+End"); P.pg.keyboard.type("x"); P.pg.wait_for_timeout(250)
+    ed = P.pg.locator(".cm-content"); ed.click(); P.pg.keyboard.press("Control+End"); P.pg.keyboard.type("x"); P.pg.wait_for_timeout(250)
     go(P, "Sistema")
     ok("guard 2: tab switch asks", P.pg.locator(".confirm-overlay").count() == 1)
     P.pg.locator(".confirm-card .oui-btn").last.click(); P.pg.wait_for_timeout(900)
@@ -188,7 +192,7 @@ with sync_playwright() as p:
     ok("coming back to Config shows the placeholder (no stale editor, discarded edit not saved)", P.pg.locator(".desk-empty").count() == 1 and len(gl("UPLOAD:")) == 2, (P.pg.locator(".desk-empty").count(), gl("UPLOAD:")))
     # close button (the editor's own guard)
     cfg_row("crowsnest.conf").locator(".cfg-row__main").click(); P.pg.wait_for_timeout(900)
-    P.pg.locator(".editor-input").click(); P.pg.keyboard.type("z"); P.pg.wait_for_timeout(200)
+    P.pg.locator(".cm-content").click(); P.pg.keyboard.type("z"); P.pg.wait_for_timeout(200)
     P.pg.locator(".editor-close").click(); P.pg.wait_for_timeout(400)
     ok("close with unsaved edit asks (editor's own dialog)", P.pg.locator(".confirm-overlay").count() == 1, P.pg.locator(".confirm-overlay").count())
     P.pg.locator(".confirm-card .oui-btn").last.click(); P.pg.wait_for_timeout(500)

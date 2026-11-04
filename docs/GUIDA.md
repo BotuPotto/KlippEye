@@ -249,6 +249,18 @@ di backup** (i `printer-AAAAMMGG_HHMMSS.cfg` scritti da SAVE_CONFIG, `.bak`, `.b
 iniziano con un punto). La scelta resta su questo dispositivo; una riga sotto l'elenco dice quanti ne restano fuori, e
 toccandola li mostra.
 
+### L'editor di testo
+
+I file di configurazione e di G-code si aprono nell'editor della dashboard, fatto con **CodeMirror 6** come quello di
+Mainsail: numeri di riga, colori (sezioni, chiavi, pin, valori, commenti, G-code e Jinja2 delle macro), la riga del
+cursore evidenziata, le parentesi abbinate. La freccia accanto a una `[sezione]` la **chiude e la riapre**; il pulsante
+**Sezioni del file** le elenca tutte (toccane una per andarci) e le chiude o apre tutte insieme. Il pulsante con il
+foglio apre la **documentazione** della sezione dove si trova il cursore: il Config Reference di Klipper per i `.cfg`
+(`[stepper_x]` porta a `[stepper]`), la pagina di configurazione di Moonraker per `moonraker.conf`. La lente (o Ctrl+F)
+apre **Trova e sostituisci**: successivo / precedente, tutti, maiuscole, regex, parola intera, sostituisci, sostituisci
+tutti. Restano **Annulla / Ripristina** (Ctrl+Z / Ctrl+Y), **Commenta / Decommenta** (Ctrl+/; `#` nei file di
+configurazione, `;` nel G-code), Ctrl+S per salvare e *Salva e riavvia* (SAVE_CONFIG).
+
 ### Durante la stampa
 
 La **card della stampa** (Home) mostra file, avanzamento, tempo, quanto manca e il layer; sotto, **a che ora finisce**,

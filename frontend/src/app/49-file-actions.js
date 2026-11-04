@@ -9,7 +9,7 @@
 const FILE_PRESS_MS = 500;
 const FILE_PRESS_SLOP_PX = 10; // a finger that moves further than this is scrolling, not pressing
 const FILE_MENU_GUARD_MS = 450; // after the menu appears, clicks are ignored: lifting the finger must not pick a row
-const GCODE_EDIT_MAX_BYTES = 256 * 1024; // up to here a file opens editable (the editor colours every line on each key)
+const GCODE_EDIT_MAX_BYTES = 256 * 1024; // up to here a file opens editable (it is all read into the page first)
 const GCODE_PREVIEW_BYTES = 192 * 1024; // beyond it only this much of the start is shown, read-only
 
 /* ---------------------------------------------------------------------------

@@ -10,6 +10,7 @@ Builds the dashboard: one self-contained HTML file, served as is by the Flask ba
     vendor/tailwind-*.css   compiled Tailwind, reduced by tools/tailwind_purge.py to the classes in use
     vendor/react-dom-*.js   React 18 + ReactDOM client, third-party code, kept unmodified
     vendor/qrcode-generator-*.js  QR codes (Kazuhiko Arase, MIT licence), kept unmodified: the code that pairs a phone (1.20)
+    vendor/codemirror-6.js  CodeMirror 6 + Lezer (MIT licence), the text editor (1.41), bundled by tools/codemirror/build.sh
     src/app/*.js            the application, in file-name order (99-main.js starts it)
     src/i18n/<lang>.json    translations of the English texts (English text -> translation), see app/02-i18n.js
 
@@ -96,6 +97,8 @@ def script():
     parts += [read(path) for path in files("vendor/react-dom-*.js")]
     parts.append("\n" + banner("VENDOR: qrcode-generator 2.0.4 by Kazuhiko Arase (MIT licence, unmodified)"))
     parts += [read(path) for path in files("vendor/qrcode-generator-*.js")]
+    parts.append("\n" + banner("VENDOR: CodeMirror 6 and Lezer by Marijn Haverbeke and others (MIT licence), bundled unmodified as the global CM"))
+    parts += [read(path) for path in files("vendor/codemirror-6.js")]
     parts.append("\n" + banner("APPLICATION"))
     parts += [read(path) for path in files("src/app/*.js")]
     code = "\n".join(parts)
