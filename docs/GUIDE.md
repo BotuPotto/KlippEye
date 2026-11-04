@@ -235,6 +235,16 @@ slicer, estimated time, layer and first layer height, object height, layers, fil
 first layer temperatures — with *Start print*; then the editor and *Delete*. On a computer the panel next to the list has
 a *Details* button too.
 
+### Temperatures
+
+The **Temperatures** card (Home on the phone, under the camera and the print on the computer) lists every heater and
+sensor Klipper has — nozzles, bed, `heater_generic`, `temperature_fan`, `temperature_sensor` (names starting with `_`
+stay hidden) — with temperature, target and power. The **chart** shows the last 5, 10 or 20 minutes: a line for each, the
+target dashed in the same colour; it starts from what Moonraker already recorded and updates every 2 seconds. A finger or
+the pointer on the chart reads the time and the values at that moment. Tap a **name** to hide or show its lines, a
+**target** to change it (nozzle and bed with the usual dialog, the others with `SET_HEATER_TEMPERATURE` or
+`SET_TEMPERATURE_FAN_TARGET`, up to their `max_temp`).
+
 ### Print history
 
 At the top of the **Files** page a switch goes from *Print files* to **History** (kept on this device). The

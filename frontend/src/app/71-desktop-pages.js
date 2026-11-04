@@ -167,6 +167,7 @@ function DesktopDevicePage({ printStatus, printControls, status, capabilities, m
       h(CameraPanel),
       h(AiStrip, { monitor: aiMonitor, onOpen: openAiPanel }),
       printStatus.printing ? h(DesktopPrintCard, { status: printStatus, controls: printControls, monitor: aiMonitor }) : h(IdlePrintCard, { status: printStatus, onOpenFiles: () => onNavigate("files") }),
+      h(TemperatureCard, { onEditTemperature }),
     ),
     h(
       "aside",

@@ -677,12 +677,12 @@ with sync_playwright() as p:
     P = fresh(b, locale="en-US")
     pg = P.pg
     words = pg.evaluate("() => document.body.innerText")
-    italian = [w for w in (" della ", " degli ", "Stampante", "Ventol", "Temperatur", "Impostazioni", " non ", "Caricamento") if w in words]
+    italian = [w for w in (" della ", " degli ", "Stampante", "Ventol", "Temperatura", "Impostazioni", " non ", "Caricamento") if w in words]
     ok("an English device gets the English page, with no Italian text on it", pg.evaluate("() => document.documentElement.lang") == "en" and not italian, italian)
     for tab in ("controllo", "files", "config", "sistema"):
         P.goto(tab, 900)
         words = pg.evaluate("() => document.body.innerText")
-        italian = [w for w in (" della ", " degli ", "Stampante", "Ventol", "Temperatur", "Impostazioni", " non ", "Caricamento", " il ", " di ") if w in words]
+        italian = [w for w in (" della ", " degli ", "Stampante", "Ventol", "Temperatura", "Impostazioni", " non ", "Caricamento", " il ", " di ") if w in words]
         ok("... the %s page too" % tab, not italian, (italian, [l for l in words.splitlines() if any(w.strip() in l for w in italian)][:6]))
     ok("no errors in the page", not P.errors, P.errors[:3])
     P.close()

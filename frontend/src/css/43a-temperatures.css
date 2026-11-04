@@ -1,0 +1,58 @@
+/* ============================================================================
+   Temperatures: every sensor and the chart (app/43a-temperatures.js)
+   ========================================================================== */
+
+.temp-card .oui-card__head { flex-wrap: wrap; gap: 8px; }
+.temp-ranges > button { padding: 0 10px; }
+
+/* the chart: hairline grid, 2 px lines, the target dashed in the same colour */
+.temp-chart { position: relative; width: 100%; min-height: 210px; touch-action: pan-y; -webkit-user-select: none; user-select: none; }
+.temp-chart__svg { display: block; overflow: visible; }
+.temp-chart__grid { stroke: var(--oui-stroke); stroke-width: 1; }
+.temp-chart__tick { fill: var(--oui-text-3); font-family: var(--oui-font); font-size: 11px; font-variant-numeric: tabular-nums; }
+.temp-chart__line { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.temp-chart__target { fill: none; stroke-width: 1.5; stroke-dasharray: 5 4; opacity: 0.75; }
+.temp-chart__cursor { stroke: var(--oui-text-3); stroke-width: 1; }
+.temp-chart__dot { stroke: var(--oui-surface); stroke-width: 2; }
+.temp-chart__tip {
+  position: absolute;
+  top: 6px;
+  z-index: 2;
+  min-width: 140px;
+  margin-left: 12px;
+  padding: 8px 10px;
+  background: var(--oui-glass-solid);
+  border: 1px solid var(--oui-stroke-strong);
+  border-radius: 10px;
+  box-shadow: var(--oui-shadow-float);
+  font-size: 12px;
+  pointer-events: none;
+  font-variant-numeric: tabular-nums;
+}
+.temp-chart__tip.is-left { transform: translateX(-100%); margin-left: -12px; }
+.temp-chart__tip-time { margin-bottom: 4px; color: var(--oui-text-3); }
+.temp-chart__tip-row { display: flex; align-items: center; gap: 6px; line-height: 1.6; white-space: nowrap; }
+.temp-chart__tip-name { flex: 1; max-width: 96px; overflow: hidden; color: var(--oui-text-2); text-overflow: ellipsis; }
+.temp-chart__tip-target { color: var(--oui-text-3); }
+.temp-key { flex-shrink: 0; width: 10px; height: 10px; border: 2px solid transparent; border-radius: 50%; box-sizing: border-box; }
+
+/* the list under it */
+.temp-list { margin-top: 12px; }
+.temp-row { display: grid; grid-template-columns: minmax(0, 1fr) 52px 66px 66px; align-items: center; gap: 6px; min-height: 44px; border-top: 1px solid var(--oui-stroke); font-variant-numeric: tabular-nums; }
+.temp-row--head { min-height: 28px; border-top: 0; font-size: 11px; color: var(--oui-text-3); text-transform: uppercase; letter-spacing: 0.04em; }
+.temp-row--head > span:not(:first-child) { text-align: right; }
+.temp-row__name { display: flex; align-items: center; gap: 10px; min-width: 0; min-height: 44px; padding: 0; border: 0; background: transparent; color: var(--oui-text); font: inherit; font-size: 14px; font-weight: 600; text-align: left; cursor: pointer; }
+.temp-row__label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.temp-row.is-hidden .temp-row__label { color: var(--oui-text-3); }
+.temp-row__power { font-size: 12px; color: var(--oui-text-3); text-align: right; }
+.temp-row__value { font-size: 15px; font-weight: 600; text-align: right; }
+.temp-row__target { justify-self: end; min-width: 56px; min-height: 36px; padding: 0 10px; border: 1px solid var(--oui-stroke); border-radius: 999px; background: var(--oui-inset); color: var(--oui-text); font: inherit; font-size: 13px; text-align: center; cursor: pointer; }
+.temp-row__target--none { border: 0; background: transparent; }
+.temp-hint { margin-top: 8px; }
+
+/* a target that is not the nozzle's or the bed's */
+.temp-target__form { display: flex; align-items: center; gap: 10px; margin: 16px 0 8px; }
+.temp-target__input { flex: 1; font-size: 22px; font-weight: 600; text-align: center; }
+.temp-target__unit { font-size: 16px; color: var(--oui-text-2); }
+.temp-target__error { color: var(--oui-danger); }
+.temp-target .oui-btn-row { margin-top: 12px; }
