@@ -95,6 +95,7 @@ function DesktopPrintCard({ status, controls, monitor }) {
       h(PrintLiveStats, { status, className: "desk-print__stats" }),
       h(PrintDetails, { status }),
       h(AiAlarmQuestion, { monitor }),
+      h(GcodeViewButton, { status }),
       h(ExcludeObjectButton, { status }),
       h(
         "div",
@@ -258,6 +259,7 @@ function FileDetail({ file, list, fileActions, onPrint }) {
       h("button", { className: "oui-btn oui-btn--sm", title: tx("Save a copy on this device"), onClick: () => downloadFile("/server/files/" + GCODES_ROOT + "/" + encodeRemotePath(file.path), fileName) }, h(Icons.Download, { size: 16 }), tx("Download")),
       h("button", { className: "oui-btn oui-btn--sm", onClick: () => fileActions.openDetailsItem(item) }, h(Icons.Info, { size: 16 }), tx("Details")),
       queue.available && h("button", { className: "oui-btn oui-btn--sm desk-detail__queue", onClick: () => fileActions.openQueueItem(item) }, h(Icons.Queue, { size: 16 }), tx("Queue")),
+      h("button", { className: "oui-btn oui-btn--sm desk-detail__layers", onClick: () => gcodeViewerStore.open(file.path) }, h(Icons.Layers, { size: 16 }), tx("Layers")),
       h("button", { className: "oui-btn oui-btn--sm", onClick: () => fileActions.openItemInEditor(item) }, h(Icons.Code, { size: 16 }), "Editor"),
       h("button", { className: "oui-btn oui-btn--sm oui-btn--danger-soft", onClick: () => fileActions.askDeleteItem(item) }, h(Icons.Trash, { size: 16 }), tx("Delete")),
     ),

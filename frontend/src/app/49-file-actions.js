@@ -200,6 +200,7 @@ function FileActionSheet({ item, controller }) {
         { className: "oui-list file-sheet__actions" },
         h(FileActionRow, { icon: h(Icons.Info), title: tx("Details"), subtitle: tx("Slicer, times, filament, temperatures, last print"), onClick: controller.openDetails }),
         queue.available && h(FileActionRow, { icon: h(Icons.Queue), title: tx("Add to the queue"), subtitle: tx("Prints after the jobs already waiting; as many copies as you like"), onClick: () => controller.openQueueItem(item) }),
+        h(FileActionRow, { icon: h(Icons.Layers), title: tx("See the layers"), subtitle: tx("The G-code drawn layer by layer"), onClick: () => (controller.closeMenu(), gcodeViewerStore.open(file.path)) }),
         h(FileActionRow, { icon: h(Icons.Code), title: tx("Open in the editor"), subtitle: tooLong ? tx("Large file: read-only, first lines") : tx("Read and edit the G-code"), onClick: controller.openInEditor }),
         h(FileActionRow, { icon: h(Icons.Trash), title: tx("Delete from the Raspberry"), subtitle: tx("Deletes the file for good"), danger: true, onClick: controller.askDelete }),
       ),

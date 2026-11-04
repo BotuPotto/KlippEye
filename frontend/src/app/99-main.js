@@ -163,6 +163,7 @@ function App() {
     h(SetupGuideLayer, { menu: settingsMenu, printing: printStatus.printing }),
     h(AiPanelLayer, { monitor: aiMonitor, onSettings: () => settingsMenu.openPage("ai") }),
     h(PhotoViewerLayer),
+    h(GcodeViewerLayer),
     h(HelpLayer),
     h(Presence, null, temperature.dialog.open && h(TemperatureDialog, { maxTemp: capabilities.maxTemp, dialog: temperature.dialog, onChange: temperature.setValue, onClose: temperature.close, onConfirm: temperature.confirm })),
     h(Presence, null, motion.positionDialog.open && h(PositionDialog, { dialog: motion.positionDialog, onChange: motion.setPositionValue, onClose: motion.closePositionDialog, onConfirm: motion.goToPosition })),

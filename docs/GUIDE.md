@@ -275,6 +275,15 @@ Fluidd (Moonraker keeps them): with more than one, the camera card (and the comp
 pick which to watch, and the full screen follows it. Each webcam keeps its own way of being shown and its flips; the
 choice stays on this device.
 
+### G-code viewer
+
+**See the layers** (in a file's menu, *Layers* on the computer's file panel, and on the print card) draws the file from
+above, a layer at a time: the slider, ‹ › or the arrow keys pick the layer (with its number and height), the lines take
+the colour of the kind the slicer says (outer and inner walls, top / bottom, infill, bridges, support, skirt / brim), the
+layer below is grey and the travels show on request; tap a kind in the legend to hide it. Pinch or the wheel zooms, a
+drag moves. While that file prints, **Follow the print** shows the nozzle's layer, what is printed and what is not yet,
+and the nozzle.
+
 ### Print queue
 
 If `moonraker.conf` has `[job_queue]`, a file's menu (long press; on a computer the *Queue* button of the file panel) has

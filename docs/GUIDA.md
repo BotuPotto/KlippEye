@@ -283,6 +283,15 @@ Mainsail o Fluidd (Moonraker le conserva): se ce n'è più di una, la card della
 computer) ha un **menu** per scegliere quale guardare, e lo schermo intero la segue. Ogni webcam mantiene il suo modo di
 essere mostrata e i suoi ribaltamenti; la scelta resta su questo dispositivo.
 
+### Visualizzatore G-code
+
+**Vedi i layer** (nel menu di un file, *Layer* nel riquadro del file sul computer, e sulla card della stampa) disegna il
+file dall'alto, un layer alla volta: lo slider, i tasti ‹ › o le frecce scelgono il layer (con numero e altezza), le
+linee hanno il colore del tipo indicato dallo slicer (pareti esterne e interne, superiori / inferiori, riempimento,
+ponti, supporti, skirt / brim), il layer sotto è in grigio e gli spostamenti si mostrano a richiesta; toccando un tipo
+nella legenda lo nascondi. Pizzica o usa la rotella per lo zoom, trascina per spostarti. Durante la stampa di quel file,
+**Segui la stampa** mostra il layer dell'ugello, cosa è già stampato e cosa no, e l'ugello stesso.
+
 ### Coda di stampa
 
 Se `moonraker.conf` ha `[job_queue]`, il menu di un file (tenendolo premuto; sul computer il pulsante *Coda* nel riquadro

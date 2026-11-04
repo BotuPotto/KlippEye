@@ -1,5 +1,20 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.49.0
+
+**G-code viewer** (roadmap phase 6d, eighth and last part): a file seen layer by layer from above, like the 2D view of
+Mainsail's viewer.
+
+* **See the layers** in a file's long-press menu, *Layers* on the computer's file panel, and **See the layers** on the
+  print card.
+* The file is read in pieces with a progress bar; every move is parsed (absolute / relative moves and extrusion, `G92`,
+  arcs `G2` / `G3`), and the slicer's `;TYPE:` comments say what each line is.
+* The layer is chosen with the slider, ‹ › or the arrow keys, with its number and height; its lines are coloured by kind
+  (outer and inner wall, top / bottom, infill, bridge, support, skirt / brim), the layer under it in grey, the travels on
+  request; a tap on a kind in the legend hides it. Pinch or the wheel zooms, a drag moves, a double click resets.
+* While that file prints, **Follow the print** shows the layer at the nozzle, what is printed of it and what is still to
+  print (faint), and the nozzle itself; moving the slider stops following.
+
 ## 1.48.0
 
 **More cameras** (roadmap phase 6d, seventh part).
