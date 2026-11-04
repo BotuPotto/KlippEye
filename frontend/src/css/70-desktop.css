@@ -218,23 +218,20 @@
 .desk-dock__expand svg { transform: rotate(180deg); transition: transform var(--oui-dur-base) var(--oui-ease); }
 .desk-dock__expand.is-open svg { transform: none; }
 
+/* 1.64: the whole console takes its place above the bar (the page's columns get shorter) instead of floating over the
+   cards and hiding them */
 .desk-drawer {
-  position: absolute;
-  right: 24px;
-  bottom: 92px; /* the bar (56) + its margin (20) + a gap (16) */
-  left: 24px;
-  z-index: 40;
+  position: relative;
+  z-index: 1;
   display: flex;
+  flex: none;
   flex-direction: column;
   box-sizing: border-box;
-  height: min(56%, 520px);
+  height: min(42vh, 440px);
   padding: 16px 20px 20px;
   background: var(--oui-glass);
-  -webkit-backdrop-filter: blur(var(--oui-blur)) saturate(1.6);
-  backdrop-filter: blur(var(--oui-blur)) saturate(1.6);
   border: 1px solid var(--oui-stroke-strong);
   border-radius: var(--oui-r-card);
-  box-shadow: var(--oui-shadow-float);
 }
 .desk-drawer .oui-card__head { margin-bottom: 12px; }
 .desk-drawer__log { flex: 1; min-height: 0; height: auto; }

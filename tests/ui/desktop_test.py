@@ -77,6 +77,16 @@ with sync_playwright() as p:
     ok("printing: tap on a temperature opens the editor sheet", (P.pg.locator(".desk-slot--heaters .heater-tile").first.click(), P.pg.wait_for_timeout(500), P.pg.locator(".sheet-overlay, .modal-card, .confirm-overlay").count())[2] >= 1)
     ok("no errors on the device page", not errs(P), errs(P)[:3]); P.close()
 
+    # ------------------------------------------------------------------ 1.64: the wheel over the bed mesh scrolls the column
+    P = fresh(1280, 720, tab="controllo", wait=2500)
+    col = P.pg.locator(".desk-col", has=P.pg.locator(".mesh-card"))
+    box = P.pg.locator(".mesh-canvas").first.bounding_box()
+    P.pg.mouse.move(box["x"] + box["width"] / 2, min(box["y"] + box["height"] / 2, 600))
+    before = col.evaluate("e => e.scrollTop")
+    P.pg.mouse.wheel(0, 250); P.pg.wait_for_timeout(300)
+    ok("1.64: the wheel over the 3D bed mesh scrolls the column (zoom: Ctrl + wheel)", col.evaluate("e => e.scrollTop") > before, (before, col.evaluate("e => e.scrollTop")))
+    P.close()
+
     # ------------------------------------------------------------------ console bar
     P = fresh()
     inp = P.pg.locator(".desk-dock__input")
@@ -90,6 +100,8 @@ with sync_playwright() as p:
     ok("arrow opens the full console above the bar", P.pg.locator(".desk-drawer").count() == 1 and P.pg.locator(".desk-drawer .log-time").count() >= 3)
     bb = P.pg.locator(".desk-drawer").bounding_box(); dk = P.pg.locator(".desk-dock").bounding_box()
     ok("drawer sits right above the bar and inside the window", bb["y"] >= 0 and bb["y"] + bb["height"] <= dk["y"] + 1, (bb, dk))
+    pg_box = P.pg.locator(".desk-page").bounding_box()
+    ok("1.64: the open console takes its place: the page ends above it, nothing hidden under it", pg_box["y"] + pg_box["height"] <= bb["y"] + 1, (pg_box, bb))
     P.pg.screenshot(path=f"{out}/drawer.png", animations="disabled")
     P.pg.locator(".desk-drawer .log-line, .desk-drawer [class*=log-row], .desk-drawer .oui-mono").first.click(); P.pg.wait_for_timeout(200)
     P.pg.keyboard.press("Escape"); P.pg.wait_for_timeout(300)

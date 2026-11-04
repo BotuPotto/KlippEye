@@ -1,5 +1,14 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.64.0
+
+**Computer: every card scrolls, the console no longer hides the page.**
+
+* The **3D bed mesh** took the mouse wheel for its zoom, so with the pointer on it the page could not be scrolled: the
+  wheel now scrolls; **Ctrl (⌘) + wheel** or a trackpad's pinch zoom the view.
+* The **whole console** (the arrow on the console bar) takes its place above the bar, and the page's columns get
+  shorter, instead of floating over the cards and hiding them.
+
 ## 1.63.0
 
 **Fixes: the printers' menu, the G-code viewer, the timelapse check, «Save and restart»** (requests of 4 November, evening).
