@@ -99,7 +99,9 @@ def built_dashboard(release):
     return out
 
 
-SETUP_SEEN = "try { localStorage.setItem('ke_setup_offered', '1'); } catch (e) {}"
+# 1.67: the daily look for new versions (app/56a-update-notice.js) is off here: it would ask Moonraker to refresh at the
+# first visit and bring the incoming commits before the test does (tests/ui/update_notice_test.py tests it)
+SETUP_SEEN = "try { localStorage.setItem('ke_setup_offered', '1'); if (localStorage.getItem('klippeye.updates.auto') === null) localStorage.setItem('klippeye.updates.auto', '0'); } catch (e) {}"
 
 
 # ------------------------------------------------------------------------------------------------ a fresh world
