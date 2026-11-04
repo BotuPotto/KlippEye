@@ -80,7 +80,7 @@ function CameraPicker({ className }) {
     null,
     h(
       "button",
-      { type: "button", ref: menu.anchorRef, className: cx("camera-picker", menu.open && "is-open", className), "aria-haspopup": "menu", "aria-expanded": menu.open, "aria-label": tx("Choose the camera"), title: tx("Choose the camera"), onClick: menu.toggle },
+      { type: "button", ref: menu.anchorRef, className: cx("camera-picker", menu.open && "is-open", className), "aria-haspopup": "menu", "aria-expanded": menu.open, "aria-label": tx("Choose the camera") + ": " + current.name, title: tx("Choose the camera") + ": " + current.name, "data-camera-now": current.id, onClick: menu.toggle },
       h(Icons.Camera, { size: 15 }),
       h("span", { className: "camera-picker__name" }, current.name),
       h(Icons.Chevron, { size: 14 }),
