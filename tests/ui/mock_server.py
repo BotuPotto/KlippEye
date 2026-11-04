@@ -48,6 +48,11 @@ def default_extra_temps():
 def default_state():
     history = default_history()
     return {
+        "power_on": False, "power_devices": [{"device": "printer", "status": "on", "locked_while_printing": True, "type": "tplink_smartplug", "is_shutdown": False},
+                                              {"device": "led_strip", "status": "off", "locked_while_printing": False, "type": "gpio", "is_shutdown": False},
+                                              {"device": "_hidden_relay", "status": "off", "locked_while_printing": False, "type": "gpio", "is_shutdown": False}],
+        "power_log": [],
+        "extra_devices": False, "pins": {"relay": 0.0, "_secret": 0.0}, "sensors": {"runout": {"filament_detected": True, "enabled": True}, "encoder": {"filament_detected": False, "enabled": True}},   # 1.45
         "queue_on": False, "queue": [], "queue_state": "ready", "queue_log": [], "queue_ids": 0,   # 1.44: Moonraker's [job_queue] (queue_on False: 404)
         "extra_temps": False, "extra_temp_values": default_extra_temps(),
         "history": history, "history_totals": default_history_totals(history), "history_log": [], "history_mode": "ok",  # ok | missing (no [history]: 404)
@@ -241,6 +246,9 @@ def settings_now():
     out["extruder"] = dict(out["extruder"], pressure_advance=0.05, pressure_advance_smooth_time=0.04)
     if S["has_retraction"]:
         out["firmware_retraction"] = {"retract_length": 0.8, "retract_speed": 35.0, "unretract_extra_length": 0.0, "unretract_speed": 30.0}
+    if S.get("extra_devices"):
+        out["output_pin relay"] = {"pin": "PC1", "pwm": False}
+        out["output_pin _secret"] = {"pin": "PC2", "pwm": False}
     if S.get("extra_lights"):
         out["neopixel STRIP"] = {"pin": "PB0", "chain_count": "20", "color_order": "GRBW"}
         out["output_pin caselight"] = {"pin": "PA1", "pwm": True}
@@ -357,6 +365,10 @@ def status_for(keys, fields=None):
             st[k] = {"color_data": [list(S["strip"])] * 3}
         elif k == "output_pin beeper" and S.get("extra_lights"):
             st[k] = {"value": 0.0}
+        elif k.startswith("output_pin ") and S.get("extra_devices") and k[11:] in S["pins"]:
+            st[k] = {"value": S["pins"][k[11:]]}
+        elif k.startswith("filament_") and S.get("extra_devices") and k.split(" ", 1)[1] in S["sensors"]:
+            st[k] = dict(S["sensors"][k.split(" ", 1)[1]])
         elif k.startswith("mcu"):
             st[k] = {"mcu_version": "v0.12.0-100-gabcd", "version": "v0.12.0-100"}
     return st
@@ -376,7 +388,7 @@ def mock_reset():
     S.clear(); S.update(default_state()); return jsonify(ok=True)
 @app.route("/__mock/state")
 def mock_state():
-    return jsonify({k: v for k, v in S.items() if k in ("light", "light_cmds", "light_reads", "actions", "webhooks", "webhooks_msg", "disconnected", "moonraker_down", "host_off", "services", "update_log", "brain_cfg_log", "brain_release", "brain_started", "klippeye_info", "pending_release", "logos", "app_apk_hits", "app_apk_downloads", "update_channel", "channel_posts", "rec_posts", "measure_starts", "measure_bodies", "ai_cfg", "ai_posts", "ai_model_reads", "excluded", "strip", "caselight", "mesh_profiles", "mesh_active", "mp", "mp_points", "tune", "speed_factor", "extrude_factor", "bs", "level_applied", "recordings", "alerts", "pm_macros", "pm_wraps", "pm_posts", "gcode_log", "ntfy", "ntfy_posts", "ntfy_tests", "ntfy_app_reads", "ai_answers", "ai_answer", "history_log", "queue", "queue_state", "queue_log")})
+    return jsonify({k: v for k, v in S.items() if k in ("light", "light_cmds", "light_reads", "actions", "webhooks", "webhooks_msg", "disconnected", "moonraker_down", "host_off", "services", "update_log", "brain_cfg_log", "brain_release", "brain_started", "klippeye_info", "pending_release", "logos", "app_apk_hits", "app_apk_downloads", "update_channel", "channel_posts", "rec_posts", "measure_starts", "measure_bodies", "ai_cfg", "ai_posts", "ai_model_reads", "excluded", "strip", "caselight", "mesh_profiles", "mesh_active", "mp", "mp_points", "tune", "speed_factor", "extrude_factor", "bs", "level_applied", "recordings", "alerts", "pm_macros", "pm_wraps", "pm_posts", "gcode_log", "ntfy", "ntfy_posts", "ntfy_tests", "ntfy_app_reads", "ai_answers", "ai_answer", "history_log", "queue", "queue_state", "queue_log", "power_devices", "power_log", "pins", "sensors")})
 @app.route("/__mock/print_actions")
 def mock_print_actions():
     return jsonify(S.get("print_actions", []))
@@ -484,7 +496,22 @@ def notify_test():
     return jsonify(ok=True, results=results)
 @app.route("/printer/objects/list")
 def obj_list():
-    return jsonify(result={"objects": OBJECTS + (["neopixel STRIP", "output_pin caselight", "output_pin beeper"] if S.get("extra_lights") else []) + (EXTRA_TEMPS if S.get("extra_temps") else [])})
+    return jsonify(result={"objects": OBJECTS + (["neopixel STRIP", "output_pin caselight", "output_pin beeper"] if S.get("extra_lights") else []) + (EXTRA_TEMPS if S.get("extra_temps") else [])
+                           + (["output_pin relay", "output_pin _secret", "filament_switch_sensor runout", "filament_motion_sensor encoder"] if S.get("extra_devices") else [])})
+@app.route("/machine/device_power/devices")
+def power_devices():
+    if not S["power_on"]: return jsonify(error={"code": 404, "message": "Not Found"}), 404
+    return jsonify(result={"devices": S["power_devices"]})
+@app.route("/machine/device_power/device", methods=["GET", "POST"])
+def power_device():
+    name, action = request.args.get("device", ""), request.args.get("action", "")
+    dev = next((d for d in S["power_devices"] if d["device"] == name), None)
+    if not dev: return jsonify(error={"code": 404, "message": "No device: " + name}), 404
+    if request.method == "POST":
+        if dev["locked_while_printing"] and S["printing"]: return jsonify(error={"code": 400, "message": "Unable to change power for %s while printing" % name}), 400
+        dev["status"] = "on" if action == "on" else "off"
+        S["power_log"].append(name + ":" + action)
+    return jsonify(result={name: dev["status"]})
 @app.route("/server/temperature_store")
 def temperature_store():
     """Moonraker's last 20 minutes, a sample a second: the nozzle heated up to its target 10 minutes ago, the bed 15."""
@@ -651,7 +678,7 @@ def gcode_script():
             elif "REMOVE" in args:
                 prof.pop(args["REMOVE"], None)
                 S["pending"] = dict(S["pending"], **{"bed_mesh " + args["REMOVE"]: None})
-    elif cmd in ("SET_LED", "SET_PIN", "STOP_LED_EFFECTS"):
+    elif cmd in ("SET_LED", "SET_PIN", "STOP_LED_EFFECTS", "SET_FILAMENT_SENSOR"):
         apply_led_lines(script)
     elif cmd == "AXIS_TWIST_COMPENSATION_CALIBRATE":
         time.sleep(0.4)   # probes the first point, then waits for the paper test there
@@ -736,6 +763,10 @@ def apply_led_lines(script):
             S["strip"] = [float(args.get(c, 0)) for c in ("RED", "GREEN", "BLUE", "WHITE")]
         elif w and w[0].upper() == "SET_PIN" and args.get("PIN") == "caselight":
             S["caselight"] = float(args.get("VALUE", 0))
+        elif w and w[0].upper() == "SET_PIN" and args.get("PIN") in S["pins"]:
+            S["pins"][args["PIN"]] = float(args.get("VALUE", 0))
+        elif w and w[0].upper() == "SET_FILAMENT_SENSOR" and args.get("SENSOR") in S["sensors"]:
+            S["sensors"][args["SENSOR"]]["enabled"] = args.get("ENABLE") == "1"
 
 @app.route("/api/gcode", methods=["POST"])
 def api_gcode():

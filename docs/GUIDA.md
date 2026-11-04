@@ -251,6 +251,14 @@ per ognuno, il target tratteggiato dello stesso colore; parte da quello che Moon
 nascondere o mostrare le sue linee, un **target** per cambiarlo (ugello e piatto con la solita finestra, gli altri con
 `SET_HEATER_TEMPERATURE` o `SET_TEMPERATURE_FAN_TARGET`, fino al loro `max_temp`).
 
+### Dispositivi
+
+La card **Dispositivi** (pagina Controllo sul telefono, sotto le ventole sul computer) compare quando c'è qualcosa da
+mostrare: i dispositivi `[power]` di Moonraker (prese smart, relè, GPIO), da accendere e spegnere — lo spegnimento chiede
+conferma, perché può essere l'alimentazione della stampante; le uscite `[output_pin]` di Klipper, con un interruttore o,
+per un pin PWM, uno slider; i **sensori filamento**, con lo stato (filamento presente o no) e l'interruttore che li
+attiva o disattiva. I nomi che iniziano con `_` restano nascosti.
+
 ### Coda di stampa
 
 Se `moonraker.conf` ha `[job_queue]`, il menu di un file (tenendolo premuto; sul computer il pulsante *Coda* nel riquadro

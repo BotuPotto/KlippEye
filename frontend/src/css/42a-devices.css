@@ -1,0 +1,13 @@
+/* ============================================================================
+   Devices: power, outputs, filament sensors (app/42a-devices.js)
+   ========================================================================== */
+
+.devices-group + .devices-group { margin-top: 14px; }
+.devices-group__label { margin: 0 0 6px; font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--oui-text-3); }
+.device-row { padding: 10px 16px 12px; }
+.device-row__head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 6px; }
+.device-row__name { font-size: 15px; font-weight: 600; }
+.device-row__value { font-size: 14px; color: var(--oui-text-2); font-variant-numeric: tabular-nums; }
+.device-row__range { width: 100%; accent-color: var(--oui-accent); }
+.device-sensor.is-loaded .set-switch__detail { color: var(--oui-ok); }
+.device-sensor.is-empty .set-switch__detail { color: var(--oui-danger); }
