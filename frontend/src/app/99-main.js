@@ -18,6 +18,7 @@ function HomePage({ printStatus, printControls, status, motion, bedTools, zOffse
     h("div", { className: "md:col-span-2" }, h(CameraCard)),
     h("div", { className: "md:col-span-2" }, h(HeatersFansCard, { hotend: status.hotend, bed: status.bed, onEditTemperature })),
     h("div", { className: "md:col-span-2" }, h(TemperatureCard, { onEditTemperature })),
+    h(SpoolCard),
     zOffsetCard,
     placement !== "instead" && h("div", { className: "md:col-span-2" }, h(MovementCard, { position: status.position, homedAxes: status.homedAxes, motion, bedTools, lockReason })),
   );

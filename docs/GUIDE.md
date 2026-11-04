@@ -261,6 +261,13 @@ make the video at the end, frames a second or a video length, repeat the last fr
 A setting fixed in `moonraker.conf` shows locked. If `printer.cfg` lacks `[include timelapse.cfg]` (the
 `TIMELAPSE_TAKE_FRAME` macro), the page says so.
 
+### Spools (Spoolman)
+
+If Moonraker has `[spoolman]`, the **Spool** card (Home on the phone, with the fans on a computer) shows the spool in use
+in its colour, with maker, name, material and what is left (weight, length, a bar and the percent). **Change spool**
+lists Spoolman's spools, the last used first, with a search: tap one to make it the spool in use, and Moonraker counts
+each print's filament on it; **No spool** leaves none. If Spoolman does not answer, the card says so.
+
 ### Print queue
 
 If `moonraker.conf` has `[job_queue]`, a file's menu (long press; on a computer the *Queue* button of the file panel) has
