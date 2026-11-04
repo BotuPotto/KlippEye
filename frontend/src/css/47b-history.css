@@ -4,6 +4,7 @@
 
 .files-section-bar { display: flex; justify-content: center; margin: 0 0 14px; }
 .files-section-switch > button { min-width: 132px; }
+.files-section-switch.has-three > button { min-width: 0; padding: 0 14px; }
 .is-wide .files-section-bar { justify-content: flex-start; margin-bottom: 16px; }
 
 .oui-segmented--sm { padding: 3px; }

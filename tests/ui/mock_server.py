@@ -53,6 +53,14 @@ def default_state():
                                               {"device": "_hidden_relay", "status": "off", "locked_while_printing": False, "type": "gpio", "is_shutdown": False}],
         "power_log": [],
         "extra_devices": False, "pins": {"relay": 0.0, "_secret": 0.0}, "sensors": {"runout": {"filament_detected": True, "enabled": True}, "encoder": {"filament_detected": False, "enabled": True}},   # 1.45
+        "timelapse_on": False, "timelapse_macro": True, "timelapse_frames": 0, "timelapse_log": [],   # 1.46: moonraker-timelapse
+        "timelapse_settings": {"enabled": True, "mode": "layermacro", "camera": "", "snapshoturl": "http://localhost:8080/?action=snapshot", "gcode_verbose": False, "parkhead": False, "parkpos": "back_left",
+                               "park_custom_pos_x": 10.0, "park_custom_pos_y": 10.0, "park_custom_pos_dz": 0.0, "park_travel_speed": 100, "park_retract_speed": 15, "park_extrude_speed": 15,
+                               "park_retract_distance": 1.0, "park_extrude_distance": 1.0, "hyperlapse_cycle": 30, "autorender": True, "constant_rate_factor": 23, "output_framerate": 30,
+                               "pixelformat": "yuv420p", "time_format_code": "%Y%m%d_%H%M", "extraoutputparams": "", "variable_fps": False, "targetlength": 10, "variable_fps_min": 5,
+                               "variable_fps_max": 60, "rotation": 0, "flip_x": False, "flip_y": False, "duplicatelastframe": 0, "previewimage": True, "saveframes": False,
+                               "wait_for_snapshot": False, "blockedsettings": ["snapshoturl"]},
+        "timelapse_files": {"timelapse_Benchy_20261103_2210.mp4": NOW - 3600, "timelapse_Benchy_20261103_2210.jpg": NOW - 3600, "timelapse_Vase_20261101_1010.mp4": NOW - 200000},
         "queue_on": False, "queue": [], "queue_state": "ready", "queue_log": [], "queue_ids": 0,   # 1.44: Moonraker's [job_queue] (queue_on False: 404)
         "extra_temps": False, "extra_temp_values": default_extra_temps(),
         "history": history, "history_totals": default_history_totals(history), "history_log": [], "history_mode": "ok",  # ok | missing (no [history]: 404)
@@ -388,7 +396,7 @@ def mock_reset():
     S.clear(); S.update(default_state()); return jsonify(ok=True)
 @app.route("/__mock/state")
 def mock_state():
-    return jsonify({k: v for k, v in S.items() if k in ("light", "light_cmds", "light_reads", "actions", "webhooks", "webhooks_msg", "disconnected", "moonraker_down", "host_off", "services", "update_log", "brain_cfg_log", "brain_release", "brain_started", "klippeye_info", "pending_release", "logos", "app_apk_hits", "app_apk_downloads", "update_channel", "channel_posts", "rec_posts", "measure_starts", "measure_bodies", "ai_cfg", "ai_posts", "ai_model_reads", "excluded", "strip", "caselight", "mesh_profiles", "mesh_active", "mp", "mp_points", "tune", "speed_factor", "extrude_factor", "bs", "level_applied", "recordings", "alerts", "pm_macros", "pm_wraps", "pm_posts", "gcode_log", "ntfy", "ntfy_posts", "ntfy_tests", "ntfy_app_reads", "ai_answers", "ai_answer", "history_log", "queue", "queue_state", "queue_log", "power_devices", "power_log", "pins", "sensors")})
+    return jsonify({k: v for k, v in S.items() if k in ("light", "light_cmds", "light_reads", "actions", "webhooks", "webhooks_msg", "disconnected", "moonraker_down", "host_off", "services", "update_log", "brain_cfg_log", "brain_release", "brain_started", "klippeye_info", "pending_release", "logos", "app_apk_hits", "app_apk_downloads", "update_channel", "channel_posts", "rec_posts", "measure_starts", "measure_bodies", "ai_cfg", "ai_posts", "ai_model_reads", "excluded", "strip", "caselight", "mesh_profiles", "mesh_active", "mp", "mp_points", "tune", "speed_factor", "extrude_factor", "bs", "level_applied", "recordings", "alerts", "pm_macros", "pm_wraps", "pm_posts", "gcode_log", "ntfy", "ntfy_posts", "ntfy_tests", "ntfy_app_reads", "ai_answers", "ai_answer", "history_log", "queue", "queue_state", "queue_log", "power_devices", "power_log", "pins", "sensors", "timelapse_settings", "timelapse_log", "timelapse_files")})
 @app.route("/__mock/print_actions")
 def mock_print_actions():
     return jsonify(S.get("print_actions", []))
@@ -497,7 +505,8 @@ def notify_test():
 @app.route("/printer/objects/list")
 def obj_list():
     return jsonify(result={"objects": OBJECTS + (["neopixel STRIP", "output_pin caselight", "output_pin beeper"] if S.get("extra_lights") else []) + (EXTRA_TEMPS if S.get("extra_temps") else [])
-                           + (["output_pin relay", "output_pin _secret", "filament_switch_sensor runout", "filament_motion_sensor encoder"] if S.get("extra_devices") else [])})
+                           + (["output_pin relay", "output_pin _secret", "filament_switch_sensor runout", "filament_motion_sensor encoder"] if S.get("extra_devices") else [])
+                           + (["gcode_macro TIMELAPSE_TAKE_FRAME"] if S.get("timelapse_on") and S.get("timelapse_macro") else [])})
 @app.route("/machine/device_power/devices")
 def power_devices():
     if not S["power_on"]: return jsonify(error={"code": 404, "message": "Not Found"}), 404
@@ -868,6 +877,8 @@ GCODES = [("Benchy_0.2mm_PLA.gcode", NOW-3600, 123456), ("Calibration_cube_long_
 @app.route("/server/files/list")
 def files_list():
     root = request.args.get("root", "gcodes")
+    if root == "timelapse":
+        return jsonify(result=[{"path": p, "modified": m, "size": 2400000 if p.endswith(".mp4") else 50000, "permissions": "rw"} for p, m in S["timelapse_files"].items()])
     if root == "gcodes":
         return jsonify(result=[{"path": p, "modified": m, "size": s, "permissions": "rw"} for p, m, s in GCODES if p not in S.get("deleted", [])])
     files = S["cfg"]["files"]
@@ -1574,6 +1585,35 @@ def job_queue_action(action):
         S["queue"] = [j for j in S["queue"] if j["job_id"] == uid] + [j for j in S["queue"] if j["job_id"] != uid]
     S["queue_log"].append(action.upper())
     return jsonify(result=queue_status())
+
+@app.route("/server/files/timelapse/<path:p>", methods=["GET", "DELETE"])
+def timelapse_file(p):
+    if p not in S["timelapse_files"]: return jsonify(error={"code": 404, "message": "File does not exist"}), 404
+    if request.method == "DELETE":
+        del S["timelapse_files"][p]; S["timelapse_log"].append("DELETE:" + p)
+        return jsonify(result={"item": {"path": p, "root": "timelapse"}, "action": "delete_file"})
+    if p.endswith(".jpg"): return send_file(png(160, 120), mimetype="image/png")
+    return Response(b"\x00" * 64, mimetype="video/mp4")
+@app.route("/machine/timelapse/settings", methods=["GET", "POST"])
+def timelapse_settings():
+    if not S["timelapse_on"]: return jsonify(error={"code": 404, "message": "Not Found"}), 404
+    if request.method == "POST":
+        body = request.get_json(force=True, silent=True) or {}
+        for k, v in body.items():
+            if k in S["timelapse_settings"] and k not in S["timelapse_settings"]["blockedsettings"]:
+                S["timelapse_settings"][k] = v
+        S["timelapse_log"].append("SET:" + json.dumps(body, sort_keys=True))
+    return jsonify(result=S["timelapse_settings"])
+@app.route("/machine/timelapse/lastframeinfo")
+def timelapse_frames():
+    return jsonify(result={"count": S["timelapse_frames"], "lastframefile": "frame%06d.jpg" % S["timelapse_frames"] if S["timelapse_frames"] else ""})
+@app.route("/machine/timelapse/render", methods=["POST"])
+def timelapse_render():
+    S["timelapse_log"].append("RENDER")
+    def done():
+        S["timelapse_files"]["timelapse_Bracket_new.mp4"] = time.time(); S["timelapse_files"]["timelapse_Bracket_new.jpg"] = time.time(); S["timelapse_frames"] = 0
+    later(1.0, done)
+    return jsonify(result={"status": "started"})
 
 @app.route("/server/history/list")
 def history_list():

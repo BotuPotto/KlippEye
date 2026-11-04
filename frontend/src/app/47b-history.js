@@ -230,20 +230,22 @@ function historyDays(jobs, days = HISTORY_DAYS, now = Date.now()) {
 }
 
 /* ---------------------------------------------------------------------------
-   The page's switch: print files | history (kept on this device)
+   The page's switch: print files | history | timelapse (1.46, when Moonraker has it), kept on this device
    ------------------------------------------------------------------------- */
 const FILES_SECTION_KEY = "ke_files_section";
+const FILES_SECTIONS = ["files", "history", "timelapse"];
 const filesSectionStore = (() => {
   const listeners = new Set();
   let current = "files";
   try {
-    if (localStorage.getItem(FILES_SECTION_KEY) === "history") current = "history";
+    const saved = localStorage.getItem(FILES_SECTION_KEY);
+    if (FILES_SECTIONS.includes(saved)) current = saved;
   } catch (e) {}
   return {
     subscribe: (fn) => (listeners.add(fn), () => listeners.delete(fn)),
     snapshot: () => current,
     set(value) {
-      current = value === "history" ? "history" : "files";
+      current = FILES_SECTIONS.includes(value) ? value : "files";
       try {
         localStorage.setItem(FILES_SECTION_KEY, current);
       } catch (e) {}
@@ -253,9 +255,22 @@ const filesSectionStore = (() => {
 })();
 const useFilesSection = () => useSyncExternalStore(filesSectionStore.subscribe, filesSectionStore.snapshot);
 
-function FilesSectionSwitch({ section }) {
+function FilesSectionSwitch({ section, timelapse }) {
   const option = (id, label) => h("button", { type: "button", className: cx(section === id && "is-selected"), "aria-pressed": section === id, "data-files-section": id, onClick: () => filesSectionStore.set(id) }, label);
-  return h("div", { className: "oui-segmented files-section-switch", role: "group", "aria-label": tx("Files") }, option("files", tx("Print files")), option("history", tx("History")));
+  return h("div", { className: cx("oui-segmented files-section-switch", timelapse && "has-three"), role: "group", "aria-label": tx("Files") }, option("files", tx("Print files")), option("history", tx("History")), timelapse && option("timelapse", "Timelapse"));
+}
+
+/** Whether Moonraker has the timelapse component (moonraker-timelapse), asked once. */
+function useHasTimelapse() {
+  const [has, setHas] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    moonrakerComponents().then((components) => !cancelled && setHas(components.has("timelapse")));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  return has;
 }
 
 /* ---------------------------------------------------------------------------
@@ -598,6 +613,12 @@ function HistoryPage({ desktop, onPrint }) {
 
 /** The Files page: the switch, then the print files or the history. */
 function FilesPage({ desktop, files }) {
-  const section = useFilesSection();
-  return h(React.Fragment, null, h("div", { className: "files-section-bar" }, h(FilesSectionSwitch, { section })), section === "history" ? h(HistoryPage, { desktop, onPrint: files.onPrint }) : h(React.Fragment, null, h(QueueCard), files.content));
+  const chosen = useFilesSection();
+  const timelapse = useHasTimelapse();
+  const section = chosen === "timelapse" && !timelapse ? "files" : chosen; // a choice made on a printer that had it
+  let content;
+  if (section === "history") content = h(HistoryPage, { desktop, onPrint: files.onPrint });
+  else if (section === "timelapse") content = h(TimelapsePage, { desktop });
+  else content = h(React.Fragment, null, h(QueueCard), files.content);
+  return h(React.Fragment, null, h("div", { className: "files-section-bar" }, h(FilesSectionSwitch, { section, timelapse })), content);
 }

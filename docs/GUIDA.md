@@ -259,6 +259,15 @@ conferma, perché può essere l'alimentazione della stampante; le uscite `[outpu
 per un pin PWM, uno slider; i **sensori filamento**, con lo stato (filamento presente o no) e l'interruttore che li
 attiva o disattiva. I nomi che iniziano con `_` restano nascosti.
 
+### Timelapse
+
+Con moonraker-timelapse installato, la pagina File ha una terza parte, **Timelapse**: i **video** (anteprima, data,
+dimensione; toccandone uno si guarda a schermo intero, *Scarica*, elimina), le **foto** dell'ultima stampa non ancora
+diventate un video con **Crea il video**, e le **impostazioni**: attivo o no, una foto a ogni layer oppure ogni tot
+secondi, sposta la testina per la foto e dove, crea il video a fine stampa, fotogrammi al secondo o durata del video,
+ripeti l'ultima foto, qualità, anteprima, tieni le foto. Un'impostazione fissata in `moonraker.conf` appare bloccata. Se
+in `printer.cfg` manca `[include timelapse.cfg]` (la macro `TIMELAPSE_TAKE_FRAME`), la pagina lo dice.
+
 ### Coda di stampa
 
 Se `moonraker.conf` ha `[job_queue]`, il menu di un file (tenendolo premuto; sul computer il pulsante *Coda* nel riquadro
