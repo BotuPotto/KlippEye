@@ -189,7 +189,7 @@ with sync_playwright() as p:
     ok("the viewer shows the last picture", img.count() == 1 and img.get_attribute("src").endswith("/frames/60.jpg"), img.get_attribute("src") if img.count() else None)
     P.pg.locator("button", has_text="◀ Allarme").click()
     P.settle(200)
-    ok("'◀ Allarme' jumps to the picture of the alarm (with its layer, score and the 'allarme' mark)", img.get_attribute("src").endswith("/frames/30.jpg") and "strato 3/40" in body(P) and "punteggio 6,2%" in body(P) and "allarme" in P.pg.locator(".rec-viewer__caption").inner_text(), P.pg.locator(".rec-viewer__caption").inner_text())
+    ok("'◀ Allarme' jumps to the picture of the alarm (with its layer, score and the 'allarme' mark)", img.get_attribute("src").endswith("/frames/30.jpg") and "layer 3/40" in body(P) and "punteggio 6,2%" in body(P) and "allarme" in P.pg.locator(".rec-viewer__caption").inner_text(), P.pg.locator(".rec-viewer__caption").inner_text())
     P.pg.locator(".rec-viewer button", has_text="‹").click()
     P.pg.locator(".rec-viewer button", has_text="‹").click()
     P.settle(200)
