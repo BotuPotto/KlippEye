@@ -225,6 +225,7 @@ function usePrintStatus(capabilities) {
         printing: (state === "printing" || state === "paused" || !!sdcard.is_active) && !!filename,
         state,
         filename: filename ? filename.split("/").pop() : "-",
+        filePath: filename || "", // 1.49: the whole path (the G-code viewer opens it)
         pct,
         time: formatDuration(printDuration),
         remaining: remaining ? formatDuration(remaining) : "--:--",
@@ -485,6 +486,7 @@ function PrintProgressCard({ status, controls, monitor }) {
     h(PrintLiveStats, { status, className: "grid grid-cols-3 mb-4" }),
     h(PrintDetails, { status }),
     h(AiAlarmQuestion, { monitor }),
+    h(GcodeViewButton, { status }),
     h(ExcludeObjectButton, { status }),
     h(
       "div",

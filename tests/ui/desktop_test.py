@@ -108,7 +108,7 @@ with sync_playwright() as p:
     first_name = P.pg.locator(".desk-detail__name").inner_text()
     tiles.nth(1).click(); P.pg.wait_for_timeout(500)
     ok("files: a click selects another file and the detail follows", P.pg.locator(".desk-detail__name").inner_text() != first_name and P.pg.locator(".file-card.is-selected").count() == 1, (first_name, P.pg.locator(".desk-detail__name").inner_text()))
-    ok("files: detail has the facts and the four actions (1.40: Dettagli)", P.pg.locator(".desk-fact").count() >= 3 and P.pg.locator(".desk-detail__actions button").all_inner_texts() == ["Scarica", "Dettagli", "Editor", "Elimina"], P.pg.locator(".desk-detail__actions button").all_inner_texts())
+    ok("files: detail has the facts and the five actions (1.40: Dettagli, 1.49: Layer)", P.pg.locator(".desk-fact").count() >= 3 and P.pg.locator(".desk-detail__actions button").all_inner_texts() == ["Scarica", "Dettagli", "Layer", "Editor", "Elimina"], P.pg.locator(".desk-detail__actions button").all_inner_texts())
     P.pg.screenshot(path=f"{out}/files_detail.png", animations="disabled")
     # download
     with P.pg.expect_download(timeout=8000) as dl:

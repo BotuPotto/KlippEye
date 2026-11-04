@@ -1,0 +1,31 @@
+/* ============================================================================
+   G-code viewer (app/49a-gcode-viewer.js): a layer seen from above
+   ========================================================================== */
+
+.gcode-viewer .viewer-bar { gap: 10px; }
+.gcode-follow { flex-shrink: 0; gap: 6px; }
+.gcode-follow__dot { color: var(--oui-danger); }
+.gcode-stage { position: relative; display: flex; flex: 1; min-height: 0; margin: 0 12px; overflow: hidden; background: #090a0d; border: 1px solid var(--oui-stroke); border-radius: var(--oui-r-tile); }
+.gcode-canvas { flex: 1; width: 100%; height: 100%; touch-action: none; cursor: grab; }
+.gcode-canvas:active { cursor: grabbing; }
+.gcode-loading { display: flex; flex-direction: column; justify-content: center; gap: 10px; width: min(320px, 80%); margin: auto; }
+.gcode-loading__bar { height: 6px; overflow: hidden; border-radius: 999px; background: var(--oui-inset); }
+.gcode-loading__bar > span { display: block; height: 100%; border-radius: 999px; background: var(--oui-accent); transition: width var(--oui-dur-fast) linear; }
+.gcode-error { margin: auto; max-width: 420px; text-align: center; }
+
+.gcode-controls { flex-direction: column; align-items: stretch; gap: 8px; }
+.gcode-controls > * { align-self: stretch; }
+.gcode-layer { display: flex; width: 100%; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.gcode-layer__range { flex: 1; min-width: 120px; accent-color: var(--oui-accent); }
+.gcode-layer__label { flex-basis: 100%; font-size: 13px; color: var(--oui-text-2); text-align: center; font-variant-numeric: tabular-nums; }
+@media (min-width: 720px) {
+  .gcode-layer__label { flex-basis: auto; min-width: 190px; text-align: left; }
+}
+.gcode-legend { display: flex; flex-wrap: wrap; gap: 6px; }
+.gcode-legend__item { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 0 10px; border: 1px solid var(--oui-stroke); border-radius: 999px; background: var(--oui-surface-2); color: var(--oui-text); font: inherit; font-size: 12px; cursor: pointer; }
+.gcode-legend__item.is-off { color: var(--oui-text-3); opacity: 0.6; }
+.gcode-legend__key { width: 10px; height: 10px; border-radius: 3px; }
+.gcode-legend__key--dash { height: 0; border-top: 2px dashed #9aa0ad; border-radius: 0; }
+.gcode-travels,
+.gcode-below { white-space: nowrap; }
+.gcode-view-btn { white-space: nowrap; }
