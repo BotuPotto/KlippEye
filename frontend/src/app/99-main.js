@@ -174,7 +174,7 @@ function App() {
           },
         }),
     ),
-    h(FileActionDialogs, { controller: fileActions }),
+    h(FileActionDialogs, { controller: fileActions, onPrint: setPrintJob }),
     h(BedToolsDialogs, { controller: bedTools }),
     h(ZOffsetDialogs, { controller: zOffset }),
     h(SaveConfigDialog, { open: saveConfig.dialogOpen, onConfirm: saveConfig.confirm, onCancel: saveConfig.close }),

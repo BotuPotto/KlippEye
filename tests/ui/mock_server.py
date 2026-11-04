@@ -786,10 +786,16 @@ def files_list():
 @app.route("/server/files/metadata")
 def files_meta():
     fn = request.args.get("filename", "")
-    return jsonify(result={"filename": fn, "estimated_time": 7260 if "Benchy" in fn else 1800, "filament_weight_total": 12.4 if "Benchy" in fn else 0,
-                           "filament_total": 4200, "layer_count": 100, "object_height": 48.0, "thumbnails": [] if any(k in fn for k in S.get("no_thumbs", [])) else [
+    # 1.40: every file its own figures (the sort by print time / filament / last print, the details); the Benchy as before
+    size = next((g[2] for g in GCODES if g[0] == fn), 50000)
+    extra = {"slicer": "OrcaSlicer", "slicer_version": "2.1.1", "layer_height": 0.2, "first_layer_height": 0.25, "nozzle_diameter": 0.4,
+             "filament_type": "PLA", "filament_name": "Generic PLA", "first_layer_extr_temp": 215.0, "first_layer_bed_temp": 60.0}
+    if "Benchy" in fn:
+        extra["print_start_time"] = NOW - 7200
+    return jsonify(result=dict(extra, **{"filename": fn, "estimated_time": 7260 if "Benchy" in fn else 600 + size // 1000, "filament_weight_total": 12.4 if "Benchy" in fn else 0,
+                           "filament_total": 4200 if "Benchy" in fn else size // 10, "layer_count": 100, "object_height": 48.0, "thumbnails": [] if any(k in fn for k in S.get("no_thumbs", [])) else [
                                {"width": 32, "height": 32, "size": 100, "relative_path": ".thumbs/thumb-32x32.png"},
-                               {"width": 300, "height": 300, "size": 900, "relative_path": ".thumbs/thumb-300x300.png"}]})
+                               {"width": 300, "height": 300, "size": 900, "relative_path": ".thumbs/thumb-300x300.png"}]}))
 def png(w=64, h=64, color=(200, 90, 40)):
     im = Image.new("RGB", (w, h), color)
     for x in range(w):

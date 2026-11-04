@@ -75,6 +75,7 @@ function useLongPress(onLongPress) {
 function useFileActions(list, openEditor) {
   const [target, setTarget] = useState(null); // { file, fileName, meta, thumbnail } while its menu is open
   const [pendingDelete, setPendingDelete] = useState(null);
+  const [details, setDetails] = useState(null); // the item whose details are open (1.40)
   const deleting = useRef(false);
 
   const closeMenu = () => setTarget(null);
@@ -123,7 +124,26 @@ function useFileActions(list, openEditor) {
     list.reload();
   };
 
-  return { target, pendingDelete, openMenu: setTarget, closeMenu, openInEditor, openItemInEditor, askDelete, askDeleteItem, cancelDelete, confirmDelete };
+  const openDetailsItem = (item) => {
+    setTarget(null);
+    setDetails(item);
+  };
+  return {
+    target,
+    pendingDelete,
+    details,
+    openMenu: setTarget,
+    closeMenu,
+    openInEditor,
+    openItemInEditor,
+    askDelete,
+    askDeleteItem,
+    cancelDelete,
+    confirmDelete,
+    openDetails: () => openDetailsItem(target),
+    openDetailsItem,
+    closeDetails: () => setDetails(null),
+  };
 }
 
 /* ---------------------------------------------------------------------------
@@ -170,6 +190,7 @@ function FileActionSheet({ item, controller }) {
       h(
         "div",
         { className: "oui-list file-sheet__actions" },
+        h(FileActionRow, { icon: h(Icons.Info), title: tx("Details"), subtitle: tx("Slicer, times, filament, temperatures, last print"), onClick: controller.openDetails }),
         h(FileActionRow, { icon: h(Icons.Code), title: tx("Open in the editor"), subtitle: tooLong ? tx("Large file: read-only, first lines") : tx("Read and edit the G-code"), onClick: controller.openInEditor }),
         h(FileActionRow, { icon: h(Icons.Trash), title: tx("Delete from the Raspberry"), subtitle: tx("Deletes the file for good"), danger: true, onClick: controller.askDelete }),
       ),
@@ -178,13 +199,105 @@ function FileActionSheet({ item, controller }) {
   );
 }
 
+/* ---------------------------------------------------------------------------
+   Details (1.40): what Mainsail shows of a file, read from Moonraker's metadata
+   ------------------------------------------------------------------------- */
+const metaNumber = (value) => (typeof value === "number" && isFinite(value) && value > 0 ? value : null);
+const mm = (value, digits = 2) => (metaNumber(value) !== null ? Number(value.toFixed(digits)) + " mm" : null);
+const celsius = (value) => (metaNumber(value) !== null ? Math.round(value) + " °C" : null);
+
+/** The rows of the details: [label, value] (only what the file says). */
+function fileDetailRows(file, meta) {
+  const folder = file.path.includes("/") ? file.path.split("/").slice(0, -1).join("/") : "";
+  const length = metaNumber(meta.filament_total);
+  const weight = metaNumber(meta.filament_weight_total);
+  const printed = metaNumber(meta.print_start_time);
+  return [
+    [tx("Folder"), folder ? "/" + folder : null],
+    [tx("Size"), formatBytes(file.size) || null],
+    [tx("Last change"), formatFileDate(file.modified) || null],
+    [tx("Last printed"), printed ? formatFileDate(printed) : tx("Never")],
+    [tx("Slicer"), [meta.slicer, meta.slicer_version].filter(Boolean).join(" ") || null],
+    [tx("Estimated time"), metaNumber(meta.estimated_time) !== null ? formatDuration(meta.estimated_time) : null],
+    [tx("Layer height"), mm(meta.layer_height, 3)],
+    [tx("First layer height"), mm(meta.first_layer_height, 3)],
+    [tx("Object height"), mm(meta.object_height, 1)],
+    [tx("Layers"), metaNumber(meta.layer_count) !== null ? String(meta.layer_count) : null],
+    [tx("Filament"), [meta.filament_type, meta.filament_name].filter(Boolean).join(" · ") || null],
+    [tx("Filament length"), length !== null ? (length / 1000).toFixed(2) + " m" : null],
+    [tx("Filament weight"), weight !== null ? Math.round(weight * 10) / 10 + " g" : null],
+    [tx("Nozzle"), mm(meta.nozzle_diameter, 2)],
+    [tx("First layer: nozzle"), celsius(meta.first_layer_extr_temp)],
+    [tx("First layer: bed"), celsius(meta.first_layer_bed_temp)],
+    [tx("Chamber"), celsius(meta.chamber_temp)],
+  ].filter(([, value]) => value);
+}
+
+function FileDetailsSheet({ item, controller, onPrint }) {
+  useBodyScrollLock(true);
+  useBackHandler(controller.closeDetails, true);
+  const { file, fileName } = item;
+  const [meta, setMeta] = useState(item.meta && Object.keys(item.meta).length ? item.meta : null);
+  useEffect(() => {
+    let cancelled = false;
+    fetchFresh("/server/files/metadata?filename=" + encodeURIComponent(file.path))
+      .then((response) => (response.ok ? response.json() : null))
+      .then((json) => !cancelled && json && json.result && setMeta(json.result))
+      .catch(noop);
+    return () => {
+      cancelled = true;
+    };
+  }, [file.path]);
+  const thumbnail = item.thumbnail || (meta ? largestThumbnailUrl(meta) : null);
+  const rows = fileDetailRows(file, meta || {});
+  return h(
+    "div",
+    { className: "sheet-overlay sheet-overlay--details", onClick: (e) => e.target === e.currentTarget && controller.closeDetails() },
+    h(
+      "div",
+      { className: "sheet-card sheet-card--column file-details", role: "dialog", "aria-label": tx("Details") },
+      h("div", { className: "sheet-header sheet-header--bar" }, h("div", { className: "dialog-title file-details__title" }, fileName), h("button", { className: "dialog-close", onClick: controller.closeDetails, "aria-label": tx("Close") }, "✕")),
+      h(
+        "div",
+        { className: "file-details__body" },
+        h("div", { className: "file-details__thumb oui-well" }, thumbnail ? h("img", { src: thumbnail, className: "file-thumb", draggable: false }) : h(PrintPlaceholder)),
+        !meta && h("div", { className: "oui-caption" }, tx("Loading...")),
+        h(
+          "dl",
+          { className: "file-details__list" },
+          rows.map(([label, value]) => h(React.Fragment, { key: label }, h("dt", null, label), h("dd", { "data-detail": label }, value))),
+        ),
+      ),
+      h(
+        "div",
+        { className: "sheet-footer" },
+        h("button", { className: "oui-btn", onClick: controller.closeDetails }, tx("Close")),
+        onPrint &&
+          h(
+            "button",
+            {
+              className: "oui-btn oui-btn--primary",
+              onClick: () => {
+                controller.closeDetails();
+                onPrint({ path: file.path, fileName, thumbnail });
+              },
+            },
+            h(Icons.Play, { size: 16 }),
+            tx("Start print"),
+          ),
+      ),
+    ),
+  );
+}
+
 /** The menu and the delete confirmation, driven by useFileActions. */
-function FileActionDialogs({ controller }) {
-  const { target, pendingDelete } = controller;
+function FileActionDialogs({ controller, onPrint }) {
+  const { target, pendingDelete, details } = controller;
   return h(
     React.Fragment,
     null,
     h(Presence, null, target && h(FileActionSheet, { item: target, controller })),
+    h(Presence, null, details && h(FileDetailsSheet, { item: details, controller, onPrint })),
     h(ConfirmDialog, {
       open: Boolean(pendingDelete),
       tone: "danger",

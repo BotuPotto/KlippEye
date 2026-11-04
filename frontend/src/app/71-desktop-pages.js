@@ -253,6 +253,7 @@ function FileDetail({ file, list, fileActions, onPrint }) {
       "div",
       { className: "desk-detail__actions" },
       h("button", { className: "oui-btn oui-btn--sm", title: tx("Save a copy on this device"), onClick: () => downloadFile("/server/files/" + GCODES_ROOT + "/" + encodeRemotePath(file.path), fileName) }, h(Icons.Download, { size: 16 }), tx("Download")),
+      h("button", { className: "oui-btn oui-btn--sm", onClick: () => fileActions.openDetailsItem(item) }, h(Icons.Info, { size: 16 }), tx("Details")),
       h("button", { className: "oui-btn oui-btn--sm", onClick: () => fileActions.openItemInEditor(item) }, h(Icons.Code, { size: 16 }), "Editor"),
       h("button", { className: "oui-btn oui-btn--sm oui-btn--danger-soft", onClick: () => fileActions.askDeleteItem(item) }, h(Icons.Trash, { size: 16 }), tx("Delete")),
     ),
@@ -261,8 +262,10 @@ function FileDetail({ file, list, fileActions, onPrint }) {
 
 function DesktopFilesPage({ list, onPrint, fileActions }) {
   const [selectedPath, setSelectedPath] = useState(null);
-  // the first file until the reader picks one (and again if the picked file is gone, deleted for instance)
-  const current = list.files.find((file) => file.path === selectedPath) || list.files[0] || null;
+  const view = useGcodeView();
+  const shown = orderedFiles(list, view);
+  // the first file shown until the reader picks one (and again if the picked file is gone, deleted for instance)
+  const current = shown.find((file) => file.path === selectedPath) || shown[0] || null;
   return h(
     "div",
     { className: "desk-split desk-split--files" },
