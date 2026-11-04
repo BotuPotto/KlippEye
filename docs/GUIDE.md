@@ -298,6 +298,9 @@ In **Settings → Appearance → Colour** choose the colour of buttons, switches
 teal, green, amber, pink or **your own** from the colour wheel (one too dark or too pale is adjusted to read on the dark
 page). It stays on this device.
 
+In **Settings → Appearance → Look** the same page dresses after another phone: **One UI** (the usual), **Liquid
+Glass**, **Material 3 Expressive** or **HyperOS 4**, always with the chosen colour.
+
 ### Print queue
 
 If `moonraker.conf` has `[job_queue]`, a file's menu (long press; on a computer the *Queue* button of the file panel) has

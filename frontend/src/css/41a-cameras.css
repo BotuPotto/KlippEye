@@ -6,3 +6,13 @@
 .camera-picker.is-open { border-color: var(--oui-accent); }
 .camera-picker__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .desk-camera__picker { position: absolute; top: 12px; left: 132px; z-index: 2; background: var(--oui-glass); border-color: var(--oui-stroke-strong); }
+/* a phone: the camera card's title bar holds the menu, the light, full screen and the fold chevron; the menu keeps its
+   icon and arrow only (the name is in the menu) */
+@media (max-width: 480px) {
+  .oui-card .camera-picker { gap: 2px; padding: 0 8px; }
+  .oui-card .camera-picker__name { display: none; }
+  .camera-head-actions { gap: 6px; }
+}
+/* the narrowest phones: the buttons go under the title rather than out of the card */
+.oui-card[data-card="camera"] > .oui-card__head { flex-wrap: wrap; row-gap: 8px; }
+.oui-card[data-card="camera"] .oui-card__tools { margin-left: auto; }

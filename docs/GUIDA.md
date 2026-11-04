@@ -306,6 +306,9 @@ In **Impostazioni → Aspetto → Colore** scegli il colore di pulsanti, interru
 blu, verde acqua, verde, ambra, rosa o **il tuo** dalla ruota dei colori (un colore troppo scuro o troppo chiaro viene
 adattato perché si legga sulla pagina scura). Resta su questo dispositivo.
 
+In **Impostazioni → Aspetto → Stile** la stessa pagina si veste come un altro telefono: **One UI** (il solito),
+**Liquid Glass**, **Material 3 Expressive** o **HyperOS 4**, sempre con il colore scelto.
+
 ### Coda di stampa
 
 Se `moonraker.conf` ha `[job_queue]`, il menu di un file (tenendolo premuto; sul computer il pulsante *Coda* nel riquadro

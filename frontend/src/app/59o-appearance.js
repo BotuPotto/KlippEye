@@ -5,7 +5,8 @@
      · the folded cards (every card with a chevron can be folded on its page):
        how many, and "open them all";
      · 1.51: the hints, the small texts that explain how to use a page;
-     · 1.52: the accent colour: the logo's violet, a few others, or any colour.
+     · 1.52: the accent colour: the logo's violet, a few others, or any colour;
+     · 1.53: the look: One UI (the usual), Liquid Glass, Material 3 Expressive, HyperOS 4.
    ========================================================================== */
 
 function LayoutPageEditor({ page, title }) {
@@ -62,6 +63,27 @@ function AccentChoice() {
   );
 }
 
+function LookChoice() {
+  const layout = useLayout();
+  const current = LOOKS.includes(layout.look) ? layout.look : "oneui";
+  return h(
+    SettingsGroup,
+    { title: tx("Look"), note: tx("The same page and colours, dressed after another phone. On this device.") },
+    h(
+      "div",
+      { className: "look-choices", role: "radiogroup", "aria-label": tx("Look") },
+      LOOKS.map((id) =>
+        h(
+          "button",
+          { key: id, type: "button", role: "radio", "aria-checked": current === id, className: cx("look-choice", current === id && "is-on"), "data-look-choice": id, onClick: () => layoutStore.setLook(id === "oneui" ? null : id) },
+          h("span", { className: "look-choice__preview look-choice__preview--" + id }, h("span", null), h("span", null)),
+          h("span", { className: "look-choice__text" }, h("span", { className: "look-choice__name" }, lookLabel(id)), h("span", { className: "look-choice__detail" }, lookDetail(id))),
+        ),
+      ),
+    ),
+  );
+}
+
 function AppearancePage() {
   const layout = useLayout();
   const folded = Object.values(layout.collapsed).filter(Boolean).length;
@@ -69,6 +91,7 @@ function AppearancePage() {
     React.Fragment,
     null,
     h(AccentChoice),
+    h(LookChoice),
     h(
       SettingsGroup,
       { title: tx("Hints") },
@@ -88,8 +111,9 @@ function AppearancePage() {
 
 function appearanceSummary() {
   const state = layoutStore.snapshot();
+  const look = LOOKS.includes(state.look) && state.look !== "oneui" ? lookLabel(state.look) : "";
   const colour = state.accent ? (ACCENT_PRESETS.some((preset) => preset.id === state.accent) ? accentLabel(state.accent) : tx("Your colour")) : "";
   const hidden = Object.values(state.hidden).reduce((sum, list) => sum + list.length, 0);
   const moved = Object.keys(state.order).some((page) => JSON.stringify(layoutStore.order(page)) !== JSON.stringify(LAYOUT_PAGES[page]));
-  return [colour, moved ? tx("Own order") : !hidden && tx("Usual order"), hidden && (hidden === 1 ? tx("1 card hidden") : tx("{count} cards hidden", { count: hidden }))].filter(Boolean).join(" • ");
+  return [look, colour, moved ? tx("Own order") : !hidden && tx("Usual order"), hidden && (hidden === 1 ? tx("1 card hidden") : tx("{count} cards hidden", { count: hidden }))].filter(Boolean).join(" • ");
 }
