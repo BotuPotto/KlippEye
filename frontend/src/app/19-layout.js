@@ -7,7 +7,8 @@
        (Settings → Appearance);
      · 1.51: the small texts that explain how to use a page (.ui-hint: «Tap to
        change»…), shown or not;
-     · 1.52: the accent colour (the violet of the logo, or another one).
+     · 1.52: the accent colour (the violet of the logo, or another one);
+     · 1.53: the look (One UI, Liquid Glass, Material 3 Expressive, HyperOS 4).
    ========================================================================== */
 
 const LAYOUT_KEY = "ke_layout";
@@ -74,7 +75,8 @@ const layoutStore = (() => {
     },
     setHints: (show) => save({ ...state, hideHints: !show }),
     setAccent: (accent) => save({ ...state, accent }),
-    reset: () => save({ ...empty(), hideHints: state.hideHints, accent: state.accent }),
+    setLook: (look) => save({ ...state, look }),
+    reset: () => save({ ...empty(), hideHints: state.hideHints, accent: state.accent, look: state.look }),
   };
 })();
 
@@ -162,3 +164,23 @@ function arrangeCards(page, cards) {
     .filter((id) => !layoutStore.isHidden(page, id))
     .map((id) => cards[id] && h(React.Fragment, { key: id }, cards[id]));
 }
+
+/* ---------------------------------------------------------------------------
+   The look (1.53): css/90-looks.css dresses the page after another phone
+   ------------------------------------------------------------------------- */
+const LOOKS = ["oneui", "glass", "material", "hyperos"];
+const lookLabel = (id) => ({ oneui: "One UI", glass: "Liquid Glass", material: "Material 3 Expressive", hyperos: "HyperOS 4" })[id];
+const lookDetail = (id) =>
+  ({
+    oneui: tx("Glass cards on the logo's glow (the usual one)"),
+    glass: tx("Clearer glass, a light edge, rounder corners"),
+    material: tx("Solid surfaces tinted by the colour, bolder titles"),
+    hyperos: tx("Black page, flat grey cards"),
+  })[id];
+function applyLook() {
+  const look = layoutStore.snapshot().look;
+  if (LOOKS.includes(look) && look !== "oneui") document.documentElement.setAttribute("data-look", look);
+  else document.documentElement.removeAttribute("data-look");
+}
+applyLook();
+layoutStore.subscribe(applyLook);

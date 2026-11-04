@@ -1,0 +1,75 @@
+/* ============================================================================
+   Looks (1.53, roadmap 6e part 4): the same page, the same palette (the accent
+   of Settings → Appearance), dressed after another phone. Chosen in Settings →
+   Appearance and kept on this device; <html data-look="…">. One UI (the
+   default) is the stylesheet itself; each look below only changes surfaces,
+   shapes and type.
+   ========================================================================== */
+
+/* ---- Liquid Glass (iOS 26): clearer glass, a light edge on top, deeper blur and rounder corners ---- */
+html[data-look="glass"] {
+  --oui-surface: rgba(255, 255, 255, 0.07);
+  --oui-surface-2: rgba(255, 255, 255, 0.1);
+  --oui-surface-3: rgba(255, 255, 255, 0.16);
+  --oui-stroke: rgba(255, 255, 255, 0.14);
+  --oui-stroke-strong: rgba(255, 255, 255, 0.24);
+  --oui-glass: rgba(34, 36, 46, 0.52);
+  --oui-r-card: 34px;
+  --oui-r-tile: 26px;
+  --oui-r-field: 20px;
+  --oui-blur: 36px;
+}
+html[data-look="glass"] body::before {
+  background:
+    radial-gradient(70% 40% at 15% 0%, rgba(var(--oui-backdrop-rgb), 0.45), transparent 70%),
+    radial-gradient(60% 40% at 95% 30%, rgba(var(--oui-accent-rgb), 0.18), transparent 70%),
+    radial-gradient(80% 34% at 50% 108%, rgba(var(--oui-backdrop-rgb), 0.25), transparent 70%),
+    var(--oui-bg);
+}
+html[data-look="glass"] .oui-card {
+  background: linear-gradient(165deg, rgba(255, 255, 255, 0.11), rgba(255, 255, 255, 0.035) 55%);
+  -webkit-backdrop-filter: blur(22px) saturate(1.8);
+  backdrop-filter: blur(22px) saturate(1.8);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), inset 0 -1px 0 rgba(255, 255, 255, 0.04), 0 14px 40px rgba(0, 0, 0, 0.32);
+}
+html[data-look="glass"] .oui-btn:not(.oui-btn--primary):not(.oui-btn--danger) { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14); }
+html[data-look="glass"] .bottom-nav { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 14px 40px rgba(0, 0, 0, 0.45); }
+
+/* ---- Material 3 Expressive (Android 16): opaque tonal surfaces tinted by the accent, no outlines, bolder titles,
+   softer squares for the secondary buttons ---- */
+html[data-look="material"] {
+  --oui-surface: color-mix(in srgb, var(--oui-accent) 8%, #141218);
+  --oui-surface-2: color-mix(in srgb, var(--oui-accent) 12%, #1d1b20);
+  --oui-surface-3: color-mix(in srgb, var(--oui-accent) 18%, #2b2930);
+  --oui-inset: color-mix(in srgb, var(--oui-accent) 5%, #0f0d13);
+  --oui-stroke: rgba(255, 255, 255, 0.03);
+  --oui-glass: color-mix(in srgb, var(--oui-accent) 10%, #1d1b20);
+  --oui-r-card: 28px;
+  --oui-r-tile: 20px;
+  --oui-r-field: 14px;
+}
+html[data-look="material"] body::before { background: radial-gradient(90% 40% at 50% -8%, rgba(var(--oui-backdrop-rgb), 0.16), transparent 70%), var(--oui-bg); }
+html[data-look="material"] .oui-card { -webkit-backdrop-filter: none; backdrop-filter: none; }
+html[data-look="material"] .oui-card-title { font-size: 19px; font-weight: 700; letter-spacing: -0.01em; }
+html[data-look="material"] .oui-btn:not(.oui-btn--primary):not(.oui-btn--icon) { border-radius: 16px; }
+html[data-look="material"] .oui-btn--primary { border-radius: 999px; }
+html[data-look="material"] .oui-segmented { border-radius: 16px; }
+html[data-look="material"] .oui-segmented > button { border-radius: 12px; }
+
+/* ---- HyperOS 4 (Xiaomi): black page, flat grey cards without outlines, the accent left alone ---- */
+html[data-look="hyperos"] {
+  --oui-bg: #000;
+  --oui-surface: #16171a;
+  --oui-surface-2: #222327;
+  --oui-surface-3: #2d2e33;
+  --oui-inset: #0c0c0e;
+  --oui-stroke: transparent;
+  --oui-stroke-strong: rgba(255, 255, 255, 0.1);
+  --oui-glass: rgba(22, 23, 26, 0.92);
+  --oui-r-card: 24px;
+  --oui-r-tile: 18px;
+  --oui-r-field: 14px;
+}
+html[data-look="hyperos"] body::before { background: #000; }
+html[data-look="hyperos"] .oui-card { -webkit-backdrop-filter: none; backdrop-filter: none; }
+html[data-look="hyperos"] .oui-card-title { font-weight: 600; }

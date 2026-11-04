@@ -1,5 +1,16 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.53.0
+
+**Looks** (roadmap phase 6e, fourth part): the same page and palette, dressed after another phone.
+
+* **Settings → Appearance → Look**: **One UI** (the usual glass on the logo's glow), **Liquid Glass** (clearer glass, a
+  light edge on top, deeper blur, rounder corners), **Material 3 Expressive** (solid surfaces tinted by the chosen
+  colour, no outlines, bolder titles, softer squares for secondary buttons), **HyperOS 4** (black page, flat grey cards).
+  Each choice has a small preview; kept on this device; the colour of 1.52 goes with every look.
+* Fix: on a phone the camera card's title bar (camera menu, light, full screen, fold) ran out of the card: the camera
+  menu keeps only its icon there, and on the narrowest phones the buttons go under the title.
+
 ## 1.52.0
 
 **Your colour, and a RatRig logo you can see** (roadmap phase 6e, third part).

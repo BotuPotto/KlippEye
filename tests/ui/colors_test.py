@@ -1,5 +1,5 @@
-"""Release 1.52.0 (roadmap 6e part 3): the accent colour (Settings → Appearance → Colour): the logo's violet, five other
-colours, or any colour from the wheel (made light enough for the dark page); kept on this device. Against the mock.
+"""Releases 1.52.0 / 1.53.0 (roadmap 6e parts 3 and 4): the accent colour (Settings → Appearance → Colour): the logo's violet, five other
+colours, or any colour from the wheel (made light enough for the dark page); kept on this device; the looks (One UI, Liquid Glass, Material 3 Expressive, HyperOS 4). Against the mock.
 Usage: colors_test.py <html> <outdir> <port>"""
 import os
 import sys
@@ -80,6 +80,25 @@ with sync_playwright() as p:
     P.settle(600)
     pg.locator('[data-accent="violet"]').click()
     ok("Viola: the logo's colour again", wait_until(lambda: accent(P) == "#b79cff"), accent(P))
+    # 1.53: the looks
+    for look in ("glass", "material", "hyperos"):
+        pg.locator('[data-look-choice="%s"]' % look).click()
+        ok("look %s: set on the page" % look, wait_until(lambda: pg.evaluate("document.documentElement.getAttribute('data-look')") == look))
+    ok("HyperOS: the cards are flat grey", pg.evaluate("() => getComputedStyle(document.querySelector('.oui-card')).backgroundColor") == "rgb(22, 23, 26)", pg.evaluate("() => getComputedStyle(document.querySelector('.oui-card')).backgroundColor"))
+    pg.reload()
+    pg.wait_for_timeout(2400)
+    ok("the look stays on this device", pg.evaluate("document.documentElement.getAttribute('data-look')") == "hyperos")
+    pg.click('button[aria-label="Impostazioni"]')
+    pg.wait_for_selector(".drawer")
+    P.settle(450)
+    pg.locator('.set-entry[data-page="appearance"]').click()
+    P.settle(600)
+    pg.locator('[data-look-choice="oneui"]').click()
+    ok("One UI: the usual look again", wait_until(lambda: pg.evaluate("document.documentElement.getAttribute('data-look')") is None))
+    for w in (390, 320):
+        pg.set_viewport_size({"width": w, "height": 800})
+        pg.wait_for_timeout(300)
+        ok("[%d] the camera card's buttons stay inside it" % w, pg.evaluate("() => { const c = document.querySelector('[data-card=camera]'); return !c || c.querySelector('.oui-card__fold').getBoundingClientRect().right <= c.getBoundingClientRect().right; }"))
     ok("no page errors", not errs(P), errs(P)[:2])
     P.close()
     b.close()
