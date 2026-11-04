@@ -131,7 +131,7 @@ with sync_playwright() as p:
     P.pg.wait_for_selector(".drawer")
     P.settle(600)
     ok("the menu's 'Vai a': history and timelapse (Moonraker has it)", wait_until(lambda: [e.get_attribute("data-page") for e in P.pg.locator('[data-group="pages"] [data-page]').all()] == ["go-history", "go-timelapse"]))
-    ok("'Questo dispositivo': appearance, notifications, language, addresses", [e.get_attribute("data-page") for e in P.pg.locator('[data-group="phone"] [data-page]').all()] == ["appearance", "notifications", "language", "network"])
+    ok("1.60: 'Notifiche e aspetto': notifications, appearance, language", [e.get_attribute("data-page") for e in P.pg.locator('[data-group="yours"] [data-page]').all()] == ["notifications", "appearance", "language"])
     P.pg.locator('[data-page="go-timelapse"]').click()
     ok("'Timelapse' closes the menu and opens the Files page on it", wait_until(lambda: P.pg.locator(".drawer").count() == 0 and P.pg.locator(".timelapse-videos").count() == 1))
     P.pg.click('button[aria-label="Impostazioni"]')

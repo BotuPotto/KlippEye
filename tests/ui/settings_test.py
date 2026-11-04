@@ -92,7 +92,9 @@ def choice(pg, title):
 
 
 def go(P, name):
-    """Opens a page of the menu; 1.19: camcal / detector / recordings are inside "Monitor IA"."""
+    """Opens a page of the menu; 1.19: camcal / detector / recordings are inside "Monitor IA"; 1.60: the Z-offset steps
+    are on Motion's page, name and logo on Appearance's."""
+    name = {"zoffset": "motion", "printer": "appearance"}.get(name, name)
     for _ in range(2):
         if P.pg.locator('.set-entry[data-page="%s"]' % name).count() or P.pg.locator('.set-entry[data-page="ai"]').count():
             break
@@ -145,9 +147,9 @@ with sync_playwright() as p:
     ok("it slides in from the left, at most 420 px wide and never covering the whole page", box["x"] == 0 and box["width"] <= 420 and box["width"] <= 390 - 40, box)
     ok("it is a dialog with a name", pg.locator(".drawer").get_attribute("role") == "dialog" and pg.locator(".drawer").get_attribute("aria-label") == "Impostazioni")
     titles = pg.locator(".set-entry .oui-row__name").all_inner_texts()
-    ok("the guided set-up first, then the pages in five groups (1.22; 1.31: Motion; 1.33: Macros; 1.50: Appearance; 1.54: Go to, This device), the printer first", titles == ["Configurazione guidata", "Nome e logo", "Funzioni della stampante", "Macro", "Movimento", "Z-offset", "Cronologia stampe", "Timelapse", "Camera", "Monitor IA", "Aspetto", "Notifiche", "Lingua", "Indirizzi", "Accesso", "Aggiornamenti"], titles)
+    ok("the guided set-up first, then the pages in five groups (1.60: printer / camera and AI / notifications and appearance / go to / system)", titles == ["Configurazione guidata", "Funzioni della stampante", "Macro", "Movimento e Z-offset", "Camera", "Monitor IA", "Notifiche", "Aspetto", "Lingua", "Cronologia stampe", "Timelapse", "Indirizzi", "Accesso", "Aggiornamenti"], titles)
     summaries = pg.locator(".set-entry__meta").all_inner_texts()
-    ok("each page says what it is set to now (addresses not set: the address of this page)", summaries[1] == "KlippEye" and summaries[2] in ("Tutte le macro", "1 gruppo") and summaries[3] == "Z: automatico • XY 1·10 • Z 1·10 mm" and summaries[4] == "0.01 · 0.025 · 0.05 · 0.1 mm" and summaries[5] == "Statistiche e ogni stampa" and summaries[6] == "I video e le loro impostazioni" and summaries[7] == "WebRTC" and "Pausa da sola: no" in summaries[8] and summaries[9] == "Ordine solito" and summaries[10] == "7 su 7 attive" and summaries[12] == "Automatico (l'indirizzo di questa pagina)", summaries)
+    ok("each page says what it is set to now (addresses not set: the address of this page)", summaries[1] in ("Tutte le macro", "1 gruppo") and summaries[2] == "Z: automatico • XY 1·10 • Z 1·10 mm • Z-offset 0.01 · 0.025 · 0.05 · 0.1" and summaries[3] == "WebRTC" and "Pausa da sola: no" in summaries[4] and summaries[5] == "7 su 7 attive" and summaries[6] == "KlippEye • Ordine solito" and summaries[8] == "Statistiche e ogni stampa" and summaries[9] == "I video e le loro impostazioni" and summaries[10] == "Automatico (l'indirizzo di questa pagina)", summaries)
     ok("the page behind cannot scroll while it is open", pg.evaluate("() => document.body.style.overflow") == "hidden")
     ok("the state line says the Raspberry keeps the settings", wait_until(lambda: "Salvate sul Raspberry" in pg.locator(".set-status").first.inner_text()), pg.locator(".set-status").first.inner_text())
     P.shot_vp(f"{out}/menu_home_390.png")
@@ -160,7 +162,7 @@ with sync_playwright() as p:
     open_menu(P); go(P, "camera"); pg.keyboard.press("Escape"); P.settle(300)
     ok("Escape inside a page goes back one level (main camera -> the cameras)", pg.locator('.set-entry[data-page="camera-main"]').count() == 1 and pg.locator(".drawer").count() == 1)
     pg.keyboard.press("Escape"); P.settle(300)
-    ok("... then to the list of groups, then closes", pg.locator(".set-entry").count() == 16 and pg.locator(".drawer").count() == 1)
+    ok("... then to the list of groups, then closes", pg.locator(".set-entry").count() == 14 and pg.locator(".drawer").count() == 1)
     pg.keyboard.press("Escape"); pg.wait_for_selector(".drawer", state="detached")
     open_menu(P)
     TOUCH = """([sx, ex]) => { const el = document.querySelector('.drawer'); const mk = (type, x) => { const e = new Event(type, { bubbles: true, cancelable: true }); const t = [{ identifier: 1, clientX: x, clientY: 300, target: el }]; e.touches = type === 'touchend' ? [] : t; e.changedTouches = t; return e; }; el.dispatchEvent(mk('touchstart', sx)); el.dispatchEvent(mk('touchend', ex)); }"""
@@ -169,7 +171,7 @@ with sync_playwright() as p:
     pg.evaluate(TOUCH, [300, 120]); pg.wait_for_selector(".drawer", state="detached")
     ok("a swipe to the left closes it", True)
     open_menu(P); go(P, "camera"); close_menu(P); open_menu(P)
-    ok("it always opens on the list of groups", pg.locator(".set-entry").count() == 16)
+    ok("it always opens on the list of groups", pg.locator(".set-entry").count() == 14)
     close_menu(P)
     for tab in ("controllo", "files", "config", "sistema"):
         P.goto(tab, 700)
@@ -678,7 +680,7 @@ with sync_playwright() as p:
     ok("... the choice stays on this device only (the notifications' language, shared, does not change)", pg.evaluate("() => localStorage.getItem('ke_lang')") == "en" and (settings_now(P) or {}).get("language") == "it", (pg.evaluate("() => localStorage.getItem('ke_lang')"), (settings_now(P) or {}).get("language")))
     pg.click('button[aria-label="Settings"]'); pg.wait_for_selector(".drawer"); P.settle(450)
     titles = pg.locator(".set-entry .oui-row__name").all_inner_texts()
-    ok("... the menu is in English", titles == ["Guided set-up", "Name and logo", "Printer functions", "Macros", "Motion", "Z-offset", "Print history", "Timelapse", "Camera", "AI monitor", "Appearance", "Notifications", "Language", "Addresses", "Access", "Updates"] and meta() == "English", (titles, meta()))
+    ok("... the menu is in English", titles == ["Guided set-up", "Printer functions", "Macros", "Motion and Z-offset", "Camera", "AI monitor", "Notifications", "Appearance", "Language", "Print history", "Timelapse", "Addresses", "Access", "Updates"] and meta() == "English", (titles, meta()))
     go(P, "language"); choice(pg, "Automatic").click(); pg.wait_for_load_state("load"); P.settle(1500)
     ok("back to automatic: Italian again, and nothing kept", pg.evaluate("() => document.documentElement.lang") == "it" and pg.evaluate("() => localStorage.getItem('ke_lang')") is None)
     ok("no errors in the page", not P.errors, P.errors[:3])

@@ -1,5 +1,18 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.60.0
+
+**Side menu: fewer, fuller pages, grouped by what they are about** (requests of 4 November).
+
+* **The printer**: Printer functions, Macros, **Motion and Z-offset** (the Z-offset card's steps are now at the bottom
+  of the Motion page).
+* **Camera and AI monitor**: Camera (every camera, the timelapse), AI monitor.
+* **Notifications and appearance**: Notifications, **Appearance** (now with the printer's name and logo, for every
+  device, then the colour, the look, the hints and the cards of this device), Language.
+* **Go to**: print history, timelapse.
+* **System**: Addresses, Access, Updates.
+* 13 lines instead of 15; the old pages (Name and logo, Z-offset) still open from the guided set-up and the help.
+
 ## 1.59.0
 
 **Settings → Camera: every camera, one page each; the timelapse settings there too** (requests of 4 November).
