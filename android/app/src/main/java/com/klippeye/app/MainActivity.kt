@@ -65,6 +65,8 @@ class MainActivity : AppCompatActivity() {
     private var addressesForPage: Indirizzi.Coppia? = null
 
     private var currentUrl = "http://127.0.0.1:${Indirizzi.PORTA}/" // vale solo finche' non si e' collegata a un indirizzo
+    // Un'altra stampante aperta dal menu in alto della dashboard (app 1.6.0, vedi Stampanti.kt): "" = la principale
+    @Volatile private var altra = ""
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
     // Aggiornamento dell'app: lo scaricamento in corso e, se Android chiede prima il permesso di installare, cosa riprendere al ritorno
@@ -113,8 +115,9 @@ class MainActivity : AppCompatActivity() {
         // nella cartella Download, 4 = anche usare gli indirizzi del menu Impostazioni (setAddresses/getAddresses),
         // 5 = anche aggiornarsi da sola (appInfo/updateApp), 6 = anche ricevere le notifiche da sola (notifySetup/notifyState...,
         // vedi Ascolto.kt), 7 = anche il tasto indietro passato alla pagina (klippeyeBack) e i collegamenti esterni aperti
-        // fuori dall'app (store, ntfy, siti). Con un numero più basso la dashboard lascia disattivata la funzione.
-        webView.settings.userAgentString = webView.settings.userAgentString + " KlippEyeApp/8"
+        // fuori dall'app (store, ntfy, siti), 9 = anche le altre stampanti aperte nell'app (switchPrinter) e le loro notifiche.
+        // Con un numero più basso la dashboard lascia disattivata la funzione.
+        webView.settings.userAgentString = webView.settings.userAgentString + " KlippEyeApp/9"
 
         // Download: il WebView non scarica da solo. La dashboard chiama window.KlippEyeApp.saveUrl(indirizzo, nome);
         // un collegamento che il WebView trasforma in download passa invece dal listener.
@@ -183,7 +186,9 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        detectAndLoad()
+        // l'ultima stampante aperta (se era un'altra): si riparte da li'
+        val ultima = Stampanti.aperta(this)
+        if (ultima.isNotEmpty() && Indirizzi.leggi(this).locale.isNotEmpty() && !Stampanti.principale(this, ultima)) apriAltra(ultima) else detectAndLoad()
         avviaNotifiche()
         // Gli APK scaricati per un aggiornamento precedente non servono piu' (quelli appena scaricati restano qualche minuto)
         val cartellaAggiornamenti = AggiornamentoAndroid.cartella(this)
@@ -202,7 +207,7 @@ class MainActivity : AppCompatActivity() {
     /** Lo stato delle notifiche di questo telefono alla pagina (se e' una dashboard che lo ascolta). */
     private fun dicoStatoNotifiche() {
         if (!::webView.isInitialized) return
-        webView.evaluateJavascript("window.klippeyeNotifyState && window.klippeyeNotifyState(${Ascolto.stato(this)})", null)
+        webView.evaluateJavascript("window.klippeyeNotifyState && window.klippeyeNotifyState(${Ascolto.stato(this, altra)})", null)
     }
 
     private fun hostOf(url: String?): String? = try {
@@ -211,8 +216,42 @@ class MainActivity : AppCompatActivity() {
         null
     }
 
+    /**
+     * Apre la dashboard di un'altra stampante (scelta nel suo menu in alto): se risponde la carica qui, altrimenti lo dice e
+     * torna alla principale.
+     */
+    private fun apriAltra(stampante: String) {
+        altra = stampante
+        Stampanti.apri(this, stampante)
+        splash.visibility = View.VISIBLE
+        webView.visibility = View.INVISIBLE
+        failureActions.visibility = View.GONE
+        statusText.setTextColor(getColor(R.color.vz_text2))
+        progress.visibility = View.VISIBLE
+        statusText.text = "Mi collego a $stampante..."
+        errorHost = null
+        candidates = emptyList()
+        cascade = false
+        val indirizzo = Stampanti.url(stampante)
+        scope.launch {
+            if (withContext(Dispatchers.IO) { isReachable(indirizzo) }) {
+                currentUrl = indirizzo
+                webView.loadUrl(indirizzo)
+            } else {
+                tornaAllaPrincipale(stampante)
+            }
+        }
+    }
+
+    private fun tornaAllaPrincipale(stampante: String) {
+        Toast.makeText(this, "$stampante non risponde: torno alla stampante principale", Toast.LENGTH_LONG).show()
+        detectAndLoad()
+    }
+
     /** Cerca il Raspberry tra gli indirizzi (il primo che risponde vince) e carica la dashboard. */
     private fun detectAndLoad() {
+        altra = ""
+        Stampanti.apri(this, "")
         splash.visibility = View.VISIBLE
         webView.visibility = View.INVISIBLE
         failureActions.visibility = View.GONE
@@ -282,6 +321,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun handleLoadError() {
+        if (altra.isNotEmpty()) return tornaAllaPrincipale(altra)
         val next = candidateIndex + 1
         if (cascade && next < candidates.size) {
             connectTo(next, "${candidates[candidateIndex].host} non risponde, passo a ${candidates[next].etichetta}...")
@@ -380,7 +420,9 @@ class MainActivity : AppCompatActivity() {
          * Risponde "ok" oppure il motivo per cui non li accetta (solo indirizzi di reti private).
          */
         @JavascriptInterface
-        fun setAddresses(local: String?, external: String?): String = Indirizzi.salva(applicationContext, local, external)
+        fun setAddresses(local: String?, external: String?): String =
+            // gli indirizzi sono quelli della stampante principale: la dashboard di un'altra stampante non li cambia (app 1.6.0)
+            if (altra.isNotEmpty()) "ok" else Indirizzi.salva(applicationContext, local, external)
 
         /** Gli indirizzi che l'app usa ora, come {"local":"...","external":"..."}: la dashboard li confronta con i suoi. */
         @JavascriptInterface
@@ -408,13 +450,29 @@ class MainActivity : AppCompatActivity() {
         /** Come sono impostate le notifiche dal Raspberry e la scelta della persona: vedi [Ascolto.imposta]. Risponde lo stato. */
         @JavascriptInterface
         fun notifySetup(json: String?): String {
-            Ascolto.imposta(applicationContext, json)
-            return Ascolto.stato(applicationContext)
+            val stampante = altra // la stampante della pagina: le sue notifiche si aggiungono a quelle delle altre
+            Ascolto.imposta(applicationContext, json, stampante)
+            return Ascolto.stato(applicationContext, stampante)
         }
 
         /** {permission, battery, receive, chosen, mode, connected, lastMessageAt, ...}: vedi [Ascolto.stato]. */
         @JavascriptInterface
-        fun notifyState(): String = Ascolto.stato(applicationContext)
+        fun notifyState(): String = Ascolto.stato(applicationContext, altra)
+
+        /**
+         * Piu' stampanti (app 1.6.0): la dashboard chiede di aprire un'altra stampante, {"host": "192.168.1.50[:porta]",
+         * "name": "..."}. Risponde "ok" oppure "refused" (non e' un indirizzo di una rete privata).
+         */
+        @JavascriptInterface
+        fun switchPrinter(json: String?): String {
+            val stampante = try {
+                Stampanti.pulisci(JSONObject(json ?: "{}").optString("host", ""))
+            } catch (e: Exception) {
+                null
+            } ?: return "refused"
+            runOnUiThread { if (Stampanti.principale(this@MainActivity, stampante)) detectAndLoad() else apriAltra(stampante) }
+            return "ok"
+        }
 
         /** Mostra la finestra di Android per il permesso delle notifiche; se Android non la mostra piu', apre le impostazioni dell'app. */
         @JavascriptInterface

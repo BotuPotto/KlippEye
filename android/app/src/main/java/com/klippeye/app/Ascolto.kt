@@ -15,6 +15,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
 import org.json.JSONObject
+import java.util.concurrent.ConcurrentHashMap
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.net.HttpURLConnection
@@ -31,6 +32,10 @@ import java.net.URLEncoder
  *   · ntfy      altrimenti l'app ascolta da sola l'argomento privato ntfy ([AscoltoNtfy], un servizio in primo piano con una
  *               piccola notifica fissa), senza bisogno dell'app ntfy.
  * Le notifiche arrivano su questo telefono solo se la persona lo ha scelto (procedura guidata nella dashboard).
+ *
+ * App 1.6.0 (piu' stampanti, vedi [Stampanti]): ogni stampante aperta nell'app dice il suo argomento ntfy; l'app li ascolta
+ * tutti (un collegamento per server, con gli argomenti separati da virgole), cosi' le notifiche arrivano da ogni stampante,
+ * non solo da quella sullo schermo. La principale resta nelle chiavi di sempre, le altre in "altre" (JSON per stampante).
  */
 object Ascolto {
     private const val PREFERENZE = "klippeye_notifiche"
@@ -72,7 +77,7 @@ object Ascolto {
      * Salva cio' che la dashboard manda: {"ricevi": true|false (facoltativo), "ntfy": {"server","topic","token"} | null,
      * "firebaseTopic": "..." | ""}. I valori non validi sono scartati. Poi avvia o ferma l'ascolto e l'iscrizione Firebase.
      */
-    fun imposta(context: Context, json: String?) {
+    fun imposta(context: Context, json: String?, stampante: String = "") {
         val dati = try {
             JSONObject(json ?: "{}")
         } catch (e: Exception) {
@@ -80,6 +85,24 @@ object Ascolto {
         }
         val modifica = preferenze(context).edit()
         if (dati.has("ricevi")) modifica.putBoolean("ricevi", dati.optBoolean("ricevi", false))
+        if (stampante.isNotEmpty()) {
+            // un'altra stampante: il suo argomento ntfy accanto a quello della principale (Firebase resta della principale)
+            if (dati.has("ntfy")) {
+                val altre = altre(context)
+                val ntfy = dati.optJSONObject("ntfy")
+                val server = ntfy?.optString("server", "")?.trimEnd('/') ?: ""
+                val argomento = ntfy?.optString("topic", "") ?: ""
+                if (ntfy != null && SERVER.matches(server) && ARGOMENTO.matches(argomento)) {
+                    altre.put(stampante, JSONObject().put("server", server).put("argomento", argomento).put("token", ntfy.optString("token", "")))
+                } else {
+                    altre.remove(stampante)
+                }
+                modifica.putString("altre", altre.toString())
+            }
+            modifica.apply()
+            applica(context)
+            return
+        }
         if (dati.has("ntfy")) {
             val ntfy = dati.optJSONObject("ntfy")
             val server = ntfy?.optString("server", "")?.trimEnd('/') ?: ""
@@ -97,10 +120,48 @@ object Ascolto {
         applica(context)
     }
 
+    private fun altre(context: Context): JSONObject = try {
+        JSONObject(preferenze(context).getString("altre", "{}") ?: "{}")
+    } catch (e: Exception) {
+        JSONObject()
+    }
+
+    /** Un argomento da ascoltare: server, argomento, token. */
+    data class Argomento(val server: String, val argomento: String, val token: String)
+
+    /** Tutti gli argomenti ntfy da ascoltare: quello della principale e quelli delle altre stampanti aperte nell'app. */
+    fun argomenti(context: Context): List<Argomento> {
+        val lista = ArrayList<Argomento>()
+        val principale = leggi(context)
+        if (principale.argomento.isNotEmpty() && principale.server.isNotEmpty()) lista.add(Argomento(principale.server, principale.argomento, principale.token))
+        val altre = altre(context)
+        for (chiave in altre.keys()) {
+            val una = altre.optJSONObject(chiave) ?: continue
+            val server = una.optString("server", "")
+            val argomento = una.optString("argomento", "")
+            if (SERVER.matches(server) && ARGOMENTO.matches(argomento) && lista.none { it.server == server && it.argomento == argomento }) {
+                lista.add(Argomento(server, argomento, una.optString("token", "")))
+            }
+        }
+        return lista
+    }
+
+    /** Gli argomenti per server: un collegamento per server, "argA,argB" (ntfy li ascolta insieme), il primo token trovato. */
+    fun gruppi(context: Context): Map<String, Pair<String, String>> =
+        argomenti(context).groupBy { it.server }.mapValues { (_, lista) -> Pair(lista.joinToString(",") { it.argomento }, lista.firstOrNull { it.token.isNotEmpty() }?.token ?: "") }
+
+    /** Il modo di questo telefono: Firebase come prima; ntfy se la persona ha scelto di ricevere e c'e' almeno un argomento. */
+    fun modo(context: Context): String {
+        val impostazioni = leggi(context)
+        val firebase = impostazioni.modo(Notifiche.firebasePronto(context))
+        if (firebase == "firebase") return firebase
+        return if (impostazioni.ricevi && argomenti(context).isNotEmpty()) "ntfy" else ""
+    }
+
     /** Fa corrispondere il telefono alle impostazioni: servizio ntfy acceso o spento, iscrizione Firebase giusta. */
     fun applica(context: Context) {
         val impostazioni = leggi(context)
-        val modo = impostazioni.modo(Notifiche.firebasePronto(context))
+        val modo = modo(context)
         Notifiche.iscriviFirebase(context, if (modo == "firebase") impostazioni.argomentoFirebase else "")
         val servizio = Intent(context, AscoltoNtfy::class.java)
         if (modo == "ntfy") {
@@ -129,24 +190,28 @@ object Ascolto {
 
     fun ultimoId(context: Context): String = preferenze(context).getString("ultimo_id", "") ?: ""
 
+    /** Quando e' arrivata l'ultima notifica (ms), per riprendere da li' dopo un'interruzione con piu' argomenti. */
+    fun ultimaAlle(context: Context): Long = preferenze(context).getLong("ultima_alle", 0L)
+
     fun batteriaLibera(context: Context): Boolean {
         val power = context.getSystemService(Context.POWER_SERVICE) as? PowerManager ?: return true
         return power.isIgnoringBatteryOptimizations(context.packageName)
     }
 
     /** Lo stato per la dashboard (KlippEyeApp.notifyState()). */
-    fun stato(context: Context): String {
+    fun stato(context: Context, stampante: String = ""): String {
         val impostazioni = leggi(context)
         val p = preferenze(context)
+        val argomento = if (stampante.isEmpty()) impostazioni.argomento else altre(context).optJSONObject(stampante)?.optString("argomento", "") ?: ""
         return JSONObject()
             .put("permission", Notifiche.permessoConcesso(context))
             .put("askPermission", Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
             .put("battery", batteriaLibera(context))
             .put("receive", impostazioni.ricevi)
             .put("chosen", impostazioni.scelto)
-            .put("mode", impostazioni.modo(Notifiche.firebasePronto(context)))
+            .put("mode", modo(context))
             .put("firebaseBuilt", Notifiche.firebasePronto(context))
-            .put("ntfyTopic", impostazioni.argomento)
+            .put("ntfyTopic", argomento)
             .put("connected", p.getBoolean("collegato", false))
             .put("lastMessageAt", p.getLong("ultima_alle", 0L))
             .put("lastTitle", p.getString("ultima_titolo", "") ?: "")
@@ -160,8 +225,12 @@ object Ascolto {
  * notifica fissa e discreta; si ricollega da solo quando la rete torna, e con `since` recupera i messaggi persi nel frattempo.
  */
 class AscoltoNtfy : Service() {
-    @Volatile private var acceso = false
-    private var filo: Thread? = null
+    // Un filo per server ntfy (di solito uno: ntfy.sh). Ogni avvio del servizio (impostazioni cambiate) apre una nuova
+    // "generazione": i fili di quella prima chiudono il loro collegamento ed escono, i nuovi ascoltano gli argomenti di adesso.
+    @Volatile private var generazione = 0
+    private val fili = ConcurrentHashMap<String, Thread>()
+    private val collegamenti = ConcurrentHashMap<String, HttpURLConnection>()
+    private val visti = java.util.Collections.synchronizedSet(LinkedHashSet<String>())
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -169,16 +238,25 @@ class AscoltoNtfy : Service() {
         Notifiche.creaCanali(this)
         val tipo = if (Build.VERSION.SDK_INT >= 34) ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE else 0
         ServiceCompat.startForeground(this, ID_NOTIFICA_FISSA, notificaFissa(), tipo)
-        if (filo?.isAlive != true) {
-            acceso = true
-            filo = Thread({ ascolta() }, "ascolto-ntfy").apply { isDaemon = true; start() }
+        val gruppi = Ascolto.gruppi(this)
+        if (gruppi.isEmpty()) {
+            stopSelf()
+            return START_NOT_STICKY
+        }
+        val mia = ++generazione
+        collegamenti.values.forEach { try { it.disconnect() } catch (e: Exception) {} }
+        fili.values.forEach { it.interrupt() }
+        fili.clear()
+        for (server in gruppi.keys) {
+            fili[server] = Thread({ ascolta(server, mia) }, "ascolto-ntfy").apply { isDaemon = true; start() }
         }
         return START_STICKY
     }
 
     override fun onDestroy() {
-        acceso = false
-        filo?.interrupt()
+        generazione++
+        collegamenti.values.forEach { try { it.disconnect() } catch (e: Exception) {} }
+        fili.values.forEach { it.interrupt() }
         Ascolto.segnaCollegato(this, false)
         super.onDestroy()
     }
@@ -191,7 +269,7 @@ class AscoltoNtfy : Service() {
         return NotificationCompat.Builder(this, Notifiche.CANALE_ASCOLTO)
             .setSmallIcon(R.drawable.ic_stat_klippeye)
             .setContentTitle("KlippEye in ascolto")
-            .setContentText("Riceve le notifiche della stampante. Tieni premuto per nasconderla.")
+            .setContentText("Riceve le notifiche delle stampanti. Tieni premuto per nasconderla.")
             .setPriority(NotificationCompat.PRIORITY_MIN)
             .setOngoing(true)
             .setShowWhen(false)
@@ -199,13 +277,12 @@ class AscoltoNtfy : Service() {
             .build()
     }
 
-    private fun ascolta() {
+    private fun ascolta(server: String, mia: Int) {
         var attesa = 5_000L
-        while (acceso) {
-            val impostazioni = Ascolto.leggi(this)
-            if (impostazioni.argomento.isEmpty()) break
+        while (generazione == mia) {
+            val gruppo = Ascolto.gruppi(this)[server] ?: break
             try {
-                collegati(impostazioni)
+                collegati(server, gruppo.first, gruppo.second, mia)
                 attesa = 5_000L // si era collegato: la prossima volta si riprova subito
             } catch (e: InterruptedException) {
                 break
@@ -213,7 +290,7 @@ class AscoltoNtfy : Service() {
                 Log.w(TAG, "Collegamento a ntfy interrotto: ${e.message}")
             }
             Ascolto.segnaCollegato(this, false)
-            if (!acceso) break
+            if (generazione != mia) break
             try {
                 Thread.sleep(attesa)
             } catch (e: InterruptedException) {
@@ -221,27 +298,30 @@ class AscoltoNtfy : Service() {
             }
             attesa = minOf(attesa * 2, 60_000L)
         }
-        stopSelf()
+        fili.remove(server, Thread.currentThread())
+        if (generazione == mia && fili.isEmpty()) stopSelf()
     }
 
-    private fun collegati(impostazioni: Ascolto.Impostazioni) {
-        val ultimo = Ascolto.ultimoId(this)
-        val indirizzo = impostazioni.server.trimEnd('/') + "/" + impostazioni.argomento + "/json" +
-            (if (ultimo.isNotEmpty()) "?since=" + URLEncoder.encode(ultimo, "UTF-8") else "")
+    private fun collegati(server: String, argomenti: String, token: String, mia: Int) {
+        // Con un solo argomento si riprende dall'ultimo messaggio (il suo id); con piu' argomenti dall'ora dell'ultimo
+        val since = if (!argomenti.contains(',')) Ascolto.ultimoId(this) else Ascolto.ultimaAlle(this).let { if (it > 0) (it / 1000).toString() else "" }
+        val indirizzo = server.trimEnd('/') + "/" + argomenti + "/json" + (if (since.isNotEmpty()) "?since=" + URLEncoder.encode(since, "UTF-8") else "")
         val connessione = URL(indirizzo).openConnection() as HttpURLConnection
+        collegamenti[server] = connessione
         connessione.connectTimeout = 15_000
         connessione.readTimeout = 100_000 // ntfy manda un "keepalive" ogni 45 secondi: senza nulla per 100 s la linea e' morta
         connessione.setRequestProperty("User-Agent", "KlippEyeApp")
-        if (impostazioni.token.isNotEmpty()) connessione.setRequestProperty("Authorization", "Bearer " + impostazioni.token)
+        if (token.isNotEmpty()) connessione.setRequestProperty("Authorization", "Bearer " + token)
         try {
             if (connessione.responseCode !in 200..299) throw java.io.IOException("ntfy ha risposto ${connessione.responseCode}")
             BufferedReader(InputStreamReader(connessione.inputStream, Charsets.UTF_8)).use { lettore ->
-                while (acceso) {
+                while (generazione == mia) {
                     val riga = lettore.readLine() ?: break
                     gestisci(riga)
                 }
             }
         } finally {
+            collegamenti.remove(server, connessione)
             connessione.disconnect()
         }
     }
@@ -255,10 +335,16 @@ class AscoltoNtfy : Service() {
         when (evento.optString("event")) {
             "open", "keepalive" -> Ascolto.segnaCollegato(this, true)
             "message" -> {
+                val id = evento.optString("id", "")
+                if (id.isNotEmpty()) {
+                    // ripresa dall'ora dell'ultimo messaggio: quello stesso puo' tornare una volta
+                    if (!visti.add(id)) return
+                    if (visti.size > 200) visti.remove(visti.first())
+                }
                 val titolo = evento.optString("title", "").ifEmpty { "KlippEye" }
                 val testo = evento.optString("message", "")
-                Notifiche.mostra(this, Notifiche.tipoDaPriorita(evento.optInt("priority", 3)), titolo, testo, evento.optString("id", ""))
-                Ascolto.segnaRicevuta(this, titolo + ": " + testo, evento.optString("id", ""))
+                Notifiche.mostra(this, Notifiche.tipoDaPriorita(evento.optInt("priority", 3)), titolo, testo, id)
+                Ascolto.segnaRicevuta(this, titolo + ": " + testo, id)
             }
         }
     }
