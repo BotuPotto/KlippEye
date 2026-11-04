@@ -31,7 +31,7 @@ async function macrosApi(path, body) {
     } catch (error) {}
     return { ok: response.ok && Boolean(data && data.ok), data, message: (data && data.error) || "HTTP " + response.status };
   } catch (error) {
-    return { ok: false, data: null, message: tx("the backend does not answer") };
+    return { ok: false, data: null, message: tx("the KlippEye service does not answer") };
   }
 }
 

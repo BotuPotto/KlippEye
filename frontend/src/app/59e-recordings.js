@@ -205,7 +205,7 @@ function AlertRow({ alert, session, onLabelled, onShow }) {
       setLabel(next);
       setProblem("");
       onLabelled && onLabelled();
-    } else setProblem(tx("Not saved: ") + (reply.message || tx("the backend does not answer")));
+    } else setProblem(tx("Not saved: ") + (reply.message || tx("the KlippEye service does not answer")));
   };
   const action = aiAction(alert.action);
   const picture = alert.picture || (alert.image ? "/api/print/alerts/image/" + alert.image : null);
@@ -293,7 +293,7 @@ function RecordingDetail({ id, onClose }) {
     setBusy(true);
     const reply = await brainPost("/api/recordings/" + id + "/label", { outcome, failed_at: when });
     setBusy(false);
-    setProblem(reply.ok ? "" : tx("Not saved: ") + (reply.message || tx("the backend does not answer")));
+    setProblem(reply.ok ? "" : tx("Not saved: ") + (reply.message || tx("the KlippEye service does not answer")));
     detail.reload();
   };
   const remove = async () => {
@@ -345,7 +345,7 @@ function RecordingDetail({ id, onClose }) {
         h(InfoLine, { label: tx("Duration"), value: session.ended ? formatRecordingTime(session.ended - session.started) + (END_STATE_TEXTS[session.end_state] ? " • " + END_STATE_TEXTS[session.end_state] : "") : tx("still printing") }),
         h(InfoLine, { label: tx("Pictures"), value: String(session.frames || 0) + (session.truncated ? " • " + tx("space full") : "") }),
         h(InfoLine, { label: tx("Alarms during the print"), value: String((session.live_triggers || []).length) }),
-        session.cpu && session.cpu.cpu_percent !== undefined && h(InfoLine, { label: tx("Backend CPU"), value: tx("{percent}% of one core • {ms} ms per check", { percent: formatNumber(session.cpu.cpu_percent), ms: formatNumber(session.cpu.check_ms) }) }),
+        session.cpu && session.cpu.cpu_percent !== undefined && h(InfoLine, { label: tx("Service CPU"), value: tx("{percent}% of one core • {ms} ms per check", { percent: formatNumber(session.cpu.cpu_percent), ms: formatNumber(session.cpu.check_ms) }) }),
       ),
     ),
     frames.length > 0 &&
@@ -655,7 +655,7 @@ function MeasureGroup({ sessions }) {
   };
   return h(
     SettingsGroup,
-    { title: tx("Measure the monitor"), help: ["recordings", "measure"], note: tx("The backend runs the monitor again on the recorded prints chosen here, with the thresholds in use now, and counts the alarms. It takes a minute or two; printing is not disturbed.") },
+    { title: tx("Measure the monitor"), help: ["recordings", "measure"], note: tx("The KlippEye service runs the monitor again on the recorded prints chosen here, with the thresholds in use now, and counts the alarms. It takes a minute or two; printing is not disturbed.") },
     usable.length > 0 &&
       h(
         "details",
@@ -724,7 +724,7 @@ function RecordingsPage({ active }) {
     });
   }
   if (list.phase === "old" || config.phase === "old") {
-    return h("div", { className: "set-status set-status--warn" }, h("span", { className: "set-status__dot" }), tx("The backend on the Raspberry does not record prints yet: update KlippEye (Settings → Updates)."));
+    return h("div", { className: "set-status set-status--warn" }, h("span", { className: "set-status__dot" }), tx("The KlippEye service on the Raspberry does not record prints yet: update KlippEye (Settings → Updates)."));
   }
   if (list.phase !== "ok") return h(BrainNotice, { phase: list.phase === "loading" ? "loading" : "down" });
   const data = list.data;
@@ -761,7 +761,7 @@ function RecordingsPage({ active }) {
           "div",
           { className: "oui-list set-info-list" },
           stats.check_ms !== undefined && h(InfoLine, { label: tx("Time of one check"), value: formatNumber(stats.check_ms) + " ms" }),
-          stats.cpu_percent !== undefined && h(InfoLine, { label: tx("Backend CPU (last minute)"), value: tx("{percent}% of one core", { percent: formatNumber(stats.cpu_percent) }) }),
+          stats.cpu_percent !== undefined && h(InfoLine, { label: tx("Service CPU (last minute)"), value: tx("{percent}% of one core", { percent: formatNumber(stats.cpu_percent) }) }),
         ),
       ),
     h(AlertsGroup, { active, recorded, open: sessions.length === 0 }),

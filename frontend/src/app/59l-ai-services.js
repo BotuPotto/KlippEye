@@ -46,7 +46,7 @@ function useAiModels(provider, enabled) {
         if (response.ok && data.ok) setState({ phase: "ok", models: Array.isArray(data.models) ? data.models : [], message: "" });
         else setState({ phase: "error", models: [], message: data.error || "HTTP " + response.status });
       } catch (error) {
-        if (!cancelled) setState({ phase: "error", models: [], message: tx("the backend does not answer") });
+        if (!cancelled) setState({ phase: "error", models: [], message: tx("the KlippEye service does not answer") });
       }
     })();
     return () => {
@@ -238,8 +238,8 @@ function AiKeysList({ ai }) {
 /** Everything for one use: the notice while reading, the service and model, the keys. */
 function AiServicesPanel({ use, ai }) {
   if (ai.phase === "loading") return h("div", { className: "set-status" }, h("span", { className: "set-status__dot" }), tx("Reading the AI settings…"));
-  if (ai.phase === "old") return h("div", { className: "set-status set-status--warn" }, h("span", { className: "set-status__dot" }), tx("The backend on the Raspberry is older than the dashboard: update KlippEye to choose the AI service and model."));
-  if (ai.phase !== "ok") return h("div", { className: "set-status set-status--warn" }, h("span", { className: "set-status__dot" }), tx("The backend does not answer."));
+  if (ai.phase === "old") return h("div", { className: "set-status set-status--warn" }, h("span", { className: "set-status__dot" }), tx("The KlippEye service on the Raspberry is older than the dashboard: update KlippEye to choose the AI service and model."));
+  if (ai.phase !== "ok") return h("div", { className: "set-status set-status--warn" }, h("span", { className: "set-status__dot" }), tx("The KlippEye service does not answer."));
   const current = ai.data[use] || {};
   return h(
     React.Fragment,

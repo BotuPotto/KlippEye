@@ -528,21 +528,21 @@ def access_logout_all():
 CONFIG_GROUPS = [
     {"id": "monitor", "title": "Monitor", "note": ""},
     {"id": "rilevamento", "title": "Motion detection",
-     "note": "Every few seconds the backend compares the camera picture with the earlier ones: if enough of it changes, and it happens several times, it asks the AI to look at the picture. With the camera calibrated it looks at the whole bed outside the parts; without, only at the outer band of a rectangle."},
+     "note": "Every few seconds the KlippEye service compares the camera picture with the earlier ones: if enough of it changes, and it happens several times, it asks the AI to look at the picture. With the camera calibrated it looks at the whole bed outside the parts; without, only at the outer band of a rectangle."},
     {"id": "filtro", "title": "False alarms",
      "note": "The filter compares the current picture with a «background» made of several pictures of the last minutes (the passing toolhead is not part of it) and counts only the changes that stay for several checks in a row. It also ignores light changes."},
-    {"id": "area", "title": "Watched area", "note": "The rectangle where the backend looks for suspicious movement. By default it is the central 60% of the picture. With the camera calibrated and the objects of the print known, the whole bed is watched instead (False alarms → Watch the whole bed)."},
+    {"id": "area", "title": "Watched area", "note": "The rectangle where the KlippEye service looks for suspicious movement. By default it is the central 60% of the picture. With the camera calibrated and the objects of the print known, the whole bed is watched instead (False alarms → Watch the whole bed)."},
     {"id": "tempi", "title": "Pauses and usage", "note": "The AI analysis uses an online service: these pauses avoid calling it too often."},
     {"id": "avvio", "title": "When it starts checking",
      "note": "During heating, mesh or purge the real print has not started yet: the monitor waits."},
     {"id": "ia", "title": "AI model", "note": ""},
     {"id": "recording", "title": "Recording",
-     "note": "While a print runs the backend keeps the pictures the monitor looked at (small, about 30 KB each) with layer, position and score, so that the monitor can be measured afterwards. The oldest prints are deleted when the space is full."},
+     "note": "While a print runs the KlippEye service keeps the pictures the monitor looked at (small, about 30 KB each) with layer, position and score, so that the monitor can be measured afterwards. The oldest prints are deleted when the space is full."},
 ]
 
 CONFIG_SPEC = [
     {"key": "enabled", "type": "bool", "default": True, "group": "monitor", "label": "Monitor on",
-     "help": "When off, the backend does not watch the camera and does not call the AI."},
+     "help": "When off, the KlippEye service does not watch the camera and does not call the AI."},
     {"key": "sensitivity", "type": "int", "default": 35, "min": 5, "max": 100, "step": 1, "unit": "", "group": "rilevamento",
      "label": "Change threshold",
      "help": "How much the brightness of a point must change between two pictures to count as movement. HIGHER = less sensitive (fewer false alarms); lower = more sensitive."},

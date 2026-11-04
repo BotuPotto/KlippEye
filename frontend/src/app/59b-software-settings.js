@@ -239,8 +239,8 @@ function UpdateBlock({ update, remoteRelease, brainRelease, printing, menu, upda
         h(Icons.Download, { size: 18 }),
         tx("Update KlippEye"),
       ),
-      printing && h("p", { className: "set-group__note set-group__note--warn" }, tx("A print is running: update when it finishes (the backend restarts).")),
-      !printing && h("p", { className: "set-group__note" }, tx("The backend restarts for a few seconds and the page reloads by itself. Your settings stay.")),
+      printing && h("p", { className: "set-group__note set-group__note--warn" }, tx("A print is running: update when it finishes (the KlippEye service restarts).")),
+      !printing && h("p", { className: "set-group__note" }, tx("The KlippEye service restarts for a few seconds and the page reloads by itself. Your settings stay.")),
     );
   }
   return h("div", { className: "set-status set-status--ok" }, h("span", { className: "set-status__dot" }), tx("KlippEye is up to date") + (update.checkedAt ? tx(" • checked at {time}", { time: new Date(update.checkedAt).toLocaleTimeString(LOCALE, { hour: "2-digit", minute: "2-digit" }) }) : ""));
@@ -264,7 +264,7 @@ function SoftwarePage({ active, menu, updates, printing, actions }) {
     };
   }, [active]);
 
-  if (version.state === "loading") return h("div", { className: "set-status" }, h("span", { className: "set-status__dot" }), tx("Checking the backend…"));
+  if (version.state === "loading") return h("div", { className: "set-status" }, h("span", { className: "set-status__dot" }), tx("Checking the KlippEye service…"));
   if (version.state === "old" || version.state === "down") {
     return h(
       React.Fragment,
@@ -274,8 +274,8 @@ function SoftwarePage({ active, menu, updates, printing, actions }) {
         { className: "set-status set-status--warn" },
         h("span", { className: "set-status__dot" }),
         version.state === "old"
-          ? h("span", null, tx("The backend on the Raspberry is older than 1.0: it cannot update itself from the dashboard. Install KlippEye 1.0 once with"), " ", h("code", null, INSTALL_COMMAND), " (", tx("guide:"), " ", h("code", null, tx("docs/GUIDE.md")), ").")
-          : tx("The backend does not answer: if the printer works, restart it from Mainsail (Services → klippeye)."),
+          ? h("span", null, tx("The KlippEye service on the Raspberry is older than 1.0: it cannot update itself from the dashboard. Install KlippEye 1.0 once with"), " ", h("code", null, INSTALL_COMMAND), " (", tx("guide:"), " ", h("code", null, tx("docs/GUIDE.md")), ").")
+          : tx("The KlippEye service does not answer: if the printer works, restart it from Mainsail (Services → klippeye)."),
       ),
       h(InfoLine, { label: tx("Dashboard (this page)"), value: dashboardRelease() }),
     );
@@ -297,15 +297,15 @@ function SoftwarePage({ active, menu, updates, printing, actions }) {
         h(InfoLine, { label: "Release", value: info.release }),
         h(InfoLine, { label: tx("Dashboard (this page)"), value: dashboardRelease(), warn: differs }),
         git && h(InfoLine, { label: tx("Code version"), value: git.commit + (git.branch ? " • " + git.branch : "") }),
-        h(InfoLine, { label: tx("Backend up for"), value: formatUptime(info.uptime) }),
-        Number(info.api) < BRAIN_API_LEVEL && h(InfoLine, { label: tx("Backend interface"), value: tx("{api} ({needed} needed)", { api: info.api, needed: BRAIN_API_LEVEL }), warn: true }),
+        h(InfoLine, { label: tx("Service up for"), value: formatUptime(info.uptime) }),
+        Number(info.api) < BRAIN_API_LEVEL && h(InfoLine, { label: tx("Service interface"), value: tx("{api} ({needed} needed)", { api: info.api, needed: BRAIN_API_LEVEL }), warn: true }),
       ),
       differs &&
         h(
           "div",
           { className: "set-status set-status--warn" },
           h("span", { className: "set-status__dot" }),
-          h("span", null, tx("This page is "), h("b", null, dashboardRelease()), tx(" but the backend is "), h("b", null, info.release), tx(": reload it to get the new one. ")),
+          h("span", null, tx("This page is "), h("b", null, dashboardRelease()), tx(" but the KlippEye service is "), h("b", null, info.release), tx(": reload it to get the new one. ")),
           h("button", { type: "button", className: "oui-btn oui-btn--sm", onClick: () => location.reload() }, tx("Reload")),
         ),
     ),
@@ -344,11 +344,11 @@ function SoftwarePage({ active, menu, updates, printing, actions }) {
     ),
     h(
       SettingsGroup,
-      { title: txc("noun", "Restart"), note: tx("Restarting the backend takes a few seconds and the page reconnects by itself. A running print does not stop (Klipper drives it, not the backend); the AI monitor and the notifications stop only for a moment.") },
+      { title: txc("noun", "Restart"), note: tx("Restarting the KlippEye service takes a few seconds and the page reconnects by itself. A running print does not stop (Klipper drives it, not the KlippEye service); the AI monitor and the notifications stop only for a moment.") },
       h(
         "div",
         { className: "oui-list" },
-        h(FileActionRow, { icon: h(Icons.RotateCw), title: tx("Restart the backend"), subtitle: tx("Dashboard, AI monitor and link to Moonraker"), onClick: () => actions.restartService(PROGRAM_COMPONENT) }),
+        h(FileActionRow, { icon: h(Icons.RotateCw), title: tx("Restart the KlippEye service"), subtitle: tx("Dashboard, AI monitor and link to Moonraker"), onClick: () => actions.restartService(PROGRAM_COMPONENT) }),
         notifier && h(FileActionRow, { icon: h(Icons.Bell), title: tx("Restart the notifications"), subtitle: tx("The service that sends the alerts to the phone"), onClick: () => actions.restartService(notifier) }),
       ),
     ),
@@ -371,8 +371,8 @@ function SoftwarePage({ active, menu, updates, printing, actions }) {
 
 /** One line for the menu list: the release, and a sign when a newer one is waiting (KlippEye first, else the Android app). */
 function softwareSummary(version, update, appWaiting) {
-  if (version.state === "old") return tx("Backend to update");
-  if (version.state === "down") return tx("Backend not reachable");
+  if (version.state === "old") return tx("KlippEye service to update");
+  if (version.state === "down") return tx("KlippEye service not reachable");
   if (version.state !== "ok") return tx("Release and updates");
   const waiting = update.phase === "ok" && Number(update.raw.commits_behind_count) > 0;
   return "Release " + version.info.release + (waiting ? tx(" • update available") : appWaiting ? tx(" • app to update") : "");
