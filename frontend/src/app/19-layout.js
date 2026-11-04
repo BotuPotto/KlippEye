@@ -4,7 +4,9 @@
      · collapsed cards: a card with an id has a chevron in its header that folds
        it down to the header (Card / CardHeader in 20-ui-primitives.js);
      · the order of the cards of Home and Control, and the ones hidden there
-       (Settings → Appearance).
+       (Settings → Appearance);
+     · 1.51: the small texts that explain how to use a page (.ui-hint: «Tap to
+       change»…), shown or not.
    ========================================================================== */
 
 const LAYOUT_KEY = "ke_layout";
@@ -69,11 +71,19 @@ const layoutStore = (() => {
       const list = (state.hidden[page] || []).filter((one) => one !== id);
       save({ ...state, hidden: { ...state.hidden, [page]: hidden ? list.concat(id) : list } });
     },
-    reset: () => save(empty()),
+    setHints: (show) => save({ ...state, hideHints: !show }),
+    reset: () => save({ ...empty(), hideHints: state.hideHints }),
   };
 })();
 
 const useLayout = () => useSyncExternalStore(layoutStore.subscribe, layoutStore.snapshot);
+
+/** The hints hidden or not: a class on the page, read by css/15-surfaces.css. */
+function applyHints() {
+  document.documentElement.classList.toggle("hide-hints", Boolean(layoutStore.snapshot().hideHints));
+}
+applyHints();
+layoutStore.subscribe(applyHints);
 
 /** The page's cards in the chosen order, without the hidden ones: `cards` is { id: element }. */
 function arrangeCards(page, cards) {

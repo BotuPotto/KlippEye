@@ -103,3 +103,6 @@ button.oui-tile:active { transform: scale(0.985); background: var(--oui-surface-
 .oui-card.is-collapsed > :not(.oui-card__head) { display: none; }
 .oui-card.is-collapsed > .oui-card__head { margin-bottom: 0; }
 .oui-card--flush.is-collapsed > .oui-card__head { padding-bottom: 18px; }
+
+/* the hints (1.51): the small texts that explain how to use a page, hidden in Settings → Appearance */
+.hide-hints .ui-hint { display: none !important; }

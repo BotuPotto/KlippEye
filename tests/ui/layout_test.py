@@ -1,6 +1,6 @@
-"""Release 1.50.0 (roadmap 6e part 1): cards that fold down to their title (the chevron, kept on this device), and
+"""Releases 1.50.0 / 1.51.0 (roadmap 6e parts 1 and 2): cards that fold down to their title (the chevron, kept on this device), and
 Settings → Appearance: the order of the cards of Home and Control, the hidden ones, "open them all", the usual order
-back. Against the mock.
+back; the hints (the small texts that explain a page) shown or hidden. Against the mock.
 Usage: layout_test.py <html> <outdir> <port>"""
 import os
 import sys
@@ -104,6 +104,21 @@ with sync_playwright() as p:
     ok("'Ordine solito, tutto visibile' brings everything back", wait_until(lambda: "console" in order(P)))
     ok("no horizontal overflow", pg.evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth"))
     ok("no page errors", not errs(P), errs(P)[:2])
+    P.close()
+
+    # 1.51: the hints
+    mock.reset()
+    P = Page(b, mock, 390, 844)
+    CUR[0] = P
+    P.goto("home", 2400)
+    ok("the hints show by default ('Tocca per modificare')", P.pg.locator(".ui-hint", has_text="Tocca per modificare").first.is_visible())
+    open_appearance(P)
+    P.pg.locator('[data-setting="hints"] [role=switch]').click()
+    close_menu(P)
+    ok("'Mostra i suggerimenti' off: they hide", wait_until(lambda: not P.pg.locator(".ui-hint").first.is_visible()) and P.pg.locator(".heater-tile").first.is_visible())
+    P.pg.reload()
+    P.pg.wait_for_timeout(2400)
+    ok("... and stay hidden on this device", not P.pg.locator(".ui-hint").first.is_visible())
     P.close()
 
     # computer: the cards fold there too

@@ -315,7 +315,7 @@ function FilesCard({ list, onPrint, onMenu, selectedPath, onSelect }) {
       h(GcodeSortButton, { view }),
       h("span", { className: "oui-badge" }, list.loading ? "..." : (view.query.trim() ? files.length + " / " : "") + list.files.length + tx(" files")),
     ),
-    !list.loading && !list.error && list.files.length > 0 && h("div", { className: "oui-caption files-hint" }, tx("Long-press a file for its details, the editor or to delete it")),
+    !list.loading && !list.error && list.files.length > 0 && h("div", { className: "oui-caption files-hint ui-hint" }, tx("Long-press a file for its details, the editor or to delete it")),
     h("div", { className: "grid grid-cols-2 files-grid" }, body),
   );
 }

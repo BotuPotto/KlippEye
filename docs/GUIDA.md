@@ -299,6 +299,9 @@ dispositivo). In **Impostazioni → Aspetto** scegli l'**ordine** delle card di 
 mostrare (con l'interruttore), vedi quante card sono richiuse (*Riaprile tutte*) e torni all'ordine solito. La card della
 stampa resta sempre in cima.
 
+In **Impostazioni → Aspetto → Mostra i suggerimenti** puoi nascondere su questo dispositivo i testi piccoli che spiegano
+come usare la pagina (*Tocca per modificare*, *Tieni premuto un file…* e simili).
+
 ### Coda di stampa
 
 Se `moonraker.conf` ha `[job_queue]`, il menu di un file (tenendolo premuto; sul computer il pulsante *Coda* nel riquadro

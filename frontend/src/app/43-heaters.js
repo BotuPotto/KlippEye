@@ -26,7 +26,7 @@ function HeaterTile({ kind, heater, onEdit, className }) {
       h("span", { className: "oui-value" }, heater.cur.toFixed(1), "°"),
       h("span", { className: "heater-tile__target" }, "/ ", heater.target, "°"),
     ),
-    h("div", { className: "oui-caption" }, tx("Tap to change")),
+    h("div", { className: "oui-caption ui-hint" }, tx("Tap to change")),
   );
 }
 
