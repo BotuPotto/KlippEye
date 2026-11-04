@@ -26,10 +26,44 @@ function ConfigFileRow({ item, manager }) {
         "span",
         { className: "cfg-row__text" },
         h("span", { className: "cfg-row__name" }, item.name),
-        h("span", { className: "cfg-row__meta" }, !isFolder && formatBytes(item.size) && h("span", null, formatBytes(item.size)), formatFileDate(item.modified) && h("span", null, formatFileDate(item.modified)), isFolder && h("span", null, tx("folder"))),
+        h(
+          "span",
+          { className: "cfg-row__meta" },
+          isBackupName(item.name) && h("span", { className: "cfg-row__tag", "data-tag": "backup" }, tx("backup")),
+          isHiddenName(item.name) && h("span", { className: "cfg-row__tag", "data-tag": "hidden" }, tx("hidden")),
+          !isFolder && formatBytes(item.size) && h("span", null, formatBytes(item.size)),
+          formatFileDate(item.modified) && h("span", null, formatFileDate(item.modified)),
+          isFolder && h("span", null, tx("folder")),
+        ),
       ),
     ),
     h("button", { className: "cfg-row__more", title: tx("Actions"), "aria-label": tx("Actions for ") + item.name, onClick: () => manager.openMenu(item) }, h(Icons.Dots, { size: 20 })),
+  );
+}
+
+/** Order and what is shown (backups, hidden files): a menu next to the search box (1.39). */
+function ConfigViewButton({ view }) {
+  const menu = useDropdown();
+  const option = (checked, title, subtitle, onClick, key) =>
+    h(
+      "button",
+      { key, type: "button", className: "oui-menu__item console-option", role: "menuitemradio", "aria-checked": checked, "data-view-option": key, onClick },
+      h("span", { className: "oui-menu__icon" }, checked ? h(Icons.Check, { size: 18 }) : null),
+      h("span", { className: "oui-menu__text" }, h("span", { className: "oui-menu__title" }, title), subtitle && h("span", { className: "oui-menu__sub" }, subtitle)),
+    );
+  return h(
+    React.Fragment,
+    null,
+    h("button", { type: "button", ref: menu.anchorRef, className: cx("oui-chip cfg-view-btn", menu.open && "is-selected"), "aria-label": tx("Order and what to show"), title: tx("Order and what to show"), "aria-haspopup": "menu", "aria-expanded": menu.open, onClick: menu.toggle }, h(Icons.Sort, { size: 16 })),
+    h(
+      DropdownMenu,
+      { menu },
+      h(MenuLabel, null, tx("Order")),
+      CONFIG_SORTS.map((sort) => option(view.sort === sort.id, sort.label, null, () => configViewStore.set({ sort: sort.id }), sort.id)),
+      h(MenuLabel, null, tx("Show")),
+      option(view.backups, tx("Backup files"), tx("printer-….cfg written by SAVE_CONFIG, .bak…"), () => configViewStore.set({ backups: !view.backups }), "backups"),
+      option(view.hidden, tx("Hidden files"), tx("Names starting with a dot"), () => configViewStore.set({ hidden: !view.hidden }), "hidden"),
+    ),
   );
 }
 
@@ -73,11 +107,19 @@ function ConfigFilesCard({ onEditFile, onViewImage }) {
       "div",
       { className: "cfg-toolbar" },
       h("input", { type: "text", value: folder.query, onChange: (e) => folder.setQuery(e.target.value), placeholder: tx("Search..."), className: "oui-field cfg-toolbar__search" }),
+      h(ConfigViewButton, { view: folder.view }),
       h("button", { onClick: folder.goRoot, title: tx("Main folder"), className: cx("oui-chip", dnd.isOver("chip:root") && "is-drop-target"), ...dnd.dropTarget("", "chip:root") }, "/"),
       h("button", { onClick: folder.goUp, title: tx("Parent folder"), className: cx("oui-chip", dnd.isOver("chip:up") && "is-drop-target"), ...dnd.dropTarget(parentPath(folder.currentPath), "chip:up") }, ".."),
     ),
     folder.currentPath && h("div", { className: "cfg-path oui-mono" }, "/" + folder.currentPath),
     body,
+    !folder.loading &&
+      (folder.left.backups > 0 || folder.left.hidden > 0) &&
+      h(
+        "button",
+        { type: "button", className: "cfg-left", "data-left": "1", onClick: () => configViewStore.set({ backups: folder.view.backups || folder.left.backups > 0, hidden: folder.view.hidden || folder.left.hidden > 0 }) },
+        [folder.left.backups && tx("{count} backup files", { count: folder.left.backups }), folder.left.hidden && tx("{count} hidden", { count: folder.left.hidden })].filter(Boolean).join(" · ") + " — " + tx("show"),
+      ),
     dnd.filesOver && h("div", { className: "cfg-dropzone" }, h(Icons.Upload, { size: 28 }), h("span", null, tx("Drop to upload into ") + showPath(folder.currentPath))),
     h("input", manager.fileInput),
     h(ConfigManagerDialogs, { manager }),

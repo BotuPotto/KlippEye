@@ -226,6 +226,13 @@ square corner velocity, minimum cruise ratio) and the **firmware retraction** (w
 − / + or type a value; under each one is the value of `printer.cfg`, and the round arrow goes back to it. Nothing is
 written to `printer.cfg`: a restart of Klipper brings its values back.
 
+### Configuration files
+
+The **Configuration files** card (Config page) lists folders first, then files. The ⇅ button next to the search box chooses
+the **order** (name A→Z or Z→A, last change first or oldest first, largest first) and whether to show the **backup files**
+(the `printer-YYYYMMDD_HHMMSS.cfg` written by SAVE_CONFIG, `.bak`, `.bkp`…) and the **hidden files** (names starting with
+a dot). The choice stays on this device; a line under the list says how many are left out, and a tap on it shows them.
+
 ### During a print
 
 The **print card** (Home) shows the file, the progress, the time, what is left and the layer; under them **when it ends**

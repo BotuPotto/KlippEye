@@ -4,13 +4,19 @@
    folder the card is showing. The operations on files and folders (new,
    upload, rename, move, delete) are in 50a, the card itself in 50b.
    A file opens in the full-screen editor (51), an image in the image viewer (52).
-   Files that must not be edited from the dashboard are hidden.
+   Klipper's backups (printer-YYYYMMDD_HHMMSS.cfg, *.bak...) and hidden files
+   (.name) are left out unless the person shows them (1.39, like Mainsail); the
+   order is chosen too (name, last change, size). Both are kept on this device.
    ========================================================================== */
 
 const CONFIG_ROOT = "config";
 const IMAGE_EXTENSIONS = ["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg", "ico", "tiff", "tif"];
-/** printer-*.cfg (generated backups) and crowsnest.conf.* are not shown. */
+/** printer-*.cfg (generated backups) and crowsnest.conf.*: names reserved to the backups Klipper and crowsnest write. */
 const HIDDEN_CONFIG_FILE = /^(printer-.*\.cfg|crownest\.conf\..*|crowsnest\.conf\..*)$/i;
+/** 1.39: what counts as a backup: those, and the usual backup endings (.bak, .bkp, .backup, .old, ~). */
+const BACKUP_CONFIG_FILE = /^(printer-.*\.cfg|crownest\.conf\..*|crowsnest\.conf\..*|.*\.(bak|bkp|backup|old|orig)|.*~)$/i;
+const isHiddenName = (name) => name.startsWith(".");
+const isBackupName = (name) => BACKUP_CONFIG_FILE.test(name.replace(/^\./, ""));
 
 const baseName = (path) => path.split("/").pop() || "";
 const isImagePath = (path) => IMAGE_EXTENSIONS.includes(baseName(path).split(".").pop().toLowerCase());
@@ -150,15 +156,70 @@ const configFilesApi = {
    Folder view
    ------------------------------------------------------------------------- */
 
-/** The items of a listing that are shown (the generated backups are not), by name. */
-const sortedVisible = (list) => list.filter((item) => !HIDDEN_CONFIG_FILE.test(item.name)).sort((a, b) => a.name.localeCompare(b.name));
+/** The items of a listing that are shown by default (no backups, no hidden names), by name: the folders of the move dialog. */
+const sortedVisible = (list) => list.filter((item) => !isBackupName(item.name) && !isHiddenName(item.name)).sort((a, b) => a.name.localeCompare(b.name));
 
-/** Folders (first) and files of a listing, narrowed by what was typed in the search box. */
-function visibleItems(entries, query) {
-  if (!entries) return [];
-  const items = [...sortedVisible(entries.folders), ...sortedVisible(entries.files)];
+/* ---- how the list is shown (1.39), kept on this device ---- */
+const CONFIG_VIEW_KEY = "ke_cfg_view";
+const CONFIG_SORTS = [
+  { id: "name", label: tx("Name A→Z") },
+  { id: "name-desc", label: tx("Name Z→A") },
+  { id: "modified", label: tx("Last changed first") },
+  { id: "modified-asc", label: tx("Oldest change first") },
+  { id: "size", label: tx("Largest first") },
+];
+const configViewStore = (() => {
+  const saved = storage.getJson(CONFIG_VIEW_KEY) || {};
+  let view = { sort: CONFIG_SORTS.some((sort) => sort.id === saved.sort) ? saved.sort : "name", backups: saved.backups === true, hidden: saved.hidden === true };
+  const listeners = new Set();
+  return {
+    snapshot: () => view,
+    subscribe(listener) {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+    set(change) {
+      view = { ...view, ...change };
+      storage.set(CONFIG_VIEW_KEY, JSON.stringify(view));
+      listeners.forEach((listener) => listener());
+    },
+  };
+})();
+const useConfigView = () => useSyncExternalStore(configViewStore.subscribe, configViewStore.snapshot);
+
+/** `list` sorted as chosen (folders by name when sorted by size: they have none). */
+function sortConfigItems(list, sort) {
+  const byName = (a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" });
+  const compare = {
+    name: byName,
+    "name-desc": (a, b) => byName(b, a),
+    modified: (a, b) => (b.modified || 0) - (a.modified || 0) || byName(a, b),
+    "modified-asc": (a, b) => (a.modified || 0) - (b.modified || 0) || byName(a, b),
+    size: (a, b) => (b.size || 0) - (a.size || 0) || byName(a, b),
+  }[sort] || byName;
+  return [...list].sort(compare);
+}
+
+/** Folders (first) and files of a listing, as the view says, narrowed by the search box; `left` counts what is left out. */
+function visibleItems(entries, query, view = { sort: "name", backups: false, hidden: false }) {
+  if (!entries) return { items: [], left: { backups: 0, hidden: 0 } };
+  const left = { backups: 0, hidden: 0 };
+  const keep = (item) => {
+    if (isHiddenName(item.name) && !view.hidden) {
+      left.hidden += 1;
+      return false;
+    }
+    if (isBackupName(item.name) && !view.backups) {
+      left.backups += 1;
+      return false;
+    }
+    return true;
+  };
+  const folders = sortConfigItems(entries.folders.filter(keep), view.sort === "size" ? "name" : view.sort);
+  const files = sortConfigItems(entries.files.filter(keep), view.sort);
+  const items = [...folders, ...files];
   const needle = query.trim().toLowerCase();
-  return needle ? items.filter((item) => item.name.toLowerCase().includes(needle) || item.path.toLowerCase().includes(needle)) : items;
+  return { items: needle ? items.filter((item) => item.name.toLowerCase().includes(needle) || item.path.toLowerCase().includes(needle)) : items, left };
 }
 
 /** Every name taken in a folder, the hidden ones too: a new name must not collide with those either. */
@@ -175,6 +236,7 @@ function useConfigFolder() {
   const [query, setQuery] = useState("");
   const [state, setState] = useState({ entries: null, loading: true, error: null });
   const latestRequest = useRef(0);
+  const view = useConfigView();
 
   /** Shows `folder`. `quiet` keeps the list on screen while the new one arrives (after a change the user made). */
   const load = async (folder, { quiet = false } = {}) => {
@@ -200,10 +262,13 @@ function useConfigFolder() {
     return load(currentPath, options);
   };
 
+  const shown = visibleItems(state.entries, query, view);
   return {
     ...state,
     currentPath,
-    items: visibleItems(state.entries, query),
+    items: shown.items,
+    left: shown.left,
+    view,
     names: takenNames(state.entries),
     query,
     setQuery,
