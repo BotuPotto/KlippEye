@@ -127,7 +127,7 @@ with sync_playwright() as p:
     pg = P.pg
     open_menu(P)
     titles = pg.locator(".set-entry .oui-row__name").all_inner_texts()
-    ok("the guided set-up, then the pages: Accesso, the software one and Lingua last", titles == ["Configurazione guidata", "Nome e logo", "Funzioni della stampante", "Macro", "Movimento", "Z-offset", "Camera", "Monitor IA", "Notifiche", "Indirizzi", "Aspetto", "Accesso", "Aggiornamenti", "Lingua"], titles)
+    ok("the guided set-up, then the pages, the software one last (1.54)", titles == ["Configurazione guidata", "Nome e logo", "Funzioni della stampante", "Macro", "Movimento", "Z-offset", "Cronologia stampe", "Camera", "Monitor IA", "Aspetto", "Notifiche", "Lingua", "Indirizzi", "Accesso", "Aggiornamenti"], titles)
     ok("the list says which release is installed", wait_until(lambda: pg.locator('.set-entry[data-page="software"] .set-entry__meta').inner_text() == "Release 1.0.0"), pg.locator('.set-entry[data-page="software"] .set-entry__meta').inner_text())
     ok("no 'Nuovo' sign when nothing is waiting (only 'Da controllare' on Printer functions)", pg.locator('.set-entry[data-page="software"] .set-entry__badge').count() == 0 and pg.locator(".set-entry__badge").all_inner_texts() == ["Avvia", "Da controllare"], pg.locator(".set-entry__badge").all_inner_texts())
     P.close()
