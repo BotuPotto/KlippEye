@@ -1,5 +1,17 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.62.0
+
+**More printers in the Android app (app 1.6.0)** (requests of 4 November, second part).
+
+* In the KlippEye app, choosing another printer (the menu on the name at the top, or the overview) opens it **inside
+  the app**, and the app remembers it the next time it opens. If it does not answer, the app says so and goes back to
+  the main printer (the one of the app's addresses).
+* The **notifications arrive from every printer** opened in the app, not only from the one on the screen: each printer
+  gives the app its ntfy topic, and the app listens to all of them (one connection per ntfy server).
+* The dashboard of another printer does not change the app's addresses (they stay the main printer's).
+* With an older app, another printer opens in the browser and the page says to update the app.
+
 ## 1.61.0
 
 **More printers: the list, the switcher in the top bar, the overview** (requests of 4 November, first part).

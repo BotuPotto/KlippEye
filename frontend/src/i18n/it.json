@@ -694,6 +694,7 @@
  "It leaves printer.cfg at the next SAVE_CONFIG (the save button at the top).": "Esce da printer.cfg al prossimo SAVE_CONFIG (il pulsante salva in alto).",
  "It needs the current password (field at the top). The dashboard will open again without logging in.": "Serve la password attuale (campo in alto). La dashboard tornerà ad aprirsi senza accesso.",
  "It opens here, ready to edit. Pictures open full screen.": "Si apre qui, pronto da modificare. Le immagini si aprono a tutto schermo.",
+ "It opens in the browser: update the KlippEye app to open it here": "Si apre nel browser: aggiorna l'app KlippEye per aprirla qui",
  "It opens in the settings; when it is done, «Guided set-up» brings you back here.": "Si apre nelle impostazioni; quando hai finito, «Configurazione guidata» ti riporta qui.",
  "It prints when the printer is free.": "Si stampa quando la stampante è libera.",
  "It watches the print through the camera and warns you of a failure. It needs an AI key (free) and, to watch the whole bed, the camera calibrated.": "Sorveglia la stampa con la camera e ti avvisa di un guasto. Serve una chiave IA (gratuita) e, per sorvegliare tutto il piatto, la camera calibrata.",

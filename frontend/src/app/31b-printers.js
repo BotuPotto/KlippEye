@@ -89,6 +89,7 @@ function openPrinter(printer, here) {
     bridge.switchPrinter(JSON.stringify({ host: printer.host, name: printer.name || "" }));
     return;
   }
+  if (IN_APP_WEBVIEW) toast.notice(tx("It opens in the browser: update the KlippEye app to open it here"), 4000); // an app before 1.6.0
   window.location.href = printerBaseUrl(printer.host) + "/" + from;
 }
 
