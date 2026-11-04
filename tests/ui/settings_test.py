@@ -99,6 +99,12 @@ def go(P, name):
         P.pg.click('.drawer button[aria-label="Indietro"]'); P.settle(400)
     if not P.pg.locator('.set-entry[data-page="%s"]' % name).count() and name in ("camcal", "detector", "recordings"):
         P.pg.click('.set-entry[data-page="ai"]'); P.settle(600)
+    if name == "camera":  # 1.59: Camera lists the cameras; the main one has its page
+        if not P.pg.locator('.set-entry[data-page="camera"]').count():
+            P.pg.click('.drawer button[aria-label="Indietro"]'); P.settle(400)
+        P.pg.click('.set-entry[data-page="camera"]'); P.settle(450)
+        P.pg.click('.set-entry[data-page="camera-main"]'); P.settle(450)
+        return
     P.pg.click('.set-entry[data-page="%s"]' % name); P.settle(450)
 
 
@@ -152,7 +158,9 @@ with sync_playwright() as p:
     open_menu(P); pg.keyboard.press("Escape"); pg.wait_for_selector(".drawer", state="detached")
     ok("Escape closes it", True)
     open_menu(P); go(P, "camera"); pg.keyboard.press("Escape"); P.settle(300)
-    ok("Escape inside a group goes back to the list first, then closes", pg.locator(".set-entry").count() == 16 and pg.locator(".drawer").count() == 1)
+    ok("Escape inside a page goes back one level (main camera -> the cameras)", pg.locator('.set-entry[data-page="camera-main"]').count() == 1 and pg.locator(".drawer").count() == 1)
+    pg.keyboard.press("Escape"); P.settle(300)
+    ok("... then to the list of groups, then closes", pg.locator(".set-entry").count() == 16 and pg.locator(".drawer").count() == 1)
     pg.keyboard.press("Escape"); pg.wait_for_selector(".drawer", state="detached")
     open_menu(P)
     TOUCH = """([sx, ex]) => { const el = document.querySelector('.drawer'); const mk = (type, x) => { const e = new Event(type, { bubbles: true, cancelable: true }); const t = [{ identifier: 1, clientX: x, clientY: 300, target: el }]; e.touches = type === 'touchend' ? [] : t; e.changedTouches = t; return e; }; el.dispatchEvent(mk('touchstart', sx)); el.dispatchEvent(mk('touchend', ex)); }"""
@@ -316,8 +324,10 @@ with sync_playwright() as p:
     choice(pg, "WebRTC").click(); P.settle(300)
     # reload button
     pg.evaluate("() => { document.querySelector('.camera-frame iframe').__mark = 1; }")
+    back(P)  # 1.59: on the list of the cameras
     pg.locator('button:has-text("Ricarica la camera")').click(); P.settle(400)
     ok("'Ricarica la camera' loads the picture afresh (a new iframe)", pg.evaluate("() => document.querySelector('.camera-frame iframe').__mark") is None)
+    pg.locator('.set-entry[data-page="camera-main"]').click(); P.settle(450)
     # import from Mainsail
     pg.locator('button:has-text("Importa da Mainsail")').click(); pg.wait_for_selector(".set-choice:has-text('Piatto')")
     rows = pg.locator(".set-group", has=pg.locator(".set-group__label", has_text="Da Mainsail")).locator(".set-choice")
@@ -530,7 +540,7 @@ with sync_playwright() as p:
     # ============================================================================================ restore
     P = fresh(b)
     pg = P.pg
-    open_menu(P); go(P, "notifications"); switch(P, "Stampa completata").click(); back(P); go(P, "camera"); choice(pg, "MJPEG").click(); back(P); P.settle(300)
+    open_menu(P); go(P, "notifications"); switch(P, "Stampa completata").click(); back(P); go(P, "camera"); choice(pg, "MJPEG").click(); back(P); back(P); P.settle(300)
     pg.locator('button:has-text("Ripristina i valori iniziali")').click(); pg.wait_for_selector(".confirm-overlay"); pg.locator(".confirm-card button:has-text('Annulla')").click(); P.settle(400)
     ok("restore: 'Annulla' changes nothing", settings_now(P)["camera"]["method"] == "mjpeg" and settings_now(P)["notifications"]["complete"] is False)
     pg.locator('button:has-text("Ripristina i valori iniziali")').click(); pg.wait_for_selector(".confirm-overlay"); pg.locator(".confirm-card button:has-text('Ripristina')").click(); P.settle(600)
@@ -697,7 +707,7 @@ with sync_playwright() as p:
     close_menu(P); P.settle(800)
     other = [r for r in P.reqs if r["m"] != "GET" and "/server/database/item" not in r["u"]]
     ok("looking at every page of the menu sends nothing to the printer (no G-code, no commands)", not other and mock.gcode() == [], (other, mock.gcode()))
-    ok("... and reads only the settings, the service's key, the notification channels and the update channel", all("/server/database/item" in r["u"] or r["u"].split("?")[0].startswith(POLL_PATHS + ("/api/update/channel", "/api/ai/config", "/api/ai/models", "/api/notifications/channels")) or r["u"].startswith("EXT") for r in P.reqs if r["m"] == "GET"), [r["u"] for r in P.reqs if r["m"] == "GET" and "/server/database/item" not in r["u"] and not r["u"].split("?")[0].startswith(POLL_PATHS)][:5])
+    ok("... and reads only the settings, the service's key, the notification channels and the update channel", all("/server/database/item" in r["u"] or r["u"].split("?")[0].startswith(POLL_PATHS + ("/api/update/channel", "/api/ai/config", "/api/ai/models", "/api/notifications/channels", "/server/webcams/list", "/server/info")) or r["u"].startswith("EXT") for r in P.reqs if r["m"] == "GET"), [r["u"] for r in P.reqs if r["m"] == "GET" and "/server/database/item" not in r["u"] and not r["u"].split("?")[0].startswith(POLL_PATHS)][:5])
     ok("no errors in the page", not P.errors, P.errors[:3])
     P.close()
     b.close()

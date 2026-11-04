@@ -180,9 +180,10 @@ def default_state():
         "db": {},                   # {"namespace/key": value}
         "db_mode": "ok",            # ok | no_route (the backend does not pass /server/database on: Flask 404 page) | refuse (403) | down (502)
         "db_log": [],               # (method, namespace, key) of every request
-        "webcams": [{"name": "KlippEye", "service": "webrtc-camerastreamer", "enabled": True, "stream_url": "/webcam/webrtc", "snapshot_url": "/webcam/snapshot", "flip_horizontal": False, "flip_vertical": False, "target_fps": 15},
-                    {"name": "Piatto", "service": "mjpegstreamer", "enabled": True, "stream_url": "/webcam2/?action=stream", "snapshot_url": "/webcam2/?action=snapshot", "flip_horizontal": True, "flip_vertical": False, "target_fps": 10},
-                    {"name": "Go2rtc", "service": "webrtc-go2rtc", "enabled": True, "stream_url": "/go2rtc/api/webrtc?src=cam", "snapshot_url": "", "flip_horizontal": False, "flip_vertical": False, "target_fps": 15}],
+        "webcams": [{"name": "KlippEye", "uid": "u-klippeye", "source": "database", "service": "webrtc-camerastreamer", "enabled": True, "stream_url": "/webcam/webrtc", "snapshot_url": "/webcam/snapshot", "flip_horizontal": False, "flip_vertical": False, "target_fps": 15},
+                    {"name": "Piatto", "uid": "u-piatto", "source": "database", "service": "mjpegstreamer", "enabled": True, "stream_url": "/webcam2/?action=stream", "snapshot_url": "/webcam2/?action=snapshot", "flip_horizontal": True, "flip_vertical": False, "target_fps": 10},
+                    {"name": "Go2rtc", "uid": "u-go2rtc", "source": "config", "service": "webrtc-go2rtc", "enabled": True, "stream_url": "/go2rtc/api/webrtc?src=cam", "snapshot_url": "", "flip_horizontal": False, "flip_vertical": False, "target_fps": 15}],
+        "webcam_log": [],           # 1.59: ("post" | "delete", body or uid)
     }
 
 def default_services():
@@ -403,7 +404,7 @@ def mock_reset():
     S.clear(); S.update(default_state()); return jsonify(ok=True)
 @app.route("/__mock/state")
 def mock_state():
-    return jsonify({k: v for k, v in S.items() if k in ("light", "light_cmds", "light_reads", "actions", "webhooks", "webhooks_msg", "disconnected", "moonraker_down", "host_off", "services", "update_log", "brain_cfg_log", "brain_release", "brain_started", "klippeye_info", "pending_release", "logos", "app_apk_hits", "app_apk_downloads", "update_channel", "channel_posts", "rec_posts", "measure_starts", "measure_bodies", "ai_cfg", "ai_posts", "ai_model_reads", "excluded", "strip", "caselight", "mesh_profiles", "mesh_active", "mp", "mp_points", "tune", "speed_factor", "extrude_factor", "bs", "level_applied", "recordings", "alerts", "pm_macros", "pm_wraps", "pm_posts", "gcode_log", "ntfy", "ntfy_posts", "ntfy_tests", "ntfy_app_reads", "ai_answers", "ai_answer", "history_log", "queue", "queue_state", "queue_log", "power_devices", "power_log", "pins", "sensors", "timelapse_settings", "timelapse_log", "timelapse_files", "spool_id", "spool_log")})
+    return jsonify({k: v for k, v in S.items() if k in ("light", "light_cmds", "light_reads", "actions", "webhooks", "webhooks_msg", "disconnected", "moonraker_down", "host_off", "services", "update_log", "brain_cfg_log", "brain_release", "brain_started", "klippeye_info", "pending_release", "logos", "app_apk_hits", "app_apk_downloads", "update_channel", "channel_posts", "rec_posts", "measure_starts", "measure_bodies", "ai_cfg", "ai_posts", "ai_model_reads", "excluded", "strip", "caselight", "mesh_profiles", "mesh_active", "mp", "mp_points", "tune", "speed_factor", "extrude_factor", "bs", "level_applied", "recordings", "alerts", "pm_macros", "pm_wraps", "pm_posts", "gcode_log", "ntfy", "ntfy_posts", "ntfy_tests", "ntfy_app_reads", "ai_answers", "ai_answer", "history_log", "queue", "queue_state", "queue_log", "power_devices", "power_log", "pins", "sensors", "timelapse_settings", "timelapse_log", "timelapse_files", "spool_id", "spool_log", "webcams", "webcam_log")})
 @app.route("/__mock/print_actions")
 def mock_print_actions():
     return jsonify(S.get("print_actions", []))
@@ -1707,6 +1708,34 @@ def db_item():
 @app.route("/server/webcams/list")
 def webcams_list():
     return jsonify(result={"webcams": S["webcams"]})
+
+@app.route("/server/webcams/post_item", methods=["POST"])
+def webcams_post():
+    body = request.get_json(force=True, silent=True) or {}
+    S["webcam_log"].append(("post", body))
+    uid = body.get("uid")
+    others = [c for c in S["webcams"] if c.get("uid") != uid]
+    if any(c.get("name") == body.get("name") for c in others):
+        return jsonify(error={"code": 400, "message": "Webcam named '%s' already exists" % body.get("name")}), 400
+    old = next((c for c in S["webcams"] if uid and c.get("uid") == uid), None)
+    if old is not None and old.get("source") == "config":
+        return jsonify(error={"code": 400, "message": "Cannot overwrite webcam defined in moonraker.conf"}), 400
+    cam = dict(old or {}, **body)
+    if not cam.get("uid"):
+        cam["uid"] = "u-new-%d" % len(S["webcam_log"])
+    cam.setdefault("source", "database")
+    S["webcams"] = [cam if c is old else c for c in S["webcams"]] if old is not None else S["webcams"] + [cam]
+    return jsonify(result={"webcam": cam})
+
+@app.route("/server/webcams/delete_item", methods=["DELETE"])
+def webcams_delete():
+    uid = request.args.get("uid")
+    S["webcam_log"].append(("delete", uid))
+    cam = next((c for c in S["webcams"] if c.get("uid") == uid), None)
+    if cam is None:
+        return jsonify(error={"code": 404, "message": "Webcam not found"}), 404
+    S["webcams"] = [c for c in S["webcams"] if c is not cam]
+    return jsonify(result={"webcam": cam})
 
 @app.route("/webcam/<path:p>")
 def webcam(p):

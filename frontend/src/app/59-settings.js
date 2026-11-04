@@ -41,7 +41,7 @@ function useSettingsMenu() {
     if (next !== page) history.current.push(page);
     setPage(next);
   };
-  const back = () => setPage(history.current.length ? history.current.pop() : PAGE_PARENT[page] || null);
+  const back = () => setPage(history.current.length ? history.current.pop() : PAGE_PARENT[page] || (page && page.startsWith("webcam:") ? "camera" : null));
   const close = () => {
     history.current = [];
     setOpen(false);
@@ -333,7 +333,7 @@ async function loadMainsailWebcams() {
     .map((cam) => {
       const method = MAINSAIL_SERVICES[String(cam.service || "").toLowerCase()] || "";
       const address = cleanCameraAddress(method === "adaptive" ? cam.snapshot_url || cam.stream_url : cam.stream_url);
-      return { name: String(cam.name || "Camera"), service: String(cam.service || ""), method: address ? method : "", address, snapshot: cleanCameraAddress(cam.snapshot_url) || "", flipH: cam.flip_horizontal === true, flipV: cam.flip_vertical === true, fps: Number(cam.target_fps) || 0 };
+      return { name: String(cam.name || "Camera"), service: String(cam.service || ""), method: address ? method : "", address, snapshot: cleanCameraAddress(cam.snapshot_url) || "", flipH: cam.flip_horizontal === true, flipV: cam.flip_vertical === true, rotation: [90, 180, 270].includes(Number(cam.rotation)) ? Number(cam.rotation) : 0, fps: Number(cam.target_fps) || 0 };
     });
 }
 
@@ -417,7 +417,8 @@ function SnapshotSetting({ camera, update }) {
   );
 }
 
-function CameraPage({ menu }) {
+/** The main camera (1.59: a page of Settings → Camera, which lists every camera; see 59p-cameras-settings.js). */
+function CameraPage() {
   const { settings, update } = useSettings();
   const camera = settings.camera;
   const method = CAMERA_METHODS.find((item) => item.id === camera.method);
@@ -475,17 +476,6 @@ function CameraPage({ menu }) {
     ),
     h(SnapshotSetting, { camera, update }),
     h(MainsailImport, { onPick: pick }),
-    menu &&
-      h(
-        SettingsGroup,
-        { title: tx("For the AI monitor") },
-        h(SubpageRow, { entry: AI_SUBPAGES[0], meta: tx("Where the bed and the nozzle are in the picture: needed to watch the whole bed"), menu }),
-      ),
-    h(
-      SettingsGroup,
-      null,
-      h("button", { type: "button", className: "oui-btn oui-btn--block", onClick: requestCameraReload }, h(Icons.Refresh, { size: 18 }), tx("Reload the camera")),
-    ),
   );
 }
 
@@ -818,8 +808,13 @@ const AI_SUBPAGES = [
   { id: "detector", title: tx("Monitor thresholds"), icon: Icons.Sliders },
   { id: "recordings", title: tx("Recordings"), icon: Icons.Image },
 ];
-const PAGE_PARENT = Object.fromEntries(AI_SUBPAGES.map((entry) => [entry.id, "ai"]));
-const PAGE_TITLES = Object.fromEntries([...SETTINGS_ENTRIES, ...AI_SUBPAGES].map((entry) => [entry.id, entry.title]));
+/** 1.59: the pages inside "Camera" (and one page for each webcam of Moonraker, "webcam:<uid>"). */
+const CAMERA_SUBPAGES = [
+  { id: "camera-main", title: tx("Main camera"), icon: Icons.Camera },
+  { id: "camera-timelapse", title: "Timelapse", icon: Icons.Play },
+];
+const PAGE_PARENT = Object.fromEntries([...AI_SUBPAGES.map((entry) => [entry.id, "ai"]), ...CAMERA_SUBPAGES.map((entry) => [entry.id, "camera"])]);
+const PAGE_TITLES = Object.fromEntries([...SETTINGS_ENTRIES, ...AI_SUBPAGES, ...CAMERA_SUBPAGES].map((entry) => [entry.id, entry.title]));
 
 /** One row of the menu: icon, name, what it is set to now, and a badge when something waits. */
 function SettingsEntry({ entry, settings, brain, menu }) {
@@ -916,7 +911,10 @@ function SettingsDrawer({ menu, updates, printing, actions }) {
   };
   let body;
   if (page === "printer") body = h(PrinterPage);
-  else if (page === "camera") body = h(CameraPage, { menu });
+  else if (page === "camera") body = h(CamerasPage, { menu });
+  else if (page === "camera-main") body = h(CameraPage);
+  else if (page === "camera-timelapse") body = h(CameraTimelapsePage);
+  else if (page && page.startsWith(WEBCAM_PAGE_PREFIX)) body = h(WebcamPage, { key: page, uid: page.slice(WEBCAM_PAGE_PREFIX.length), menu });
   else if (page === "network") body = h(NetworkPage);
   else if (page === "zoffset") body = h(ZOffsetPage);
   else if (page === "motion") body = h(MotionPage);
@@ -944,7 +942,7 @@ function SettingsDrawer({ menu, updates, printing, actions }) {
         page
           ? h("button", { type: "button", className: "header-btn drawer__btn", "aria-label": tx("Back"), onClick: () => goBack() }, h(Icons.Back))
           : h(PrinterLogo, { id: settings.printer.brand, className: "drawer__logo" }),
-        h("div", { className: "drawer__title" }, page ? PAGE_TITLES[page] : tx("Settings")),
+        h("div", { className: "drawer__title" }, page ? PAGE_TITLES[page] || webcamPageTitle(page) : tx("Settings")),
         h(HelpButton, { page: page || "home", className: "drawer__help" }),
         h("button", { type: "button", className: "header-btn drawer__btn", "aria-label": tx("Close"), onClick: menu.close }, h(Icons.Close)),
       ),

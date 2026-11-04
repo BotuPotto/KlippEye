@@ -499,7 +499,12 @@ function requestCameraReload() {
    ------------------------------------------------------------------------- */
 const CAMERA_RETRY_MS = 3000;
 const withCacheBuster = (url) => url + (url.indexOf("?") >= 0 ? "&" : "?") + "_=" + Date.now();
-const flipStyle = (camera) => (camera.flipH || camera.flipV ? { transform: ((camera.flipH ? "scaleX(-1) " : "") + (camera.flipV ? "scaleY(-1)" : "")).trim() } : undefined);
+/** Mirror, flip and (1.59, a webcam of Moonraker) rotation of the picture. */
+const flipStyle = (camera) => {
+  const turn = Number(camera.rotation) || 0;
+  const parts = [turn ? "rotate(" + turn + "deg)" : "", camera.flipH ? "scaleX(-1)" : "", camera.flipV ? "scaleY(-1)" : ""].filter(Boolean);
+  return parts.length ? { transform: parts.join(" ") } : undefined;
+};
 
 /** Says that the picture is not coming; the camera is tried again by itself. */
 const CameraNote = () => h("div", { className: "camera-note", role: "status" }, tx("Camera not reachable…"));
