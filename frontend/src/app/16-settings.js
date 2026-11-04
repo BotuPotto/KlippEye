@@ -78,12 +78,10 @@ const AI_DEFECTS = [
   { id: "warping", title: "Warping", detail: tx("The corners lift from the bed") },
 ];
 const AI_CONFIRMATIONS = [1, 2, 3];
-const AI_CONFIDENCES = [0, 50, 70, 85];
 
 /** "Printer functions" (16a-printer-functions.js): the buttons that run a macro of the printer, and how. */
 const ACTION_FUNCTIONS = ["park", "wipe", "load", "unload"];
 const ACTION_MODES = ["auto", "macro", "gcode", "off"];
-const LIGHT_MODES = ["auto", "object", "macro", "gcode", "off"];
 /** 1.37: several lights, each switched in its own way; scenes. */
 const LIGHT_HOWS = ["object", "macro", "gcode"];
 const LIGHTS_MAX = 12;
@@ -659,11 +657,6 @@ function cameraAddress(settings, address, hostname) {
   if (/^https?:\/\//i.test(address)) return address;
   const protocol = window.location.protocol === "https:" ? "https:" : "http:";
   return protocol + "//" + pickCameraHost(settings, hostname).host + address;
-}
-
-/** The address of the camera as the settings describe it (the page of the chosen method). */
-function cameraUrl(settings, hostname) {
-  return cameraAddress(settings, settings.camera.urls[settings.camera.method], hostname);
 }
 
 /* ---------------------------------------------------------------------------

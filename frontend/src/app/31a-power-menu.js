@@ -11,8 +11,6 @@
    which shows the loading ring until everything is back.
    ========================================================================== */
 
-/** After an action the list of services is read again after this long (the new state needs a moment). */
-const SERVICES_REFRESH_MS = 2500;
 const SERVICES_READ_TIMEOUT_MS = 8000;
 /** A restarted camera service drops its stream: the camera view loads the page again after this long. */
 const CAMERA_RELOAD_AFTER_RESTART_MS = 7000;

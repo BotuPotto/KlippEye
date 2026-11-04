@@ -7131,9 +7131,6 @@ function formatUnixTime(unixSeconds) {
   }
 }
 
-/** Escapes text for safe interpolation into HTML strings. */
-const escapeHtml = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-
 /* ============================================================================
    12 · API LAYER
    Every HTTP call to Moonraker (the Klipper API) and to the KlippEye "backend"
@@ -7923,12 +7920,10 @@ const AI_DEFECTS = [
   { id: "warping", title: "Warping", detail: tx("The corners lift from the bed") },
 ];
 const AI_CONFIRMATIONS = [1, 2, 3];
-const AI_CONFIDENCES = [0, 50, 70, 85];
 
 /** "Printer functions" (16a-printer-functions.js): the buttons that run a macro of the printer, and how. */
 const ACTION_FUNCTIONS = ["park", "wipe", "load", "unload"];
 const ACTION_MODES = ["auto", "macro", "gcode", "off"];
-const LIGHT_MODES = ["auto", "object", "macro", "gcode", "off"];
 /** 1.37: several lights, each switched in its own way; scenes. */
 const LIGHT_HOWS = ["object", "macro", "gcode"];
 const LIGHTS_MAX = 12;
@@ -8506,11 +8501,6 @@ function cameraAddress(settings, address, hostname) {
   return protocol + "//" + pickCameraHost(settings, hostname).host + address;
 }
 
-/** The address of the camera as the settings describe it (the page of the chosen method). */
-function cameraUrl(settings, hostname) {
-  return cameraAddress(settings, settings.camera.urls[settings.camera.method], hostname);
-}
-
 /* ---------------------------------------------------------------------------
    The Android app
    From version 4 the app does not have its addresses written inside any more: it keeps the ones of the settings
@@ -8785,7 +8775,7 @@ function usePrinterFunctions() {
    ========================================================================== */
 
 /** Written by build.py from the VERSION file of the release; stays as it is when the page is built by hand. */
-const DASHBOARD_RELEASE = "1.55.1";
+const DASHBOARD_RELEASE = "1.55.2";
 const dashboardRelease = () => (DASHBOARD_RELEASE.startsWith("__") ? "sviluppo" : DASHBOARD_RELEASE);
 
 /** The interface level this page needs from the backend (the backend says its own in /api/version). */
@@ -10453,8 +10443,6 @@ function HeaderTabs({ tabs, active, onSelect }) {
    which shows the loading ring until everything is back.
    ========================================================================== */
 
-/** After an action the list of services is read again after this long (the new state needs a moment). */
-const SERVICES_REFRESH_MS = 2500;
 const SERVICES_READ_TIMEOUT_MS = 8000;
 /** A restarted camera service drops its stream: the camera view loads the page again after this long. */
 const CAMERA_RELOAD_AFTER_RESTART_MS = 7000;
@@ -20836,7 +20824,6 @@ function LogsCard({ onEditFile }) {
    ========================================================================== */
 
 const AI_MONITOR_POLL_MS = 4000;
-const AI_VERDICT_MAX_AGE_MS = 2 * 60 * 60 * 1000;
 
 /** The action ("CONTINUE" | "PAUSE" | "CANCEL") a verdict recommends, or "". */
 function recommendedAction(verdict) {
@@ -23204,7 +23191,6 @@ function BedMeshCard({ onGcode, lockReason, homedAxes }) {
    What is stored and how is app/16-settings.js. Every change counts at once and is saved a moment later.
    ========================================================================== */
 
-const SETTINGS_PAGES = ["printer", "camera", "network", "macros", "motion", "zoffset", "notifications", "ai", "detector", "camcal", "recordings", "software", "appearance"];
 const SETTINGS_TYPING_MS = 800; // a typed value is taken when the typing stops (and when the field is left or the menu closed)
 // a swipe to the left closes the menu: at least this long, mostly sideways, quick, and never started on a control
 // (1.24: it was too easy to close it while moving a slider or scrolling)

@@ -76,6 +76,3 @@ function formatUnixTime(unixSeconds) {
     return "";
   }
 }
-
-/** Escapes text for safe interpolation into HTML strings. */
-const escapeHtml = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");

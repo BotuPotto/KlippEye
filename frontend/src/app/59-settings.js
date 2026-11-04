@@ -15,7 +15,6 @@
    What is stored and how is app/16-settings.js. Every change counts at once and is saved a moment later.
    ========================================================================== */
 
-const SETTINGS_PAGES = ["printer", "camera", "network", "macros", "motion", "zoffset", "notifications", "ai", "detector", "camcal", "recordings", "software", "appearance"];
 const SETTINGS_TYPING_MS = 800; // a typed value is taken when the typing stops (and when the field is left or the menu closed)
 // a swipe to the left closes the menu: at least this long, mostly sideways, quick, and never started on a control
 // (1.24: it was too easy to close it while moving a slider or scrolling)

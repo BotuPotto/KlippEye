@@ -1,5 +1,12 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.55.2
+
+**Code: leftovers removed** (roadmap phase 8, first pass). Nothing changes on screen.
+
+* Seven definitions nobody uses any more: `escapeHtml` (the old editor's colours), `cameraUrl` (the cameras of 1.48),
+  `SETTINGS_PAGES`, `AI_CONFIDENCES`, `LIGHT_MODES`, `AI_VERDICT_MAX_AGE_MS`, `SERVICES_REFRESH_MS`.
+
 ## 1.55.1
 
 **Texts: the same words for the same things** (roadmap phase 7, text review).
