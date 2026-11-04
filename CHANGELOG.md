@@ -1,5 +1,14 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.55.1
+
+**Texts: the same words for the same things** (roadmap phase 7, text review).
+
+* Italian: **layer** everywhere (as on the print card and in the slicers), no more "strato" in the recordings, the
+  Z-offset steps and the AI monitor's alarms; **IA**, not "AI", in the logs analysis and the monitor's details; the
+  dashboard's panels are **card** also in the help texts (no more "scheda", which stays for the browser's tab and the
+  printer's boards).
+
 ## 1.55.0
 
 **Texts: "the KlippEye service", not "the backend"** (roadmap phase 7, first part of the text review).
