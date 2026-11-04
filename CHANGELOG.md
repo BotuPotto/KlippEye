@@ -1,5 +1,16 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.47.0
+
+**Filament spools with Spoolman** (roadmap phase 6d, sixth part), through Moonraker's `[spoolman]`.
+
+* A **Spool** card (Home on the phone, with the fans on the computer), only when Moonraker has the component: the spool in
+  use drawn in its colour, with maker, name, material, diameter, place, and what is left (weight, length, a bar and the
+  percent).
+* **Change spool**: Spoolman's spools, the last used first, with a search; a tap makes one the active spool (Moonraker
+  then counts each print's filament on it); **No spool** leaves none in use.
+* Spoolman unreachable: the card says to check it is running and the address in `[spoolman]`.
+
 ## 1.46.0
 
 **Timelapse** (roadmap phase 6d, fifth part), with moonraker-timelapse.

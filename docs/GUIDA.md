@@ -268,6 +268,14 @@ secondi, sposta la testina per la foto e dove, crea il video a fine stampa, foto
 ripeti l'ultima foto, qualità, anteprima, tieni le foto. Un'impostazione fissata in `moonraker.conf` appare bloccata. Se
 in `printer.cfg` manca `[include timelapse.cfg]` (la macro `TIMELAPSE_TAKE_FRAME`), la pagina lo dice.
 
+### Bobine (Spoolman)
+
+Se Moonraker ha `[spoolman]`, la card **Bobina** (Home sul telefono, con le ventole sul computer) mostra la bobina in uso
+nel suo colore, con marca, nome, materiale e quanto ne resta (peso, lunghezza, una barra e la percentuale). **Cambia
+bobina** elenca le bobine di Spoolman, le ultime usate prima, con la ricerca: toccandone una diventa quella in uso, e
+Moonraker scala da lei il filamento di ogni stampa; **Nessuna bobina** non ne lascia nessuna. Se Spoolman non risponde,
+la card lo dice.
+
 ### Coda di stampa
 
 Se `moonraker.conf` ha `[job_queue]`, il menu di un file (tenendolo premuto; sul computer il pulsante *Coda* nel riquadro

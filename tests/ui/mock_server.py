@@ -53,6 +53,13 @@ def default_state():
                                               {"device": "_hidden_relay", "status": "off", "locked_while_printing": False, "type": "gpio", "is_shutdown": False}],
         "power_log": [],
         "extra_devices": False, "pins": {"relay": 0.0, "_secret": 0.0}, "sensors": {"runout": {"filament_detected": True, "enabled": True}, "encoder": {"filament_detected": False, "enabled": True}},   # 1.45
+        "spoolman_on": False, "spoolman_connected": True, "spool_id": 2, "spool_log": [],   # 1.47: Spoolman through Moonraker
+        "spools": [{"id": 1, "filament": {"id": 1, "name": "PLA Basic Black", "material": "PLA", "color_hex": "1a1a1a", "diameter": 1.75, "weight": 1000, "vendor": {"name": "Bambu"}},
+                    "remaining_weight": 120.0, "initial_weight": 1000, "remaining_length": 40200.0, "used_weight": 880.0, "location": "Shelf", "last_used": "2026-10-20T10:00:00Z", "archived": False},
+                   {"id": 2, "filament": {"id": 2, "name": "PETG Orange", "material": "PETG", "color_hex": "f07020", "diameter": 1.75, "weight": 1000, "vendor": {"name": "Sunlu"}},
+                    "remaining_weight": 640.0, "initial_weight": 1000, "remaining_length": 211000.0, "used_weight": 360.0, "location": "", "last_used": "2026-11-03T10:00:00Z", "archived": False},
+                   {"id": 3, "filament": {"id": 3, "name": "ASA White", "material": "ASA", "color_hex": "f4f4f4", "diameter": 1.75, "weight": 750},
+                    "remaining_weight": 750.0, "initial_weight": None, "remaining_length": 0, "used_weight": 0, "location": "Dry box", "last_used": None, "archived": False}],
         "timelapse_on": False, "timelapse_macro": True, "timelapse_frames": 0, "timelapse_log": [],   # 1.46: moonraker-timelapse
         "timelapse_settings": {"enabled": True, "mode": "layermacro", "camera": "", "snapshoturl": "http://localhost:8080/?action=snapshot", "gcode_verbose": False, "parkhead": False, "parkpos": "back_left",
                                "park_custom_pos_x": 10.0, "park_custom_pos_y": 10.0, "park_custom_pos_dz": 0.0, "park_travel_speed": 100, "park_retract_speed": 15, "park_extrude_speed": 15,
@@ -396,7 +403,7 @@ def mock_reset():
     S.clear(); S.update(default_state()); return jsonify(ok=True)
 @app.route("/__mock/state")
 def mock_state():
-    return jsonify({k: v for k, v in S.items() if k in ("light", "light_cmds", "light_reads", "actions", "webhooks", "webhooks_msg", "disconnected", "moonraker_down", "host_off", "services", "update_log", "brain_cfg_log", "brain_release", "brain_started", "klippeye_info", "pending_release", "logos", "app_apk_hits", "app_apk_downloads", "update_channel", "channel_posts", "rec_posts", "measure_starts", "measure_bodies", "ai_cfg", "ai_posts", "ai_model_reads", "excluded", "strip", "caselight", "mesh_profiles", "mesh_active", "mp", "mp_points", "tune", "speed_factor", "extrude_factor", "bs", "level_applied", "recordings", "alerts", "pm_macros", "pm_wraps", "pm_posts", "gcode_log", "ntfy", "ntfy_posts", "ntfy_tests", "ntfy_app_reads", "ai_answers", "ai_answer", "history_log", "queue", "queue_state", "queue_log", "power_devices", "power_log", "pins", "sensors", "timelapse_settings", "timelapse_log", "timelapse_files")})
+    return jsonify({k: v for k, v in S.items() if k in ("light", "light_cmds", "light_reads", "actions", "webhooks", "webhooks_msg", "disconnected", "moonraker_down", "host_off", "services", "update_log", "brain_cfg_log", "brain_release", "brain_started", "klippeye_info", "pending_release", "logos", "app_apk_hits", "app_apk_downloads", "update_channel", "channel_posts", "rec_posts", "measure_starts", "measure_bodies", "ai_cfg", "ai_posts", "ai_model_reads", "excluded", "strip", "caselight", "mesh_profiles", "mesh_active", "mp", "mp_points", "tune", "speed_factor", "extrude_factor", "bs", "level_applied", "recordings", "alerts", "pm_macros", "pm_wraps", "pm_posts", "gcode_log", "ntfy", "ntfy_posts", "ntfy_tests", "ntfy_app_reads", "ai_answers", "ai_answer", "history_log", "queue", "queue_state", "queue_log", "power_devices", "power_log", "pins", "sensors", "timelapse_settings", "timelapse_log", "timelapse_files", "spool_id", "spool_log")})
 @app.route("/__mock/print_actions")
 def mock_print_actions():
     return jsonify(S.get("print_actions", []))
@@ -1614,6 +1621,31 @@ def timelapse_render():
         S["timelapse_files"]["timelapse_Bracket_new.mp4"] = time.time(); S["timelapse_files"]["timelapse_Bracket_new.jpg"] = time.time(); S["timelapse_frames"] = 0
     later(1.0, done)
     return jsonify(result={"status": "started"})
+
+@app.route("/server/spoolman/status")
+def spoolman_status():
+    if not S["spoolman_on"]: return jsonify(error={"code": 404, "message": "Not Found"}), 404
+    return jsonify(result={"spoolman_connected": S["spoolman_connected"], "pending_reports": [], "spool_id": S["spool_id"]})
+@app.route("/server/spoolman/spool_id", methods=["GET", "POST"])
+def spoolman_spool_id():
+    if request.method == "POST":
+        body = request.get_json(force=True, silent=True) or {}
+        S["spool_id"] = body.get("spool_id")
+        S["spool_log"].append("SET:%s" % S["spool_id"])
+    return jsonify(result={"spool_id": S["spool_id"]})
+@app.route("/server/spoolman/proxy", methods=["POST"])
+def spoolman_proxy():
+    body = request.get_json(force=True, silent=True) or {}
+    path = body.get("path", "")
+    if not S["spoolman_connected"]:
+        return jsonify(result={"response": None, "error": {"status_code": 503, "message": "Spoolman server not available"}})
+    if path == "/v1/spool":
+        return jsonify(result={"response": S["spools"], "error": None})
+    if path.startswith("/v1/spool/"):
+        spool = next((x for x in S["spools"] if str(x["id"]) == path.rsplit("/", 1)[1]), None)
+        if spool: return jsonify(result={"response": spool, "error": None})
+        return jsonify(result={"response": None, "error": {"status_code": 404, "message": "No spool"}})
+    return jsonify(result={"response": None, "error": {"status_code": 404, "message": "Unknown path"}})
 
 @app.route("/server/history/list")
 def history_list():
