@@ -58,11 +58,32 @@ button.ai-header-badge { cursor: pointer; font: inherit; color: inherit; }
 .zoom-photo { position: relative; display: block; padding: 0; border: 0; border-radius: 10px; overflow: hidden; background: #000; cursor: zoom-in; }
 .zoom-photo img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .zoom-photo__hint { position: absolute; right: 4px; bottom: 4px; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: rgba(0, 0, 0, 0.55); color: #fff; }
-.photo-viewer__stage.is-real { align-items: flex-start; justify-content: flex-start; }
-.photo-viewer__stage.is-real img { max-width: none; max-height: none; }
-.photo-viewer__stage img { cursor: zoom-in; touch-action: pinch-zoom; }
-.photo-viewer__stage.is-real img { cursor: zoom-out; }
-.photo-viewer { z-index: 9998; }
+/* 1.67: the picture over the whole screen, like the camera's full screen */
+.photo-viewer { position: fixed; inset: 0; z-index: 10001; overflow: hidden; background: #000; }
+.photo-viewer__stage { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+.photo-viewer__stage img { display: block; width: 100%; height: 100%; object-fit: contain; touch-action: pinch-zoom; }
+.photo-viewer__stage.is-rotated { inset: auto; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(90deg); }
+.photo-viewer__stage.is-real { display: block; overflow: auto; }
+.photo-viewer__stage.is-real img { width: auto; height: auto; max-width: none; max-height: none; }
+.photo-viewer__bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: calc(env(safe-area-inset-top, 0px) + 12px) calc(env(safe-area-inset-right, 0px) + 14px) 24px calc(env(safe-area-inset-left, 0px) + 14px);
+  background: linear-gradient(rgba(0, 0, 0, 0.6), transparent);
+  color: #fff;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--oui-dur-base) var(--oui-ease);
+}
+.photo-viewer.is-controls .photo-viewer__bar { opacity: 1; pointer-events: auto; }
+.photo-viewer__title { flex: 1; min-width: 0; overflow: hidden; font-size: 14px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.photo-viewer__size { flex-shrink: 0; background: rgba(20, 20, 24, 0.6); border: 1px solid rgba(255, 255, 255, 0.18); color: #fff; }
 
 /* the AI monitoring panel (the badge) */
 .ai-panel { max-height: min(90vh, 820px); }

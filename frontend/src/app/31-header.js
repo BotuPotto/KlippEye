@@ -66,6 +66,6 @@ function HeaderTabs({ tabs, active, onSelect }) {
     "nav",
     { className: "header-tabs", "aria-label": tx("Pages"), ref: navRef },
     marker && h("span", { className: "header-tabs__pill", "aria-hidden": "true", style: { width: marker.w + "px", transform: "translateX(" + marker.x + "px)" } }),
-    tabs.map((tab) => h("button", { key: tab.id, className: cx("header-tabs__tab", active === tab.id && "is-active"), "data-tab": tab.id, onClick: () => onSelect(tab.id) }, tab.label)),
+    tabs.map((tab) => h("button", { key: tab.id, className: cx("header-tabs__tab", active === tab.id && "is-active"), "data-tab": tab.id, onClick: () => onSelect(tab.id) }, tab.label, tab.id === "sistema" && h(UpdateTabBadge, { className: "header-tabs__badge" }))),
   );
 }

@@ -75,6 +75,8 @@ with sync_playwright() as p:
     ok("the nozzle's line starts from Moonraker's history (many points, not just the live ones)", d.count("L") > 200, d.count("L"))
     end0 = float(pg.locator(".temp-chart").get_attribute("data-end"))
     ok("... and goes on with fresh readings (the newest sample moves on)", wait_until(lambda: float(pg.locator(".temp-chart").get_attribute("data-end")) >= end0 + 3500, 8))
+    xs = pg.evaluate("() => Object.fromEntries([...document.querySelectorAll('.temp-chart__tick')].map(t => [t.textContent, Number(t.getAttribute('x'))]))")
+    ok("1.67: «ora» on the left, the past on the right (the lines flow to the right)", xs.get("ora", 1e9) < xs.get("-10′", -1), xs)
     pg.screenshot(path=out + "/phone.png", full_page=True)
 
     # ranges

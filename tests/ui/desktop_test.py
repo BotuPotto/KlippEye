@@ -77,6 +77,25 @@ with sync_playwright() as p:
     ok("printing: tap on a temperature opens the editor sheet", (P.pg.locator(".desk-slot--heaters .heater-tile").first.click(), P.pg.wait_for_timeout(500), P.pg.locator(".sheet-overlay, .modal-card, .confirm-overlay").count())[2] >= 1)
     ok("no errors on the device page", not errs(P), errs(P)[:3]); P.close()
 
+    # ------------------------------------------------------------------ 1.67: the camera fills its box; compact print card
+    for w, hh in ((1440, 900), (1920, 1080), (1280, 720)):
+        P = fresh(w, hh, printing=True, wait=2500)
+        r = P.pg.evaluate("""() => { const c = document.querySelector('.desk-camera').getBoundingClientRect(); const p = document.querySelector('.desk-print').getBoundingClientRect(); const d = document.querySelector('.desk-dock').getBoundingClientRect(); return { w: c.width, h: c.height, printBottom: p.bottom, dock: d.top, cancel: document.querySelector('.desk-print__cancel').getBoundingClientRect().bottom }; }""")
+        ok("1.67 %dx%d printing: the camera is 16:9 at the column's width, or as tall as leaves the print card in view (no wide grey bands)" % (w, hh), (abs(r["w"] / r["h"] - 16 / 9) < 0.02 or r["w"] / r["h"] < 2.4) and r["h"] >= 300 and r["cancel"] <= r["dock"], r)
+        ok("1.67 %dx%d: no AI strip under the camera (the AI badge at the top does the same)" % (w, hh), P.pg.locator(".desk-ai").count() == 0)
+        if w == 1440:
+            ok("1.67: the six figures on one line, the buttons on one line", P.pg.locator(".desk-print__stats .print-stat").count() == 6 and len(set(round(b["y"]) for b in [P.pg.locator(".desk-print__stats .print-stat").nth(i).bounding_box() for i in range(6)])) == 1)
+            P.pg.locator("[data-print-more]").click(); P.pg.wait_for_timeout(300)
+            ok("1.67: «Più dettagli» opens the details under the buttons", P.pg.locator(".desk-print .print-details[open]").count() == 1 and P.pg.locator("[data-print-more]").get_attribute("aria-expanded") == "true")
+            P.shot_vp(out + "/device_printing_1440.png", hh)
+        P.close()
+    P = fresh(done_print=True, wait=2500)
+    again = P.pg.locator("[data-print-again]")
+    ok("1.67: a finished print: «Stampa di nuovo» next to «Scegli un file»", again.count() == 1 and again.get_attribute("data-print-again") == "Benchy_0.2mm_PLA.gcode" and "Stampa di nuovo" in again.inner_text())
+    again.click(); P.pg.wait_for_timeout(600)
+    ok("1.67: ... it asks first, like a file of the list", P.pg.locator(".confirm-overlay, .modal-card").count() >= 1 and "Benchy" in P.pg.locator(".confirm-overlay, .modal-card").first.inner_text())
+    P.close()
+
     # ------------------------------------------------------------------ 1.64: the wheel over the bed mesh scrolls the column
     P = fresh(1280, 720, tab="controllo", wait=2500)
     col = P.pg.locator(".desk-col", has=P.pg.locator(".mesh-card"))

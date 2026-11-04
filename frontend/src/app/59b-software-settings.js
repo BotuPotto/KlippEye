@@ -246,6 +246,25 @@ function UpdateBlock({ update, remoteRelease, brainRelease, printing, menu, upda
   return h("div", { className: "set-status set-status--ok" }, h("span", { className: "set-status__dot" }), tx("KlippEye is up to date") + (update.checkedAt ? tx(" • checked at {time}", { time: new Date(update.checkedAt).toLocaleTimeString(LOCALE, { hour: "2-digit", minute: "2-digit" }) }) : ""));
 }
 
+/** 1.67: the daily look for new versions (app/56a-update-notice.js), on or off for this browser / phone. */
+function AutoUpdateCheckBlock() {
+  const notice = useUpdateNotice();
+  return h(
+    SettingsGroup,
+    { title: tx("New versions") },
+    h(
+      "div",
+      { className: "oui-list", "data-setting": "auto-update-check" },
+      h(SwitchRow, {
+        title: tx("Look for new versions by itself"),
+        detail: tx("Once a day, never while printing: a number on «System» and a message say when KlippEye, Klipper, Moonraker or the others have a new version. Nothing is installed by itself."),
+        checked: notice.auto,
+        onChange: setAutoUpdateCheck,
+      }),
+    ),
+  );
+}
+
 function SoftwarePage({ active, menu, updates, printing, actions }) {
   const version = useBrainVersion(active);
   const update = useProgramUpdate(active);
@@ -336,6 +355,7 @@ function SoftwarePage({ active, menu, updates, printing, actions }) {
           tx("Go back to the previous release"),
         ),
     ),
+    h(AutoUpdateCheckBlock),
     h(ChannelBlock, { channel, printing }),
     h(
       SettingsGroup,

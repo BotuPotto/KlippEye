@@ -275,6 +275,13 @@ function PrinterPreview({ printer }) {
   );
 }
 
+/** 1.67: a webcam's shape ("16:9", "4:3") as a number (width / height), or 16 / 9. */
+function cameraRatio(text) {
+  const match = /^\s*(\d+(?:\.\d+)?)\s*[:/x]\s*(\d+(?:\.\d+)?)\s*$/.exec(String(text || ""));
+  const ratio = match ? Number(match[1]) / Number(match[2]) : 0;
+  return ratio > 0.3 && ratio < 4 ? ratio : 16 / 9;
+}
+
 function PrinterPage() {
   const { settings, update } = useSettings();
   const logos = usePrinterLogos();
@@ -333,7 +340,7 @@ async function loadMainsailWebcams() {
     .map((cam) => {
       const method = MAINSAIL_SERVICES[String(cam.service || "").toLowerCase()] || "";
       const address = cleanCameraAddress(method === "adaptive" ? cam.snapshot_url || cam.stream_url : cam.stream_url);
-      return { name: String(cam.name || "Camera"), service: String(cam.service || ""), method: address ? method : "", address, snapshot: cleanCameraAddress(cam.snapshot_url) || "", flipH: cam.flip_horizontal === true, flipV: cam.flip_vertical === true, rotation: [90, 180, 270].includes(Number(cam.rotation)) ? Number(cam.rotation) : 0, fps: Number(cam.target_fps) || 0 };
+      return { name: String(cam.name || "Camera"), service: String(cam.service || ""), method: address ? method : "", address, snapshot: cleanCameraAddress(cam.snapshot_url) || "", flipH: cam.flip_horizontal === true, flipV: cam.flip_vertical === true, rotation: [90, 180, 270].includes(Number(cam.rotation)) ? Number(cam.rotation) : 0, fps: Number(cam.target_fps) || 0, ratio: cameraRatio(cam.aspect_ratio) };
     });
 }
 

@@ -323,14 +323,14 @@ function PrintLiveStats({ status, className }) {
 }
 
 /** 1.30: everything else Mainsail shows, folded: the estimates one by one, filament, height, the factors. */
-function PrintDetails({ status }) {
+function PrintDetails({ status, open }) {
   const row = (label, value, key) => value !== null && value !== undefined && h("div", { key: key || label, className: "print-details__row" }, h("span", { className: "print-details__label" }, label), h("span", { className: "print-details__value" }, value));
   const e = status.estimates || {};
   const f = status.filament;
   const height = status.height;
   return h(
     "details",
-    { className: "print-details", "data-print-details": "1" },
+    { className: "print-details", "data-print-details": "1", open: open || undefined },
     h("summary", null, tx("More details")),
     h(
       "div",
