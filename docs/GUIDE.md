@@ -245,6 +245,14 @@ the pointer on the chart reads the time and the values at that moment. Tap a **n
 **target** to change it (nozzle and bed with the usual dialog, the others with `SET_HEATER_TEMPERATURE` or
 `SET_TEMPERATURE_FAN_TARGET`, up to their `max_temp`).
 
+### Print queue
+
+If `moonraker.conf` has `[job_queue]`, a file's menu (long press; on a computer the *Queue* button of the file panel) has
+**Add to the queue**, with how many copies: the prints start one after the other. The dialog says what happens: after the
+jobs waiting, when the printer is free, or at once (*Add and print*) when the printer is free and the queue running. While
+jobs wait, the **Print queue** card sits at the top of the Files page: the order with thumbnail and estimated time, the
+total; move a job up, down or to the front, remove it; **Start the queue** or **Pause the queue**; **Empty**.
+
 ### Print history
 
 At the top of the **Files** page a switch goes from *Print files* to **History** (kept on this device). The

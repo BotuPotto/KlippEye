@@ -254,7 +254,7 @@
 .desk-fact { padding: 10px 14px; border-radius: 16px; }
 .desk-fact__value { margin-top: 2px; font-size: 17px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .desk-detail__print { min-height: 50px; font-size: 16px; }
-.desk-detail__actions { display: flex; gap: 8px; }
+.desk-detail__actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .desk-detail__actions > .oui-btn { flex: 1; min-width: 0; padding: 0 10px; }
 
 /* ---- Config: the editor sits in the page instead of over it ---- */

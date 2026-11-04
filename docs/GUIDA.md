@@ -251,6 +251,15 @@ per ognuno, il target tratteggiato dello stesso colore; parte da quello che Moon
 nascondere o mostrare le sue linee, un **target** per cambiarlo (ugello e piatto con la solita finestra, gli altri con
 `SET_HEATER_TEMPERATURE` o `SET_TEMPERATURE_FAN_TARGET`, fino al loro `max_temp`).
 
+### Coda di stampa
+
+Se `moonraker.conf` ha `[job_queue]`, il menu di un file (tenendolo premuto; sul computer il pulsante *Coda* nel riquadro
+del file) ha **Aggiungi alla coda**, con il numero di copie: le stampe partono una dopo l'altra. La finestra dice cosa
+succede: va dopo quelle in attesa, parte quando la stampante è libera, oppure parte subito (*Aggiungi e stampa*) se la
+stampante è libera e la coda è attiva. Finché qualcosa aspetta, in cima alla pagina File c'è la card **Coda di stampa**:
+l'ordine con anteprima e tempo stimato, il totale; sposta una stampa su, giù o in testa, toglila; **Avvia la coda** o
+**Metti in pausa la coda**; **Svuota**.
+
 ### Cronologia delle stampe
 
 In cima alla pagina **File** un interruttore passa da *File di stampa* a **Cronologia** (la scelta resta su questo
