@@ -117,7 +117,9 @@ with sync_playwright() as p:
     P.ctx.close()
 
     P = fresh(b, w=1440, h=900, print_objects=OBJECTS)
-    ok("desktop: the same row and details in the print card", wait_until(lambda: P.pg.locator(".desk-print [data-print-live]").count() == 1) and P.pg.locator(".desk-print [data-print-details]").count() == 1
+    wait_until(lambda: P.pg.locator(".desk-print [data-print-live]").count() == 1)
+    P.pg.locator("[data-print-more]").click(); P.pg.wait_for_timeout(300)
+    ok("desktop: the same row and details in the print card (1.67: the details behind «Più dettagli»)", P.pg.locator(".desk-print [data-print-live]").count() == 1 and P.pg.locator(".desk-print [data-print-details]").count() == 1
        and P.pg.locator(".desk-print [data-exclude-open]").count() == 1)
     P.pg.screenshot(path=os.path.join(out, "03_desktop.png"))
     ok("no JavaScript error (desktop)", P.errors == [], P.errors)
@@ -127,7 +129,7 @@ with sync_playwright() as p:
     P = fresh(b, w=1366, h=720, print_objects=OBJECTS, detector_status="scanning", has_analysis=True, analysis_action="PAUSA")
     pg = P.pg
     ok("desktop, low screen: the AI alarm question is in the print card", wait_until(lambda: pg.locator("[data-ai-question] [data-ai-answer]").count() == 3, 8))
-    pg.locator(".desk-print [data-print-details] summary").click()
+    pg.locator("[data-print-more]").click()  # 1.67: «Più dettagli» is a button among the others
     P.settle(300)
     cover = []
     for k in range(3):

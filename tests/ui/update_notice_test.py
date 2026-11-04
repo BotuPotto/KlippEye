@@ -43,6 +43,7 @@ def start(b, w=390, h=844, auto=True, **st):
     return P
 
 
+refreshes = lambda: sum(1 for x in state()["update_log"] if x[0] == "refresh")
 badge = lambda P: P.pg.locator("[data-update-badge]")
 
 with sync_playwright() as p:
@@ -51,10 +52,10 @@ with sync_playwright() as p:
     P = start(b)
     ok("a phone: a number on the «Sistema» tab (Klipper has a new version; the OS packages do not count)", wait_until(lambda: badge(P).count() == 1) and badge(P).get_attribute("data-update-badge") == "1" and P.pg.locator('.bottom-nav__tab[data-tab="sistema"] [data-update-badge]').count() == 1)
     ok("... and a message names it, once", wait_until(lambda: "Nuove versioni: Klipper" in P.pg.locator(".toast--notice").inner_text()), P.pg.locator(".toast--notice").inner_text() if P.pg.locator(".toast--notice").count() else "")
-    ok("... Moonraker was asked to look for new versions (the first time on this device)", wait_until(lambda: state().get("update_refreshes", 0) == 1, 25), state().get("update_refreshes"))
+    ok("... Moonraker was asked to look for new versions (the first time on this device)", wait_until(lambda: refreshes() == 1, 25), state()["update_log"])
     P.shot_vp(out + "/phone.png")
     P.goto("home", 2500)
-    ok("a new visit the same day: not asked again, no message again, the number stays", wait_until(lambda: badge(P).count() == 1) and state().get("update_refreshes", 0) == 1 and P.pg.locator(".toast--notice.is-visible").count() == 0)
+    ok("a new visit the same day: not asked again, no message again, the number stays", wait_until(lambda: badge(P).count() == 1) and refreshes() == 1 and P.pg.locator(".toast--notice.is-visible").count() == 0)
     # off in Settings → Aggiornamenti
     P.pg.click('button[aria-label="Impostazioni"]'); P.pg.wait_for_selector(".drawer"); P.settle(450)
     P.pg.click('.set-entry[data-page="software"]'); P.settle(800)
@@ -68,7 +69,7 @@ with sync_playwright() as p:
 
     # while printing: read, but Moonraker is not asked to look
     P = start(b, printing=True)
-    ok("while printing: the number is there, but Moonraker is not asked to look (it refuses during a print)", wait_until(lambda: badge(P).count() == 1) and (P.settle(1500) or True) and state().get("update_refreshes", 0) == 0)
+    ok("while printing: the number is there, but Moonraker is not asked to look (it refuses during a print)", wait_until(lambda: badge(P).count() == 1) and (P.settle(1500) or True) and refreshes() == 0)
     P.close()
 
     # the computer: the number on the tab at the top; the switch in Settings → Software
