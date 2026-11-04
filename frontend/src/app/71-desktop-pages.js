@@ -154,45 +154,48 @@ function DesktopFansCard() {
 }
 
 /**
- * Left: camera, AI strip, progress. Right: heaters, what moves the machine, fans, extruder, tune (1.32). While a job prints the
+ * Left: camera, AI strip, progress. Right: heaters, what moves the machine, fans, extruder, tune (1.32); 1.66: in the
+ * order (and with the cards) of the computer's layout, Settings → Appearance → Cards. While a job prints the
  * Z-offset card takes the movement card's place and the extruder is out of the way (a pause leaves both in view).
  * On a narrow wide-screen the four slots stack in that order; on an extra-wide one they form two columns (css/70).
  */
 function DesktopDevicePage({ printStatus, printControls, status, capabilities, motion, bedTools, zOffset, lockReason, aiMonitor, onEditTemperature, onGcode, onNavigate }) {
   const placement = zOffsetPlacement(printStatus, status.zOffset);
+  useLayout(); // 1.66: the computer's own layout (Settings → Appearance → Cards)
+  const main = {
+    camera: h(CameraPanel),
+    print: h(
+      React.Fragment,
+      null,
+      h(AiStrip, { monitor: aiMonitor, onOpen: openAiPanel }),
+      printStatus.printing ? h(DesktopPrintCard, { status: printStatus, controls: printControls, monitor: aiMonitor }) : h(IdlePrintCard, { status: printStatus, onOpenFiles: () => onNavigate("files") }),
+    ),
+    temps: h(TemperatureCard, { onEditTemperature }),
+  };
+  const side = {
+    heaters: h(DesktopHeatersCard, { hotend: status.hotend, bed: status.bed, onEditTemperature }),
+    motion: h(
+      React.Fragment,
+      null,
+      placement && h(ZOffsetCard, { zOffset, printing: placement === "instead" }),
+      placement !== "instead" && h(MovementCard, { position: status.position, homedAxes: status.homedAxes, motion, bedTools, lockReason }),
+    ),
+    fans: h(DesktopFansCard),
+    spool: h(SpoolCard),
+    devices: h(DevicesCard),
+    extruder: printStatus.state !== "printing" && h(ExtruderCard, { hotend: status.hotend, onGcode, onEditTemperature }), // out of the way while a job prints
+    tune: h(TuneCard, { capabilities, onGcode }),
+  };
+  const cards = { ...main, ...side }; // any card can go in either column (Settings → Appearance → Cards)
+  const sideIds = layoutStore.shown("home", "side");
+  const slot = (id) => cards[id] && h("div", { key: id, className: "desk-slot desk-slot--" + id }, cards[id]);
+  // extra wide: the side column in two (css/70), the first half and the second
+  const half = Math.ceil(sideIds.length / 2);
   return h(
     "div",
     { className: "desk-device" },
-    h(
-      "section",
-      { className: "desk-device__main" },
-      h(CameraPanel),
-      h(AiStrip, { monitor: aiMonitor, onOpen: openAiPanel }),
-      printStatus.printing ? h(DesktopPrintCard, { status: printStatus, controls: printControls, monitor: aiMonitor }) : h(IdlePrintCard, { status: printStatus, onOpenFiles: () => onNavigate("files") }),
-      h(TemperatureCard, { onEditTemperature }),
-    ),
-    h(
-      "aside",
-      { className: "desk-side" },
-      h(
-        "div",
-        { className: "desk-side__group" },
-        h("div", { className: "desk-slot desk-slot--heaters" }, h(DesktopHeatersCard, { hotend: status.hotend, bed: status.bed, onEditTemperature })),
-        h("div", { className: "desk-slot desk-slot--fans" }, h(DesktopFansCard), h(SpoolCard), h(DevicesCard)),
-      ),
-      h(
-        "div",
-        { className: "desk-side__group" },
-        h(
-          "div",
-          { className: "desk-slot desk-slot--motion" },
-          placement && h(ZOffsetCard, { zOffset, printing: placement === "instead" }),
-          placement !== "instead" && h(MovementCard, { position: status.position, homedAxes: status.homedAxes, motion, bedTools, lockReason }),
-        ),
-        printStatus.state !== "printing" && h("div", { className: "desk-slot desk-slot--extruder" }, h(ExtruderCard, { hotend: status.hotend, onGcode, onEditTemperature })),
-        h("div", { className: "desk-slot desk-slot--tune" }, h(TuneCard, { capabilities, onGcode })),
-      ),
-    ),
+    h("section", { className: "desk-device__main" }, arrangeCards("home", cards, "main")),
+    h("aside", { className: "desk-side" }, h("div", { className: "desk-side__group" }, sideIds.slice(0, half).map(slot)), h("div", { className: "desk-side__group" }, sideIds.slice(half).map(slot))),
   );
 }
 
@@ -200,12 +203,13 @@ function DesktopDevicePage({ printStatus, printControls, status, capabilities, m
    Calibrazione
    ------------------------------------------------------------------------- */
 function DesktopCalibrationPage({ capabilities, lockReason, homedAxes, printState, onGcode, onMacroSettings }) {
-  return h(
-    "div",
-    { className: "desk-split" },
-    h("div", { className: "desk-col" }, h(BedMeshCard, { onGcode, lockReason, homedAxes })),
-    h("div", { className: "desk-col" }, h(MacroCards, { printState, onGcode, onSettings: onMacroSettings }), h(EndstopsCard, { capabilities, lockReason })),
-  );
+  useLayout(); // 1.66: the computer's own layout
+  const cards = {
+    bedmesh: h(BedMeshCard, { onGcode, lockReason, homedAxes }),
+    macros: h(MacroCards, { printState, onGcode, onSettings: onMacroSettings }),
+    endstops: h(EndstopsCard, { capabilities, lockReason }),
+  };
+  return h("div", { className: "desk-split" }, h("div", { className: "desk-col" }, arrangeCards("control", cards, "left")), h("div", { className: "desk-col" }, arrangeCards("control", cards, "right")));
 }
 
 /* ---------------------------------------------------------------------------

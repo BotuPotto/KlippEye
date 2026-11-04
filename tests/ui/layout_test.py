@@ -93,6 +93,7 @@ with sync_playwright() as p:
     P.settle(1200)
     ok("Control in the usual order", wait_until(lambda: [c for c in order(P) if not c.startswith("macro:")][:5] == ["console", "extruder", "tune", "endstops", "bedmesh"]), order(P))
     open_appearance(P)
+    pg.locator(".set-chips .oui-chip", has_text="Controllo").click(); P.settle(300)
     pg.locator('[data-layout-page="control"] [data-layout-card="bedmesh"]').get_by_role("button", name="Su: Bed mesh").click()
     pg.locator('[data-layout-page="control"] [data-layout-card="console"] [role=switch]').click()
     close_menu(P)
@@ -119,6 +120,43 @@ with sync_playwright() as p:
     P.pg.reload()
     P.pg.wait_for_timeout(2400)
     ok("... and stay hidden on this device", not P.pg.locator(".ui-hint").first.is_visible())
+    P.close()
+
+    # 1.66: drag and drop, a layout per kind of device, the 1.50 layout carried over
+    mock.reset()
+    P = Page(b, mock, 390, 844)
+    CUR[0] = P
+    P.ctx.add_init_script("""try { if (!sessionStorage.getItem('seeded')) { sessionStorage.setItem('seeded', '1'); localStorage.setItem('ke_layout', JSON.stringify({ collapsed: {}, order: { home: ['temps', 'camera'] }, hidden: { home: ['spool'] } })); } } catch (e) {}""")
+    P.goto("home", 2400)
+    pg = P.pg
+    ok("the order and hidden cards of 1.50 become the phone's layout", wait_until(lambda: order(P) == ["temps", "camera", "heaters", "movement"]), order(P))
+    open_appearance(P)
+    ok("the editor starts on this kind of device (the phone), marked", "Telefono · questo" in pg.locator(".layout-board").locator("xpath=..").inner_text() and pg.locator('[data-layout-device="phone"]').count() == 1)
+    grip = pg.locator('[data-layout-card="movement"] .layout-row__grip')
+    target = pg.locator('[data-layout-card="temps"]')
+    pg.locator(".layout-board").scroll_into_view_if_needed(); P.settle(300)
+    g = grip.bounding_box(); t = target.bounding_box()
+    pg.mouse.move(g["x"] + g["width"] / 2, g["y"] + g["height"] / 2)
+    pg.mouse.down()
+    for k in range(1, 9):
+        pg.mouse.move(g["x"] + g["width"] / 2, g["y"] + (t["y"] + 6 - g["y"]) * k / 8)
+        pg.wait_for_timeout(30)
+    ok("... dragging shows where the card would go", pg.locator(".layout-drop").count() == 1 and pg.locator(".layout-row.is-dragging").count() == 1)
+    pg.mouse.up()
+    ok("a card dragged by its handle to the top", wait_until(lambda: [e.get_attribute("data-layout-card") for e in pg.locator('[data-layout-page="home"] [data-layout-card]').all()][0] == "movement"))
+    pg.locator(".set-chips .oui-chip", has_text="Computer").click(); P.settle(300)
+    ok("the computer's layout: two columns, the usual one", pg.locator('[data-layout-device="computer"] [data-layout-column]').count() == 2 and [e.get_attribute("data-layout-card") for e in pg.locator('[data-layout-column="main"] [data-layout-card]').all()] == ["camera", "print", "temps"])
+    ok("... the print card always stays (no switch)", pg.locator('[data-layout-card="print"] [role=switch]').count() == 0)
+    pg.locator('[data-layout-card="temps"]').get_by_role("button", name="Nell'altra colonna: Temperature").click(); P.settle(300)
+    pg.locator('[data-layout-column="side"] [data-layout-card="fans"] [role=switch]').click(); P.settle(300)
+    ok("temperatures to the side column, fans hidden, on the computer", [e.get_attribute("data-layout-card") for e in pg.locator('[data-layout-column="side"] [data-layout-card]').all()][-1] == "temps")
+    close_menu(P)
+    ok("... the phone keeps its own layout", wait_until(lambda: order(P) == ["movement", "temps", "camera", "heaters"]), order(P))
+    P.pg.set_viewport_size({"width": 1440, "height": 900}); P.vw = 1440
+    P.pg.wait_for_timeout(1500)
+    side = lambda: [e.get_attribute("class").split("desk-slot--")[1] for e in P.pg.locator(".desk-side .desk-slot").all()]
+    ok("on the computer: the temperatures in the side column, at the end; no fans", wait_until(lambda: side()[-1] == "temps" and "fans" not in side()) and P.pg.locator(".desk-device__main .temp-card").count() == 0, side())
+    ok("no page errors", not errs(P), errs(P)[:3])
     P.close()
 
     # 1.63: no "Vai a" any more (history and timelapse are on the Files page)

@@ -92,7 +92,7 @@ with sync_playwright() as p:
     P.close()
 
     P = fresh(b, 1440, 900, spoolman_on=True)
-    ok("desktop: the card with the fans", wait_until(lambda: P.pg.locator(".desk-slot--fans .spool-card").count() == 1 and "PETG" in P.pg.locator(".spool-card").inner_text()))
+    ok("desktop: the card with the fans", wait_until(lambda: P.pg.locator(".desk-slot--spool .spool-card").count() == 1 and "PETG" in P.pg.locator(".spool-card").inner_text()))
     ok("desktop: no page errors", not errs(P), errs(P)[:2])
     P.close()
     b.close()

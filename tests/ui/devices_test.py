@@ -102,7 +102,7 @@ with sync_playwright() as p:
 
     # computer
     P = fresh(b, 1440, 900, tab="home", power_on=True, extra_devices=True)
-    ok("desktop: the card on the device page, with the fans", wait_until(lambda: P.pg.locator(".desk-slot--fans .devices-card").count() == 1))
+    ok("desktop: the card on the device page, with the fans", wait_until(lambda: P.pg.locator(".desk-slot--devices .devices-card").count() == 1))
     P.pg.locator(".devices-card").scroll_into_view_if_needed()
     P.pg.screenshot(path=out + "/desktop.png")
     ok("desktop: no page errors", not errs(P), errs(P)[:2])
