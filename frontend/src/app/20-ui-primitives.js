@@ -134,6 +134,8 @@ const Icons = {
   Send: ({ size = 24 }) => h(Svg, { size, strokeWidth: "0" }, h("path", { d: "M2.01 21 23 12 2.01 3 2 10l15 2-15 2z", fill: "currentColor" })),
   Play: ({ size = 18 }) => h(Svg, { size, strokeWidth: "2" }, h("path", { d: "M7 4.5v15l12-7.5z" })),
   Stop: ({ size = 18 }) => h(Svg, { size, strokeWidth: "2" }, h("rect", { x: "6", y: "6", width: "12", height: "12", rx: "2.5" })),
+  Pause: ({ size = 18 }) => h(Svg, { size, strokeWidth: "2.2" }, h("path", { d: "M8.5 5v14M15.5 5v14" })),
+  Queue: ({ size = 18 }) => h(Svg, { size, strokeWidth: "2" }, h("path", { d: "M4 6h12M4 12h12M4 18h8M18 15v6M15 18h6" })),
   Rocket: ({ size = 22 }) =>
     h(
       Svg,

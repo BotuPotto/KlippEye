@@ -124,6 +124,26 @@ async function fetchJson(url, options) {
   return response.json();
 }
 
+/**
+ * The components Moonraker has loaded (job_queue, power, spoolman, timelapse…), from /server/info: asked once a page
+ * load (again after a failure, at most every 30 s), so a missing one is known without a 404 in the console. A Set.
+ */
+const MOONRAKER_INFO_RETRY_MS = 30000;
+let moonrakerInfoAsk = null;
+let moonrakerInfoFailedAt = 0;
+function moonrakerComponents() {
+  if (!moonrakerInfoAsk && Date.now() - moonrakerInfoFailedAt > MOONRAKER_INFO_RETRY_MS) {
+    moonrakerInfoAsk = fetchJson("/server/info")
+      .then((json) => new Set(((json && json.result) || {}).components || []))
+      .catch(() => {
+        moonrakerInfoFailedAt = Date.now();
+        moonrakerInfoAsk = null;
+        return new Set();
+      });
+  }
+  return moonrakerInfoAsk || Promise.resolve(new Set());
+}
+
 /** POST with no body (Moonraker action endpoints). */
 const postAction = (url) => fetch(url, { method: "POST" });
 

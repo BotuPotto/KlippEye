@@ -1,0 +1,42 @@
+/* ============================================================================
+   Print queue (app/48b-queue.js)
+   ========================================================================== */
+
+.queue-card { margin-bottom: var(--oui-gutter); }
+.queue-state { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin-bottom: 10px; font-size: 13px; color: var(--oui-text-2); }
+.queue-state__dot { width: 8px; height: 8px; border-radius: 50%; background: var(--oui-ok); }
+.queue-state.is-paused .queue-state__dot { background: var(--oui-warn); }
+.queue-state__text { flex: 1; min-width: 0; }
+.queue-state__total { color: var(--oui-text-3); font-variant-numeric: tabular-nums; }
+
+.queue-list { display: flex; flex-direction: column; gap: 6px; }
+.queue-row { display: flex; align-items: center; gap: 10px; min-height: 56px; padding: 6px 8px; border-radius: var(--oui-r-row); background: var(--oui-surface-2); }
+.queue-row__pos { flex: 0 0 18px; font-size: 13px; font-weight: 600; color: var(--oui-text-3); text-align: center; font-variant-numeric: tabular-nums; }
+.queue-row__thumb { display: flex; flex: 0 0 40px; align-items: center; justify-content: center; width: 40px; height: 40px; overflow: hidden; border-radius: var(--oui-r-field); color: var(--oui-text-3); }
+.queue-row__thumb .file-thumb { max-width: 100%; max-height: 100%; object-fit: contain; }
+.queue-row__body { display: flex; flex: 1; flex-direction: column; gap: 2px; min-width: 0; }
+.queue-row__name { overflow: hidden; font-size: 14px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.queue-row__meta { font-size: 12px; color: var(--oui-text-3); font-variant-numeric: tabular-nums; }
+.queue-row__actions { display: flex; flex-shrink: 0; gap: 2px; }
+.queue-row__btn { display: flex; align-items: center; justify-content: center; width: 34px; height: 40px; padding: 0; border: 0; border-radius: 10px; background: transparent; color: var(--oui-text-2); cursor: pointer; }
+.queue-row__btn:hover { background: var(--oui-surface-3); color: var(--oui-text); }
+.queue-row__btn:disabled { opacity: 0.3; pointer-events: none; }
+.queue-row__btn--danger { color: var(--oui-danger); }
+/* a phone: the buttons go under the name, which keeps the whole width */
+@media (max-width: 560px) {
+  .queue-row { flex-wrap: wrap; row-gap: 0; }
+  .queue-row__actions { justify-content: flex-end; width: 100%; margin-top: -4px; }
+}
+
+.queue-actions { display: flex; gap: 8px; margin-top: 12px; }
+.queue-actions > .oui-btn { flex: 1; min-width: 0; }
+.queue-start,
+.queue-pause,
+.queue-clear { white-space: nowrap; }
+
+/* adding a file */
+.queue-add__count { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 16px 0 6px; }
+.queue-add__stepper { display: flex; align-items: center; gap: 8px; }
+.queue-add__input { width: 72px; min-height: 44px; text-align: center; font-size: 18px; font-weight: 600; }
+.queue-add__confirm { white-space: nowrap; }
+.desk-detail__queue { white-space: nowrap; }

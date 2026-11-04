@@ -48,6 +48,7 @@ def default_extra_temps():
 def default_state():
     history = default_history()
     return {
+        "queue_on": False, "queue": [], "queue_state": "ready", "queue_log": [], "queue_ids": 0,   # 1.44: Moonraker's [job_queue] (queue_on False: 404)
         "extra_temps": False, "extra_temp_values": default_extra_temps(),
         "history": history, "history_totals": default_history_totals(history), "history_log": [], "history_mode": "ok",  # ok | missing (no [history]: 404)
         "printing": False, "paused": False,
@@ -375,7 +376,7 @@ def mock_reset():
     S.clear(); S.update(default_state()); return jsonify(ok=True)
 @app.route("/__mock/state")
 def mock_state():
-    return jsonify({k: v for k, v in S.items() if k in ("light", "light_cmds", "light_reads", "actions", "webhooks", "webhooks_msg", "disconnected", "moonraker_down", "host_off", "services", "update_log", "brain_cfg_log", "brain_release", "brain_started", "klippeye_info", "pending_release", "logos", "app_apk_hits", "app_apk_downloads", "update_channel", "channel_posts", "rec_posts", "measure_starts", "measure_bodies", "ai_cfg", "ai_posts", "ai_model_reads", "excluded", "strip", "caselight", "mesh_profiles", "mesh_active", "mp", "mp_points", "tune", "speed_factor", "extrude_factor", "bs", "level_applied", "recordings", "alerts", "pm_macros", "pm_wraps", "pm_posts", "gcode_log", "ntfy", "ntfy_posts", "ntfy_tests", "ntfy_app_reads", "ai_answers", "ai_answer", "history_log")})
+    return jsonify({k: v for k, v in S.items() if k in ("light", "light_cmds", "light_reads", "actions", "webhooks", "webhooks_msg", "disconnected", "moonraker_down", "host_off", "services", "update_log", "brain_cfg_log", "brain_release", "brain_started", "klippeye_info", "pending_release", "logos", "app_apk_hits", "app_apk_downloads", "update_channel", "channel_posts", "rec_posts", "measure_starts", "measure_bodies", "ai_cfg", "ai_posts", "ai_model_reads", "excluded", "strip", "caselight", "mesh_profiles", "mesh_active", "mp", "mp_points", "tune", "speed_factor", "extrude_factor", "bs", "level_applied", "recordings", "alerts", "pm_macros", "pm_wraps", "pm_posts", "gcode_log", "ntfy", "ntfy_posts", "ntfy_tests", "ntfy_app_reads", "ai_answers", "ai_answer", "history_log", "queue", "queue_state", "queue_log")})
 @app.route("/__mock/print_actions")
 def mock_print_actions():
     return jsonify(S.get("print_actions", []))
@@ -1501,6 +1502,47 @@ def last_analysis_answer():
     S["ai_answer"] = answer
     S["ai_answers"].append(answer)
     return jsonify(ok=True, answer=answer)
+
+@app.route("/server/info")
+def server_info():
+    """Moonraker's components (1.44: the dashboard shows the queue, the power devices… only when Moonraker has them)."""
+    components = ["database", "file_manager", "klippy_apis", "machine", "data_store", "shell_command", "proc_stats", "history", "octoprint_compat", "update_manager"]
+    components += [name for flag, name in (("queue_on", "job_queue"), ("power_on", "power"), ("spoolman_on", "spoolman"), ("timelapse_on", "timelapse")) if S.get(flag)]
+    return jsonify(result={"klippy_connected": True, "klippy_state": S["webhooks"], "components": components, "failed_components": [], "moonraker_version": "v0.9.3-0-g000000", "api_version": [1, 5, 0]})
+def queue_status():
+    now = time.time()
+    return {"queued_jobs": [{"filename": j["filename"], "job_id": j["job_id"], "time_added": j["time_added"], "time_in_queue": now - j["time_added"]} for j in S["queue"]], "queue_state": S["queue_state"]}
+@app.route("/server/job_queue/status")
+def job_queue_status():
+    if not S["queue_on"]: return jsonify(error={"code": 404, "message": "Not Found"}), 404
+    return jsonify(result=queue_status())
+@app.route("/server/job_queue/job", methods=["POST", "DELETE"])
+def job_queue_job():
+    if not S["queue_on"]: return jsonify(error={"code": 404, "message": "Not Found"}), 404
+    if request.method == "DELETE":
+        if request.args.get("all") == "true":
+            S["queue"] = []; S["queue_log"].append("CLEAR")
+        else:
+            ids = request.args.get("job_ids", "").split(",")
+            S["queue"] = [j for j in S["queue"] if j["job_id"] not in ids]; S["queue_log"].append("DELETE:" + ",".join(ids))
+        return jsonify(result=queue_status())
+    body = request.get_json(force=True, silent=True) or {}
+    if body.get("reset"): S["queue"] = []
+    for name in body.get("filenames", []):
+        S["queue_ids"] += 1
+        S["queue"].append({"filename": name, "job_id": "%010X" % S["queue_ids"], "time_added": time.time()})
+    S["queue_log"].append(("RESET:" if body.get("reset") else "ADD:") + ",".join(body.get("filenames", [])))
+    return jsonify(result=queue_status())
+@app.route("/server/job_queue/<action>", methods=["POST"])
+def job_queue_action(action):
+    if not S["queue_on"]: return jsonify(error={"code": 404, "message": "Not Found"}), 404
+    if action == "pause": S["queue_state"] = "paused"
+    elif action == "start": S["queue_state"] = "ready"
+    elif action == "jump":
+        uid = request.args.get("job_id", "")
+        S["queue"] = [j for j in S["queue"] if j["job_id"] == uid] + [j for j in S["queue"] if j["job_id"] != uid]
+    S["queue_log"].append(action.upper())
+    return jsonify(result=queue_status())
 
 @app.route("/server/history/list")
 def history_list():

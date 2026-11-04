@@ -599,5 +599,5 @@ function HistoryPage({ desktop, onPrint }) {
 /** The Files page: the switch, then the print files or the history. */
 function FilesPage({ desktop, files }) {
   const section = useFilesSection();
-  return h(React.Fragment, null, h("div", { className: "files-section-bar" }, h(FilesSectionSwitch, { section })), section === "history" ? h(HistoryPage, { desktop, onPrint: files.onPrint }) : files.content);
+  return h(React.Fragment, null, h("div", { className: "files-section-bar" }, h(FilesSectionSwitch, { section })), section === "history" ? h(HistoryPage, { desktop, onPrint: files.onPrint }) : h(React.Fragment, null, h(QueueCard), files.content));
 }

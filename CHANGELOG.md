@@ -1,5 +1,17 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.44.0
+
+**Print queue** (roadmap phase 6d, third part), with Moonraker's `[job_queue]`.
+
+* **Add to the queue** in a file's long-press menu (and *Queue* on the computer's file panel), with how many copies; it
+  says what happens: after the jobs already waiting, when the printer is free, or at once (*Add and print*) when the
+  printer is free and the queue running.
+* The **Print queue** card on the Files page while jobs wait: in order with thumbnail and estimated time, the total;
+  move a job up / down or to the front, remove it; **Start the queue** / **Pause the queue**; **Empty** (asks first).
+* Nothing of it shows without `[job_queue]` in `moonraker.conf`: the dashboard asks Moonraker which components it has
+  (`/server/info`) instead of trying and getting a 404.
+
 ## 1.43.0
 
 **Temperatures: every sensor and the chart** (roadmap phase 6d, second part).

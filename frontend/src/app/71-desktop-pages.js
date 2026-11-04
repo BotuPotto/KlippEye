@@ -233,6 +233,7 @@ function FileDetail({ file, list, fileActions, onPrint }) {
   const meta = (haveMeta ? known : fetched) || {};
   const thumbnail = list.thumbs[file.path] || (fetched ? largestThumbnailUrl(fetched) : null);
   const item = { file, fileName, meta, thumbnail };
+  const queue = useJobQueue();
   const chips = [meta.filament_type, meta.layer_height ? meta.layer_height + " mm" : "", meta.object_height ? "h " + Math.round(meta.object_height) + " mm" : ""].filter(Boolean);
 
   return h(
@@ -255,6 +256,7 @@ function FileDetail({ file, list, fileActions, onPrint }) {
       { className: "desk-detail__actions" },
       h("button", { className: "oui-btn oui-btn--sm", title: tx("Save a copy on this device"), onClick: () => downloadFile("/server/files/" + GCODES_ROOT + "/" + encodeRemotePath(file.path), fileName) }, h(Icons.Download, { size: 16 }), tx("Download")),
       h("button", { className: "oui-btn oui-btn--sm", onClick: () => fileActions.openDetailsItem(item) }, h(Icons.Info, { size: 16 }), tx("Details")),
+      queue.available && h("button", { className: "oui-btn oui-btn--sm desk-detail__queue", onClick: () => fileActions.openQueueItem(item) }, h(Icons.Queue, { size: 16 }), tx("Queue")),
       h("button", { className: "oui-btn oui-btn--sm", onClick: () => fileActions.openItemInEditor(item) }, h(Icons.Code, { size: 16 }), "Editor"),
       h("button", { className: "oui-btn oui-btn--sm oui-btn--danger-soft", onClick: () => fileActions.askDeleteItem(item) }, h(Icons.Trash, { size: 16 }), tx("Delete")),
     ),
