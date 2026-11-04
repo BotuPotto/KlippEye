@@ -1,5 +1,14 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.54.0
+
+**The side menu, reorganised** (roadmap phase 6e, fifth and last part).
+
+* A new group **Go to** with the pages that are not on the bottom bar: **Print history** and, when Moonraker has it,
+  **Timelapse**: a tap closes the menu and opens the Files page on that part.
+* **Phone and network** becomes **This device**: Appearance, Notifications, Language (moved from System: it is per
+  device) and Addresses.
+
 ## 1.53.0
 
 **Looks** (roadmap phase 6e, fourth part): the same page and palette, dressed after another phone.

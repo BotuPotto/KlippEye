@@ -105,6 +105,10 @@ function App() {
   const runFromConsole = (script) => sendFromConsole(script, consoleFeed.echo);
   const openMacroSettings = () => settingsMenu.openPage("macros");
   lightSettingsLink.open = settingsMenu.openPage;
+  appNavigation.go = (tabId, section) => {
+    if (section) filesSectionStore.set(section);
+    selectTab(tabId);
+  };
   const restartService = (name) => {
     settingsMenu.close();
     power.service("restart", name);
