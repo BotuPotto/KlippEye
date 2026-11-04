@@ -74,7 +74,7 @@ with sync_playwright() as p:
     P.pg.locator(".desk-print button:has-text('Cancella stampa')").click(); P.pg.wait_for_timeout(500)
     ok("Cancella stampa asks first", P.pg.locator(".confirm-overlay").count() == 1)
     P.pg.locator(".confirm-card .oui-btn").first.click(); P.pg.wait_for_timeout(300)
-    ok("printing: tap on a temperature opens the editor sheet", (P.pg.locator(".desk-slot--heaters .heater-tile, .desk-slot--heaters button").first.click(), P.pg.wait_for_timeout(500), P.pg.locator(".sheet-overlay, .modal-card, .confirm-overlay").count())[2] >= 1)
+    ok("printing: tap on a temperature opens the editor sheet", (P.pg.locator(".desk-slot--heaters .heater-tile").first.click(), P.pg.wait_for_timeout(500), P.pg.locator(".sheet-overlay, .modal-card, .confirm-overlay").count())[2] >= 1)
     ok("no errors on the device page", not errs(P), errs(P)[:3]); P.close()
 
     # ------------------------------------------------------------------ console bar
