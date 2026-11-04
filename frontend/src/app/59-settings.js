@@ -775,18 +775,15 @@ function settingsSummary(page, settings, brain) {
 }
 
 /**
- * The menu, in groups (1.22): what a page is about decides where it is, the most used first. 1.54: the pages of the
- * dashboard that are not on the bottom bar ("Go to"), and "This device" for what is kept on this device only.
+ * The menu, in groups (1.22): what a page is about decides where it is, the most used first. (1.54's "Go to" group, with
+ * links to the history and the timelapse, is gone in 1.63: they are on the Files page.)
  */
 const SETTINGS_GROUPS = [
   { id: "printer", title: tx("The printer") },
   { id: "watch", title: tx("Camera and AI monitor") },
   { id: "yours", title: tx("Notifications and appearance") },
-  { id: "pages", title: tx("Go to") },
   { id: "system", title: tx("System") },
 ];
-/** Set by the app (99-main.js): goes to a page of the dashboard, and to a part of the Files page. */
-const appNavigation = { go: noop };
 /**
  * 1.60: fewer, fuller pages. "Name and logo" is part of Appearance (with the colours, the look and the cards), the
  * Z-offset steps part of Motion; the addresses are with the system pages. Their old pages still open (PAGES_INSIDE).
@@ -801,8 +798,6 @@ const SETTINGS_ENTRIES = [
   { id: "notifications", group: "yours", title: tx("Notifications"), icon: Icons.Bell },
   { id: "appearance", group: "yours", title: tx("Appearance"), icon: Icons.Sliders },
   { id: "language", group: "yours", title: tx("Language"), icon: Icons.Language },
-  { id: "go-history", group: "pages", title: tx("Print history"), icon: Icons.Clock, link: ["files", "history"], detail: tx("Statistics and every print") },
-  { id: "go-timelapse", group: "pages", title: "Timelapse", icon: Icons.Camera, link: ["files", "timelapse"], detail: tx("Videos and their settings") },
   { id: "network", group: "system", title: tx("Addresses"), icon: Icons.Network },
   { id: "access", group: "system", title: tx("Access"), icon: Icons.Lock },
   { id: "software", group: "system", title: tx("Updates"), icon: Icons.Download },
@@ -828,22 +823,6 @@ const PAGE_TITLES = Object.fromEntries([...SETTINGS_ENTRIES, ...AI_SUBPAGES, ...
 
 /** One row of the menu: icon, name, what it is set to now, and a badge when something waits. */
 function SettingsEntry({ entry, settings, brain, menu }) {
-  if (entry.link)
-    return h(
-      "button",
-      {
-        type: "button",
-        className: "set-entry set-entry--link",
-        "data-page": entry.id,
-        onClick: () => {
-          menu.close();
-          appNavigation.go(entry.link[0], entry.link[1]);
-        },
-      },
-      h("span", { className: "oui-row__icon oui-row__icon--accent" }, h(entry.icon)),
-      h("span", { className: "oui-row__text" }, h("span", { className: "oui-row__name" }, entry.title), h("span", { className: "oui-row__meta set-entry__meta" }, entry.detail)),
-      h("span", { className: "set-entry__go", "aria-hidden": "true" }, h(Icons.Forward)),
-    );
   return h(
     "button",
     { type: "button", className: "set-entry", "data-page": entry.id, onClick: () => menu.goTo(entry.id) },

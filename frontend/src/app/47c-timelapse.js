@@ -295,7 +295,40 @@ function TimelapseMissingContent() {
       h(TimelapseStep, { number: 3, title: tx("Restart") }, h("p", { className: "oui-caption" }, tx("Restart Moonraker and Klipper (the power button at the top), then come back here."))),
       h(TimelapseStep, { number: 4, title: tx("In the slicer") }, h("p", { className: "oui-caption" }, tx("To take a picture at every layer, add TIMELAPSE_TAKE_FRAME to the slicer's layer change G-code. Without it, choose «Every few seconds» in the settings."))),
     ),
-    h("button", { type: "button", className: "oui-btn oui-btn--block timelapse-recheck", onClick: () => window.location.reload() }, h(Icons.Refresh, { size: 16 }), tx("Installed: check again")),
+    h(TimelapseRecheck),
+  );
+}
+
+/**
+ * «Installed: check again» (1.63): Moonraker loads its components when it starts, so it is restarted first (a print
+ * going on does not stop), then asked again; found, the page reloads with the timelapse.
+ */
+function TimelapseRecheck() {
+  const [phase, setPhase] = useState("idle"); // idle | restarting | missing | failed
+  const recheck = async () => {
+    setPhase("restarting");
+    try {
+      await moonraker.serviceAction("restart", "moonraker");
+    } catch (error) {}
+    const end = Date.now() + 45000;
+    let answered = 0;
+    await new Promise((resolve) => setTimeout(resolve, 3000));
+    while (Date.now() < end) {
+      try {
+        const json = await fetchJson("/server/info", { timeout: 3000 });
+        const components = ((json && json.result) || {}).components || [];
+        if (components.includes("timelapse")) return window.location.reload();
+        if (json && json.result && ++answered >= 3) return setPhase("missing"); // Moonraker is back, without it
+      } catch (error) {}
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+    }
+    setPhase("failed");
+  };
+  return h(
+    React.Fragment,
+    null,
+    h("button", { type: "button", className: "oui-btn oui-btn--block timelapse-recheck", disabled: phase === "restarting", onClick: recheck }, h(Icons.Refresh, { size: 16 }), phase === "restarting" ? tx("Restarting Moonraker…") : tx("Installed: check again")),
+    h("p", { className: "oui-caption timelapse-recheck__note", "data-recheck": phase }, phase === "missing" ? tx("Moonraker restarted but has no timelapse yet: check that moonraker.conf has the [timelapse] section (step 2).") : phase === "failed" ? tx("Moonraker did not come back: try again in a moment.") : tx("Moonraker restarts to find it (a print going on does not stop).")),
   );
 }
 

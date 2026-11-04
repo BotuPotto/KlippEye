@@ -93,13 +93,20 @@ function segmentStore() {
  * The parser: feed it lines (with the byte offset where each starts), read the result at the end:
  * { segments, layers: [{ z, start, end, offset }], bounds: { minX, minY, maxX, maxY } }.
  * A layer starts at the first extrusion at a new height; the travels before it belong to it.
+ * 1.63: when the slicer marks its layers (;LAYER_CHANGE of PrusaSlicer / OrcaSlicer / SuperSlicer, ;LAYER:n of Cura) a
+ * layer starts only there: in vase mode (and with a lift in spiral) the height rises a little at every move, and every
+ * move became a "layer" (thousands of them, each with a few millimetres of line). Without marks, a new layer needs the
+ * height to rise by more than LAYER_MIN_RISE, or to come down.
  */
+const GCODE_LAYER_MIN_RISE = 0.02;
 function gcodeParser() {
   const segments = segmentStore();
   const layers = [];
   const state = { x: 0, y: 0, z: 0, e: 0, absolute: true, absoluteE: true, kind: GCODE_KIND_INDEX.other };
   const bounds = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
   let layer = null;
+  let marked = false; // the slicer marks its layers
+  let markPending = false; // a mark was met: the next extrusion starts a layer
   let pendingTravels = []; // travels since the last extrusion, given to the layer of the next one
   const extend = (x, y) => {
     if (x < bounds.minX) bounds.minX = x;
@@ -109,7 +116,9 @@ function gcodeParser() {
   };
   const line = (x1, y1, x2, y2, extruding, offset) => {
     if (!extruding) return pendingTravels.push([x1, y1, x2, y2, offset]);
-    if (!layer || Math.abs(state.z - layer.z) > 0.0001) {
+    const newLayer = !layer || (marked ? markPending : state.z > layer.z + GCODE_LAYER_MIN_RISE || state.z < layer.z - 0.0001);
+    if (newLayer) {
+      markPending = false;
       if (layer) layer.end = segments.size;
       layer = { z: state.z, start: segments.size, end: segments.size, offset };
       layers.push(layer);
@@ -171,6 +180,10 @@ function gcodeParser() {
       if (semicolon !== -1) {
         const comment = text.slice(semicolon + 1).trim();
         if (/^TYPE:/i.test(comment)) state.kind = gcodeKindOf(comment.slice(5));
+        else if (/^LAYER_CHANGE\b/i.test(comment) || /^LAYER:\s*-?\d+/i.test(comment)) {
+          marked = true;
+          markPending = true;
+        }
         else if (/^FEATURE:/i.test(comment)) state.kind = gcodeKindOf(comment.slice(8));
         text = text.slice(0, semicolon);
       }

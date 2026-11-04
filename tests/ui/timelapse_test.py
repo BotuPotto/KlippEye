@@ -67,6 +67,13 @@ with sync_playwright() as p:
     ok("... the timelapse part says what to install, with the commands", wait_until(lambda: P.pg.locator(".timelapse-missing").count() == 1) and "moonraker-timelapse" in P.pg.locator(".timelapse-missing").inner_text() and P.pg.locator(".timelapse-missing .ai-codeblock").count() == 3)
     ok("... and asks Moonraker for nothing of the timelapse", not [r for r in P.take_reqs() if "/machine/timelapse" in r["u"]])
     P.shot(out + "/timelapse_missing.png")
+    # 1.63: «Installato: controlla di nuovo» restarts Moonraker (it loads its components when it starts), then asks again
+    P.pg.locator(".timelapse-recheck").click()
+    ok("... «controlla di nuovo» restarts Moonraker", wait_until(lambda: ["services/restart", "moonraker"] in [list(a) for a in state()["actions"]], 6), state()["actions"][-3:])
+    ok("... and says when it is still not there (the [timelapse] section)", wait_until(lambda: P.pg.locator('[data-recheck="missing"]').count() == 1, 20) and "[timelapse]" in P.pg.locator('[data-recheck="missing"]').inner_text())
+    mock.set(timelapse_on=True)
+    P.pg.locator(".timelapse-recheck").click()
+    ok("... installed: the page reloads with the timelapse", wait_until(lambda: P.pg.locator(".timelapse-videos").count() == 1, 25))
     P.close()
 
     P = fresh(b, timelapse_on=True, timelapse_frames=42)

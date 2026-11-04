@@ -51,5 +51,3 @@
 .console-full__log { flex: 1; min-height: 0; height: auto; }
 .console-full__input { display: flex; gap: 12px; }
 /* the options menu above the full-screen console */
-body:has(.console-full) .oui-menu-scrim { z-index: 9996; }
-body:has(.console-full) .oui-menu { z-index: 9997; }

@@ -40,3 +40,4 @@
 .timelapse-step__title { padding-top: 4px; font-size: 14px; font-weight: 600; }
 .timelapse-step__body .oui-caption { margin: 0; line-height: 1.4; }
 .timelapse-step__body .ai-codeblock__code { overflow-x: auto; }
+.timelapse-recheck__note { margin: 8px 2px 0; line-height: 1.4; }

@@ -1,5 +1,22 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.63.0
+
+**Fixes: the printers' menu, the G-code viewer, the timelapse check, «Save and restart»** (requests of 4 November, evening).
+
+* **Menus** (the printers' one in the top bar, and every other) are drawn over the whole page: a tap outside closes
+  them (in the top bar it did not), and their glass blurs the page under them again (it looked almost transparent).
+* **G-code viewer**: files in vase mode (or with a spiral lift) were cut into thousands of "layers", one per move. The
+  layers are now the slicer's own (;LAYER_CHANGE of OrcaSlicer, PrusaSlicer, SuperSlicer; ;LAYER: of Cura); without
+  them a layer needs the height to rise by more than 0.02 mm.
+* **Timelapse → «Installed: check again»** restarts Moonraker first (it finds moonraker-timelapse only when it starts;
+  a print going on does not stop), then asks again: found, the page opens on the timelapse; not found, it says to check
+  the [timelapse] section.
+* **«Save and restart»** in the editor restarts what the file belongs to: moonraker.conf → Moonraker, crowsnest.conf →
+  crowsnest, KlipperScreen.conf, sonar.conf, the Telegram bot, Obico…; the other .cfg files → Klipper (FIRMWARE_RESTART,
+  or SAVE_CONFIG when Klipper holds changes to save; asked first while a print runs). Files of nothing get no button.
+* The side menu's **«Go to»** group is gone (history and timelapse are on the Files page).
+
 ## 1.62.0
 
 **More printers in the Android app (app 1.6.0)** (requests of 4 November, second part).
