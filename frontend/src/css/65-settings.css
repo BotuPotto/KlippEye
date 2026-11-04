@@ -192,10 +192,10 @@
 .set-roi__frame { position: relative; width: 100%; aspect-ratio: 3 / 2; overflow: hidden; background: #0b0c0f; border-radius: var(--oui-r-field); }
 .set-roi__img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: fill; user-select: none; -webkit-user-drag: none; }
 .set-roi__empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 16px; color: var(--oui-text-3); font-size: 12px; line-height: 1.4; text-align: center; }
-.set-roi__box { position: absolute; box-sizing: border-box; border: 2px solid var(--oui-accent); background: rgba(183, 156, 255, 0.12); border-radius: 4px; pointer-events: none; transition: left var(--oui-dur-fast) var(--oui-ease), top var(--oui-dur-fast) var(--oui-ease), width var(--oui-dur-fast) var(--oui-ease), height var(--oui-dur-fast) var(--oui-ease); }
+.set-roi__box { position: absolute; box-sizing: border-box; border: 2px solid var(--oui-accent); background: rgba(var(--oui-accent-rgb), 0.12); border-radius: 4px; pointer-events: none; transition: left var(--oui-dur-fast) var(--oui-ease), top var(--oui-dur-fast) var(--oui-ease), width var(--oui-dur-fast) var(--oui-ease), height var(--oui-dur-fast) var(--oui-ease); }
 .set-roi__inner { position: absolute; border: 1.5px dashed rgba(255, 255, 255, 0.8); background: rgba(0, 0, 0, 0.18); }
 .set-roi__legend { display: flex; align-items: flex-start; gap: 8px; color: var(--oui-text-3); font-size: 12px; line-height: 1.4; }
-.set-roi__swatch { flex-shrink: 0; width: 14px; height: 14px; margin-top: 1px; border: 2px solid var(--oui-accent); background: rgba(183, 156, 255, 0.2); border-radius: 3px; }
+.set-roi__swatch { flex-shrink: 0; width: 14px; height: 14px; margin-top: 1px; border: 2px solid var(--oui-accent); background: rgba(var(--oui-accent-rgb), 0.2); border-radius: 3px; }
 
 /* ---- the software page: lines of information, new commits ---- */
 .set-info-list { gap: 0; }
@@ -264,3 +264,12 @@
 .layout-row__switch { display: grid; place-items: center; min-width: 56px; min-height: 40px; padding: 0 4px; border: 0; background: transparent; cursor: pointer; }
 .layout-expand { min-height: 40px; }
 .layout-reset { margin-top: 8px; }
+
+/* ---- Appearance: the accent colour (1.52) ---- */
+.accent-swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 8px; }
+.accent-swatch { display: flex; flex-direction: column; align-items: center; gap: 6px; min-height: 72px; padding: 10px 6px; border: 1px solid var(--oui-stroke); border-radius: var(--oui-r-tile); background: var(--oui-surface-2); color: var(--oui-text-2); font: inherit; font-size: 12px; cursor: pointer; }
+.accent-swatch.is-on { border-color: var(--oui-accent); color: var(--oui-text); box-shadow: inset 0 0 0 1px var(--oui-accent); }
+.accent-swatch__dot { width: 28px; height: 28px; border-radius: 50%; box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.2); }
+.accent-swatch__dot--wheel { background: conic-gradient(#ff6b6b, #ffc06b, #8fdc7a, #5fd4c4, #8ab4ff, #b79cff, #ff9ccf, #ff6b6b); }
+.accent-swatch__name { text-align: center; }
+.accent-wheel { margin-top: 12px; }

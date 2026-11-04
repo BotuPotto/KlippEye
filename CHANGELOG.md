@@ -1,5 +1,15 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.52.0
+
+**Your colour, and a RatRig logo you can see** (roadmap phase 6e, third part).
+
+* **Settings → Appearance → Colour**: the accent of buttons, switches and highlights — the logo's violet (default),
+  blue, teal, green, amber, pink, or **your own** from the colour wheel. A colour too dark or too pale for the dark page
+  is made lighter or deeper; the glow of the background follows it. Kept on this device.
+* Every hard-coded violet of the stylesheet now follows the chosen colour (`--oui-accent-rgb`).
+* The RatRig logo of `logos/` is green: the dark grey one could not be seen on the dark bar.
+
 ## 1.51.0
 
 **Hints on or off** (roadmap phase 6e, second part).

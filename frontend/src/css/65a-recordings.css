@@ -67,6 +67,6 @@
 .rec-thresholds__row { display: grid; grid-template-columns: 1.6fr 1fr 1fr; gap: 8px; padding: 8px 14px; font-size: 13px; font-variant-numeric: tabular-nums; }
 .rec-thresholds__row + .rec-thresholds__row { border-top: 1px solid var(--oui-stroke); }
 .rec-thresholds__row--head { color: var(--oui-text-3); font-size: 12px; }
-.rec-thresholds__row.is-current { font-weight: 600; background: var(--oui-accent-soft, rgba(183, 156, 255, 0.12)); }
+.rec-thresholds__row.is-current { font-weight: 600; background: var(--oui-accent-soft, rgba(var(--oui-accent-rgb), 0.12)); }
 .rec-thresholds__row.is-best { box-shadow: inset 3px 0 0 var(--oui-ok); }
 .rec-thresholds__warn { color: var(--oui-warn, #f5a524); }

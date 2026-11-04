@@ -37,7 +37,7 @@
 .exclude-card { max-width: 440px; }
 .exclude-map { display: block; width: 100%; max-height: 46vh; margin: 8px 0 10px; }
 .exclude-map__bed { fill: var(--oui-surface-2); stroke: var(--oui-stroke); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
-.exclude-map__object { fill: rgba(183, 156, 255, 0.35); stroke: var(--oui-accent); stroke-width: 1.5; vector-effect: non-scaling-stroke; cursor: pointer; }
+.exclude-map__object { fill: rgba(var(--oui-accent-rgb), 0.35); stroke: var(--oui-accent); stroke-width: 1.5; vector-effect: non-scaling-stroke; cursor: pointer; }
 .exclude-map__object.is-current { fill: rgba(77, 163, 255, 0.45); stroke: #4da3ff; }
 .exclude-map__object.is-chosen { fill: rgba(255, 91, 91, 0.55); stroke: var(--oui-danger); stroke-width: 2.5; }
 .exclude-map__object.is-excluded { fill: rgba(128, 128, 128, 0.25); stroke: var(--oui-text-3); stroke-dasharray: 4 3; cursor: default; }
