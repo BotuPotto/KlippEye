@@ -184,6 +184,8 @@ def default_state():
                     {"name": "Piatto", "uid": "u-piatto", "source": "database", "service": "mjpegstreamer", "enabled": True, "stream_url": "/webcam2/?action=stream", "snapshot_url": "/webcam2/?action=snapshot", "flip_horizontal": True, "flip_vertical": False, "target_fps": 10},
                     {"name": "Go2rtc", "uid": "u-go2rtc", "source": "config", "service": "webrtc-go2rtc", "enabled": True, "stream_url": "/go2rtc/api/webrtc?src=cam", "snapshot_url": "", "flip_horizontal": False, "flip_vertical": False, "target_fps": 15}],
         "webcam_log": [],           # 1.59: ("post" | "delete", body or uid)
+        "peers": {},                # 1.61: other printers, by host: what their KlippEye answers ({"ok": False, "error": ...} or a summary)
+        "peek_log": [],
     }
 
 def default_services():
@@ -404,7 +406,7 @@ def mock_reset():
     S.clear(); S.update(default_state()); return jsonify(ok=True)
 @app.route("/__mock/state")
 def mock_state():
-    return jsonify({k: v for k, v in S.items() if k in ("light", "light_cmds", "light_reads", "actions", "webhooks", "webhooks_msg", "disconnected", "moonraker_down", "host_off", "services", "update_log", "brain_cfg_log", "brain_release", "brain_started", "klippeye_info", "pending_release", "logos", "app_apk_hits", "app_apk_downloads", "update_channel", "channel_posts", "rec_posts", "measure_starts", "measure_bodies", "ai_cfg", "ai_posts", "ai_model_reads", "excluded", "strip", "caselight", "mesh_profiles", "mesh_active", "mp", "mp_points", "tune", "speed_factor", "extrude_factor", "bs", "level_applied", "recordings", "alerts", "pm_macros", "pm_wraps", "pm_posts", "gcode_log", "ntfy", "ntfy_posts", "ntfy_tests", "ntfy_app_reads", "ai_answers", "ai_answer", "history_log", "queue", "queue_state", "queue_log", "power_devices", "power_log", "pins", "sensors", "timelapse_settings", "timelapse_log", "timelapse_files", "spool_id", "spool_log", "webcams", "webcam_log")})
+    return jsonify({k: v for k, v in S.items() if k in ("light", "light_cmds", "light_reads", "actions", "webhooks", "webhooks_msg", "disconnected", "moonraker_down", "host_off", "services", "update_log", "brain_cfg_log", "brain_release", "brain_started", "klippeye_info", "pending_release", "logos", "app_apk_hits", "app_apk_downloads", "update_channel", "channel_posts", "rec_posts", "measure_starts", "measure_bodies", "ai_cfg", "ai_posts", "ai_model_reads", "excluded", "strip", "caselight", "mesh_profiles", "mesh_active", "mp", "mp_points", "tune", "speed_factor", "extrude_factor", "bs", "level_applied", "recordings", "alerts", "pm_macros", "pm_wraps", "pm_posts", "gcode_log", "ntfy", "ntfy_posts", "ntfy_tests", "ntfy_app_reads", "ai_answers", "ai_answer", "history_log", "queue", "queue_state", "queue_log", "power_devices", "power_log", "pins", "sensors", "timelapse_settings", "timelapse_log", "timelapse_files", "spool_id", "spool_log", "webcams", "webcam_log", "peek_log")})
 @app.route("/__mock/print_actions")
 def mock_print_actions():
     return jsonify(S.get("print_actions", []))
@@ -1708,6 +1710,18 @@ def db_item():
 @app.route("/server/webcams/list")
 def webcams_list():
     return jsonify(result={"webcams": S["webcams"]})
+
+@app.route("/api/printers/self")
+def printers_self():
+    printing = S.get("printing")
+    return jsonify(ok=True, name="", brand="klippeye", release="1.61.0", state="printing" if printing else "standby", filename="Benchy_0.2mm_PLA.gcode" if printing else "",
+                   progress=0.42 if printing else 0, duration=1260, extruder=[215.3, 220.0], bed=[60.1, 60.0])
+
+@app.route("/api/printers/peek")
+def printers_peek():
+    host = request.args.get("host", "")
+    S["peek_log"].append(host)
+    return jsonify(S["peers"].get(host, {"ok": False, "error": "unreachable"}))
 
 @app.route("/server/webcams/post_item", methods=["POST"])
 def webcams_post():

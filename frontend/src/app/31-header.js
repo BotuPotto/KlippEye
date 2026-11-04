@@ -9,7 +9,7 @@
  * `wide` (a screen wide enough for the desktop layout) puts the page tabs in the bar, between the brand and
  * the actions: { tabs: [{ id, label }], active, onSelect, state: { text, tone } }.
  */
-function AppHeader({ onSettings, onPower, onSaveConfig, onEmergencyStop, saveBusy, aiBadge, wide }) {
+function AppHeader({ onSettings, onPrinters, onPower, onSaveConfig, onEmergencyStop, saveBusy, aiBadge, wide }) {
   const { settings } = useSettings();
   const printer = settings.printer;
   return h(
@@ -22,10 +22,7 @@ function AppHeader({ onSettings, onPower, onSaveConfig, onEmergencyStop, saveBus
         "div",
         { className: "app-header__brand" },
         h("button", { onClick: onSettings, className: "header-btn header-btn--menu", "aria-label": tx("Settings"), title: tx("Dashboard settings") }, h(Icons.Menu)),
-        h(PrinterLogo, { id: printer.brand, className: "app-header__logo" }),
-        isKlippEyeWordmark(printer)
-          ? h("span", { className: "app-header__name" }, "Klipp", h("span", { className: "app-header__eye" }, "Eye"))
-          : h("span", { className: "app-header__name", "data-printer": printer.brand }, printerName(printer)),
+        h(PrinterSwitcher, { printer, onManage: onPrinters || onSettings }), // 1.61: a tap lists the printers
         h(AiHeaderBadge, { badge: aiBadge }),
       ),
       wide && h(HeaderTabs, wide),

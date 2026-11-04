@@ -17,6 +17,7 @@ const SETTINGS_DB_KEY = "settings";
 const NOTIFIER_DB_KEY = "notifier"; // written by the notification service: version, last sign of life, last automatic action
 const SETTINGS_SAVE_DELAY_MS = 700; // changes closer than this are written as one
 const SETTINGS_DB_TIMEOUT_MS = 8000;
+const SETTINGS_RETRY_MS = 5000; // 1.61: a save that did not get through is tried again after this
 
 /** How the camera is shown (the "service" of Mainsail's webcam page). */
 const CAMERA_METHODS = [
@@ -114,6 +115,7 @@ const SETTINGS_DEFAULTS = {
   // 1.31: the Motion card: which part Z moves ("auto": from Klipper's configuration) and the steps beyond 1 and 10 mm
   motion: { zMoves: "auto", xyExtra: [], zExtra: [] },
   printer: { brand: "klippeye", name: "" }, // name "": the brand's own
+  printers: [], // 1.61: the other printers with KlippEye: [{ id, name, host }] (31b-printers.js)
   language: LANG, // of the notifications (shared by every phone): the language of the first device that saves the settings
   notifications: Object.fromEntries(NOTIFICATION_KINDS.map((kind) => [kind.id, true])),
   ai: {
@@ -345,6 +347,23 @@ function cleanExtraSteps(value) {
   return Array.isArray(value) ? MOTION_EXTRA_STEPS.filter((step) => value.map(Number).includes(step)) : [];
 }
 
+const PRINTERS_MAX = 12; // 1.61: the other printers (31b-printers.js)
+/** The list of the other printers, clean: [{ id, name, host }] (no doubles, not this printer itself). */
+function cleanPrinters(value) {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set();
+  const out = [];
+  for (const item of value) {
+    if (!isPlainObject(item)) continue;
+    const host = cleanHost(item.host);
+    if (!host || seen.has(host.toLowerCase())) continue;
+    seen.add(host.toLowerCase());
+    out.push({ id: typeof item.id === "string" && /^[a-z0-9-]{1,24}$/.test(item.id) ? item.id : "p" + out.length, name: cleanPrinterName(item.name) || "", host });
+    if (out.length >= PRINTERS_MAX) break;
+  }
+  return out;
+}
+
 /** `raw` (anything: a stored document, nothing at all) as a complete, valid settings object. */
 function sanitizeSettings(raw) {
   const given = isPlainObject(raw) ? raw : {};
@@ -375,6 +394,7 @@ function sanitizeSettings(raw) {
     zOffset: { steps: cleanZSteps(zOffset.steps) },
     motion: { zMoves: pickOne(motion.zMoves, MOTION_Z_MOVES, d.motion.zMoves), xyExtra: cleanExtraSteps(motion.xyExtra), zExtra: cleanExtraSteps(motion.zExtra) },
     printer: { brand: pickOne(printer.brand, PRINTER_BRAND_IDS, d.printer.brand), name: cleanPrinterName(printer.name) || "" },
+    printers: cleanPrinters(given.printers),
     language: pickOne(given.language, I18N_LANGUAGES.map((language) => language.code), d.language),
     notifications: Object.fromEntries(NOTIFICATION_KINDS.map((kind) => [kind.id, asBool(notifications[kind.id], true)])),
     ai: {
@@ -466,6 +486,10 @@ function createSettingsStore() {
     if (saving) return;
     saving = true;
     const sentStamp = stamp;
+    let aborted = false;
+    let retry = false;
+    let timedOut = false;
+    const timeoutTimer = setTimeout(() => (timedOut = true), SETTINGS_DB_TIMEOUT_MS - 50);
     try {
       setSync("saving");
       const result = await writeSettingsDb(SETTINGS_DB_KEY, { ...cloneJson(current), _t: sentStamp });
@@ -479,16 +503,22 @@ function createSettingsStore() {
         setSync("local", result.detail);
       }
     } catch (error) {
-      setSync("local", failure(error));
+      aborted = error && error.name === "AbortError" && !timedOut;
+      if (!aborted) setSync("local", failure(error));
+      // 1.61: a write cancelled (a wake-up cancels every request: 15-live.js) or lost on the way is tried again
+      // (a refusal of the Raspberry, above, waits for the next change or the next pull)
+      retry = true;
     } finally {
       saving = false;
-      if (dirty && stamp !== sentStamp && sync.state !== "local") schedulePush(); // changed while it was on its way
+      clearTimeout(timeoutTimer);
+      if (dirty && retry) schedulePush(aborted ? SETTINGS_SAVE_DELAY_MS : SETTINGS_RETRY_MS);
+      else if (dirty && stamp !== sentStamp && sync.state !== "local") schedulePush(); // changed while it was on its way
     }
   }
 
-  function schedulePush() {
+  function schedulePush(delay = SETTINGS_SAVE_DELAY_MS) {
     clearTimeout(saveTimer);
-    saveTimer = setTimeout(push, SETTINGS_SAVE_DELAY_MS);
+    saveTimer = setTimeout(push, delay);
   }
 
   /** Asks the Raspberry what it has: its copy is taken when it is newer, ours is sent when it is. Resolves when that is done. */

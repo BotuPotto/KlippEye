@@ -1,5 +1,23 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.61.0
+
+**More printers: the list, the switcher in the top bar, the overview** (requests of 4 November, first part).
+
+* **Settings → Your printers**: the other printers with KlippEye on your network, by their address (192.168.1.50,
+  voron.local…; the port 8085 is added by itself). «Try» asks the address first and shows the name the printer gives
+  itself and its state; the order can be changed. The list is shared by every device of this printer.
+* A tap on the **logo and name in the top bar** lists the printers: this one, then the others with their state
+  (printing and how far, ready, not reachable, protected by a password…), the **overview** and «Manage the printers».
+* The **overview** shows every printer at once: logo, name, state, progress, file and temperatures.
+* Choosing another printer opens its KlippEye (in the browser, its address). Arriving there from a printer that is not
+  in its list, the page offers to add it, so the lists fill in by themselves. Inside the Android app, the app will keep
+  it inside with its next update (the second part).
+* The state of the other printers comes through this printer's KlippEye service (`/api/printers/peek`, which asks the
+  other one's `/api/printers/self`), and only addresses of the home network (private, ZeroTier / Tailscale) are asked.
+* Settings: a save that did not get through (the page woke up and cancelled it, or the network dropped it) is tried
+  again by itself instead of staying only on this device.
+
 ## 1.60.0
 
 **Side menu: fewer, fuller pages, grouped by what they are about** (requests of 4 November).

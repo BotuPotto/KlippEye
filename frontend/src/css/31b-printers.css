@@ -1,0 +1,36 @@
+/* ============================================================================
+   More printers (app/31b-printers.js): the switcher in the top bar, the overview
+   ========================================================================== */
+
+.app-header__switch { display: flex; align-items: center; gap: inherit; min-width: 0; margin: -4px -6px; padding: 4px 6px; border: 0; border-radius: var(--oui-r-pill); background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; transition: background var(--oui-dur-fast) var(--oui-ease); }
+.app-header__switch:hover, .app-header__switch.is-open { background: var(--oui-surface-2); }
+.app-header__switch-mark { display: flex; flex: none; margin-left: -4px; color: var(--oui-text-3); transition: transform var(--oui-dur-fast) var(--oui-ease); }
+.app-header__switch.is-open .app-header__switch-mark { transform: rotate(180deg); }
+@media (max-width: 374px) {
+  .app-header__switch-mark { display: none; } /* 360 px phones: logo, name and the AI badge first */
+}
+
+.printer-dot { position: relative; }
+.printer-dot::after { content: ""; position: absolute; right: -1px; bottom: -1px; width: 10px; height: 10px; border: 2px solid var(--oui-surface); border-radius: 50%; background: var(--oui-text-3); }
+.printer-dot--ok::after { background: var(--oui-ok); }
+.printer-dot--info::after { background: var(--oui-accent); }
+.printer-dot--warn::after { background: var(--oui-warn); }
+.printer-dot--danger::after { background: var(--oui-danger); }
+.printer-dot__logo { width: 22px; height: 22px; object-fit: contain; }
+
+.sheet-overlay--printers { --sheet-width: 640px; }
+.printers-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
+.printer-tile { display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 14px; border: 1px solid transparent; border-radius: var(--oui-r-tile); background: var(--oui-surface-2); color: inherit; font: inherit; text-align: left; cursor: pointer; transition: background var(--oui-dur-fast) var(--oui-ease), transform var(--oui-dur-press) var(--oui-ease); }
+.printer-tile:not(:disabled):hover { background: var(--oui-surface-3); }
+.printer-tile:not(:disabled):active { transform: scale(0.985); }
+.printer-tile.is-self { border-color: var(--oui-stroke-strong); cursor: default; }
+.printer-tile__head { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.printer-tile__logo { display: grid; flex: none; place-items: center; width: 36px; height: 36px; }
+.printer-tile__img { max-width: 36px; max-height: 36px; object-fit: contain; }
+.printer-tile__name { display: flex; flex: 1; flex-direction: column; min-width: 0; overflow: hidden; font-size: 15px; font-weight: 600; text-overflow: ellipsis; }
+.printer-tile__self { color: var(--oui-text-3); font-size: 12px; font-weight: 400; }
+.printer-tile__head .oui-badge { flex: none; }
+.printer-tile__bar { height: 6px; overflow: hidden; border-radius: 3px; background: var(--oui-inset); }
+.printer-tile__fill { display: block; height: 100%; border-radius: 3px; background: var(--oui-accent); }
+.printer-tile__file { overflow: hidden; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.printer-tile__temps, .printer-tile__host { color: var(--oui-text-3); font-size: 12px; font-variant-numeric: tabular-nums; }
