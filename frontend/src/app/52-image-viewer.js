@@ -83,38 +83,78 @@ function ZoomablePhoto({ src, title, className, alt }) {
 
 function PhotoViewerLayer() {
   const [photo, setPhoto] = useState(photoOpen);
-  const [real, setReal] = useState(false);
   useEffect(() => {
     photoListeners.add(setPhoto);
     return () => photoListeners.delete(setPhoto);
   }, []);
-  useEffect(() => setReal(false), [photo]);
-  useBodyScrollLock(Boolean(photo));
+  return photo ? h(PhotoViewer, { key: photo.src, photo }) : null;
+}
+
+/**
+ * 1.67: the picture over the whole screen, like the camera's full screen: black, edge to edge, the app's bars hidden
+ * (the browser's own full screen elsewhere), turned to fit a screen that stays upright. A tap shows or hides the
+ * buttons; «Real size» shows it pixel for pixel, to scroll around.
+ */
+function PhotoViewer({ photo }) {
+  const [real, setReal] = useState(false);
+  const [controls, setControls] = useState(true);
+  const box = useRef(null);
+  const hideTimer = useRef(null);
+  const viewport = useViewportSize();
+  const [landscape, setLandscape] = useState(null); // the picture's own shape, once loaded
+  const picture = useRef(null);
+  const measure = () => {
+    const img = picture.current;
+    if (img && img.naturalWidth) setLandscape(img.naturalWidth > img.naturalHeight);
+  };
+  useEffect(measure, []); // a picture already in the cache may have loaded before onLoad was listened to
+  useBodyScrollLock(true);
   useBackHandler(() => {
     closePhoto();
     return true;
-  }, Boolean(photo));
+  }, true);
+  useScreenTakeover(box, closePhoto);
+  const showControls = () => {
+    setControls(true);
+    clearTimeout(hideTimer.current);
+    hideTimer.current = setTimeout(() => setControls(false), CAMERA_CONTROLS_HIDE_MS);
+  };
   useEffect(() => {
-    if (!photo) return undefined;
+    showControls();
     const onKey = (event) => event.key === "Escape" && (event.stopPropagation(), closePhoto());
     window.addEventListener("keydown", onKey, true);
-    return () => window.removeEventListener("keydown", onKey, true);
-  }, [photo]);
-  if (!photo) return null;
+    return () => {
+      clearTimeout(hideTimer.current);
+      window.removeEventListener("keydown", onKey, true);
+    };
+  }, []);
+  // a wide picture on a screen that stays upright (a browser that cannot turn it) is turned 90°, as the camera is
+  const rotated = !real && landscape === true && viewport.h > viewport.w;
+  const stage = rotated ? { width: viewport.h + "px", height: viewport.w + "px" } : undefined;
   return h(
     "div",
-    { className: "screen screen--viewer photo-viewer", role: "dialog", "aria-modal": "true", "aria-label": photo.title || tx("Picture"), "data-photo-open": "1" },
+    {
+      ref: box,
+      className: cx("photo-viewer", controls && "is-controls"),
+      role: "dialog",
+      "aria-modal": "true",
+      "aria-label": photo.title || tx("Picture"),
+      "data-photo-open": "1",
+      "data-rotated": rotated ? "true" : "false",
+      onClick: () => (controls ? setControls(false) : showControls()),
+      onPointerMove: (event) => event.pointerType === "mouse" && showControls(),
+    },
     h(
       "div",
-      { className: "screen-bar viewer-bar" },
-      h("button", { className: "oui-btn oui-btn--icon", title: tx("Close"), "aria-label": tx("Close"), onClick: closePhoto }, "✕"),
-      h("span", { className: "viewer-title" }, photo.title),
-      h("button", { className: "oui-btn oui-btn--sm", "data-photo-size": real ? "real" : "fit", onClick: () => setReal(!real) }, real ? tx("Fit to the screen") : tx("Real size")),
+      { className: cx("photo-viewer__stage", real && "is-real", rotated && "is-rotated"), style: stage },
+      h("img", { ref: picture, src: photo.src, alt: photo.title, onLoad: measure }),
     ),
     h(
       "div",
-      { className: cx("viewer-stage", "photo-viewer__stage", real && "is-real"), onClick: (event) => event.target === event.currentTarget && closePhoto() },
-      h("img", { src: photo.src, alt: photo.title, onClick: () => setReal(!real) }),
+      { className: "photo-viewer__bar", onClick: (event) => event.stopPropagation() },
+      h("button", { type: "button", className: "camera-full__btn", title: tx("Close"), "aria-label": tx("Close"), onClick: closePhoto }, h(Icons.Close)),
+      h("span", { className: "photo-viewer__title" }, photo.title),
+      h("button", { type: "button", className: "oui-btn oui-btn--sm photo-viewer__size", "data-photo-size": real ? "real" : "fit", onClick: () => (setReal(!real), showControls()) }, real ? tx("Fit to the screen") : tx("Real size")),
     ),
   );
 }

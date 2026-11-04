@@ -79,6 +79,7 @@ with sync_playwright() as p:
     ok("the round button switches every light found: LUCI by its macro, the strip and the pin on their outputs",
        wait_until(lambda: state()["light"] == 1 and state()["strip"][0] == 1 and state()["caselight"] == 1, 8), (state()["light"], state()["strip"], state()["caselight"]))
     ok("... and shows on", wait_until(lambda: is_on(P)))
+    ok("1.67: ... the whole button lights up, its arrow too", pg.locator(".light-group.is-split.is-on").count() == 1 and pg.locator(".light-group.is-on .light-more").evaluate("e => getComputedStyle(e).color") == "rgb(255, 200, 80)")
     pg.locator(".light-btn").first.click()
     ok("a second tap switches them all off", wait_until(lambda: state()["light"] == 0 and state()["strip"] == [0, 0, 0, 0] and state()["caselight"] == 0, 8) and wait_until(lambda: not is_on(P)), (state()["light"], state()["strip"], state()["caselight"]))
 

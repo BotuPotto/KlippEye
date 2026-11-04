@@ -1,7 +1,7 @@
 /* ============================================================================
    71 · DESKTOP PAGES
    The five pages of the wide layout, built from the same cards as the phone's:
-     Dispositivo   camera, AI strip and print progress on the left; heaters, fans,
+     Dispositivo   camera and print progress on the left; heaters, fans,
                    movement (or Z-offset while printing) and extruder on the right
      Calibrazione  mesh next to the calibration macros and endstops
      File          the file tiles next to the selected file's details
@@ -14,46 +14,25 @@
    Dispositivo
    ------------------------------------------------------------------------- */
 
-/** The camera fills the space the other cards leave; the case light button sits on top of it. */
+/**
+ * The camera fills the space the other cards leave, but never more than its own shape needs (1.67: it used to stretch
+ * to the column's height, so the picture sat small between two wide grey bands); the case light button sits on top of it.
+ */
 function CameraPanel() {
   const light = useCaseLight();
   const reloads = useCameraReloads();
   const [full, setFull] = useState(false);
+  const camera = useCurrentCamera().current;
+  const ratio = camera.ratio || 16 / 9;
+  const shape = camera.rotation === 90 || camera.rotation === 270 ? 1 / ratio : ratio;
   return h(
     "div",
-    { className: "desk-camera" },
+    { className: "desk-camera", style: { "--desk-cam-ratio": shape.toFixed(4) } },
     !full && h(CameraMedia, { className: "desk-camera__video", reloads }),
     h("span", { className: "desk-camera__tag" }, h("span", { className: "oui-dot desk-camera__live" }), "Camera"),
     h(CameraPicker, { className: "desk-camera__picker" }),
     h("div", { className: "desk-camera__light" }, light.available && h(LightButton, light), h(CameraFullscreenButton, { onOpen: () => setFull(true), className: "desk-camera__full" })),
     h(Presence, null, full && h(CameraFullscreen, { onClose: () => setFull(false) })),
-  );
-}
-
-function AiChip({ label, value, minor }) {
-  return h("span", { className: cx("desk-ai__chip", minor && "desk-ai__chip--minor") }, h("span", { className: "desk-ai__chip-label" }, label), h("b", null, value));
-}
-
-/** One line with what the AI monitor sees; a click opens its full card (on the System page). */
-function AiStrip({ monitor, onOpen }) {
-  const { detector, latest } = monitor;
-  const action = aiAction(latest && latest.verdict ? latest.verdict.action : "");
-  const advice = action && action !== "CONTINUE" ? action : "";
-  return h(
-    "button",
-    { className: "desk-ai", onClick: onOpen, title: tx("Open the AI monitoring details") },
-    h("span", { className: "desk-ai__title" }, tx("AI monitoring")),
-    h(
-      "span",
-      { className: cx(DETECTOR_PILLS[detector.pill.tone], "desk-ai__pill") },
-      detector.dot !== "idle" && h("span", { className: cx("oui-dot", detector.dot === "active" && "ai-dot--pulse") }),
-      detector.pill.text,
-    ),
-    h("span", { className: "desk-ai__spacer" }),
-    advice && h("span", { className: cx("oui-badge", advice === "CANCEL" ? "oui-badge--danger" : "oui-badge--warn") }, tx("Suggested action: ") + aiActionLabel(advice)),
-    h(AiChip, { label: tx("Status"), value: detector.state }),
-    h(AiChip, { label: "OpenCV", value: detector.score, minor: true }),
-    h(AiChip, { label: "Checks", value: detector.checks, minor: true }),
   );
 }
 
@@ -69,8 +48,12 @@ function PrintThumb({ src, className }) {
   );
 }
 
-/** The same figures and buttons as the phone's progress card, laid out in a row under the camera. */
+/**
+ * The same figures and buttons as the phone's progress card, laid out in a row under the camera. 1.67: compact, so the
+ * camera above it can be large: the six figures on one line, the buttons on one line, «More details» among them.
+ */
 function DesktopPrintCard({ status, controls, monitor }) {
+  const [more, setMore] = useState(false);
   return h(
     Card,
     { className: "desk-print" },
@@ -91,28 +74,36 @@ function DesktopPrintCard({ status, controls, monitor }) {
         h(PrintStat, { label: tx("Time"), value: status.time }),
         h(PrintStat, { label: tx("Remaining"), value: status.remaining }),
         h(PrintStat, { label: "Layer", value: status.layer }),
+        h(PrintLiveStats, { status, className: "desk-print__live" }),
       ),
-      h(PrintLiveStats, { status, className: "desk-print__stats" }),
-      h(PrintDetails, { status }),
       h(AiAlarmQuestion, { monitor }),
-      h(GcodeViewButton, { status }),
-      h(ExcludeObjectButton, { status }),
       h(
         "div",
-        { className: "oui-btn-row" },
-        h("button", { onClick: controls.togglePause, className: "oui-btn" }, status.state === "paused" ? tx("Resume") : tx("Pause")),
-        h("button", { onClick: controls.askCancel, className: "oui-btn oui-btn--danger-soft" }, tx("Cancel print")),
+        { className: "desk-print__actions" },
+        h(
+          "button",
+          { type: "button", className: cx("oui-btn oui-btn--sm desk-print__more", more && "is-open"), "aria-expanded": more, "data-print-more": "1", onClick: () => setMore(!more) },
+          tx("More details"),
+          h(Icons.Chevron, { size: 14 }),
+        ),
+        h(GcodeViewButton, { status }),
+        h(ExcludeObjectButton, { status }),
+        h("span", { className: "desk-print__gap" }),
+        h("button", { onClick: controls.togglePause, className: "oui-btn oui-btn--sm desk-print__pause" }, status.state === "paused" ? tx("Resume") : tx("Pause")),
+        h("button", { onClick: controls.askCancel, className: "oui-btn oui-btn--sm oui-btn--danger-soft desk-print__cancel" }, tx("Cancel print")),
       ),
+      more && h(PrintDetails, { status, open: true }),
     ),
   );
 }
 
 const LAST_PRINT_OUTCOME = { complete: tx("completed"), cancelled: tx("cancelled"), error: tx("stopped by an error") };
 
-/** Shown when nothing prints: the last job Klipper remembers, and the way to the file list. */
-function IdlePrintCard({ status, onOpenFiles }) {
+/** Shown when nothing prints: the last job Klipper remembers (1.67: with «Print again»), and the way to the file list. */
+function IdlePrintCard({ status, onOpenFiles, onPrint }) {
   const outcome = LAST_PRINT_OUTCOME[status.state];
   const last = outcome && status.filename && status.filename !== "-";
+  const again = last && status.filePath && onPrint;
   return h(
     Card,
     { className: "desk-print desk-print--idle" },
@@ -130,7 +121,18 @@ function IdlePrintCard({ status, onOpenFiles }) {
           )
         : h("div", { className: "oui-caption" }, tx("Choose a file from the list to start it")),
     ),
-    h("button", { onClick: onOpenFiles, className: "oui-btn oui-btn--primary desk-print__cta" }, h(Icons.Folder, { size: 18 }), tx("Choose a file to print")),
+    h(
+      "div",
+      { className: "desk-print__ctas" },
+      again &&
+        h(
+          "button",
+          { type: "button", className: "oui-btn oui-btn--primary desk-print__again", "data-print-again": status.filePath, onClick: () => onPrint({ path: status.filePath, fileName: status.filename, thumbnail: status.thumbnail }) },
+          h(Icons.Play, { size: 16 }),
+          tx("Print again"),
+        ),
+      h("button", { onClick: onOpenFiles, className: cx("oui-btn desk-print__cta", !again && "oui-btn--primary") }, h(Icons.Folder, { size: 18 }), tx("Choose a file to print")),
+    ),
   );
 }
 
@@ -154,22 +156,18 @@ function DesktopFansCard() {
 }
 
 /**
- * Left: camera, AI strip, progress. Right: heaters, what moves the machine, fans, extruder, tune (1.32); 1.66: in the
+ * Left: camera, progress. Right: heaters, what moves the machine, fans, extruder, tune (1.32); 1.66: in the
  * order (and with the cards) of the computer's layout, Settings → Appearance → Cards. While a job prints the
  * Z-offset card takes the movement card's place and the extruder is out of the way (a pause leaves both in view).
  * On a narrow wide-screen the four slots stack in that order; on an extra-wide one they form two columns (css/70).
  */
-function DesktopDevicePage({ printStatus, printControls, status, capabilities, motion, bedTools, zOffset, lockReason, aiMonitor, onEditTemperature, onGcode, onNavigate }) {
+function DesktopDevicePage({ printStatus, printControls, status, capabilities, motion, bedTools, zOffset, lockReason, aiMonitor, onEditTemperature, onGcode, onNavigate, onPrint }) {
   const placement = zOffsetPlacement(printStatus, status.zOffset);
   useLayout(); // 1.66: the computer's own layout (Settings → Appearance → Cards)
   const main = {
     camera: h(CameraPanel),
-    print: h(
-      React.Fragment,
-      null,
-      h(AiStrip, { monitor: aiMonitor, onOpen: openAiPanel }),
-      printStatus.printing ? h(DesktopPrintCard, { status: printStatus, controls: printControls, monitor: aiMonitor }) : h(IdlePrintCard, { status: printStatus, onOpenFiles: () => onNavigate("files") }),
-    ),
+    // 1.67: no AI strip above it any more: the AI badge at the top says the same, and opens the same panel
+    print: printStatus.printing ? h(DesktopPrintCard, { status: printStatus, controls: printControls, monitor: aiMonitor }) : h(IdlePrintCard, { status: printStatus, onOpenFiles: () => onNavigate("files"), onPrint }),
     temps: h(TemperatureCard, { onEditTemperature }),
   };
   const side = {

@@ -69,3 +69,23 @@
 .update-info--program { display: flex; flex-direction: column; gap: 12px; }
 .update-note { margin: 0; color: var(--oui-text-2); font-size: 13px; line-height: 1.5; }
 .update-info--program .set-commits { background: var(--oui-surface); }
+
+/* 1.67: the number of new versions on the «System» tab (app/56a-update-notice.js) */
+.update-badge {
+  display: inline-grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  box-sizing: border-box;
+  border-radius: 9px;
+  background: var(--oui-accent);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 0 0 2px var(--oui-bg, #0b0b10);
+}
+.bottom-nav__badge { position: absolute; top: 6px; left: calc(50% + 6px); }
+.header-tabs__badge { margin-left: 6px; vertical-align: 1px; }

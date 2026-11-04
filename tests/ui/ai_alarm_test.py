@@ -67,6 +67,13 @@ with sync_playwright() as p:
     P.shot_vp(out + "/question.png")
     question(P).locator("[data-zoom]").click(); P.settle(500)
     ok("the picture opens over the whole screen", P.pg.locator("[data-photo-open]").count() == 1 and "Cosa ha visto il monitor IA" in P.pg.locator("[data-photo-open]").inner_text())
+    box = P.pg.locator(".photo-viewer").bounding_box(); img = P.pg.locator(".photo-viewer__stage img").bounding_box()
+    vw, vh = P.pg.viewport_size["width"], P.pg.viewport_size["height"]
+    ok("1.67: ... edge to edge, black, the picture as large as the screen allows (turned on an upright phone)", box["width"] == vw and box["height"] == vh and abs(max(img["width"], img["height"]) - vh) < 2 and P.pg.locator('.photo-viewer[data-rotated="true"]').count() == 1, (box, img))
+    P.pg.mouse.click(vw / 2, vh / 2); P.settle(400)
+    hidden = P.pg.locator(".photo-viewer.is-controls").count() == 0
+    P.pg.mouse.click(vw / 2, vh / 2); P.settle(400)
+    ok("1.67: ... a tap hides the buttons, another shows them", hidden and P.pg.locator(".photo-viewer.is-controls").count() == 1)
     P.pg.locator("[data-photo-size]").click(); P.settle(300)
     ok("... «Dimensione reale» shows it at its real size", P.pg.locator(".photo-viewer__stage.is-real").count() == 1)
     ok("... the phone's back closes it", P.pg.evaluate("() => window.klippeyeBack()") is True and (P.settle(400) or True) and P.pg.locator("[data-photo-open]").count() == 0)
@@ -96,8 +103,9 @@ with sync_playwright() as p:
     ok("desktop: the question is in the print card too", wait_until(lambda: question(P).count() == 1))
     question(P).locator('[data-ai-answer="ignore"]').click(); P.settle(600)
     ok("«Ignora»: gone, green badge", question(P).count() == 0 and wait_until(lambda: "Monitoraggio OK" in (badge(P).get_attribute("title") or "")) and state()["ai_answers"] == ["ignore"])
-    P.pg.locator(".desk-ai").click(); P.settle(600)
-    ok("desktop: the AI strip opens the same panel", P.pg.locator("[data-ai-panel]").count() == 1)
+    ok("1.67 desktop: no AI strip under the camera any more (the badge says the same)", P.pg.locator(".desk-ai").count() == 0)
+    badge(P).click(); P.settle(600)
+    ok("desktop: the badge opens the AI panel", P.pg.locator("[data-ai-panel]").count() == 1)
     ok("no errors in the page", not P.errors, P.errors[:3])
     P.close()
 
