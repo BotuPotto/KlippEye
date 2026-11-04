@@ -184,6 +184,12 @@ function TimelapseVideosCard({ timelapse, onPlay, onDelete }) {
    The settings
    ------------------------------------------------------------------------- */
 function TimelapseSettingsCard({ timelapse }) {
+  if (!timelapse.settings) return null;
+  return h(Card, { className: "timelapse-settings" }, h(CardHeader, { title: tx("Timelapse settings") }), h(TimelapseSettingsFields, { timelapse }));
+}
+
+/** The settings themselves: on the Files page's card and in Settings → Camera → Timelapse (1.59). */
+function TimelapseSettingsFields({ timelapse }) {
   const settings = timelapse.settings;
   if (!settings) return null;
   const blocked = Array.isArray(settings.blockedsettings) ? settings.blockedsettings.map((name) => String(name).toLowerCase()) : [];
@@ -219,9 +225,8 @@ function TimelapseSettingsCard({ timelapse }) {
     y_only: tx("Y only"),
   };
   return h(
-    Card,
-    { className: "timelapse-settings" },
-    h(CardHeader, { title: tx("Timelapse settings") }),
+    "div",
+    { className: "timelapse-settings__fields" },
     h("div", { className: "oui-list" }, switchRow("enabled", tx("Timelapse on"), tx("Every print makes a video"))),
     settings.enabled &&
       h(
@@ -266,10 +271,14 @@ function TimelapseStep({ number, title, children }) {
 }
 
 function TimelapseMissingCard() {
+  return h(Card, { className: "timelapse-missing" }, h(CardHeader, { title: "Timelapse" }), h(TimelapseMissingContent));
+}
+
+/** What moonraker-timelapse is and how to install it: on the Files page and in Settings → Camera → Timelapse (1.59). */
+function TimelapseMissingContent() {
   return h(
-    Card,
-    { className: "timelapse-missing" },
-    h(CardHeader, { title: "Timelapse" }),
+    "div",
+    { className: "timelapse-missing__body" },
     h("p", { className: "timelapse-missing__intro" }, tx("To record a video of every print, Moonraker needs moonraker-timelapse: a free add-on by the Mainsail team. Once it is installed, the videos and their settings appear here.")),
     h(
       "ol",

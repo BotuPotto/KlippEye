@@ -145,6 +145,7 @@ with sync_playwright() as p:
     P = open_page(b, offer=False)
     P.pg.click('button[aria-label="Impostazioni"]'); P.pg.wait_for_selector(".drawer"); P.settle(500)
     P.pg.locator('.set-entry[data-page="camera"]').click(); P.settle(600)
+    P.pg.locator('.set-entry[data-page="camera-main"]').click(); P.settle(600)
     now = lambda: P.pg.locator("[data-snapshot-now]").get_attribute("data-snapshot-now")
     ok("snapshot: automatic from the camera (WebRTC /webcam/webrtc -> /webcam/?action=snapshot), said on the page", now() == "/webcam/?action=snapshot" and "(automatico)" in P.pg.locator("[data-snapshot-now]").inner_text())
     P.pg.locator(".set-choice", has_text="MJPEG").first.click(); P.settle(400)

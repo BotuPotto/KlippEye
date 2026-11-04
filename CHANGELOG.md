@@ -1,5 +1,19 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.59.0
+
+**Settings → Camera: every camera, one page each; the timelapse settings there too** (requests of 4 November).
+
+* **Camera** lists every camera: the **main camera** (KlippEye's own, the one the AI monitor watches) on its page as
+  before, and the **cameras of the printer** that Moonraker keeps, the same ones Mainsail and Fluidd show.
+* Each camera of the printer has **its own page**, as in Mainsail's settings: name, on / off, kind (WebRTC, MJPEG,
+  MJPEG adaptive, web page), the video and snapshot addresses, frames a second, mirror, flip and rotation. Every change
+  is saved to Moonraker at once (Mainsail sees it too). **Add a camera** makes a new one and opens its page; **Remove**
+  deletes it. A camera written in moonraker.conf can only be read there, and says so.
+* The camera card shows a camera's rotation too.
+* **Camera → Timelapse**: the settings of moonraker-timelapse, with **which camera** takes the photos; without it, how
+  to install it. The camera calibration of the AI monitor and «Reload the camera» stay on the Camera page.
+
 ## 1.58.0
 
 **One long light button; notifications that are on stay out of the way; editable G-code** (requests of 4 November).
