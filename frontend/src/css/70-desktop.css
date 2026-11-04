@@ -73,18 +73,12 @@
 .desk-side { display: flex; flex-direction: column; gap: 16px; min-height: 0; overflow-y: auto; }
 .desk-side__group { display: contents; }
 .desk-slot { display: flex; flex: none; flex-direction: column; gap: 16px; }
-.desk-slot--heaters { order: 1; }
-.desk-slot--motion { order: 2; }
-.desk-slot--fans { order: 3; }
-.desk-slot--extruder { order: 4; }
-.desk-slot--tune { order: 5; }
 .heater-tiles--last { margin-bottom: 0; }
-/* extra wide: heaters + fans, and movement + extruder, each in a column of its own */
+/* extra wide: the side column in two (its cards in their order: the first half, then the second; 1.66) */
 @media (min-width: 1600px) {
   .desk-device { grid-template-columns: minmax(0, 1fr) 420px 420px; }
   .desk-side { display: contents; }
   .desk-side__group { display: flex; flex-direction: column; gap: 16px; min-height: 0; overflow-y: auto; }
-  .desk-slot { order: 0; }
 }
 
 .desk-camera {

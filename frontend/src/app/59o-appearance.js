@@ -2,6 +2,7 @@
    59o · APPEARANCE (1.50, roadmap 6e)
    Settings → Appearance, what this device shows and how (kept on it):
      · the order of the cards of Home and Control, and the ones hidden there;
+       1.66: dragged, in columns, one layout per kind of device (LayoutEditor);
      · the folded cards (every card with a chevron can be folded on its page):
        how many, and "open them all";
      · 1.51: the hints, the small texts that explain how to use a page;
@@ -9,27 +10,116 @@
      · 1.53: the look: One UI (the usual), Liquid Glass, Material 3 Expressive, HyperOS 4.
    ========================================================================== */
 
-function LayoutPageEditor({ page, title }) {
+const LAYOUT_DEVICE_LABELS = () => ({ phone: tx("Phone"), tablet: tx("Tablet"), computer: tx("Computer") });
+const LAYOUT_PAGE_LABELS = (device) => (device === "computer" ? { home: tx("Device"), control: tx("Calibration") } : { home: "Home", control: tx("Control") });
+const LAYOUT_COLUMN_LABELS = () => ({ main: tx("Main column"), side: tx("Side column"), left: tx("Left"), right: tx("Right") });
+
+/**
+ * 1.66: the cards of a page, as a small drawing of it (Mainsail's way): one column on a phone and a tablet, two on a
+ * computer. A card is dragged by its handle (finger or mouse) to its new place, also into the other column; the arrows
+ * do the same one step at a time, the switch shows or hides it. Each kind of device keeps its own layout: the one of
+ * this screen is chosen at first and marked.
+ */
+function LayoutEditor() {
   useLayout();
-  const order = layoutStore.order(page);
+  const here = layoutStore.device();
+  const [device, setDevice] = useState(here);
+  const [page, setPage] = useState("home");
+  const [drag, setDrag] = useState(null); // { id, x, y, dx, dy, target: { column, index } }
+  const boardRef = useRef(null);
+  const columns = layoutStore.columns(page, device);
+  const names = Object.keys(columns);
+  const title = (id) => layoutCardTitle(id, device);
+
+  /** Where a drag at (x, y) would drop: the column under the pointer, before the row whose middle is below it. */
+  const dropAt = (x, y, id) => {
+    const board = boardRef.current;
+    if (!board) return null;
+    let best = null;
+    for (const column of board.querySelectorAll("[data-layout-column]")) {
+      const box = column.getBoundingClientRect();
+      if (x < box.left - 24 || x > box.right + 24) continue;
+      const rows = [...column.querySelectorAll("[data-layout-card]")].filter((row) => row.getAttribute("data-layout-card") !== id);
+      let index = rows.length;
+      for (let i = 0; i < rows.length; i++) {
+        const r = rows[i].getBoundingClientRect();
+        if (y < r.top + r.height / 2) {
+          index = i;
+          break;
+        }
+      }
+      best = { column: column.getAttribute("data-layout-column"), index };
+    }
+    return best;
+  };
+  const startDrag = (event, id) => {
+    if (event.button !== undefined && event.button !== 0) return;
+    event.preventDefault();
+    const row = event.currentTarget.closest("[data-layout-card]");
+    const box = row.getBoundingClientRect();
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch (e) {}
+    setDrag({ id, x: event.clientX, y: event.clientY, dx: event.clientX - box.left, dy: event.clientY - box.top, width: box.width, target: dropAt(event.clientX, event.clientY, id) });
+  };
+  const moveDrag = (event) => {
+    if (!drag) return;
+    setDrag({ ...drag, x: event.clientX, y: event.clientY, target: dropAt(event.clientX, event.clientY, drag.id) || drag.target });
+  };
+  const endDrag = () => {
+    if (drag && drag.target) layoutStore.place(page, drag.id, drag.target.column, drag.target.index, device);
+    setDrag(null);
+  };
+
+  const row = (id, column, index, list) => {
+    const hidden = layoutStore.isHidden(page, id, device);
+    const fixed = LAYOUT_FIXED.includes(id);
+    const other = names.find((name) => name !== column);
+    const dragging = drag && drag.id === id;
+    return h(
+      React.Fragment,
+      { key: id },
+      drag && drag.target && drag.target.column === column && drag.target.index === index && !dragging && h("div", { className: "layout-drop", "aria-hidden": "true" }),
+      h(
+        "div",
+        { className: cx("layout-row", hidden && "is-hidden", dragging && "is-dragging"), "data-layout-card": id, style: dragging ? { position: "fixed", left: drag.x - drag.dx + "px", top: drag.y - drag.dy + "px", width: drag.width + "px", zIndex: 5 } : undefined },
+        h(
+          "button",
+          { type: "button", className: "layout-row__grip", "aria-label": tx("Drag: {name}", { name: title(id) }), title: tx("Drag to move"), onPointerDown: (event) => startDrag(event, id), onPointerMove: moveDrag, onPointerUp: endDrag, onPointerCancel: () => setDrag(null) },
+          h(Icons.Menu, { size: 16 }),
+        ),
+        h("span", { className: "layout-row__name" }, title(id)),
+        // in two columns (a narrow drawing) the drag and the arrow to the other column; in one, the arrows up and down too
+        !other && h("button", { type: "button", className: "layout-row__btn", "aria-label": tx("Up") + ": " + title(id), disabled: index === 0, onClick: () => layoutStore.move(page, id, -1, device) }, h(Icons.ArrowUp, { size: 16 })),
+        !other && h("button", { type: "button", className: "layout-row__btn", "aria-label": tx("Down") + ": " + title(id), disabled: index === list.length - 1, onClick: () => layoutStore.move(page, id, 1, device) }, h(Icons.ArrowDown, { size: 16 })),
+        other && h("button", { type: "button", className: "layout-row__btn", "aria-label": tx("To the other column") + ": " + title(id), title: tx("To the other column"), onClick: () => layoutStore.place(page, id, other, 999, device) }, h(names.indexOf(column) === 0 ? Icons.Forward : Icons.Back, { size: 16 })),
+        fixed
+          ? h("span", { className: "layout-row__fixed" }, tx("always"))
+          : h("button", { type: "button", role: "switch", "aria-checked": !hidden, "aria-label": tx("Show «{name}»", { name: title(id) }), className: cx("layout-row__switch", !hidden && "is-on"), onClick: () => layoutStore.setHidden(page, id, !hidden, device) }, h("span", { className: "oui-switch" }, h("span", { className: "oui-switch__knob" }))),
+      ),
+    );
+  };
+
+  const devices = LAYOUT_DEVICE_LABELS();
+  const pages = LAYOUT_PAGE_LABELS(device);
   return h(
     SettingsGroup,
-    { title, note: tx("The arrows move a card; the switch shows or hides it on this device.") },
+    { title: tx("Cards"), note: tx("Drag a card by its handle (or use the arrows) to move it, also into the other column; the switch shows or hides it. Each kind of device keeps its own layout.") },
+    h(ChipChoice, { label: tx("Kind of device"), options: LAYOUT_DEVICES.map((id) => ({ id, label: devices[id] + (id === here ? " · " + tx("this one") : "") })), value: device, onChange: (id) => (setDevice(id), setDrag(null)) }),
+    h(ChipChoice, { label: tx("Page"), options: Object.keys(pages).map((id) => ({ id, label: pages[id] })), value: page, onChange: (id) => (setPage(id), setDrag(null)) }),
     h(
       "div",
-      { className: "oui-list layout-list", "data-layout-page": page },
-      order.map((id, index) => {
-        const hidden = layoutStore.isHidden(page, id);
-        return h(
+      { ref: boardRef, className: cx("layout-board", names.length > 1 && "layout-board--columns", "layout-board--" + device), "data-layout-page": page, "data-layout-device": device },
+      names.map((column) =>
+        h(
           "div",
-          { key: id, className: cx("layout-row", hidden && "is-hidden"), "data-layout-card": id },
-          h("span", { className: "layout-row__name" }, layoutCardTitle(id)),
-          h("button", { type: "button", className: "layout-row__btn", "aria-label": tx("Up") + ": " + layoutCardTitle(id), disabled: index === 0, onClick: () => layoutStore.move(page, id, -1) }, h(Icons.ArrowUp, { size: 16 })),
-          h("button", { type: "button", className: "layout-row__btn", "aria-label": tx("Down") + ": " + layoutCardTitle(id), disabled: index === order.length - 1, onClick: () => layoutStore.move(page, id, 1) }, h(Icons.ArrowDown, { size: 16 })),
-          h("button", { type: "button", role: "switch", "aria-checked": !hidden, "aria-label": tx("Show «{name}»", { name: layoutCardTitle(id) }), className: cx("layout-row__switch", !hidden && "is-on"), onClick: () => layoutStore.setHidden(page, id, !hidden) }, h("span", { className: "oui-switch" }, h("span", { className: "oui-switch__knob" }))),
-        );
-      }),
+          { key: column, className: "layout-col", "data-layout-column": column },
+          names.length > 1 && h("div", { className: "layout-col__title" }, LAYOUT_COLUMN_LABELS()[column]),
+          h("div", { className: "oui-list layout-list" }, columns[column].map((id, index, list) => row(id, column, index, list)), drag && drag.target && drag.target.column === column && drag.target.index >= columns[column].filter((id) => id !== drag.id).length && h("div", { className: "layout-drop", "aria-hidden": "true" })),
+        ),
+      ),
     ),
+    h("button", { type: "button", className: "oui-btn oui-btn--quiet oui-btn--sm set-inline-btn", "data-layout-reset": device, onClick: () => layoutStore.resetDevice(device) }, h(Icons.RotateCcw, { size: 16 }), tx("Usual layout for: {device}", { device: devices[device] })),
   );
 }
 
@@ -97,8 +187,7 @@ function AppearancePage() {
       { title: tx("Hints") },
       h("div", { className: "oui-list", "data-setting": "hints" }, h(SwitchRow, { title: tx("Show the hints"), detail: tx("The small texts that explain how to use a page: «Tap to change», «Long-press a file…»"), checked: !layout.hideHints, onChange: layoutStore.setHints })),
     ),
-    h(LayoutPageEditor, { page: "home", title: tx("Home: the cards") }),
-    h(LayoutPageEditor, { page: "control", title: tx("Control: the cards") }),
+    h(LayoutEditor),
     h(
       SettingsGroup,
       { title: tx("Folded cards"), note: tx("The chevron at the top right of a card folds it down to its title; it stays so on this device.") },
@@ -113,7 +202,9 @@ function appearanceSummary() {
   const state = layoutStore.snapshot();
   const look = LOOKS.includes(state.look) && state.look !== "oneui" ? lookLabel(state.look) : "";
   const colour = state.accent ? (ACCENT_PRESETS.some((preset) => preset.id === state.accent) ? accentLabel(state.accent) : tx("Your colour")) : "";
-  const hidden = Object.values(state.hidden).reduce((sum, list) => sum + list.length, 0);
-  const moved = Object.keys(state.order).some((page) => JSON.stringify(layoutStore.order(page)) !== JSON.stringify(LAYOUT_PAGES[page]));
+  const device = layoutStore.device();
+  const pages = Object.keys(LAYOUT_DEFAULTS[device]);
+  const hidden = pages.reduce((sum, page) => sum + layoutStore.order(page, device).filter((id) => layoutStore.isHidden(page, id, device)).length, 0);
+  const moved = pages.some((page) => JSON.stringify(layoutStore.columns(page, device)) !== JSON.stringify(LAYOUT_DEFAULTS[device][page]));
   return [look, colour, moved ? tx("Own order") : !hidden && tx("Usual order"), hidden && (hidden === 1 ? tx("1 card hidden") : tx("{count} cards hidden", { count: hidden }))].filter(Boolean).join(" • ");
 }

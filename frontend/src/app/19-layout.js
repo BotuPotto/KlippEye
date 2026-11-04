@@ -4,7 +4,7 @@
      · collapsed cards: a card with an id has a chevron in its header that folds
        it down to the header (Card / CardHeader in 20-ui-primitives.js);
      · the order of the cards of Home and Control, and the ones hidden there
-       (Settings → Appearance);
+       (Settings → Appearance); 1.66: one layout per kind of device, in columns;
      · 1.51: the small texts that explain how to use a page (.ui-hint: «Tap to
        change»…), shown or not;
      · 1.52: the accent colour (the violet of the logo, or another one);
@@ -12,18 +12,43 @@
    ========================================================================== */
 
 const LAYOUT_KEY = "ke_layout";
-/** The cards of the phone's pages that can be moved or hidden, in their usual order (the print card always stays on top). */
-const LAYOUT_PAGES = {
-  home: ["camera", "heaters", "temps", "spool", "movement"],
-  control: ["console", "extruder", "devices", "macros", "tune", "endstops", "bedmesh"],
+/**
+ * 1.66: a layout for each kind of device (Mainsail does the same): a phone, a tablet (two columns of cards) and a
+ * computer (the wide layout, 70-desktop-shell.js) each keep their own order and hidden cards. A page is made of columns:
+ * one on a phone and a tablet; on a computer the main column and the side one (Dispositivo), the left and the right one
+ * (Calibrazione). The defaults are the usual layout; a card missing from a saved layout (a card of a later release)
+ * joins its usual column, at the end.
+ */
+const LAYOUT_DEVICES = ["phone", "tablet", "computer"];
+const LAYOUT_DEFAULTS = {
+  phone: { home: { main: ["camera", "heaters", "temps", "spool", "movement"] }, control: { main: ["console", "extruder", "devices", "macros", "tune", "endstops", "bedmesh"] } },
+  computer: {
+    home: { main: ["camera", "print", "temps"], side: ["heaters", "motion", "fans", "spool", "devices", "extruder", "tune"] },
+    control: { left: ["bedmesh"], right: ["macros", "endstops"] },
+  },
 };
-const layoutCardTitle = (id) =>
+LAYOUT_DEFAULTS.tablet = LAYOUT_DEFAULTS.phone;
+/** Cards that always stay (the print card: the page's reason to be). */
+const LAYOUT_FIXED = ["print"];
+/** The cards of the phone's pages (1.50), as before: Settings → Appearance and the tests still name them so. */
+const LAYOUT_PAGES = { home: LAYOUT_DEFAULTS.phone.home.main, control: LAYOUT_DEFAULTS.phone.control.main };
+
+/** The kind of device this screen is: the computer's layout from 1100 px (70-desktop-shell.js), a tablet from 700. */
+function layoutDeviceNow() {
+  const width = window.innerWidth || 0;
+  return width >= 1100 ? "computer" : width >= 700 ? "tablet" : "phone";
+}
+
+const layoutCardTitle = (id, device) =>
   ({
     camera: tx("Camera"),
-    heaters: tx("Heaters and fans"),
+    heaters: device === "computer" ? tx("Heaters") : tx("Heaters and fans"),
     temps: tx("Temperatures"),
     spool: tx("Spool"),
     movement: tx("Movement and Z-offset"),
+    motion: tx("Movement and Z-offset"),
+    fans: tx("Fans"),
+    print: tx("Printing"),
     console: tx("Console"),
     extruder: tx("Extruder"),
     devices: tx("Devices"),
@@ -35,12 +60,24 @@ const layoutCardTitle = (id) =>
 
 const layoutStore = (() => {
   const listeners = new Set();
-  const empty = () => ({ collapsed: {}, order: {}, hidden: {} });
+  const empty = () => ({ collapsed: {}, devices: {} });
   let state = empty();
   try {
     const saved = JSON.parse(localStorage.getItem(LAYOUT_KEY) || "null");
     if (saved && typeof saved === "object") state = { ...empty(), ...saved };
   } catch (e) {}
+  // 1.66: the order and the hidden cards of 1.50 (one layout) become the phone's and the tablet's
+  if ((state.order || state.hidden) && !Object.keys(state.devices || {}).length) {
+    const old = {};
+    for (const page of Object.keys(LAYOUT_DEFAULTS.phone)) {
+      const usual = LAYOUT_DEFAULTS.phone[page].main;
+      const chosen = ((state.order || {})[page] || []).filter((id) => usual.includes(id));
+      old[page] = { columns: { main: chosen.concat(usual.filter((id) => !chosen.includes(id))) }, hidden: ((state.hidden || {})[page] || []).filter((id) => usual.includes(id)) };
+    }
+    state = { ...state, devices: { phone: old, tablet: JSON.parse(JSON.stringify(old)) } };
+    delete state.order;
+    delete state.hidden;
+  }
   // 1.56: the endstops card folds like the others (open unless it was folded again with its own old fold)
   try {
     if (localStorage.getItem("ke_endstops_open") === "0" && !("endstops" in state.collapsed)) {
@@ -56,36 +93,76 @@ const layoutStore = (() => {
     } catch (e) {}
     listeners.forEach((fn) => fn());
   };
-  return {
+  // the kind of device changes with the window (a tablet turned, a browser made wider): the pages follow
+  let device = layoutDeviceNow();
+  window.addEventListener("resize", () => {
+    const now = layoutDeviceNow();
+    if (now === device) return;
+    device = now;
+    state = { ...state };
+    listeners.forEach((fn) => fn());
+  });
+  const saved = (page, dev) => ((state.devices[dev] || {})[page]) || {};
+  const store = {
     subscribe: (fn) => (listeners.add(fn), () => listeners.delete(fn)),
     snapshot: () => state,
+    device: () => device,
     toggleCollapsed: (id) => save({ ...state, collapsed: { ...state.collapsed, [id]: !state.collapsed[id] } }),
     expandAll: () => save({ ...state, collapsed: {} }),
-    /** The page's cards in the chosen order (new cards of a later release at their usual place, at the end). */
-    order(page) {
-      const usual = LAYOUT_PAGES[page];
-      const chosen = (state.order[page] || []).filter((id) => usual.includes(id));
-      return chosen.concat(usual.filter((id) => !chosen.includes(id)));
+    /** { column: [card ids] } of a page on a kind of device: the saved layout, fixed up with the usual one. */
+    columns(page, dev = device) {
+      const usual = LAYOUT_DEFAULTS[dev][page];
+      const known = Object.values(usual).flat();
+      const chosen = saved(page, dev).columns || {};
+      const out = {};
+      const placed = new Set();
+      for (const column of Object.keys(usual)) {
+        out[column] = (Array.isArray(chosen[column]) ? chosen[column] : usual[column]).filter((id) => known.includes(id) && !placed.has(id) && (placed.add(id), true));
+      }
+      for (const column of Object.keys(usual)) for (const id of usual[column]) if (!placed.has(id)) (out[column].push(id), placed.add(id));
+      return out;
     },
-    move(page, id, step) {
-      const list = this.order(page);
-      const at = list.indexOf(id);
+    /** The cards of a page's column in order, the hidden ones left out. */
+    shown(page, column = "main", dev = device) {
+      return (this.columns(page, dev)[column] || []).filter((id) => !this.isHidden(page, id, dev));
+    },
+    /** The phone's single list (1.50): the page's columns one after the other. */
+    order(page, dev = device) {
+      return Object.values(this.columns(page, dev)).flat();
+    },
+    /** Puts a card in a column at a place (a drag in Settings → Appearance). */
+    place(page, id, column, index, dev = device) {
+      const columns = this.columns(page, dev);
+      if (!columns[column]) return;
+      for (const name of Object.keys(columns)) columns[name] = columns[name].filter((one) => one !== id);
+      columns[column].splice(Math.max(0, Math.min(index, columns[column].length)), 0, id);
+      const pages = { ...(state.devices[dev] || {}), [page]: { ...saved(page, dev), columns } };
+      save({ ...state, devices: { ...state.devices, [dev]: pages } });
+    },
+    move(page, id, step, dev = device) {
+      const columns = this.columns(page, dev);
+      const column = Object.keys(columns).find((name) => columns[name].includes(id));
+      if (!column) return;
+      const at = columns[column].indexOf(id);
       const to = at + step;
-      if (at < 0 || to < 0 || to >= list.length) return;
-      list.splice(at, 1);
-      list.splice(to, 0, id);
-      save({ ...state, order: { ...state.order, [page]: list } });
+      if (to < 0 || to >= columns[column].length) return;
+      this.place(page, id, column, to, dev);
     },
-    isHidden: (page, id) => (state.hidden[page] || []).includes(id),
-    setHidden(page, id, hidden) {
-      const list = (state.hidden[page] || []).filter((one) => one !== id);
-      save({ ...state, hidden: { ...state.hidden, [page]: hidden ? list.concat(id) : list } });
+    isHidden: (page, id, dev = device) => !LAYOUT_FIXED.includes(id) && (saved(page, dev).hidden || []).includes(id),
+    setHidden(page, id, hidden, dev = device) {
+      if (LAYOUT_FIXED.includes(id)) return;
+      const list = (saved(page, dev).hidden || []).filter((one) => one !== id);
+      const pages = { ...(state.devices[dev] || {}), [page]: { ...saved(page, dev), hidden: hidden ? list.concat(id) : list } };
+      save({ ...state, devices: { ...state.devices, [dev]: pages } });
     },
+    /** The usual layout again for one kind of device (or every one). */
+    resetDevice: (dev) => save({ ...state, devices: dev ? { ...state.devices, [dev]: {} } : {} }),
     setHints: (show) => save({ ...state, hideHints: !show }),
     setAccent: (accent) => save({ ...state, accent }),
     setLook: (look) => save({ ...state, look }),
     reset: () => save({ ...empty(), hideHints: state.hideHints, accent: state.accent, look: state.look }),
   };
+  return store;
 })();
 
 const useLayout = () => useSyncExternalStore(layoutStore.subscribe, layoutStore.snapshot);
@@ -165,12 +242,9 @@ function applyAccent() {
 applyAccent();
 layoutStore.subscribe(applyAccent);
 
-/** The page's cards in the chosen order, without the hidden ones: `cards` is { id: element }. */
-function arrangeCards(page, cards) {
-  return layoutStore
-    .order(page)
-    .filter((id) => !layoutStore.isHidden(page, id))
-    .map((id) => cards[id] && h(React.Fragment, { key: id }, cards[id]));
+/** A column of the page's cards in the chosen order, without the hidden ones: `cards` is { id: element }. */
+function arrangeCards(page, cards, column = "main") {
+  return layoutStore.shown(page, column).map((id) => cards[id] && h(React.Fragment, { key: id }, cards[id]));
 }
 
 /* ---------------------------------------------------------------------------

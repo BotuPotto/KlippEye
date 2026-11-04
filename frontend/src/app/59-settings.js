@@ -822,10 +822,19 @@ const PAGE_PARENT = Object.fromEntries([...AI_SUBPAGES.map((entry) => [entry.id,
 const PAGE_TITLES = Object.fromEntries([...SETTINGS_ENTRIES, ...AI_SUBPAGES, ...CAMERA_SUBPAGES, ...PAGES_INSIDE].map((entry) => [entry.id, entry.title]));
 
 /** One row of the menu: icon, name, what it is set to now, and a badge when something waits. */
+/** The menu's line a page belongs to (a page inside another one: its parent's; a camera of Moonraker: Camera). */
+function pageRoot(page) {
+  let current = page;
+  if (current && current.startsWith("webcam:")) current = "camera";
+  for (let guard = 0; current && PAGE_PARENT[current] && guard < 4; guard++) current = PAGE_PARENT[current];
+  return current;
+}
+
 function SettingsEntry({ entry, settings, brain, menu }) {
+  const active = pageRoot(menu.page) === entry.id; // 1.65: on a computer the list stays beside the page, this line marked
   return h(
     "button",
-    { type: "button", className: "set-entry", "data-page": entry.id, onClick: () => menu.goTo(entry.id) },
+    { type: "button", className: cx("set-entry", active && "is-active"), "aria-current": active ? "page" : undefined, "data-page": entry.id, onClick: () => menu.goTo(entry.id) },
     h("span", { className: "oui-row__icon oui-row__icon--accent" }, h(entry.icon)),
     h(
       "span",
@@ -884,6 +893,7 @@ function SettingsDrawer({ menu, updates, printing, actions }) {
   useBodyScrollLock(true);
   const { settings } = useSettings();
   const { page } = menu;
+  const wide = useIsDesktop();
   const touch = useRef(null);
   const onTouchStart = (event) => {
     const point = event.touches[0];
@@ -920,19 +930,55 @@ function SettingsDrawer({ menu, updates, printing, actions }) {
   else if (page === "functions") body = h(PrinterFunctionsPage, { printing });
   else if (page === "software") body = h(SoftwarePage, { active: true, menu, updates, printing, actions });
   else body = h(SettingsHome, { menu });
+  const title = page ? PAGE_TITLES[page] || webcamPageTitle(page) : tx("Settings");
+  // 1.65: a computer gets one panel in the middle of the screen, as Mainsail's settings: the list on the left, the page
+  // on the right
+  if (wide) {
+    const inside = page && pageRoot(page) !== page; // a page inside another one: the arrow goes back to it
+    return h(
+      "div",
+      { className: "drawer-overlay drawer-overlay--panel", onClick: (event) => event.target === event.currentTarget && menu.close() },
+      h(
+        "aside",
+        { className: "drawer drawer--panel", role: "dialog", "aria-modal": "true", "aria-label": tx("Settings") },
+        h(
+          "nav",
+          { className: "drawer__side", "aria-label": tx("Settings") },
+          h("div", { className: "drawer__head" }, h(PrinterLogo, { id: settings.printer.brand, className: "drawer__logo" }), h("div", { className: "drawer__brand" }, tx("Settings")), h(HelpButton, { page: "home", className: "drawer__help" })),
+          h("div", { className: "drawer__list" }, h(SettingsHome, { menu })),
+        ),
+        h(
+          "section",
+          { className: "drawer__main" },
+          h(
+            "div",
+            { className: "drawer__head" },
+            inside && h("button", { type: "button", className: "header-btn drawer__btn", "aria-label": tx("Back"), onClick: () => goBack() }, h(Icons.Back)),
+            h("div", { className: "drawer__title" }, page ? title : ""),
+            page && h(HelpButton, { page, className: "drawer__help" }),
+            h("button", { type: "button", className: "header-btn drawer__btn", "aria-label": tx("Close"), onClick: menu.close }, h(Icons.Close)),
+          ),
+          page
+            ? h("div", { className: "drawer__body", key: page }, body)
+            : h("div", { className: "drawer__body drawer__placeholder", key: "none" }, h(Icons.Sliders, { size: 28 }), h("p", null, tx("Choose a page on the left."))),
+        ),
+      ),
+    );
+  }
   return h(
     "div",
     { className: "drawer-overlay", onClick: (event) => event.target === event.currentTarget && menu.close() },
     h(
       "aside",
-      { className: "drawer", role: "dialog", "aria-modal": "true", "aria-label": tx("Settings"), onTouchStart, onTouchEnd },
+      // 1.65: on a phone a page fills the screen (the list is the side panel)
+      { className: cx("drawer", page && "drawer--full"), role: "dialog", "aria-modal": "true", "aria-label": tx("Settings"), onTouchStart, onTouchEnd },
       h(
         "div",
         { className: "drawer__head" },
         page
           ? h("button", { type: "button", className: "header-btn drawer__btn", "aria-label": tx("Back"), onClick: () => goBack() }, h(Icons.Back))
           : h(PrinterLogo, { id: settings.printer.brand, className: "drawer__logo" }),
-        h("div", { className: "drawer__title" }, page ? PAGE_TITLES[page] || webcamPageTitle(page) : tx("Settings")),
+        h("div", { className: "drawer__title" }, title),
         h(HelpButton, { page: page || "home", className: "drawer__help" }),
         h("button", { type: "button", className: "header-btn drawer__btn", "aria-label": tx("Close"), onClick: menu.close }, h(Icons.Close)),
       ),

@@ -1,5 +1,19 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.65.0
+
+**Settings in full pages (phone) and one panel (computer); the cards' layout dragged, one per kind of device.**
+
+* On a **phone** a page of the settings fills the screen (the side menu is the list of pages).
+* On a **computer** the settings are one panel in the middle of the screen, as Mainsail's: the list on the left (the
+  page open marked), the page on the right.
+* **Settings → Appearance → Cards**: a small drawing of the page. A card is **dragged by its handle** (finger or mouse)
+  to its new place, also into the other column; the arrows do the same, the switch shows or hides it.
+* **One layout per kind of device**: phone, tablet and computer each keep their own (the one of this screen is chosen
+  at first and marked «this one»). On a computer the Device page has a main and a side column (the print card always
+  stays), the Calibration page a left and a right one; any card can go in either. The order of 1.50 becomes the
+  phone's and the tablet's.
+
 ## 1.64.0
 
 **Computer: every card scrolls, the console no longer hides the page.**

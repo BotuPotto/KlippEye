@@ -304,3 +304,53 @@
 .webcam-fields { display: flex; flex-direction: column; gap: 16px; min-width: 0; margin: 0; padding: 0; border: 0; }
 .webcam-fields:disabled { opacity: 0.6; }
 .set-entry.is-off .oui-row__name { color: var(--oui-text-3); }
+
+/* ---- 1.65: a page fills the phone's screen; on a computer the menu is one panel in the middle ---- */
+.drawer { transition: width var(--oui-dur-slow) var(--oui-ease), border-radius var(--oui-dur-slow) var(--oui-ease); }
+.drawer.drawer--full { width: 100vw; border-right: 0; border-radius: 0; }
+
+.drawer-overlay--panel { display: grid; place-items: center; padding: 24px; }
+.drawer.drawer--panel {
+  position: relative;
+  top: auto;
+  bottom: auto;
+  left: auto;
+  display: grid;
+  grid-template-columns: 340px minmax(0, 1fr);
+  width: min(1180px, 100%);
+  height: min(860px, 100%);
+  padding-top: 0;
+  overflow: hidden;
+  border: 1px solid var(--oui-stroke-strong);
+  border-radius: var(--oui-r-card);
+  transition: none;
+  animation: drawer-panel-in var(--oui-dur-slow) var(--oui-ease);
+}
+@keyframes drawer-panel-in { from { opacity: 0; transform: scale(0.97) translateY(8px); } }
+[data-presence="leaving"] .drawer.drawer--panel { animation: oui-fade-out var(--oui-dur-exit) linear forwards; }
+.drawer__side { display: flex; flex-direction: column; min-height: 0; border-right: 1px solid var(--oui-stroke); background: rgba(255, 255, 255, 0.02); }
+.drawer__brand { flex: 1; min-width: 0; font-size: 20px; font-weight: 700; letter-spacing: -0.01em; }
+.drawer__list { display: flex; flex: 1; flex-direction: column; gap: 16px; min-height: 0; padding: 8px 14px 20px; overflow-y: auto; overscroll-behavior: contain; }
+.drawer__list > * { flex-shrink: 0; }
+.drawer__main { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.drawer__main > .drawer__body { padding: 8px 28px 28px; }
+.drawer__main > .drawer__body > * { width: 100%; max-width: 760px; }
+.drawer__placeholder { align-items: center; justify-content: center; color: var(--oui-text-3); text-align: center; }
+.set-entry.is-active { background: var(--oui-accent-soft); }
+.set-entry.is-active .oui-row__name { color: var(--oui-accent-text); }
+
+/* ---- 1.66: the cards' layout, a drawing of the page (59o-appearance.js LayoutEditor) ---- */
+.layout-board { display: grid; gap: 12px; }
+.layout-board--columns { grid-template-columns: 1fr 1fr; }
+.layout-board--computer.layout-board--columns { grid-template-columns: 1.4fr 1fr; }
+.layout-col { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.layout-col__title { margin: 0 6px; color: var(--oui-text-3); font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
+.layout-col .layout-list { min-height: 56px; }
+.layout-row__grip { display: grid; flex: none; place-items: center; width: 32px; height: 40px; margin-left: -10px; padding: 0; border: 0; background: transparent; color: var(--oui-text-3); cursor: grab; touch-action: none; }
+.layout-row__grip:active { cursor: grabbing; }
+.layout-row.is-dragging { background: var(--oui-surface-3); border-radius: var(--oui-r-row); box-shadow: var(--oui-shadow-float); opacity: 0.95; pointer-events: none; }
+.layout-row.is-dragging .layout-row__grip { pointer-events: auto; }
+.layout-drop { height: 4px; margin: 2px 8px; border-radius: 2px; background: var(--oui-accent); }
+.layout-row__fixed { min-width: 56px; color: var(--oui-text-3); font-size: 12px; text-align: center; }
+.layout-board--columns .layout-row { padding-left: 12px; }
+.layout-board--columns .layout-row__name { font-size: 14px; white-space: normal; }
