@@ -526,6 +526,11 @@ button.oui-tile:active { transform: scale(0.985); background: var(--oui-surface-
 /* the hints (1.51): the small texts that explain how to use a page, hidden in Settings → Appearance */
 .hide-hints .ui-hint { display: none !important; }
 
+/* 1.55.3: a title bar with more buttons than a narrow phone can hold puts them on a second line, right-aligned, instead of
+   pushing them out of the card */
+.oui-card__head { flex-wrap: wrap; row-gap: 8px; }
+.oui-card__head > :not(.oui-card-title) { margin-left: auto; }
+
 /* ============================================================================
    Controls: buttons, chips, segmented switch, fields, badges, progress, checkbox
    ========================================================================== */
@@ -2235,6 +2240,11 @@ body:has(.console-full) .oui-menu { z-index: 9997; }
 .timelapse-switches { margin-top: 12px; }
 .timelapse-video { max-width: 100%; max-height: 100%; border-radius: var(--oui-r-field); background: #000; }
 .timelapse-settings .set-field { margin-top: 14px; }
+/* narrow phones: a smaller preview leaves the buttons room */
+@media (max-width: 359px) {
+  .timelapse-row__preview { flex-basis: 88px; width: 88px; height: 64px; }
+  .timelapse-row__actions .oui-btn { padding: 0 10px; }
+}
 
 /* ============================================================================
    Extruder card
@@ -8775,7 +8785,7 @@ function usePrinterFunctions() {
    ========================================================================== */
 
 /** Written by build.py from the VERSION file of the release; stays as it is when the page is built by hand. */
-const DASHBOARD_RELEASE = "1.55.2";
+const DASHBOARD_RELEASE = "1.55.3";
 const dashboardRelease = () => (DASHBOARD_RELEASE.startsWith("__") ? "sviluppo" : DASHBOARD_RELEASE);
 
 /** The interface level this page needs from the backend (the backend says its own in /api/version). */

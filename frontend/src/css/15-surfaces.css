@@ -106,3 +106,8 @@ button.oui-tile:active { transform: scale(0.985); background: var(--oui-surface-
 
 /* the hints (1.51): the small texts that explain how to use a page, hidden in Settings → Appearance */
 .hide-hints .ui-hint { display: none !important; }
+
+/* 1.55.3: a title bar with more buttons than a narrow phone can hold puts them on a second line, right-aligned, instead of
+   pushing them out of the card */
+.oui-card__head { flex-wrap: wrap; row-gap: 8px; }
+.oui-card__head > :not(.oui-card-title) { margin-left: auto; }

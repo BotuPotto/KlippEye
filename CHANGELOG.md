@@ -1,5 +1,14 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.55.3
+
+**Narrow phones: nothing out of its card** (roadmap phase 8).
+
+* A card's title bar with more buttons than a narrow phone can hold (the Spool card's *Change spool* and fold, the
+  configuration files' *New* and reload…) puts them on a second line instead of pushing them out of the card.
+* Timelapse: on the narrowest phones the preview is smaller and the delete button stays inside the row.
+* A new test checks every page, with every optional card on, at 320 and 390 px.
+
 ## 1.55.2
 
 **Code: leftovers removed** (roadmap phase 8, first pass). Nothing changes on screen.

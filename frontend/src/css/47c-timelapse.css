@@ -25,3 +25,8 @@
 .timelapse-switches { margin-top: 12px; }
 .timelapse-video { max-width: 100%; max-height: 100%; border-radius: var(--oui-r-field); background: #000; }
 .timelapse-settings .set-field { margin-top: 14px; }
+/* narrow phones: a smaller preview leaves the buttons room */
+@media (max-width: 359px) {
+  .timelapse-row__preview { flex-basis: 88px; width: 88px; height: 64px; }
+  .timelapse-row__actions .oui-btn { padding: 0 10px; }
+}
