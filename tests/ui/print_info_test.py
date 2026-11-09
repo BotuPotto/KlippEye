@@ -1,4 +1,4 @@
-"""Release 1.30.0 (roadmap 6b part 1): the print card shows more, like Mainsail (when it ends, speed, volumetric flow, the
+"""Release 1.30.0 (roadmap 6b part 1): the print card shows more. (when it ends, speed, volumetric flow, the
 estimates one by one, filament, height, the factors) and offers «Exclude an object» (Klipper's exclude_object) with a map.
 Against the mock (print 42%, 1260 s, filament 3.2 of 4.2 m, slicer 7260 s, speed factor 110%, flow factor 95%).
 Usage: print_info_test.py <html> <outdir> <port>"""

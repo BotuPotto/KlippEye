@@ -1,4 +1,4 @@
-"""Release 1.42.0 (roadmap 6d part 1): the print history and its statistics, like Mainsail. The Files page switches between
+"""Release 1.42.0 (roadmap 6d part 1): the print history and its statistics. The Files page switches between
 the print files and the history (kept on this device); the statistics (Moonraker's totals, how the prints ended, the last
 14 days), the list (searched, filtered), a job (its figures, a note kept in Moonraker's database, Print again, Remove),
 Reset of the totals, and the message when Moonraker keeps no history. Against the mock.

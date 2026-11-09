@@ -1,6 +1,6 @@
 /* ============================================================================
    48a · TUNE CARD (roadmap 6b part 3, release 1.32.0)
-   What Mainsail and Fluidd call "Tune" / "Machine limits": the values Klipper
+   «Tune» / «Machine limits»: the values Klipper
    lets you change while it runs, during a print too:
      · speed and flow factors (M220 / M221);
      · pressure advance and its smooth time (SET_PRESSURE_ADVANCE);

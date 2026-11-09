@@ -1,6 +1,6 @@
 /* ============================================================================
    47b · PRINT HISTORY AND STATISTICS (1.42, roadmap 6d part 1)
-   What Moonraker's [history] keeps of every print, as Mainsail shows it:
+   What Moonraker's [history] keeps of every print:
      · the statistics: prints, print time, filament, longest and average print,
        how many finished; how they ended (a bar), and the last 14 days (print
        time or filament a day);

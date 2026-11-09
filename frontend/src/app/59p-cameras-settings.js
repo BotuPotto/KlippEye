@@ -2,9 +2,9 @@
    59p · SETTINGS → CAMERA: EVERY CAMERA, ONE PAGE EACH (1.59)
    The Camera page lists:
      · the main camera (KlippEye's own setting: the one the AI monitor watches),
-       on its page "camera-main" (method, address, image, snapshot, Mainsail);
-     · the webcams kept by Moonraker, the same ones Mainsail and Fluidd show and
-       edit (/server/webcams/*): each on its page, as in Mainsail's Webcam
+       on its page "camera-main" (method, address, image, snapshot, import);
+     · the webcams kept by Moonraker, the same ones every interface of the printer
+       shows and edits (/server/webcams/*): each on its page, as in a Webcam
        settings (name, kind, addresses, frames a second, image, on / off),
        saved to Moonraker at once; "Add a camera" makes a new one; a webcam
        written in moonraker.conf can only be read;
@@ -12,7 +12,7 @@
    ========================================================================== */
 
 const WEBCAM_PAGE_PREFIX = "webcam:";
-/** The kinds of webcam this dashboard can show, as Moonraker / Mainsail name them. */
+/** The kinds of webcam this dashboard can show, as Moonraker names them. */
 const WEBCAM_SERVICES = [
   { id: "webrtc-camerastreamer", label: "WebRTC (camera-streamer)" },
   { id: "mjpegstreamer", label: "MJPEG" },
@@ -139,7 +139,7 @@ function CamerasPage({ menu }) {
   );
 }
 
-/** One webcam of Moonraker, as in Mainsail's settings: every change is saved at once. */
+/** One webcam of Moonraker: every change is saved at once. */
 function WebcamPage({ uid, menu }) {
   const webcams = useWebcams();
   const [deleting, setDeleting] = useState(false);

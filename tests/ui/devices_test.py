@@ -1,4 +1,4 @@
-"""Release 1.45.0 (roadmap 6d part 4): the Devices card, like Mainsail's "Power control" and "Miscellaneous": Moonraker's
+"""Release 1.45.0 (roadmap 6d part 4): the Devices card "Power control" and "Miscellaneous": Moonraker's
 power devices (the off asked first; a name with _ hidden), Klipper's output pins (a switch; a slider for a PWM pin), the
 filament sensors (filament there or not, the sensor on / off). No card when there is nothing. Against the mock.
 Usage: devices_test.py <html> <outdir> <port>"""

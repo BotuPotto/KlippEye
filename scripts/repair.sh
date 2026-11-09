@@ -84,7 +84,7 @@ if [ -e "$LOCK" ]; then
 fi
 
 if ! git -C "$REPO" rev-parse --verify -q 'HEAD^{commit}' >/dev/null 2>&1; then
-  log "ERROR: the git data in $REPO is damaged: cannot compare the files. Fix: Mainsail -> Machine -> Update Manager -> klippeye -> Recover (hard), or in a terminal: klippeye update --force"
+  log "ERROR: the git data in $REPO is damaged: cannot compare the files. Fix: Moonraker's update manager -> klippeye -> Recover (hard), or in a terminal: klippeye update --force"
   exit 0
 fi
 
@@ -114,7 +114,7 @@ for FILE in "${BAD[@]}"; do
 done
 [ "${#DONE[@]}" = 0 ] || log "Restored (${#DONE[@]}): ${DONE[*]}"
 if [ "${#FAILED[@]}" != 0 ]; then
-  log "NOT restored (${#FAILED[@]}): ${FAILED[*]} - fix: Mainsail -> Machine -> Update Manager -> klippeye -> Recover (hard), or in a terminal: klippeye update --force"
+  log "NOT restored (${#FAILED[@]}): ${FAILED[*]} - fix: Moonraker's update manager -> klippeye -> Recover (hard), or in a terminal: klippeye update --force"
 fi
 
 json_list() { local out="" f; for f in "$@"; do out="${out:+$out,}\"$f\""; done; printf '[%s]' "$out"; }

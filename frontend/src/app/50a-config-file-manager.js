@@ -6,7 +6,7 @@
      · a menu for every row (the ⋯ button, a long press or a right click):
        open, download (files), rename, move to another folder, delete;
      · on a computer, a row can be dragged onto a folder (or onto "/" and "..").
-   It makes the same calls as Mainsail and Fluidd: uploading an empty file
+   It uses Moonraker's own calls: uploading an empty file
    creates a file, Moonraker's "move" renames and moves files and folders alike,
    and a folder is deleted with everything inside it.
    ========================================================================== */

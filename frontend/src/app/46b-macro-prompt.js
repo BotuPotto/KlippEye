@@ -1,7 +1,7 @@
 /* ============================================================================
    46b · WINDOWS OPENED BY MACROS (1.71)
    Klipper's macros can open a window with a title, some text and buttons
-   (Klipper's "prompt" actions, as Mainsail and Fluidd show them): many macro
+   (Klipper's "prompt" actions): many macro
    packs ask this way (Happy Hare, RatOS, Klippain, filament changes…).
      RESPOND TYPE=command MSG="action:prompt_begin Filament change"
      RESPOND TYPE=command MSG="action:prompt_text Load the new filament, then:"

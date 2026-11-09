@@ -132,7 +132,7 @@ with sync_playwright() as p:
     ok("... in its [timelapse] section: what differs from the defaults", all(line in section for line in ("mode: hyperlapse", "hyperlapse_cycle: 15", "parkhead: True", "rotation: 180", "flip_x: True", "extraoutputparams: -tune film")) and "constant_rate_factor" not in section, section)
     ok("... the rest of the file as it was (comment, output_path, the other sections)", "# made by the installer" in section and "output_path: ~/printer_data/timelapse/" in section and conf.count("[timelapse]") == 1 and "[update_manager timelapse]" in conf and conf.startswith("[server]"))
     ok("... back: saved, the settings are what was written", wait_until(lambda: sett.locator('[data-timelapse-save="clean"]').count() == 1, 25) and state()["timelapse_settings"]["mode"] == "hyperlapse" and state()["timelapse_settings"]["hyperlapse_cycle"] == 15)
-    ok("... and still editable here (locked for Mainsail, not for this card)", not sett.locator('[data-setting="parkhead"] [role=switch]').is_disabled())
+    ok("... and still editable here (locked for other interfaces, not for this card)", not sett.locator('[data-setting="parkhead"] [role=switch]').is_disabled())
     # undo
     sett.locator('[data-setting="flip_y"] [role=switch]').click()
     ok("a change, then «Annulla modifiche»: back as saved", sett.locator('[data-timelapse-save="dirty"]').count() == 1 and (sett.get_by_role("button", name="Annulla modifiche").click() or True) and sett.locator('[data-timelapse-save="clean"]').count() == 1)

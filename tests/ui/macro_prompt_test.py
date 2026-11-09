@@ -1,5 +1,4 @@
-"""Release 1.71: windows opened by Klipper macros (RESPOND TYPE=command MSG="action:prompt_…", as Mainsail and Fluidd
-show them): title, text, buttons, groups, footer buttons; a button sends its command; ✕ sends action:prompt_end; the
+"""Release 1.71: windows opened by Klipper macros (RESPOND TYPE=command MSG="action:prompt_…"): title, text, buttons, groups, footer buttons; a button sends its command; ✕ sends action:prompt_end; the
 window opens on every device and after a reload, closes on prompt_end; the prompt lines are not shown in the console.
 Usage: macro_prompt_test.py <html> <outdir> <port>"""
 import json

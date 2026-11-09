@@ -1,5 +1,5 @@
 /* ============================================================================
-   51 · TEXT EDITOR (1.41: CodeMirror 6, like Mainsail)
+   51 · TEXT EDITOR (1.41: CodeMirror 6)
    Full-screen editor for Klipper/Moonraker config files and G-code files (also
    used to read the system logs), built on CodeMirror 6 (vendor/codemirror-6.js,
    the global CM): line numbers, colours, the [sections] folded and unfolded,
@@ -187,7 +187,7 @@ function sectionEndLine(doc, number) {
   return last;
 }
 
-/** A [section] folds down to its last line (like Mainsail). */
+/** A [section] folds down to its last line . */
 const sectionFolding = () =>
   CM.foldService.of((state, lineStart) => {
     const line = state.doc.lineAt(lineStart);
@@ -333,7 +333,7 @@ function restartTargetOf(path) {
 
 /**
  * Restarts what the file belongs to: a service through Moonraker; Klipper with SAVE_CONFIG when it holds changes to save
- * (they would be lost), otherwise FIRMWARE_RESTART (as Mainsail). While a print runs, Klipper restarts only if confirmed.
+ * (they would be lost), otherwise FIRMWARE_RESTART. While a print runs, Klipper restarts only if confirmed.
  */
 async function restartForFile(target) {
   if (target.kind === "service") {

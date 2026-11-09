@@ -1,5 +1,5 @@
 /* ============================================================================
-   58 · BED MESH (redone like Mainsail's height map in 1.36, roadmap 6b part 7)
+   58 · BED MESH (height map redone in 1.36, roadmap 6b part 7)
    Klipper's bed-leveling map (`bed_mesh` object) as a coloured 2D grid (the
    values, a tap on a point says where it is) or a 3D surface on a canvas that
    can be rotated (drag) and zoomed (wheel or pinch); the probed points or the
@@ -77,7 +77,7 @@ function profileRange(profile) {
   return values.length ? Math.max(...values) - Math.min(...values) : null;
 }
 
-/** Mainsail's colours (blue low → yellow → red high), the scale running over the mesh's own range (1.36.1). */
+/** The colours (blue low → yellow → red high), the scale running over the mesh's own range (1.36.1). */
 const MESH_COLORS = ["#313695", "#4575b4", "#74add1", "#abd9e9", "#e0f3f8", "#ffffbf", "#fee090", "#fdae61", "#f46d43", "#d73027", "#a50026"];
 const MESH_RGB = MESH_COLORS.map((hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)));
 /** White writing on the dark ends of the scale, black in the light middle. */
@@ -95,7 +95,7 @@ function heightColor(value, { min, range }) {
 }
 
 /* ---------------------------------------------------------------------------
-   3D drawing (1.36.1: like Mainsail's) — a smooth surface (each cell split in
+   3D drawing (1.36.1) — a smooth surface (each cell split in
    small pieces, each coloured by its own height: the colour runs across the
    cell instead of one colour a square), the mesh lines on it, and a box with a
    grid and the X / Y / Z values on its edges. Seen from the front, above.

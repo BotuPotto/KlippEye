@@ -1,7 +1,7 @@
 /* ============================================================================
    70 · DESKTOP SHELL
    On a wide screen (a computer, a tablet held sideways) the dashboard uses a
-   second layout, closer to the Device page of Bambu Studio: page tabs in the
+   second layout: page tabs in the
    top bar instead of the floating bar at the bottom, a camera that fills the
    page, and the console as a bar that is always at hand. A phone keeps the
    layout it always had: nothing below 1100 px wide changes.

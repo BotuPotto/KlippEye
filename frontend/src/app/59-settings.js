@@ -3,7 +3,7 @@
    The side menu behind the menu button of the top bar (like Mobileraker's): it slides in from the left and lists the
    groups of settings, each one a page of its own inside the menu.
      Stampante        the name and the logo of the top bar and of the browser tab: KlippEye, VzBot, Voron, RatRig (see 18-printer-brand.js)
-     Camera           how the picture is shown (like the webcam page of Mainsail) and flipped
+     Camera           how the picture is shown and flipped
      Indirizzi        the addresses of the Raspberry at home and through ZeroTier, and which one the camera uses
      Z-offset         the step sizes of the Z-offset card
      Notifiche        which notifications the phone gets (done by the service on the Raspberry, see notifier/)
@@ -329,27 +329,27 @@ function PrinterPage() {
 }
 
 /* ---- Camera ---- */
-const MAINSAIL_SERVICES = { mjpegstreamer: "mjpeg", "uv4l-mjpeg": "mjpeg", ipstream: "mjpeg", "mjpegstreamer-adaptive": "adaptive", "webrtc-camerastreamer": "webrtc", iframe: "iframe" };
+const WEBCAM_SERVICE_METHODS = { mjpegstreamer: "mjpeg", "uv4l-mjpeg": "mjpeg", ipstream: "mjpeg", "mjpegstreamer-adaptive": "adaptive", "webrtc-camerastreamer": "webrtc", iframe: "iframe" };
 
-/** The webcams configured in Mainsail (Moonraker keeps them), as [{ name, service, method, address, flipH, flipV, fps }]; `method` is "" when this dashboard cannot show that kind. */
-async function loadMainsailWebcams() {
+/** The webcams configured on the printer (Moonraker keeps them), as [{ name, service, method, address, flipH, flipV, fps }]; `method` is "" when this dashboard cannot show that kind. */
+async function loadPrinterWebcams() {
   const json = await fetchJson("/server/webcams/list", { timeout: SETTINGS_DB_TIMEOUT_MS });
   const list = json && json.result && Array.isArray(json.result.webcams) ? json.result.webcams : [];
   return list
     .filter((cam) => isPlainObject(cam) && cam.enabled !== false)
     .map((cam) => {
-      const method = MAINSAIL_SERVICES[String(cam.service || "").toLowerCase()] || "";
+      const method = WEBCAM_SERVICE_METHODS[String(cam.service || "").toLowerCase()] || "";
       const address = cleanCameraAddress(method === "adaptive" ? cam.snapshot_url || cam.stream_url : cam.stream_url);
       return { name: String(cam.name || tx("Camera")), service: String(cam.service || ""), method: address ? method : "", address, snapshot: cleanCameraAddress(cam.snapshot_url) || "", flipH: cam.flip_horizontal === true, flipV: cam.flip_vertical === true, rotation: [90, 180, 270].includes(Number(cam.rotation)) ? Number(cam.rotation) : 0, fps: Number(cam.target_fps) || 0, ratio: cameraRatio(cam.aspect_ratio) };
     });
 }
 
-function MainsailImport({ onPick }) {
+function PrinterWebcamImport({ onPick }) {
   const [state, setState] = useState({ phase: "idle", cams: [], message: "" });
   const load = async () => {
     setState({ phase: "loading", cams: [], message: "" });
     try {
-      const cams = await loadMainsailWebcams();
+      const cams = await loadPrinterWebcams();
       setState(cams.length ? { phase: "list", cams, message: "" } : { phase: "none", cams: [], message: tx("The printer has no cameras set up.") });
     } catch (error) {
       setState({ phase: "none", cams: [], message: tx("Cannot read the printer's cameras.") });
@@ -377,7 +377,7 @@ function MainsailImport({ onPick }) {
 
 /**
  * The camera's single photo (1.23): the AI monitor, the camera calibration and the recordings take it (later the timelapse
- * too). Automatic from the camera's address, or chosen like in Mainsail; "Try" shows the photo exactly as the Raspberry gets it.
+ * too). Automatic from the camera's address, or chosen by hand; "Try" shows the photo exactly as the Raspberry gets it.
  */
 function SnapshotSetting({ camera, update }) {
   const automatic = defaultSnapshot(camera);
@@ -435,7 +435,7 @@ function CameraPage() {
     update((draft) => {
       draft.camera.method = cam.method;
       draft.camera.urls[cam.method] = cam.address;
-      draft.camera.snapshot = cam.snapshot; // Mainsail's own snapshot address ("" = automatic)
+      draft.camera.snapshot = cam.snapshot; // the webcam's own snapshot address ("" = automatic)
       draft.camera.flipH = cam.flipH;
       draft.camera.flipV = cam.flipV;
       if (cam.method === "adaptive" && cam.fps) draft.camera.fps = cam.fps;
@@ -482,7 +482,7 @@ function CameraPage() {
       ),
     ),
     h(SnapshotSetting, { camera, update }),
-    h(MainsailImport, { onPick: pick }),
+    h(PrinterWebcamImport, { onPick: pick }),
   );
 }
 
@@ -938,7 +938,7 @@ function SettingsDrawer({ menu, updates, printing, actions }) {
   else if (page === "software") body = h(SoftwarePage, { active: true, menu, updates, printing, actions });
   else body = h(SettingsHome, { menu });
   const title = page ? PAGE_TITLES[page] || webcamPageTitle(page) : tx("Settings");
-  // 1.65: a computer gets one panel in the middle of the screen, as Mainsail's settings: the list on the left, the page
+  // 1.65: a computer gets one panel in the middle of the screen: the list on the left, the page
   // on the right
   if (wide) {
     const inside = page && pageRoot(page) !== page; // a page inside another one: the arrow goes back to it

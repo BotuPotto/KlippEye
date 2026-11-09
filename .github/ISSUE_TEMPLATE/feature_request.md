@@ -8,4 +8,4 @@ labels: enhancement
 
 **Why it matters to you (your printer, your workflow)**
 
-**How Mainsail, Fluidd or other tools handle it, if they do**
+**How other tools handle it, if they do**

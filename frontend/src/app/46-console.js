@@ -165,7 +165,7 @@ function sendFromConsole(script, echo) {
 }
 
 /* ---------------------------------------------------------------------------
-   How the console is shown (1.34, like Mainsail's): kept on this device
+   How the console is shown (1.34): kept on this device
      autoscroll   follow the newest line (off: the log stays where it is);
      newestOnTop  the newest line first;
      showTemps    the temperature reports too (hidden by default: noise);
@@ -254,7 +254,7 @@ function ConsoleTools({ entries, fullscreen, onFullscreen }) {
 const FOLLOW_TAIL_PX = 80;
 
 /* ---------------------------------------------------------------------------
-   What a line says, shown as Mainsail shows it (1.69): the "!! " and "// " marks Klipper puts in front are
+   What a line says (1.69): the "!! " and "// " marks Klipper puts in front are
    dropped (the colour already says it), and the little HTML that Klipper, its modules and many macros write
    is drawn instead of printed: <a class="command">SAVE_CONFIG</a> becomes a link that puts SAVE_CONFIG in the
    input field, <b>, <i>, <br>, a coloured <span>… Everything else (scripts, images, frames, events) is left out:
@@ -264,7 +264,7 @@ const CONSOLE_TAGS = new Set(["a", "b", "strong", "i", "em", "u", "s", "small", 
 const CONSOLE_DROPPED_TAGS = new Set(["script", "style", "iframe", "object", "embed", "template", "noscript", "svg", "math", "img", "video", "audio"]);
 const CONSOLE_SAFE_COLOR = /^(#[0-9a-f]{3,8}|[a-z]{3,20}|rgba?\([\d\s.,%]+\)|hsla?\([\d\s.,%deg]+\))$/i;
 
-/** The text to show: the marks Klipper puts in front of its answers dropped, as Mainsail does. */
+/** The text to show: the marks Klipper puts in front of its answers dropped. */
 function consoleDisplayText(message) {
   return String(message || "")
     .replace(/^!! /, "")

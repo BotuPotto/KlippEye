@@ -1,5 +1,5 @@
 """Release 1.40.0 (roadmap 6c part 2): the print files searched by name and in the chosen order (newest / oldest, name,
-print time, filament, size, last printed — kept on this device), and «Dettagli» in the long-press menu with what Mainsail
+print time, filament, size, last printed — kept on this device), and «Dettagli» in the long-press menu with what
 shows of a file (slicer, times, layer heights, filament, temperatures, last print). Against the mock.
 Usage: gcodeview_test.py <html> <outdir> <port>"""
 import os

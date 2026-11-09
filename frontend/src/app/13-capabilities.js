@@ -4,8 +4,7 @@
    sections exist ([screws_tilt_adjust], [axis_twist_compensation], ...), which
    G-code commands are registered (CARTOGRAPHER_AXIS_TWIST_COMPENSATION,
    Z_OFFSET_APPLY_PROBE, QUERY_PROBE, ...) and what drives the Z endstop.
-   Features use it to offer only what the machine understands, the way Mainsail
-   and Fluidd do.
+   Features use it to offer only what the machine understands.
    ========================================================================== */
 
 const CAPABILITIES_RETRY_MS = 5000;

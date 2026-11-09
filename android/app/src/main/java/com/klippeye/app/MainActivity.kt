@@ -358,8 +358,8 @@ class MainActivity : AppCompatActivity() {
         val externalField = field("IP esterno (facoltativo: ZeroTier, VPN)", externalText ?: current.esterno)
         box.addView(localField)
         box.addView(externalField)
-        val spiegazione = "Lo stesso indirizzo che usi per aprire Mainsail o Fluidd (senza http:// e senza porta), per esempio " +
-            "192.168.1.20 oppure mainsailos.local. L'esterno serve solo se apri KlippEye da fuori casa con ZeroTier o una VPN."
+        val spiegazione = "Lo stesso indirizzo che usi per aprire l'interfaccia della stampante dal browser (senza http:// e senza porta), per esempio " +
+            "192.168.1.20 oppure stampante.local. L'esterno serve solo se apri KlippEye da fuori casa con ZeroTier o una VPN."
         AlertDialog.Builder(this)
             .setTitle(if (first) "Benvenuto in KlippEye" else "Indirizzi del Raspberry")
             .setMessage(if (first) "Dov'e' la tua stampante? $spiegazione" else spiegazione)

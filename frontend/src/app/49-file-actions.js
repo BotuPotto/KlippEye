@@ -220,7 +220,7 @@ function FileActionSheet({ item, controller }) {
 }
 
 /* ---------------------------------------------------------------------------
-   Details (1.40): what Mainsail shows of a file, read from Moonraker's metadata
+   Details (1.40): what is known of a file, read from Moonraker's metadata
    ------------------------------------------------------------------------- */
 const metaNumber = (value) => (typeof value === "number" && isFinite(value) && value > 0 ? value : null);
 const mm = (value, digits = 2) => (metaNumber(value) !== null ? Number(value.toFixed(digits)) + " mm" : null);

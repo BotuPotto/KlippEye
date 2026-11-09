@@ -162,7 +162,7 @@ function AnalysisResult({ logs }) {
     case "busy":
       return result.scope === "single"
         ? h(Spinner, { title: tx("Analysing: ") + result.name, detail: tx("one file • ~8 s") })
-        : h(Spinner, { title: tx("Analysing all the logs with AI"), detail: "klippy • moonraker • crowsnest • mainsail • " + result.fileCount + tx(" files • ~15 s") });
+        : h(Spinner, { title: tx("Analysing all the logs with AI"), detail: "klippy • moonraker • crowsnest • " + result.fileCount + tx(" files • ~15 s") });
     case "done":
       return h(AnalysisDone, { scope: result.scope, name: result.name, json: result.json });
     case "error":

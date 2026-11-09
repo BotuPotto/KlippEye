@@ -1,4 +1,4 @@
-"""Release 1.33.0 (roadmap 6b part 4): the macro cards, like Mainsail's. "All the macros" (one card, macros can be hidden) or
+"""Release 1.33.0 (roadmap 6b part 4): the macro cards. "All the macros" (one card, macros can be hidden) or
 "Groups" (cards of one's own: name, colour, order, the printer states they show in), set in Settings → Macros and kept in the
 shared settings; the old "Calibrations" choice becomes a group. The endstops have a card of their own. Against the mock.
 Usage: macros_test.py <html> <outdir> <port>"""

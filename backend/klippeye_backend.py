@@ -2498,7 +2498,7 @@ def set_brain_config(changes):
 # === UPDATE CHANNEL: which commits Moonraker's update manager installs ===========================================
 # "stable": only the releases tagged vX.Y.Z on GitHub (the release workflow tags a release once all its tests passed);
 # "dev": every change of the branch as soon as it is on GitHub. It is the "channel:" line of the [update_manager klippeye]
-# section of moonraker.conf, read and written through Moonraker's own file API (the same Mainsail uses to edit it), after
+# section of moonraker.conf, read and written through Moonraker's own file API, after
 # which Moonraker restarts to read it again.
 UPDATE_CHANNELS = ("stable", "dev")
 _UM_SECTION = re.compile(r"^\[update_manager\s+klippeye\s*\]\s*$")

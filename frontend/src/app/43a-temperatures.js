@@ -1,6 +1,6 @@
 /* ============================================================================
    43a · TEMPERATURES: EVERY SENSOR AND THE CHART (1.43, roadmap 6d part 2)
-   Like Mainsail's temperature panel: every heater and sensor Klipper has
+   Every heater and sensor Klipper has
    (nozzles, bed, heater_generic, temperature_sensor, temperature_fan; a name
    starting with _ stays hidden), each with its temperature, target and power,
    and a chart of the last minutes: the temperature as a line, the target as a

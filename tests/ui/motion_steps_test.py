@@ -107,7 +107,7 @@ with sync_playwright() as p:
     close_menu(P)
     ok("chosen by hand: the bed (even if Klipper says toolhead)", wait_until(lambda: zc.get_attribute("data-z-moves") == "bed"))
     ok("the pad has four rings now (16 parts), the Z column six buttons, smaller", pg.locator("[data-jog]").count() == 16 and pg.locator("[data-z]").count() == 6 and pg.locator(".z-btn--compact").count() == 6)
-    labels = pg.evaluate("() => [...document.querySelectorAll('.jog-pad .bambu-num')].map(t => t.textContent)")
+    labels = pg.evaluate("() => [...document.querySelectorAll('.jog-pad .jog-ring-num')].map(t => t.textContent)")
     ok("... each ring has its step written on it", sorted(labels) == sorted(["+1", "-1", "+10", "-10", "+50", "-50", "+100", "-100"]), labels)
     pg.locator('[data-jog="X+100"]').dispatch_event("click")
     ok("the outer ring moves 100 mm", wait_until(lambda: last_move().startswith("G1 X+100")), last_move())

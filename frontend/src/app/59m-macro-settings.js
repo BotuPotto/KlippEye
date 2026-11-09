@@ -1,6 +1,6 @@
 /* ============================================================================
    59m · SETTINGS → MACROS (1.33, roadmap 6b part 4)
-   How the macro cards (57-calibration.js) look, like Mainsail's macro settings:
+   How the macro cards (57-calibration.js) look:
      · "All the macros": one card with every macro of the printer; each can be
        hidden from it;
      · "Groups": cards of the person's own, each with a name, a colour, the
