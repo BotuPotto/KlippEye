@@ -1,0 +1,27 @@
+/* ============================================================================
+   Maintenance reminders (app/47d-maintenance.js)
+   ========================================================================== */
+
+.maintenance-list { display: flex; flex-direction: column; gap: 8px; }
+.maintenance-empty { padding: 4px 2px 2px; }
+.maintenance-row { display: flex; align-items: center; gap: 10px; padding: 10px 10px 10px 14px; border-radius: var(--oui-r-row); background: var(--oui-surface-2); }
+.maintenance-row__main { display: flex; flex: 1; flex-direction: column; gap: 6px; min-width: 0; text-align: left; }
+.maintenance-row__head { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.maintenance-row__name { overflow: hidden; font-size: 14px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.maintenance-row__bar { position: relative; display: block; height: 6px; overflow: hidden; border-radius: 3px; background: var(--oui-surface-3); }
+.maintenance-row__bar > span { position: absolute; inset: 0 auto 0 0; border-radius: inherit; background: var(--oui-ok); }
+.maintenance-row.is-soon .maintenance-row__bar > span { background: var(--oui-warn); }
+.maintenance-row.is-due .maintenance-row__bar > span { background: var(--oui-danger); }
+.maintenance-row__meta { font-size: 12px; color: var(--oui-text-3); font-variant-numeric: tabular-nums; }
+.maintenance-row__note { font-size: 12px; color: var(--oui-text-2); overflow-wrap: anywhere; }
+.maintenance-row__done { flex: none; }
+.maintenance-row.is-due .maintenance-row__done { background: var(--oui-accent); color: var(--oui-on-accent, #fff); }
+
+.maintenance-dialog { display: flex; flex-direction: column; gap: 12px; }
+.maintenance-dialog .dialog-head { margin-bottom: 4px; }
+.maintenance-dialog__every-title { font-size: 13px; font-weight: 600; color: var(--oui-text-2); }
+.maintenance-dialog__every { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.maintenance-every .set-field__input { min-width: 0; width: 100%; }
+@media (max-width: 380px) {
+  .maintenance-dialog__every { grid-template-columns: 1fr; }
+}
