@@ -49,9 +49,9 @@ The installer adds what is missing by itself (`python3-flask`, `python3-requests
 
 * The program lives in **one folder** (`~/klippeye`), **your data** (monitor thresholds, AI key, notifications, password)
   in another (`~/printer_data/klippeye`): an update only touches the first one.
-* After a **power loss** damaged files are restored automatically at every start (guide, part G).
-* If something goes wrong: **"Go back to the previous version"** on the same page (or Rollback in Mainsail/Fluidd).
-* It is Moonraker's update manager, so updates are also visible and can be started from Mainsail and Fluidd.
+* After a **power loss** damaged files are restored automatically at every start (guide, chapter 8).
+* If something goes wrong: **"Go back to the previous version"** on the same page (or `klippeye update --force` on the Raspberry).
+* It is Moonraker's update manager, so the printer's other web interfaces see the updates too.
 
 ## The Android app
 
