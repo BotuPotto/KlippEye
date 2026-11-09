@@ -67,8 +67,8 @@ const DOCK_PREVIEW_LINES = 3;
 function ConsoleDock({ entries }) {
   const [open, setOpen] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
-  const [command, setCommand] = useState("");
   const inputRef = useRef(null);
+  const input = useConsoleInput(inputRef);
   const view = useConsoleView();
   const recent = visibleConsoleEntries(entries, view, false).slice(-DOCK_PREVIEW_LINES);
 
@@ -79,17 +79,12 @@ function ConsoleDock({ entries }) {
     return () => window.removeEventListener("keydown", onKey, true);
   }, [open, fullscreen]);
 
-  const send = () => {
-    if (!command.trim()) return;
-    fireGcode(command);
-    setCommand("");
-  };
   const pick = (message) => {
-    setCommand(message);
-    const input = inputRef.current;
-    if (!input) return;
-    input.focus();
-    setTimeout(() => input.setSelectionRange(input.value.length, input.value.length), 10);
+    input.setCommand(message);
+    const field = inputRef.current;
+    if (!field) return;
+    field.focus();
+    setTimeout(() => field.setSelectionRange(field.value.length, field.value.length), 10);
   };
 
   return h(
@@ -123,16 +118,14 @@ function ConsoleDock({ entries }) {
           h("span", { key: index + "|" + entry.t + "|" + entry.msg, className: "desk-dock__line" }, h("span", { className: "log-time" }, entry.t), " ", h("span", { className: cx(entry.color, "desk-dock__msg") }, entry.isCommand ? entry.msg : consoleMessage(entry.msg, pick))),
         ),
       ),
+      h(ConsoleSuggestions, { input }),
       h("input", {
-        ref: inputRef,
-        value: command,
-        onChange: (e) => setCommand(e.target.value),
-        onKeyDown: (e) => e.key === "Enter" && send(),
+        ...input.inputProps,
         placeholder: tx("Send code..."),
         "aria-label": tx("Send code"),
         className: "oui-field oui-mono desk-dock__input",
       }),
-      h("button", { onClick: send, className: "oui-btn oui-btn--primary oui-btn--icon desk-dock__send", "aria-label": tx("Send") }, h(Icons.Send)),
+      h("button", { onClick: input.send, className: "oui-btn oui-btn--primary oui-btn--icon desk-dock__send", "aria-label": tx("Send") }, h(Icons.Send)),
       h("button", { onClick: () => setOpen(!open), className: cx("oui-btn oui-btn--icon desk-dock__expand", open && "is-open"), "aria-label": open ? tx("Close the console") : tx("Open the whole console") }, h(Icons.Chevron)),
     ),
   );

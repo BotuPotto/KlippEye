@@ -426,12 +426,203 @@ function ConsoleLog({ entries, onPick, className }) {
   );
 }
 
+/* ---------------------------------------------------------------------------
+   The input field (1.72), the same on the console card, over the whole screen and in the computer's bar:
+     ↑ / ↓      the commands sent before (the last 100, kept on this device; the line being typed comes back);
+     Tab        completes the command's name from Klipper's commands and macros (/printer/gcode/help): one match is
+                written out, several are listed above the field with what they do (a tap writes one);
+     Escape     closes that list.
+   On a touch screen, with no Tab key, the matches are listed while the name is typed (from its second letter).
+   ------------------------------------------------------------------------- */
+const CONSOLE_HISTORY_KEY = "klippeye.console.history";
+const CONSOLE_HISTORY_MAX = 100;
+const CONSOLE_SUGGESTIONS_MAX = 8;
+const CONSOLE_TOUCH = () => typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches;
+
+function readConsoleHistory() {
+  try {
+    const list = JSON.parse(localStorage.getItem(CONSOLE_HISTORY_KEY) || "[]");
+    return Array.isArray(list) ? list.filter((item) => typeof item === "string") : [];
+  } catch (e) {
+    return [];
+  }
+}
+function rememberConsoleCommand(command) {
+  const list = readConsoleHistory().filter((item) => item !== command);
+  list.push(command);
+  try {
+    localStorage.setItem(CONSOLE_HISTORY_KEY, JSON.stringify(list.slice(-CONSOLE_HISTORY_MAX)));
+  } catch (e) {}
+}
+
+/** Klipper's commands { NAME: help }, asked once per page (and again after a failure). */
+let consoleCommandsPromise = null;
+function consoleCommands() {
+  if (!consoleCommandsPromise)
+    consoleCommandsPromise = moonraker.gcodeCommands().catch(() => {
+      consoleCommandsPromise = null;
+      return {};
+    });
+  return consoleCommandsPromise;
+}
+
+/** The longest start that all the names share. */
+function commonPrefix(names) {
+  if (!names.length) return "";
+  let prefix = names[0];
+  for (const name of names) while (!name.startsWith(prefix)) prefix = prefix.slice(0, -1);
+  return prefix;
+}
+
+/** Everything an input field of the console needs: { command, setCommand, send, inputProps, suggestions, choose, closeSuggestions }. */
+function useConsoleInput(inputRef, afterSend) {
+  const [command, setCommand] = useState("");
+  const [suggestions, setSuggestions] = useState([]); // [{ name, help }] after a Tab with several matches
+  const browse = useRef({ index: -1, draft: "" }); // where ↑ / ↓ are in the history
+  const caretToEnd = () =>
+    setTimeout(() => {
+      const input = inputRef.current;
+      if (input) input.setSelectionRange(input.value.length, input.value.length);
+    }, 0);
+  const send = () => {
+    const script = command.trim();
+    if (!script) return;
+    fireGcode(script);
+    rememberConsoleCommand(script);
+    browse.current = { index: -1, draft: "" };
+    setSuggestions([]);
+    setCommand("");
+    if (afterSend) afterSend();
+  };
+  // on a touch screen (no Tab key) the matches are listed while the name is typed, from the second letter
+  const suggestWhileTyping = async (value) => {
+    const typed = value.trim().toUpperCase();
+    if (typed.length < 2 || /\s/.test(value)) return setSuggestions([]);
+    const commands = await consoleCommands();
+    const names = Object.keys(commands)
+      .map((name) => name.toUpperCase())
+      .filter((name) => name.startsWith(typed) && name !== typed)
+      .sort();
+    if (inputRef.current && inputRef.current.value.trim().toUpperCase() !== typed) return; // typed on meanwhile
+    setSuggestions(names.slice(0, CONSOLE_SUGGESTIONS_MAX).map((name) => ({ name, help: commands[name] || "" })));
+  };
+  const complete = async () => {
+    const value = command;
+    if (/\s/.test(value.trim()) || !value.trim()) return; // only the command's name is completed
+    const typed = value.trim().toUpperCase();
+    const commands = await consoleCommands();
+    const names = Object.keys(commands)
+      .map((name) => name.toUpperCase())
+      .filter((name) => name.startsWith(typed))
+      .sort();
+    if (!names.length) return setSuggestions([]);
+    if (names.length === 1) {
+      setCommand(names[0] + " ");
+      setSuggestions([]);
+    } else {
+      setCommand(commonPrefix(names));
+      const helpOf = (name) => commands[name] || commands[name.toLowerCase()] || Object.entries(commands).find(([key]) => key.toUpperCase() === name)?.[1] || "";
+      setSuggestions(names.slice(0, CONSOLE_SUGGESTIONS_MAX).map((name) => ({ name, help: helpOf(name) })).concat(names.length > CONSOLE_SUGGESTIONS_MAX ? [{ name: "", help: tx("…and {count} more: type more letters", { count: names.length - CONSOLE_SUGGESTIONS_MAX }) }] : []));
+    }
+    caretToEnd();
+  };
+  const step = (direction) => {
+    const history = readConsoleHistory();
+    if (!history.length) return;
+    const state = browse.current;
+    if (state.index === -1) {
+      if (direction > 0) return;
+      state.draft = command;
+      state.index = history.length;
+    }
+    const next = Math.min(history.length, Math.max(0, state.index + direction));
+    state.index = next;
+    if (next === history.length) {
+      state.index = -1;
+      setCommand(state.draft);
+    } else setCommand(history[next]);
+    caretToEnd();
+  };
+  const onKeyDown = (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      send();
+    } else if (event.key === "Tab" && !event.shiftKey && command.trim()) {
+      event.preventDefault();
+      complete();
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      step(-1);
+    } else if (event.key === "ArrowDown") {
+      event.preventDefault();
+      step(1);
+    } else if (event.key === "Escape" && suggestions.length) {
+      event.preventDefault();
+      event.stopPropagation();
+      setSuggestions([]);
+    }
+  };
+  const choose = (name) => {
+    if (!name) return;
+    setCommand(name + " ");
+    setSuggestions([]);
+    const input = inputRef.current;
+    if (input) input.focus();
+    caretToEnd();
+  };
+  return {
+    command,
+    setCommand: (value) => {
+      browse.current.index = -1;
+      setCommand(value);
+    },
+    send,
+    suggestions,
+    choose,
+    inputProps: {
+      ref: inputRef,
+      value: command,
+      onChange: (event) => {
+        browse.current.index = -1;
+        setCommand(event.target.value);
+        if (CONSOLE_TOUCH()) suggestWhileTyping(event.target.value);
+        else setSuggestions([]);
+      },
+      onKeyDown,
+      autoCapitalize: "characters",
+      autoCorrect: "off",
+      autoComplete: "off",
+      spellCheck: false,
+      enterKeyHint: "send",
+    },
+  };
+}
+
+/** The names Tab found, above the input field. */
+function ConsoleSuggestions({ input }) {
+  if (!input.suggestions.length) return null;
+  return h(
+    "div",
+    { className: "console-suggest", role: "listbox", "aria-label": tx("Matching commands") },
+    input.suggestions.map((item, index) =>
+      item.name
+        ? h(
+            "button",
+            { key: item.name, type: "button", role: "option", className: "console-suggest__item", "data-suggest": item.name, onMouseDown: (event) => event.preventDefault(), onClick: () => input.choose(item.name) },
+            h("span", { className: "console-suggest__name" }, item.name),
+            item.help && h("span", { className: "console-suggest__help" }, item.help),
+          )
+        : h("div", { key: "more" + index, className: "console-suggest__more" }, item.help),
+    ),
+  );
+}
+
 /** The console over the whole screen: the log, the tools and the input field (1.34). */
 function ConsoleFullscreen({ entries, onClose }) {
   useBodyScrollLock(true);
   useBackHandler(onClose, true);
-  const [command, setCommand] = useState("");
   const inputRef = useRef(null);
+  const input = useConsoleInput(inputRef);
   useEffect(() => {
     // Escape with the options menu open closes the menu only
     // in the capture phase, before the menu's own handler takes the menu away: Escape with the options open closes the menu only
@@ -439,13 +630,8 @@ function ConsoleFullscreen({ entries, onClose }) {
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
   }, []);
-  const send = () => {
-    if (!command.trim()) return;
-    fireGcode(command);
-    setCommand("");
-  };
   const pick = (message) => {
-    setCommand(message);
+    input.setCommand(message);
     if (inputRef.current) inputRef.current.focus();
   };
   return h(
@@ -455,30 +641,24 @@ function ConsoleFullscreen({ entries, onClose }) {
     h(ConsoleLog, { entries, onPick: pick, className: "console-full__log" }),
     h(
       "div",
-      { className: "console-full__input" },
-      h("input", { ref: inputRef, value: command, onChange: (e) => setCommand(e.target.value), onKeyDown: (e) => e.key === "Enter" && send(), placeholder: tx("Send code..."), "aria-label": tx("Send code"), className: "oui-field oui-mono console-input" }),
-      h("button", { onClick: send, className: "oui-btn oui-btn--primary oui-btn--icon console-send", "aria-label": tx("Send") }, h(Icons.Send)),
+      { className: "console-full__input console-input-wrap" },
+      h(ConsoleSuggestions, { input }),
+      h("input", { ...input.inputProps, placeholder: tx("Send code..."), "aria-label": tx("Send code"), className: "oui-field oui-mono console-input" }),
+      h("button", { onClick: input.send, className: "oui-btn oui-btn--primary oui-btn--icon console-send", "aria-label": tx("Send") }, h(Icons.Send)),
     ),
   );
 }
 
 function ConsoleCard({ entries }) {
   const [fullscreen, setFullscreen] = useState(false);
-  const [command, setCommand] = useState("");
   const inputRef = useRef(null);
-
-  const send = () => {
-    if (!command.trim()) return;
-    fireGcode(command);
-    setCommand("");
-    setTimeout(() => inputRef.current && inputRef.current.focus(), 100);
-  };
+  const input = useConsoleInput(inputRef, () => setTimeout(() => inputRef.current && inputRef.current.focus(), 100));
   const pick = (message) => {
-    setCommand(message);
-    const input = inputRef.current;
-    if (!input) return;
-    input.focus();
-    setTimeout(() => input.setSelectionRange(input.value.length, input.value.length), 10);
+    input.setCommand(message);
+    const field = inputRef.current;
+    if (!field) return;
+    field.focus();
+    setTimeout(() => field.setSelectionRange(field.value.length, field.value.length), 10);
   };
 
   return h(
@@ -489,17 +669,16 @@ function ConsoleCard({ entries }) {
     h(Presence, null, fullscreen && h(ConsoleFullscreen, { entries, onClose: () => setFullscreen(false) })),
     h(
       "div",
-      { className: "flex gap-3 mt-3" },
+      { className: "flex gap-3 mt-3 console-input-wrap" },
+      h(ConsoleSuggestions, { input }),
       h("input", {
-        ref: inputRef,
-        value: command,
-        onChange: (e) => setCommand(e.target.value),
-        onKeyDown: (e) => e.key === "Enter" && send(),
+        ...input.inputProps,
         onFocus: (e) => scrollIntoViewSoon(e.target, CONSOLE_INPUT_SCROLL_DELAY_MS),
         placeholder: tx("Send code..."),
+        "aria-label": tx("Send code"),
         className: "oui-field oui-mono console-input",
       }),
-      h("button", { onClick: send, className: "oui-btn oui-btn--primary oui-btn--icon console-send", "aria-label": tx("Send") }, h(Icons.Send)),
+      h("button", { onClick: input.send, className: "oui-btn oui-btn--primary oui-btn--icon console-send", "aria-label": tx("Send") }, h(Icons.Send)),
     ),
   );
 }

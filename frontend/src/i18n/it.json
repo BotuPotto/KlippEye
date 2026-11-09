@@ -908,6 +908,7 @@
  "Manage the printers": "Gestisci le stampanti",
  "Marked as a false alarm: it helps measure the monitor. The badge is green until the next alarm.": "Segnato come falso allarme: aiuta a misurare il monitor. Il badge resta verde fino al prossimo allarme.",
  "Markers on the bed": "Segni sul piatto",
+ "Matching commands": "Comandi corrispondenti",
  "Maximum": "Massimo",
  "Maximum nozzle deviation": "Scarto massimo dell'ugello",
  "Measure and compare the options": "Misura e confronta le opzioni",
@@ -2447,5 +2448,6 @@
  "«{name}» excluded: it is not printed any more": "«{name}» escluso: non viene più stampato",
  "— choose —": "— scegli —",
  "…and in printer.cfg:": "…e in printer.cfg:",
+ "…and {count} more: type more letters": "…e altri {count}: scrivi qualche lettera in più",
  "◀ Alarm": "◀ Allarme"
 }

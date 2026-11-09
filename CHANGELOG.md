@@ -1,5 +1,17 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.72.0
+
+**The console's input field, as in Mainsail.**
+
+* ↑ / ↓ go through the commands sent before (the last 100, kept on this device); going past the newest brings back
+  the line being typed.
+* Tab completes a command's name from Klipper's commands and macros: one match is written out; several are listed
+  above the field with what each one does, and a tap writes one. Escape closes the list.
+* On a touch screen, with no Tab key, the matching commands are listed while the name is typed (from its second
+  letter).
+* The same on the console card, over the whole screen and in the computer's console bar.
+
 ## 1.71.0
 
 **Windows opened by macros.**
