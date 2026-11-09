@@ -3193,6 +3193,69 @@ def api_measure_start():
 # === end RECORDINGS ===================================================================================================
 
 
+# === SCHEDULED PRINTS (1.70): a print that starts by itself at a chosen time ==========================================
+# The list and the rules live in backend/print_schedule.py; here the routes, and the clock that runs in the service.
+import print_schedule  # noqa: E402
+
+SCHEDULE_TICK_S = 15
+SCHEDULE_MESSAGES = (  # what print_schedule.py may answer, for the dictionaries (bt translates them)
+    btn("not a file of the printer"), btn("not a time"), btn("this time has passed"), btn("at most two months ahead"),
+    btn("too many scheduled prints"),
+)
+schedule_store = print_schedule.PrintSchedule(DATA_DIR, write_json_atomic)
+
+
+def _schedule_printer_state():
+    status = _klipper_query("webhooks&print_stats")
+    return {"klippy": (status.get("webhooks") or {}).get("state", "offline"), "print": (status.get("print_stats") or {}).get("state", "")}
+
+
+def _schedule_start_print(filename):
+    r = requests.post(f"{MOONRAKER_URL}/printer/print/start", params={"filename": filename}, timeout=15)
+    if not r.ok:
+        try:
+            message = r.json()["error"]["message"]
+        except Exception:
+            message = "HTTP %s" % r.status_code
+        raise RuntimeError(message)
+    print("[SCHEDULE] started %s" % filename)
+
+
+def _schedule_loop():
+    while True:
+        try:
+            for entry in schedule_store.tick(_schedule_printer_state, _schedule_start_print):
+                print("[SCHEDULE] %s: %s %s" % (entry["filename"], entry["status"], entry.get("reason", "")))
+        except Exception as error:  # never stops the clock
+            print("[SCHEDULE] tick failed: %s" % error)
+        time.sleep(SCHEDULE_TICK_S)
+
+
+@app.route("/api/schedule", methods=["GET", "POST"])
+def api_schedule():
+    """GET: {entries: [{id, filename, at, status, reason?, detail?}], now}. POST {filename, at (unix seconds)}: adds one."""
+    if request.method == "POST":
+        body = request.get_json(silent=True) or {}
+        try:
+            entry = schedule_store.add(body.get("filename"), body.get("at"))
+        except print_schedule.ScheduleError as error:
+            return jsonify({"ok": False, "error": bt(str(error), _lang())}), 400
+        except OSError as error:
+            return jsonify({"ok": False, "error": str(error)}), 500
+        return jsonify({"ok": True, "entry": entry})
+    return jsonify({"ok": True, "entries": schedule_store.entries(), "now": int(time.time())})
+
+
+@app.route("/api/schedule/<entry_id>", methods=["DELETE"])
+def api_schedule_remove(entry_id):
+    try:
+        removed = schedule_store.remove(entry_id)
+    except OSError as error:
+        return jsonify({"ok": False, "error": str(error)}), 500
+    return jsonify({"ok": removed})
+# === end SCHEDULED PRINTS =============================================================================================
+
+
 # === MORE PRINTERS (1.61): this printer for another dashboard, another printer for this one ============================
 import printers_peek  # noqa: E402
 
@@ -3856,6 +3919,7 @@ except Exception as e:
 
 if __name__ == "__main__":
     threading.Thread(target=_repair_at_startup, name="repair", daemon=True).start()
+    threading.Thread(target=_schedule_loop, name="schedule", daemon=True).start()
     print(f"KlippEye backend {RELEASE} (api {API_LEVEL}) - data in {DATA_DIR} - settings {'read from ' + BRAIN_CONFIG_PATH if brain_config.saved else 'default (no saved file)'}")
     print(f"KlippEye backend running on 0.0.0.0:{PORT}")
     app.run(host="0.0.0.0", port=PORT, debug=False)

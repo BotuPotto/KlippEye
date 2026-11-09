@@ -104,6 +104,7 @@ function IdlePrintCard({ status, onOpenFiles, onPrint }) {
   const outcome = LAST_PRINT_OUTCOME[status.state];
   const last = outcome && status.filename && status.filename !== "-";
   const again = last && status.filePath && onPrint;
+  const next = useNextScheduled(); // 1.70
   return h(
     Card,
     { className: "desk-print desk-print--idle" },
@@ -120,6 +121,7 @@ function IdlePrintCard({ status, onOpenFiles, onPrint }) {
             h("div", { className: "oui-caption" }, tx("Print ") + outcome + tx(" · duration ") + status.time),
           )
         : h("div", { className: "oui-caption" }, tx("Choose a file from the list to start it")),
+      next && h("div", { className: "desk-print__next", "data-next-scheduled": next.id }, h(Icons.Clock, { size: 14 }), tx("Scheduled: {name}, {when}", { name: scheduleFileName(next), when: formatScheduleTime(next.at) })),
     ),
     h(
       "div",
@@ -299,6 +301,7 @@ function FileDetail({ file, list, fileActions, onPrint }) {
       h("button", { className: "oui-btn oui-btn--sm", title: tx("Save a copy on this device"), onClick: () => downloadFile("/server/files/" + GCODES_ROOT + "/" + encodeRemotePath(file.path), fileName) }, h(Icons.Download, { size: 16 }), tx("Download")),
       h("button", { className: "oui-btn oui-btn--sm", onClick: () => fileActions.openDetailsItem(item) }, h(Icons.Info, { size: 16 }), tx("Details")),
       queue.available && h("button", { className: "oui-btn oui-btn--sm desk-detail__queue", onClick: () => fileActions.openQueueItem(item) }, h(Icons.Queue, { size: 16 }), tx("Queue")),
+      h("button", { className: "oui-btn oui-btn--sm desk-detail__schedule", onClick: () => fileActions.openScheduleItem(item) }, h(Icons.Clock, { size: 16 }), tx("Schedule")),
       h("button", { className: "oui-btn oui-btn--sm desk-detail__layers", onClick: () => gcodeViewerStore.open(file.path) }, h(Icons.Layers, { size: 16 }), tx("Layers")),
       h("button", { className: "oui-btn oui-btn--sm", onClick: () => fileActions.openItemInEditor(item) }, h(Icons.Code, { size: 16 }), "Editor"),
       h("button", { className: "oui-btn oui-btn--sm oui-btn--danger-soft", onClick: () => fileActions.askDeleteItem(item) }, h(Icons.Trash, { size: 16 }), tx("Delete")),

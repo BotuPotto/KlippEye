@@ -34,6 +34,7 @@ step "no fixed home folders" python3 "$HERE/test_no_fixed_paths.py"
 step "backend" python3 "$HERE/backend/test_backend.py" $QUICK
 step "backend: AI services" python3 "$HERE/backend/test_ai_services.py"
 step "backend: more printers" python3 "$HERE/backend/test_printers_peek.py"
+step "backend: scheduled prints" python3 "$HERE/backend/test_print_schedule.py"
 step "backend: calibration found by itself" python3 "$HERE/backend/test_calibration_auto.py"
 step "notifier: logic" python3 "$HERE/notifier/test_watcher.py"
 step "notifier: integration" python3 "$HERE/notifier/test_integration.py" "$ROOT/frontend/klippeye_frontend.html" 9701

@@ -1,5 +1,19 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.70.0
+
+**Scheduled prints.**
+
+* «Schedule the print» in a file's menu (and «Schedule» on the computer's file panel): a day and a time, or a quick
+  choice (in an hour, tonight at 23:00, tomorrow at 07:00). The KlippEye service starts the print at that time by
+  itself: no browser or app needs to stay open.
+* At its time the printer must be ready and free. If another print is on, or Klipper is off for more than ten minutes,
+  the print is not started later on its own (the bed may not be clear): it is marked «Not started», with the reason.
+* The «Scheduled prints» card on the Files page lists them: when, in how long, started or not and why; cancel one, or
+  take a finished one off the list (they go by themselves after a day). On a computer the idle print card says which
+  one starts next.
+* Kept in schedule.json, in KlippEye's data folder.
+
 ## 1.69.2
 
 **A calibration waiting for an answer stays on screen.**

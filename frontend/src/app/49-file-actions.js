@@ -79,6 +79,7 @@ function useFileActions(list, openEditor) {
   const [pendingDelete, setPendingDelete] = useState(null);
   const [details, setDetails] = useState(null); // the item whose details are open (1.40)
   const [queueItem, setQueueItem] = useState(null); // the item being added to the print queue (1.44)
+  const [scheduleItem, setScheduleItem] = useState(null); // the item whose print is being scheduled (1.70)
   const deleting = useRef(false);
 
   const closeMenu = () => setTarget(null);
@@ -152,6 +153,12 @@ function useFileActions(list, openEditor) {
       setQueueItem(item);
     },
     closeQueue: () => setQueueItem(null),
+    scheduleItem,
+    openScheduleItem: (item) => {
+      setTarget(null);
+      setScheduleItem(item);
+    },
+    closeSchedule: () => setScheduleItem(null),
   };
 }
 
@@ -202,6 +209,7 @@ function FileActionSheet({ item, controller }) {
         { className: "oui-list file-sheet__actions" },
         h(FileActionRow, { icon: h(Icons.Info), title: tx("Details"), subtitle: tx("Slicer, times, filament, temperatures, last print"), onClick: controller.openDetails }),
         queue.available && h(FileActionRow, { icon: h(Icons.Queue), title: tx("Add to the queue"), subtitle: tx("Prints after the jobs already waiting; as many copies as you like"), onClick: () => controller.openQueueItem(item) }),
+        h(FileActionRow, { icon: h(Icons.Clock), title: tx("Schedule the print"), subtitle: tx("It starts by itself at the day and time you choose"), onClick: () => controller.openScheduleItem(item) }),
         h(FileActionRow, { icon: h(Icons.Layers), title: tx("See the layers"), subtitle: tx("The G-code drawn layer by layer"), onClick: () => (controller.closeMenu(), gcodeViewerStore.open(file.path)) }),
         h(FileActionRow, { icon: h(Icons.Code), title: tx("Open in the editor"), subtitle: tooLong ? tx("Huge file: read-only, first lines") : tx("Read and edit the G-code"), onClick: controller.openInEditor }),
         h(FileActionRow, { icon: h(Icons.Trash), title: tx("Delete from the Raspberry"), subtitle: tx("Deletes the file for good"), danger: true, onClick: controller.askDelete }),
@@ -311,6 +319,7 @@ function FileActionDialogs({ controller, onPrint }) {
     h(Presence, null, target && h(FileActionSheet, { item: target, controller })),
     h(Presence, null, details && h(FileDetailsSheet, { item: details, controller, onPrint })),
     h(Presence, null, controller.queueItem && h(QueueAddDialog, { item: controller.queueItem, onClose: controller.closeQueue })),
+    h(Presence, null, controller.scheduleItem && h(ScheduleDialog, { item: controller.scheduleItem, onClose: controller.closeSchedule })),
     h(ConfirmDialog, {
       open: Boolean(pendingDelete),
       tone: "danger",

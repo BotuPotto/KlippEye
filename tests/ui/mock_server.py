@@ -72,6 +72,7 @@ def default_state():
         "extra_temps": False, "extra_temp_values": default_extra_temps(),
         "history": history, "history_totals": default_history_totals(history), "history_log": [], "history_mode": "ok",  # ok | missing (no [history]: 404)
         "printing": False, "paused": False,
+        "schedule": [], "schedule_log": [],   # 1.70: scheduled prints
         "webhooks": "ready", "webhooks_msg": "",
         "homed": "xyz",
         "light": 0,
@@ -406,7 +407,7 @@ def mock_reset():
     S.clear(); S.update(default_state()); return jsonify(ok=True)
 @app.route("/__mock/state")
 def mock_state():
-    return jsonify({k: v for k, v in S.items() if k in ("light", "light_cmds", "light_reads", "actions", "webhooks", "webhooks_msg", "disconnected", "moonraker_down", "host_off", "services", "update_log", "brain_cfg_log", "brain_release", "brain_started", "klippeye_info", "pending_release", "logos", "app_apk_hits", "app_apk_downloads", "update_channel", "channel_posts", "rec_posts", "measure_starts", "measure_bodies", "ai_cfg", "ai_posts", "ai_model_reads", "excluded", "strip", "caselight", "mesh_profiles", "mesh_active", "mp", "mp_points", "tune", "speed_factor", "extrude_factor", "bs", "level_applied", "recordings", "alerts", "pm_macros", "pm_wraps", "pm_posts", "gcode_log", "ntfy", "ntfy_posts", "ntfy_tests", "ntfy_app_reads", "ai_answers", "ai_answer", "history_log", "queue", "queue_state", "queue_log", "power_devices", "power_log", "pins", "sensors", "timelapse_settings", "timelapse_log", "timelapse_conf_reads", "cfg", "timelapse_files", "spool_id", "spool_log", "webcams", "webcam_log", "peek_log")})
+    return jsonify({k: v for k, v in S.items() if k in ("light", "light_cmds", "light_reads", "actions", "webhooks", "webhooks_msg", "disconnected", "moonraker_down", "host_off", "services", "update_log", "brain_cfg_log", "brain_release", "brain_started", "klippeye_info", "pending_release", "logos", "app_apk_hits", "app_apk_downloads", "update_channel", "channel_posts", "rec_posts", "measure_starts", "measure_bodies", "ai_cfg", "ai_posts", "ai_model_reads", "excluded", "strip", "caselight", "mesh_profiles", "mesh_active", "mp", "mp_points", "tune", "speed_factor", "extrude_factor", "bs", "level_applied", "recordings", "alerts", "pm_macros", "pm_wraps", "pm_posts", "gcode_log", "ntfy", "ntfy_posts", "ntfy_tests", "ntfy_app_reads", "ai_answers", "ai_answer", "history_log", "queue", "queue_state", "queue_log", "power_devices", "power_log", "pins", "sensors", "timelapse_settings", "timelapse_log", "timelapse_conf_reads", "cfg", "timelapse_files", "spool_id", "spool_log", "webcams", "webcam_log", "peek_log", "schedule", "schedule_log")})
 @app.route("/__mock/print_actions")
 def mock_print_actions():
     return jsonify(S.get("print_actions", []))
@@ -1785,6 +1786,30 @@ def db_item():
 @app.route("/server/webcams/list")
 def webcams_list():
     return jsonify(result={"webcams": S["webcams"]})
+
+# 1.70: scheduled prints, as the KlippEye service keeps them (backend/print_schedule.py); its clock ticks at each read here
+@app.route("/api/schedule", methods=["GET", "POST"])
+def schedule_api():
+    if request.method == "POST":
+        body = request.get_json(force=True, silent=True) or {}
+        name, at = str(body.get("filename") or "").lstrip("/"), body.get("at")
+        if not name or ".." in name: return jsonify(ok=False, error="non è un file della stampante"), 400
+        if not isinstance(at, (int, float)) or at < time.time() - 60: return jsonify(ok=False, error="quest'orario è già passato"), 400
+        entry = {"id": "s%d" % (len(S["schedule"]) + 1), "filename": name, "at": int(at), "created": int(time.time()), "status": "waiting"}
+        S["schedule"].append(entry)
+        return jsonify(ok=True, entry=entry)
+    now = time.time()
+    for e in S["schedule"]:
+        if e["status"] == "waiting" and e["at"] <= now:
+            if S["printing"]: e.update(status="missed", reason="busy", finished=int(now))
+            else: e.update(status="started", finished=int(now)); S["schedule_log"].append("START:" + e["filename"])
+    return jsonify(ok=True, entries=sorted(S["schedule"], key=lambda e: e["at"]), now=int(now))
+
+@app.route("/api/schedule/<entry_id>", methods=["DELETE"])
+def schedule_remove(entry_id):
+    before = len(S["schedule"])
+    S["schedule"] = [e for e in S["schedule"] if e["id"] != entry_id]
+    return jsonify(ok=len(S["schedule"]) != before)
 
 @app.route("/api/printers/self")
 def printers_self():
