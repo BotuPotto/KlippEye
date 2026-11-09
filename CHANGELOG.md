@@ -1,5 +1,18 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.71.0
+
+**Windows opened by macros.**
+
+* Klipper's macros can open a window with a title, some text and buttons (`RESPOND TYPE=command
+  MSG="action:prompt_begin …"`, `prompt_text`, `prompt_button`, `prompt_button_group_start/_end`,
+  `prompt_footer_button`, `prompt_show`, `prompt_end`), as Mainsail and Fluidd show them: many macro packs ask this way
+  (Happy Hare, RatOS, Klippain, filament changes). KlippEye now shows them.
+* A button sends its command (`name|command|colour`; colours primary, secondary, info, warning, error); the window
+  stays until the macro ends it. ✕ closes it and sends `action:prompt_end`.
+* The window opens on every phone and computer, on any page, and again after a reload.
+* The `// action:prompt_…` lines are no longer shown in the console.
+
 ## 1.70.2
 
 **Visual review** (phone 360 and 390 px, tablet, computers 1024 to 1920 px; idle and printing; every page).
