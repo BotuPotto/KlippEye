@@ -431,7 +431,7 @@ PY
           if ! grep -Eq '^\[update_manager[[:space:]]*\][[:space:]]*$' "$CONF"; then
             printf '[update_manager]\n\n'
           fi
-          printf '# KlippEye: updates from the dashboard (Settings -> Updates) and from Moonraker's update manager. Written by scripts/install.sh.\n'
+          printf '# KlippEye: updates from the dashboard (Settings -> Updates) and from the update manager of Moonraker. Written by scripts/install.sh.\n'
           printf '[update_manager klippeye]\ntype: git_repo\npath: %s\norigin: %s\nprimary_branch: %s\nchannel: %s\nmanaged_services: klippeye\ninfo_tags:\n  desc=KlippEye: backend, dashboard and notifications\n' "$REPO" "$ORIGIN" "$BRANCH" "$CHANNEL"
         } >> "$CONF"
         good "Entry [update_manager klippeye] added to moonraker.conf"
