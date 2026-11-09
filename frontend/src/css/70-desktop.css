@@ -88,12 +88,13 @@
 
 /* 1.67: the camera is as tall as its shape needs at the column's full width (the column is a size container: 100cqw =
    its width), so the picture fills the box instead of sitting small between two wide grey bands; at most as tall as
-   leaves the print card in view under it (the cards after them, like the temperatures, are a scroll away) */
+   leaves the print card in view under it (--desk-cam-room, app/71-desktop-pages.js; the cards after them, like the
+   temperatures, are a scroll away) */
 .desk-device__main { container-type: inline-size; }
 .desk-camera {
   position: relative;
   flex: none;
-  height: max(240px, min(calc(100cqw / var(--desk-cam-ratio, 1.7778)), calc(100vh - 390px)));
+  height: max(240px, min(calc(100cqw / var(--desk-cam-ratio, 1.7778)), var(--desk-cam-room, calc(100vh - 390px))));
   overflow: hidden;
   background: #000;
   border: 1px solid var(--oui-stroke);
@@ -141,7 +142,6 @@
 }
 @media (max-width: 1239px) {
   .desk-print__stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .desk-camera { height: max(240px, min(calc(100cqw / var(--desk-cam-ratio, 1.7778)), calc(100vh - 445px))); } /* the card is taller */
 }
 .desk-print__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .desk-print__actions > .oui-btn { width: auto; margin: 0; }

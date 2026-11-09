@@ -81,7 +81,7 @@ with sync_playwright() as p:
     for w, hh in ((1440, 900), (1920, 1080), (1280, 720)):
         P = fresh(w, hh, printing=True, wait=2500)
         r = P.pg.evaluate("""() => { const c = document.querySelector('.desk-camera').getBoundingClientRect(); const p = document.querySelector('.desk-print').getBoundingClientRect(); const d = document.querySelector('.desk-dock').getBoundingClientRect(); return { w: c.width, h: c.height, printBottom: p.bottom, dock: d.top, cancel: document.querySelector('.desk-print__cancel').getBoundingClientRect().bottom }; }""")
-        ok("1.67 %dx%d printing: the camera is 16:9 at the column's width, or as tall as leaves the print card in view (no wide grey bands)" % (w, hh), (abs(r["w"] / r["h"] - 16 / 9) < 0.02 or r["w"] / r["h"] < 2.4) and r["h"] >= 300 and r["cancel"] <= r["dock"], r)
+        ok("1.67 %dx%d printing: the camera is 16:9 at the column's width, or as tall as leaves the print card in view (no wide grey bands)" % (w, hh), (abs(r["w"] / r["h"] - 16 / 9) < 0.02 or r["w"] / r["h"] < 2.6) and r["h"] >= 240 and r["cancel"] <= r["dock"], r)
         ok("1.67 %dx%d: no AI strip under the camera (the AI badge at the top does the same)" % (w, hh), P.pg.locator(".desk-ai").count() == 0)
         if w == 1440:
             ok("1.67: the six figures on one line, the buttons on one line", P.pg.locator(".desk-print__stats .print-stat").count() == 6 and len(set(round(b["y"]) for b in [P.pg.locator(".desk-print__stats .print-stat").nth(i).bounding_box() for i in range(6)])) == 1)

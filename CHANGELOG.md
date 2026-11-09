@@ -18,6 +18,12 @@
 * **Lights**: when on, the whole button lights up, its arrow too.
 * **Bed mesh**: the pill with the profile's name shows the whole name (it was cut to «def»).
 * **Temperature chart**: «now» is on the left and the lines flow to the right.
+* **Timelapse settings**: more of them, the specific ones behind **«Advanced»** (parking: custom position, Z lift,
+  speeds, retraction, wait; the photo: snapshot address, camera delay, wait for the photo, console messages; the
+  video: frame rate limits, rotation, mirroring, pixel format, date in the name, ffmpeg options). Changes are no longer
+  sent one by one: **«Save and restart Moonraker»** writes them in moonraker.conf, section [timelapse] (what differs
+  from moonraker-timelapse's defaults, or is already there; the rest of the file untouched), then restarts Moonraker to
+  read them. Refused while printing; «Undo changes» drops them. The camera choice is saved the same way.
 
 ## 1.66.0
 

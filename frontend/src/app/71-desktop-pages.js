@@ -156,6 +156,42 @@ function DesktopFansCard() {
 }
 
 /**
+ * 1.67: how tall the camera may be so that the print card under it stays in view: the column's height less the card's
+ * (without its parts that open on request: «More details», an AI alarm's question, which scroll instead). Written as
+ * --desk-cam-room on the column (css/70-desktop.css), kept up to date when either changes size.
+ */
+function useCameraRoom(columnRef) {
+  useLayoutEffect(() => {
+    const column = columnRef.current;
+    if (!column || typeof ResizeObserver !== "function") return undefined;
+    const measure = () => {
+      const card = column.querySelector(".desk-print");
+      let used = 0;
+      if (card) {
+        const extra = [...card.querySelectorAll(".print-details, [data-ai-question]")].reduce((sum, part) => sum + part.offsetHeight + 10, 0);
+        used = card.offsetHeight - extra + 16;
+      }
+      column.style.setProperty("--desk-cam-room", Math.max(240, column.clientHeight - used) + "px");
+    };
+    const observer = new ResizeObserver(measure);
+    observer.observe(column);
+    const watched = new Set();
+    const watch = () => {
+      const card = column.querySelector(".desk-print");
+      if (card && !watched.has(card)) (watched.add(card), observer.observe(card));
+      measure();
+    };
+    const mutations = new MutationObserver(watch); // the card changes (idle ↔ printing) or moves
+    mutations.observe(column, { childList: true, subtree: true });
+    watch();
+    return () => {
+      observer.disconnect();
+      mutations.disconnect();
+    };
+  }, []);
+}
+
+/**
  * Left: camera, progress. Right: heaters, what moves the machine, fans, extruder, tune (1.32); 1.66: in the
  * order (and with the cards) of the computer's layout, Settings → Appearance → Cards. While a job prints the
  * Z-offset card takes the movement card's place and the extruder is out of the way (a pause leaves both in view).
@@ -185,6 +221,8 @@ function DesktopDevicePage({ printStatus, printControls, status, capabilities, m
     tune: h(TuneCard, { capabilities, onGcode }),
   };
   const cards = { ...main, ...side }; // any card can go in either column (Settings → Appearance → Cards)
+  const mainRef = useRef(null);
+  useCameraRoom(mainRef);
   const sideIds = layoutStore.shown("home", "side");
   const slot = (id) => cards[id] && h("div", { key: id, className: "desk-slot desk-slot--" + id }, cards[id]);
   // extra wide: the side column in two (css/70), the first half and the second
@@ -192,7 +230,7 @@ function DesktopDevicePage({ printStatus, printControls, status, capabilities, m
   return h(
     "div",
     { className: "desk-device" },
-    h("section", { className: "desk-device__main" }, arrangeCards("home", cards, "main")),
+    h("section", { className: "desk-device__main", ref: mainRef }, arrangeCards("home", cards, "main")),
     h("aside", { className: "desk-side" }, h("div", { className: "desk-side__group" }, sideIds.slice(0, half).map(slot)), h("div", { className: "desk-side__group" }, sideIds.slice(half).map(slot))),
   );
 }
