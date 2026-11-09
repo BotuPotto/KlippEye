@@ -36,7 +36,7 @@ con l'app ntfy).
 | Pacchetto | A cosa serve |
 |---|---|
 | `git` | aggiornamenti e autoriparazione dopo un blackout |
-| `python3-flask`, `python3-requests` | il servizio KlippEye e la dashboard |
+| `python3-flask`, `python3-waitress`, `python3-requests` | il servizio KlippEye e la dashboard |
 | `python3-numpy` | la calibrazione della telecamera (e il monitor IA) |
 | `python3-opencv` | il monitor IA: guardare le foto della telecamera (si salta con `--no-ai`) |
 

@@ -319,6 +319,14 @@ function SoftwarePage({ active, menu, updates, printing, actions }) {
         h(InfoLine, { label: tx("Service up for"), value: formatUptime(info.uptime) }),
         Number(info.api) < BRAIN_API_LEVEL && h(InfoLine, { label: tx("Service interface"), value: tx("{api} ({needed} needed)", { api: info.api, needed: BRAIN_API_LEVEL }), warn: true }),
       ),
+      // 1.74: the service runs on Flask's own server when waitress is missing (an installation from before 1.74)
+      info.server === "flask" &&
+        h(
+          "div",
+          { className: "set-status set-status--warn", "data-server": "flask" },
+          h("span", { className: "set-status__dot" }),
+          h("span", null, tx("The KlippEye service runs on a simple web server. For the one made to run for months, on the Raspberry run"), " ", h("code", null, "sudo apt install -y python3-waitress && klippeye restart"), "."),
+        ),
       differs &&
         h(
           "div",

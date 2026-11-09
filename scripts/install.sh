@@ -11,7 +11,8 @@
 #
 # What it does, in this order:
 #   1. checks Python, git and the modules KlippEye needs, and installs the missing ones with apt (asking the password once):
-#      python3-flask, python3-requests, python3-numpy (the backend), python3-opencv (the AI monitor), git (updates)
+#      python3-flask, python3-waitress, python3-requests, python3-numpy (the backend), python3-opencv (the AI monitor),
+#      git (updates)
 #   2. creates the DATA folder (~/printer_data/klippeye: settings, AI key, notifications)
 #   3. installs the services "klippeye" (backend + dashboard) and "klippeye-notifier" (notifications), started at every boot;
 #      if the new backend does not answer, they are taken off again
@@ -106,13 +107,15 @@ good "$("$PYTHON" --version 2>&1) ($PYTHON)"
 case "$REPO$DATA" in *" "*) stop "Folder names must not contain spaces ($REPO, $DATA)." ;; esac
 [ -f "$REPO/backend/klippeye_backend.py" ] || stop "$REPO/backend/klippeye_backend.py not found: this does not look like the KlippEye folder."
 # What KlippEye needs, as Debian / Raspberry Pi OS packages (the same names on MainsailOS, Bullseye, Bookworm, Trixie):
-#   the backend: flask, requests, numpy (1.23.0: the camera calibration is numpy-only and part of the backend)
+#   the backend: flask, requests, numpy (1.23.0: the camera calibration is numpy-only and part of the backend),
+#   waitress (1.74: the web server made to run for months; without it Flask's own server is used)
 #   the AI monitor: OpenCV (python3-opencv) - left out with --no-ai
 #   updates and self-repair: git
 missing_packages() {
   local list=""
   command -v git >/dev/null 2>&1 || list="$list git"
   "$PYTHON" -c 'import flask' 2>/dev/null || list="$list python3-flask"
+  "$PYTHON" -c 'import waitress' 2>/dev/null || list="$list python3-waitress"
   "$PYTHON" -c 'import requests' 2>/dev/null || list="$list python3-requests"
   "$PYTHON" -c 'import numpy' 2>/dev/null || list="$list python3-numpy"
   if [ "$WITH_AI" = 1 ]; then "$PYTHON" -c 'import cv2' 2>/dev/null || list="$list python3-opencv"; fi
@@ -134,7 +137,7 @@ if [ -n "$NEEDED" ] && [ "$MODE" = install ]; then
       tail -n 6 "$WORK_EARLY" | sed 's/^/           /'
     fi
   elif [ "$WITH_PACKAGES" = 1 ] && ! system_python; then
-    note "Python is $PYTHON, not the system's: install them in it (pip install flask requests numpy opencv-python-headless)."
+    note "Python is $PYTHON, not the system's: install them in it (pip install flask waitress requests numpy opencv-python-headless)."
   else
     note "Install them with:   sudo apt install -y $NEEDED"
   fi

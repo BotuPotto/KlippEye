@@ -3,7 +3,7 @@ look not installed, until the fake apt-get "installs" their Debian package (FAKE
 import os
 import sys
 
-PACKAGE = {"cv2": "python3-opencv", "numpy": "python3-numpy", "flask": "python3-flask", "requests": "python3-requests"}
+PACKAGE = {"cv2": "python3-opencv", "numpy": "python3-numpy", "flask": "python3-flask", "requests": "python3-requests", "waitress": "python3-waitress"}
 hidden = set(os.environ.get("KLIPPEYE_TEST_HIDE", "").split())
 try:
     with open(os.path.join(os.environ.get("FAKE_SYSTEMD_STATE", ""), "apt_installed")) as handle:
