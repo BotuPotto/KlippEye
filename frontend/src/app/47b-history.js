@@ -618,6 +618,6 @@ function FilesPage({ desktop, files }) {
   let content;
   if (section === "history") content = h(HistoryPage, { desktop, onPrint: files.onPrint });
   else if (section === "timelapse") content = timelapse === null ? h("div", { className: "oui-caption files-notice" }, tx("Loading...")) : timelapse ? h(TimelapsePage, { desktop }) : h(TimelapseMissingCard);
-  else content = h(React.Fragment, null, h(QueueCard), files.content);
+  else content = h(React.Fragment, null, h(ScheduleCard), h(QueueCard), files.content);
   return h(React.Fragment, null, h("div", { className: "files-section-bar" }, h(FilesSectionSwitch, { section })), content);
 }
