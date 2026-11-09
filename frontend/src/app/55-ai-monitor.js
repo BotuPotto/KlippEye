@@ -57,7 +57,7 @@ const DETECTOR_STATUS_TEXTS = [
   [/^heating\/mesh - waiting for the real print(.*)$/, (m) => tx("heating/mesh - waiting for the real print") + m[1]],
   [/^preparing the comparison \((\d+)\/(\d+) pictures\)$/, (m) => tx("preparing the comparison ({count}/{total} pictures)", { count: m[1], total: m[2] })],
   [/^light change or camera moved \((\d+)% of the picture\): ignored$/, (m) => tx("light change or camera moved ({percent}% of the picture): ignored", { percent: m[1] })],
-  [/^scanning \(large lasting change\)$/, () => "scanning (" + tx("large lasting change") + ")"],
+  [/^scanning \(large lasting change\)$/, () => tx("scanning") + " (" + tx("large lasting change") + ")"],
   [/^cv2 not installed$/, () => tx("OpenCV not installed")],
 ];
 function detectorStatusText(status) {
@@ -271,8 +271,8 @@ function AiMonitorCard({ monitor, bare }) {
       "div",
       { className: "monitor-grid" },
       h(MonitorTile, { label: tx("Status") }, detector.state),
-      h(MonitorTile, { label: "OpenCV score" }, detector.score),
-      h(MonitorTile, { label: "Checks" }, detector.checks),
+      h(MonitorTile, { label: tx("OpenCV score") }, detector.score),
+      h(MonitorTile, { label: tx("Checks") }, detector.checks),
     ),
     latest ? h(VerdictAlert, { latest }) : h("div", { className: "ai-alert hidden" }),
     latest && alarmPhoto(latest) && h(ZoomablePhoto, { src: alarmPhoto(latest), title: tx("What the AI monitor saw") + (latest.timestamp ? " • " + latest.timestamp : ""), className: "ai-panel__photo" }),

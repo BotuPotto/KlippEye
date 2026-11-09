@@ -17,7 +17,7 @@ const CAMERA_RELOAD_AFTER_RESTART_MS = 7000;
 
 const capitalize = (text) => (text ? text.charAt(0).toUpperCase() + text.slice(1) : text);
 /** Friendly names of the services of KlippEye (the others keep their own name, capitalised). */
-const SERVICE_LABELS = { klippeye: "KlippEye (backend)", "klippeye-notifier": tx("KlippEye notifications") };
+const SERVICE_LABELS = { klippeye: tx("KlippEye service"), "klippeye-notifier": tx("KlippEye notifications") };
 const serviceLabel = (name) => SERVICE_LABELS[name] || capitalize(name);
 const isCameraService = (name) => /crowsnest|webcam|camera|streamer|mjpg/i.test(name);
 const SERVICE_STATE_TEXT = { active: txc("service", "running"), inactive: txc("service", "stopped"), failed: txc("service", "failed"), activating: txc("service", "starting"), deactivating: txc("service", "stopping") };
@@ -32,7 +32,7 @@ async function loadServices() {
     .map((name) => ({ name, state: (states[name] || {}).active_state || "", sub: (states[name] || {}).sub_state || "" }));
 }
 
-const PRINT_WARNING = tx("A print is running and it will fail!");
+const PRINT_WARNING = tx("A print is running: it will fail!");
 
 /** What each confirmation says. `always`: asked even when nothing prints. `service`: the systemd name, for the ones that need their own words. */
 function powerConfirmation(kind, label, service) {
@@ -179,8 +179,8 @@ function PowerSheet({ menu, klipper }) {
             h(
               "div",
               { className: "oui-list" },
-              h(FileActionRow, { icon: h(Icons.RotateCw), title: "Klipper restart", subtitle: tx("Reload the configuration and restart Klipper"), disabled: restarting, onClick: () => menu.restartKlipper(false) }),
-              h(FileActionRow, { icon: h(Icons.Chip), title: "Firmware restart", subtitle: tx("Also restart the firmware of the boards"), disabled: restarting, onClick: () => menu.restartKlipper(true) }),
+              h(FileActionRow, { icon: h(Icons.RotateCw), title: tx("Klipper restart"), subtitle: tx("Reload the configuration and restart Klipper"), disabled: restarting, onClick: () => menu.restartKlipper(false) }),
+              h(FileActionRow, { icon: h(Icons.Chip), title: tx("Firmware restart"), subtitle: tx("Also restart the firmware of the boards"), disabled: restarting, onClick: () => menu.restartKlipper(true) }),
             ),
           ),
         h("div", { className: "power-sheet__label" }, tx("Services")),

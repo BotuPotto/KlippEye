@@ -23,7 +23,7 @@ const SETTINGS_RETRY_MS = 5000; // 1.61: a save that did not get through is trie
 const CAMERA_METHODS = [
   { id: "webrtc", label: "WebRTC", detail: tx("camera-streamer's WebRTC page: smooth and light"), field: tx("Address of the WebRTC page") },
   { id: "mjpeg", label: "MJPEG", detail: tx("Continuous video stream, works with almost every camera"), field: tx("Address of the stream") },
-  { id: "adaptive", label: "MJPEG adaptive", detail: tx("One picture after the other: for slow networks"), field: tx("Address of the snapshot") },
+  { id: "adaptive", label: tx("MJPEG adaptive"), detail: tx("One picture after the other: for slow networks"), field: tx("Address of the snapshot") },
   { id: "iframe", label: tx("Web page"), detail: tx("Any page that shows the camera"), field: tx("Address of the page") },
 ];
 const CAMERA_METHOD_IDS = CAMERA_METHODS.map((method) => method.id);
@@ -75,7 +75,7 @@ const NOTIFY_PLACEHOLDERS = ["file", "progress", "layer", "total_layers", "elaps
 const AI_DEFECTS = [
   { id: "spaghetti", title: "Spaghetti", detail: tx("The filament does not stick and piles up") },
   { id: "empty_bed", title: tx("Empty bed"), detail: tx("The part came off or is gone") },
-  { id: "layer_shift", title: "Layer shift", detail: tx("The layers shift") },
+  { id: "layer_shift", title: tx("Layer shift"), detail: tx("The layers shift") },
   { id: "warping", title: "Warping", detail: tx("The corners lift from the bed") },
 ];
 const AI_CONFIRMATIONS = [1, 2, 3];

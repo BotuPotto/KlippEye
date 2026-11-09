@@ -1,4 +1,4 @@
-"""Release 1.59: Settings → Camera lists every camera, each with its page. The main camera (KlippEye's own, the one the AI
+"""Release 1.59: Settings → Telecamera lists every camera, each with its page. The main camera (KlippEye's own, the one the AI
 monitor watches) keeps its page; the webcams kept by Moonraker (the same ones Mainsail and Fluidd show) are changed,
 added and removed from here, as in Mainsail; one written in moonraker.conf can only be read. Timelapse: its settings
 (and which camera it uses) or how to install it. Against the mock.
@@ -76,7 +76,7 @@ with sync_playwright() as p:
     P.shot(out + "/cameras.png")
 
     pg.locator('[data-page="camera-main"]').click(); P.settle(600)
-    ok("the main camera's page: method, address, snapshot (as before)", title(P) == "Camera principale" and pg.locator(".set-choice", has_text="WebRTC").count() >= 1 and pg.locator("[data-snapshot-now]").count() == 1)
+    ok("the main camera's page: method, address, snapshot (as before)", title(P) == "Telecamera principale" and pg.locator(".set-choice", has_text="WebRTC").count() >= 1 and pg.locator("[data-snapshot-now]").count() == 1)
     back(P)
 
     # ------------------------------------------------------------------ a webcam of Moonraker, changed as in Mainsail
@@ -106,7 +106,7 @@ with sync_playwright() as p:
     pg.locator("[data-webcam-add]").click()
     ok("Add a camera: a new webcam in Moonraker, and its page opens", wait_until(lambda: len(posts()) == n + 1 and "uid" not in posts()[-1]) and wait_until(lambda: title(P) == "Camera 4"), (posts()[-1:], title(P)))
     pg.locator("[data-webcam-delete]").click(); P.settle(400)
-    pg.locator(".confirm-card").get_by_role("button", name="Togli", exact=True).click(); P.settle(900)
+    pg.locator(".confirm-card").get_by_role("button", name="Rimuovi", exact=True).click(); P.settle(900)
     ok("Remove: deleted from Moonraker, back to the list", wait_until(lambda: state()["webcam_log"][-1][0] == "delete") and wait_until(lambda: pg.locator("[data-webcams] .set-entry").count() == 3), state()["webcam_log"][-1])
 
     # ------------------------------------------------------------------ timelapse without the component

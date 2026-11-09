@@ -99,7 +99,7 @@ with sync_playwright() as p:
     sett = pg.locator(".timelapse-settings")
     sett.scroll_into_view_if_needed()
     ok("1.67: nothing to save yet; it says where they are kept", sett.locator('[data-timelapse-save="clean"]').count() == 1 and "moonraker.conf" in sett.locator(".timelapse-save").inner_text())
-    sett.get_by_role("button", name="Ogni tot secondi").click()
+    sett.get_by_role("button", name="A intervalli (hyperlapse)").click()
     ok("hyperlapse: its seconds appear, nothing sent yet", wait_until(lambda: sett.locator('[data-setting="hyperlapse_cycle"]').count() == 1) and state()["timelapse_settings"]["mode"] == "layermacro" and sett.locator('[data-timelapse-save="dirty"]').count() == 1)
     field = sett.locator('[data-setting="hyperlapse_cycle"] input')
     field.fill("15")

@@ -36,12 +36,12 @@ function AppHeader({ onSettings, onPrinters, onPower, onSaveConfig, onEmergencyS
           {
             onClick: onSaveConfig,
             className: cx("header-btn", saveBusy && "is-busy"),
-            "aria-label": "Save config",
+            "aria-label": tx("Save configuration"),
             title: tx("SAVE_CONFIG - Save the configuration and restart"),
           },
           h(Icons.Save),
         ),
-        h("button", { onClick: onEmergencyStop, className: "header-btn header-btn--danger", "aria-label": "Emergency stop" }, h(Icons.Emergency)),
+        h("button", { onClick: onEmergencyStop, className: "header-btn header-btn--danger", "aria-label": tx("Emergency stop") }, h(Icons.Emergency)),
       ),
     ),
   );

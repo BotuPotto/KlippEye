@@ -88,9 +88,9 @@ with sync_playwright() as p:
     P.close()
 
     P = start(b, printing=True, detector_status="scanning", has_analysis=True, analysis_action="CANCELLA")
-    ok("a CANCEL alarm: red badge, the question in red", wait_until(lambda: question(P).count() == 1) and "ai-question--danger" in question(P).get_attribute("class") and "CANCEL" in (badge(P).get_attribute("title") or "").upper())
+    ok("a CANCEL alarm: red badge, the question in red", wait_until(lambda: question(P).count() == 1) and "ai-question--danger" in question(P).get_attribute("class") and "ANNULLA" in (badge(P).get_attribute("title") or "").upper())
     question(P).locator('[data-ai-answer="right"]').click(); P.settle(600)
-    ok("«Problema vero»: it stays, says to pause or cancel if needed, the badge stays red", question(P).get_attribute("data-ai-question") == "answered" and "metti in pausa o annulla" in question(P).inner_text() and "CANCEL" in (badge(P).get_attribute("title") or "").upper() and state()["ai_answers"] == ["right"])
+    ok("«Problema reale»: it stays, says to pause or cancel if needed, the badge stays red", question(P).get_attribute("data-ai-question") == "answered" and "metti in pausa o annulla" in question(P).inner_text() and "ANNULLA" in (badge(P).get_attribute("title") or "").upper() and state()["ai_answers"] == ["right"])
     # the print ends: the backend closes the alarm
     mock.set(has_analysis=False, detector_status="idle - waiting for a print", printing=False)
     ok("the print ends (the backend closes the alarm): no question, grey badge", wait_until(lambda: badge(P).get_attribute("data-ai-badge") == "idle"))

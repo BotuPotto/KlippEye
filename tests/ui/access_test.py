@@ -77,7 +77,7 @@ with sync_playwright() as p:
     A.fill("#access-repeat", "segreta123")
     A.click("text=Attiva la password")
     ok("attivata: messaggio e stato 'Password attiva'", wait(A, lambda: "Password attivata" in A.locator(".drawer").inner_text() and "Password attiva" in A.locator(".drawer").inner_text()), A.locator(".drawer").inner_text()[:300])
-    ok("... compaiono 'Fai uscire tutti' e 'Togli la password'", A.locator("text=Fai uscire tutti gli altri dispositivi").count() == 1 and A.locator("button:has-text('Togli la password')").count() == 1)
+    ok("... compaiono 'Fai uscire tutti' e 'Rimuovi la password'", A.locator("text=Disconnetti tutti gli altri dispositivi").count() == 1 and A.locator("button:has-text('Rimuovi la password')").count() == 1)
     A.screenshot(path=os.path.join(out, "accesso_attiva.png"))
     A.reload(); A.wait_for_timeout(1500)
     ok("questo dispositivo resta dentro anche ricaricando", A.url.endswith("/") and A.locator(".app-header").count() == 1, A.url)
@@ -97,7 +97,7 @@ with sync_playwright() as p:
     # A fa uscire gli altri: B al prossimo dato letto torna alla pagina di accesso
     A.click('button[aria-label="Impostazioni"]'); A.wait_for_selector(".drawer"); A.wait_for_timeout(400)
     A.click('.set-entry[data-page="access"]'); A.wait_for_timeout(500)
-    A.click("text=Fai uscire tutti gli altri dispositivi")
+    A.click("text=Disconnetti tutti gli altri dispositivi")
     ok("'fai uscire tutti gli altri': conferma", wait(A, lambda: "dovranno rifare l'accesso" in A.locator(".drawer").inner_text()))
     ok("... l'altro dispositivo torna da solo alla pagina di accesso", wait(B, lambda: B.url.endswith("/login"), 10), B.url)
     ok("... questo no", A.url.endswith("/") and A.locator(".drawer").count() == 1)
@@ -108,11 +108,11 @@ with sync_playwright() as p:
     A.wait_for_selector('.app-header button[aria-label="Impostazioni"]', timeout=15000)
     A.click('button[aria-label="Impostazioni"]'); A.wait_for_selector(".drawer"); A.wait_for_timeout(400)
     A.click('.set-entry[data-page="access"]'); A.wait_for_timeout(500)
-    A.click("button:has-text('Togli la password')") if A.locator("button:has-text('Togli la password')").is_enabled() else None
-    ok("'Togli la password' e' spento finche' non scrivi la password attuale", not A.locator("button:has-text('Togli la password')").is_enabled())
+    A.click("button:has-text('Rimuovi la password')") if A.locator("button:has-text('Rimuovi la password')").is_enabled() else None
+    ok("'Rimuovi la password' e' spento finche' non scrivi la password attuale", not A.locator("button:has-text('Rimuovi la password')").is_enabled())
     A.fill("#access-current", "segreta123")
-    A.click("button:has-text('Togli la password')")
-    ok("tolta: 'Password non attiva'", wait(A, lambda: "Password tolta" in A.locator(".drawer").inner_text()), A.locator(".drawer").inner_text()[:300])
+    A.click("button:has-text('Rimuovi la password')")
+    ok("tolta: 'Password non attiva'", wait(A, lambda: "Password rimossa" in A.locator(".drawer").inner_text()), A.locator(".drawer").inner_text()[:300])
     C = browser.new_context(locale="it-IT").new_page(); C.goto(BASE + "/")
     ok("... e un dispositivo nuovo entra senza accesso", C.url.endswith("/"), C.url)
     ok("nessun errore JavaScript", not errors, errors[:3])

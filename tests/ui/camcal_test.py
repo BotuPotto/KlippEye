@@ -1,4 +1,4 @@
-"""Release 1.13.0: "Calibra la camera" (roadmap phase 4a) with the REAL backend, a fake Klipper that moves when told and a
+"""Release 1.13.0: "Calibra la telecamera" (roadmap phase 4a) with the REAL backend, a fake Klipper that moves when told and a
 fake camera that draws the printer as a fisheye camera in front of it would see it (bed, markers, toolhead, nozzle tip).
 The test taps where the nozzle tip and the markers really are, as a person would, and checks the whole path: kind of printer,
 homing, the markers (quick blobs, then the printed pyramids read from their G-code), twelve points with the magnified view, calculation, saving, the live drawing, the camera moved.
@@ -155,10 +155,10 @@ with sync_playwright() as p:
     pg.wait_for_timeout(1500)
     ok("Monitor IA says what it looks at: only the outer band until the camera is calibrated", "Solo la fascia esterna" in body(pg), body(pg)[:400])
     entry = pg.locator('.set-entry[data-page="camcal"]')
-    ok("'Monitor IA' has 'Calibra camera', 'Non calibrata'", entry.count() == 1 and wait(pg, lambda: "Non calibrata" in entry.inner_text()), entry.inner_text() if entry.count() else "")
+    ok("'Monitor IA' has 'Calibrazione della telecamera', 'Non calibrata'", entry.count() == 1 and wait(pg, lambda: "Non calibrata" in entry.inner_text()), entry.inner_text() if entry.count() else "")
     entry.click()
     pg.wait_for_timeout(1200)
-    ok("not calibrated: the page says so and offers to calibrate", wait(pg, lambda: "La camera non è calibrata" in body(pg)) and pg.locator('[data-start="1"]').count() == 1, body(pg)[:300])
+    ok("not calibrated: the page says so and offers to calibrate", wait(pg, lambda: "La telecamera non è calibrata" in body(pg)) and pg.locator('[data-start="1"]').count() == 1, body(pg)[:300])
     pg.click('[data-start="1"]')
     pg.wait_for_timeout(800)
     ok("step 1: how Z moves, guessed from Klipper (Z moves the bed)", "come si muove l'asse z?" in body(pg).lower() and "Dalla configurazione di Klipper sembra: Z muove il piatto." in body(pg), body(pg)[:600])
@@ -181,7 +181,7 @@ with sync_playwright() as p:
     pg.locator('[data-temp="nozzle"]').fill("225")
     pg.locator('[data-temp="bed"]').fill("70")
     pg.click('[data-marks="start"]')
-    ok("the 6 blobs: the chosen temperatures, retraction and Z hop; the page says so", wait(pg, lambda: "6 gocce fatte" in body(pg), 12)
+    ok("the 6 blobs: the chosen temperatures, retraction and Z hop; the page says so", wait(pg, lambda: "6 gocce create" in body(pg), 12)
        and any("M109 S225" in sc and "M190 S70" in sc and sc.count("G0 Z5 F1200") == 6 for sc in fake.scripts) and pg.locator(".cal-target").count() == 12, body(pg)[-500:])
     pg.screenshot(path=os.path.join(out, "01b_blobs.png"))
     pg.locator(".oui-chip", has_text="Stampa i segni").click()
@@ -315,10 +315,10 @@ with sync_playwright() as p:
     pg.locator(".drawer").screenshot(path=os.path.join(out, "05_shape.png"))
     fake.state["cam_shift"] = (25, 12)
     pg.click('[data-check="1"]')
-    ok("camera moved: the page says to calibrate again", wait(pg, lambda: "La camera si è spostata dalla calibrazione" in body(pg), 10), body(pg)[:400])
+    ok("camera moved: the page says to calibrate again", wait(pg, lambda: "La telecamera si è spostata dalla calibrazione" in body(pg), 10), body(pg)[:400])
     pg.click('button[aria-label="Indietro"]')
     pg.wait_for_timeout(1500)
-    ok("... and the menu line says it too", wait(pg, lambda: "Camera spostata" in pg.locator('.set-entry[data-page="camcal"]').inner_text(), 20), pg.locator('.set-entry[data-page="camcal"]').inner_text())
+    ok("... and the menu line says it too", wait(pg, lambda: "Telecamera spostata" in pg.locator('.set-entry[data-page="camcal"]').inner_text(), 20), pg.locator('.set-entry[data-page="camcal"]').inner_text())
     overflow = pg.evaluate("() => { const d = document.querySelector('.drawer__body'); return d.scrollWidth - d.clientWidth; }")
     ok("no horizontal scrolling", overflow <= 0, overflow)
     ok("no JavaScript error", errors == [], errors)

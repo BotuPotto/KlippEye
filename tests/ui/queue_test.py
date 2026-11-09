@@ -113,7 +113,7 @@ with sync_playwright() as p:
     pg.locator(".queue-row").nth(2).get_by_role("button", name="Prima").click()
     ok("'Stampala per prima': to the front", wait_until(lambda: queued() == [V, B, B, B]) and "JUMP" in state()["queue_log"], queued())
     ok("the first has no Su", wait_until(lambda: names(P)[0] == V) and pg.locator(".queue-row").first.get_by_role("button", name="Su").is_disabled())
-    pg.locator(".queue-row").nth(1).get_by_role("button", name="Togli dalla coda").click()
+    pg.locator(".queue-row").nth(1).get_by_role("button", name="Rimuovi dalla coda").click()
     ok("a job removed", wait_until(lambda: queued() == [V, B, B]), queued())
     pg.locator(".queue-start").click()
     ok("'Avvia la coda'", wait_until(lambda: "START" in state()["queue_log"]) and wait_until(lambda: pg.locator(".queue-pause").count() == 1))

@@ -38,6 +38,9 @@ const FAN_LABELS = {
   driver_fan: "Drivers Fan",
 };
 const FAN_ORDER = ["Part Fan", "Aux Fan", "Hotend Fan", "Drivers Fan"];
+/** 1.68: the names shown (the labels above stay the keys of order and control). */
+const FAN_TITLES = { "Part Fan": tx("Part Fan"), "Aux Fan": tx("Aux Fan"), "Hotend Fan": tx("Hotend Fan"), "Drivers Fan": tx("Drivers Fan") };
+const fanTitle = (label) => FAN_TITLES[label] || label;
 /** Only these two fans may be changed from the dashboard. */
 const CONTROLLABLE_FANS = ["Part Fan", "Aux Fan"];
 
@@ -309,7 +312,7 @@ function FanControl({ fan, locked, onSet, onInteract }) {
     h(
       "div",
       { className: "fan-row__head" },
-      h("span", { className: FAN_NAME_CLASS }, fan.label),
+      h("span", { className: FAN_NAME_CLASS }, fanTitle(fan.label)),
       h(
         "div",
         { className: "flex items-center gap-2" },
@@ -371,7 +374,7 @@ function FanReadout({ fan }) {
   return h(
     "div",
     { className: "fan-row fan-row--readout" },
-    h("span", { className: FAN_NAME_CLASS }, fan.label),
+    h("span", { className: FAN_NAME_CLASS }, fanTitle(fan.label)),
     h(
       "div",
       { className: "flex items-center gap-3" },

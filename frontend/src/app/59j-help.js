@@ -132,12 +132,12 @@ const HELP = {
         ],
       },
       { id: "create", title: tx("Create a macro for this"), text: [tx("KlippEye proposes a macro, you check it in the editor and it is saved in klippeye_macros.cfg next to printer.cfg. Klipper reads it after a restart: the page offers to restart it (never during a print).")] },
-      { id: "light", title: tx("The light"), text: [tx("The light button always shows the real state of the light, read from its Klipper output (and from the led_effect effects), whoever switched it: Mainsail, KlipperScreen, a macro.")] },
+      { id: "light", title: tx("The light"), text: [tx("The light button always shows the real state of the light, read from its Klipper output (and from the led_effect effects), whoever switched it: another program, a screen on the printer, a macro.")] },
       {
         id: "lights",
         title: tx("More lights"),
         text: [
-          tx("KlippEye finds the lights by itself: each pair of light macros (LUCI_ON / LUCI_OFF…), each LED output ([led], [neopixel], [dotstar]…) and the pins whose name says light. Rename them, change how they are switched (an output, two macros, G-code), remove them or add more: from the first change the list is yours."),
+          tx("KlippEye finds the lights by itself: each pair of light macros (LIGHT_ON / LIGHT_OFF…), each LED output ([led], [neopixel], [dotstar]…) and the pins whose name says light. Rename them, change how they are switched (an output, two macros, G-code), remove them or add more: from the first change the list is yours."),
           tx("The round button on the camera switches together the lights marked «Switched by the round button». The arrow next to it opens every light: a switch each, the brightness (LEDs, PWM pins) and the colour (RGB LEDs), and the scenes: save how the lights are now with a name and call it back with a tap."),
         ],
       },
@@ -153,7 +153,7 @@ const HELP = {
         title: tx("How the macros are shown"),
         text: [
           tx("«All the macros» puts every macro of the printer in one card, as Klipper has them; switch off the ones you never use."),
-          tx("«Groups» makes cards of your own, like Mainsail: a name, a colour, the macros you choose in the order you want, and when the card shows (idle, printing, paused: for example the filament macros also while paused, the calibrations only when idle)."),
+          tx("«Groups» makes cards of your own: a name, a colour, the macros you choose in the order you want, and when the card shows (idle, printing, paused: for example the filament macros also while paused, the calibrations only when idle)."),
           tx("A macro with parameters has a ⚙ next to its name: it opens a form with the values to send."),
         ],
       },
@@ -173,9 +173,9 @@ const HELP = {
     ],
   },
   camera: {
-    title: "Camera",
+    title: tx("Camera"),
     sections: [
-      { id: "mainsail", title: tx("The quickest way"), text: [tx("If the camera already works in Mainsail, press «Import from Mainsail» at the bottom and pick it: method and address are taken from there.")] },
+      { id: "mainsail", title: tx("The quickest way"), text: [tx("If the camera is already set up on the printer, press «Import from the printer» at the bottom and pick it: method and address are taken from there.")] },
       {
         id: "method",
         title: tx("Which method"),
@@ -191,8 +191,8 @@ const HELP = {
         id: "snapshot",
         title: tx("The snapshot"),
         text: [
-          tx("A single photo of the camera, taken by the Raspberry itself: the AI monitor and the camera calibration use it, and later the timelapse. Leave it empty: KlippEye works it out from the address above (/webcam/?action=snapshot for crowsnest)."),
-          tx("Write it only if «Try» gives no photo, or to use another camera: the same «Snapshot URL» you see in Mainsail's webcam settings."),
+          tx("A single photo of the camera, taken by the Raspberry itself: the AI monitor and the camera calibration use it. Leave it empty: KlippEye works it out from the address above (/webcam/?action=snapshot for crowsnest)."),
+          tx("Write it only if «Try» gives no photo, or to use another camera: the address of its single photo, in the settings of that camera."),
         ],
       },
       { id: "image", title: tx("Upside down or mirrored?"), text: [tx("Use the two switches of «Image»: they turn the picture of the dashboard, not the camera.")] },
@@ -206,7 +206,7 @@ const HELP = {
       {
         id: "how",
         title: tx("How to fill them in"),
-        steps: [tx("Local IP: the address of the Raspberry on your home network (the one you use for Mainsail, without http:// and without :8085)."), tx("External IP: the address of the Raspberry in ZeroTier / the VPN."), tx("«For the camera use»: Automatic picks the one of the network you are on.")],
+        steps: [tx("Local IP: the address of the Raspberry on your home network (the one you open in the browser, without http:// and without :8085)."), tx("External IP: the address of the Raspberry in ZeroTier / the VPN."), tx("«For the camera use»: Automatic picks the one of the network you are on.")],
       },
       { id: "app", title: tx("The Android app"), text: [tx("The KlippEye app uses the same addresses to find the Raspberry: at home the local one, away the external one.")] },
     ],

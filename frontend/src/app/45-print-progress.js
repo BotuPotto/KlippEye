@@ -292,7 +292,7 @@ function usePrintControls(state) {
     cancelLocked.current = true;
     try {
       await sendGcode("CANCEL_PRINT");
-      toast.notice(tx("CANCEL PRINT sent"), CANCEL_TOAST_MS);
+      toast.notice(tx("CANCEL_PRINT sent"), CANCEL_TOAST_MS);
     } catch (e) {}
     lockFor(cancelLocked);
   };
@@ -509,7 +509,8 @@ function CancelPrintDialog({ open, onConfirm, onCancel }) {
       h("b", { key: "warn" }, tx("stopped immediately")),
       tx(". File, progress and heaters will be reset. Confirm?"),
     ],
-    confirmLabel: txc("action", "Cancel"),
+    confirmLabel: tx("Cancel print"),
+    cancelLabel: tx("Back"), // 1.68: «Annulla stampa» confirms, «Indietro» leaves it printing
     onConfirm,
     onCancel,
   });

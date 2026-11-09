@@ -1,5 +1,26 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.68.0
+
+**Texts reviewed** (roadmap phase 7): about 300 texts changed after a comparison with the Italian translations of the other
+3D printing programs, and the choices made together on 9 November.
+
+* Italian: **«Annulla stampa»** instead of «Cancella stampa» (in Italian «cancellare» means to delete); **«Elimina»** for
+  files, **«Rimuovi»** for lists (no more «Cancella» / «Togli»); **«telecamera»** instead of «camera» (the print
+  chamber stays «camera di stampa»); **«inattiva»** for an idle printer; **probe** and **endstop**, **target**,
+  **homing**, **pressure advance** and the other Klipper names as they are; «piatto», «retrazione», «spurgo»,
+  «predefinito», «versione», «pulsante», «chiave».
+* Waiting messages without «I» («Lettura…», «In attesa…»), errors as «Impossibile…», the notifications with «tu»
+  («Filamento esaurito: cambia la bobina!»), a space before the units and the decimal comma.
+* The texts no longer name other programs: «Import from the printer» instead of «Import from Mainsail», and when the
+  KlippEye service does not answer the page gives the command to run on the Raspberry.
+* What was still in English in Italian: the extruder's Retract / Extrude / Wipe / Load / Unload, the fans' names, the
+  restart buttons, the emergency stop, the rollback of the updates, the monitor's figures.
+* In the «Annulla stampa» dialog the buttons are «Annulla stampa» and «Indietro».
+* In Italian the AI is «IA» in the texts; the badge at the top always says «AI».
+* Fixed: SAVE_CONFIG restarts Klipper, not the firmware of the boards; two texts said the timelapse would use the
+  snapshot «later»; a technical leftover in the macros' loading message; two missing accents.
+
 ## 1.67.0
 
 **New versions looked for by itself; a larger camera on a computer; «Print again»; pictures over the whole screen.**

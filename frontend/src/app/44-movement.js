@@ -57,19 +57,19 @@ function useMotion(echo, capabilities) {
   const homeAll = () => {
     setCommanded(centrePosition(limits));
     toast.action("⌖ G28");
-    echo([{ msg: "G28 - Homing all axes", color: GREEN }]);
+    echo([{ msg: tx("G28 - Homing all axes"), color: GREEN }]);
     fireGcode("G28");
   };
   const park = parkCommand
     ? () => {
         toast.action(tx("Park"));
-        echo([{ msg: parkCommand.split("\n")[0] + " - Park", color: GREEN }]);
+        echo([{ msg: parkCommand.split("\n")[0] + " - " + tx("Park"), color: GREEN }]);
         fireGcode(parkCommand);
       }
     : null;
   const motorsOff = () => {
     toast.action(tx("M84 - Motors disabled"));
-    echo([{ msg: "M84 - Motors off", color: GREEN }]);
+    echo([{ msg: tx("M84 - Motors off"), color: GREEN }]);
     fireGcode("M84");
   };
 
@@ -265,7 +265,7 @@ function JogPad({ onJog, onHomeAll, onPark, steps = MOTION_BASE_STEPS }) {
         ...gestures,
         className:
           "jog-home absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full flex items-center justify-center select-none touch-manipulation",
-        "aria-label": "Home all - long press PARK",
+        "aria-label": tx("Home all - long press PARK"),
       },
       h(Svg, { size: 26, strokeWidth: "2", stroke: "currentColor" }, h("path", { d: HOUSE_PATH }), h("path", { d: "M9 21V14H15V21" })),
     ),

@@ -16,7 +16,7 @@ const WEBCAM_PAGE_PREFIX = "webcam:";
 const WEBCAM_SERVICES = [
   { id: "webrtc-camerastreamer", label: "WebRTC (camera-streamer)" },
   { id: "mjpegstreamer", label: "MJPEG" },
-  { id: "mjpegstreamer-adaptive", label: "MJPEG adaptive" },
+  { id: "mjpegstreamer-adaptive", label: tx("MJPEG adaptive") },
   { id: "iframe", label: tx("Web page") },
 ];
 const WEBCAM_ROTATIONS = [0, 90, 180, 270];
@@ -27,7 +27,7 @@ const webcamsApi = {
   async list() {
     const json = await fetchJson("/server/webcams/list", { timeout: SETTINGS_DB_TIMEOUT_MS });
     const list = json && json.result && Array.isArray(json.result.webcams) ? json.result.webcams.filter(isPlainObject) : [];
-    list.forEach((cam) => cam.uid && (webcamTitles[WEBCAM_PAGE_PREFIX + cam.uid] = String(cam.name || "Camera")));
+    list.forEach((cam) => cam.uid && (webcamTitles[WEBCAM_PAGE_PREFIX + cam.uid] = String(cam.name || tx("Camera"))));
     return list;
   },
   /** Adds a webcam, or changes the one with the same uid; answers the saved webcam. */
@@ -45,7 +45,7 @@ const webcamsApi = {
   },
 };
 
-const webcamPageTitle = (page) => webcamTitles[page] || "Camera";
+const webcamPageTitle = (page) => webcamTitles[page] || tx("Camera");
 const webcamServiceLabel = (service) => (WEBCAM_SERVICES.find((one) => one.id === service) || {}).label || service || "?";
 
 /** The webcams of Moonraker, read when the page opens; `reload` after a change. */
@@ -108,7 +108,7 @@ function CamerasPage({ menu }) {
     ),
     h(
       SettingsGroup,
-      { title: tx("Cameras of the printer"), note: tx("The same ones Mainsail and Fluidd show (Moonraker keeps them): a change here is a change there too. The camera card can show any of them.") },
+      { title: tx("Cameras of the printer"), note: tx("The ones Moonraker keeps for every program of the printer: a change here is a change there too. The camera card can show any of them.") },
       webcams.list === null
         ? h("p", { className: "set-group__note" }, tx("Loading..."))
         : webcams.list.length > 0 &&
@@ -119,7 +119,7 @@ function CamerasPage({ menu }) {
                 h(CameraRow, {
                   key: cam.uid || cam.name,
                   page: WEBCAM_PAGE_PREFIX + (cam.uid || ""),
-                  title: String(cam.name || "Camera"),
+                  title: String(cam.name || tx("Camera")),
                   meta: [cam.enabled === false ? tx("Off") : "", webcamServiceLabel(cam.service), cam.stream_url].filter(Boolean).join(" · "),
                   off: cam.enabled === false,
                   menu,
@@ -204,7 +204,7 @@ function WebcamPage({ uid, menu }) {
           error: tx("From 1 to 40 characters"),
           onCommit: (name) => name !== cam.name && save({ name }),
         }),
-        h("div", { className: "oui-list" }, h(SwitchRow, { title: tx("On"), detail: tx("Off: it is not shown, here or in Mainsail"), checked: cam.enabled !== false, disabled: readOnly, onChange: (enabled) => save({ enabled }) })),
+        h("div", { className: "oui-list" }, h(SwitchRow, { title: tx("On"), detail: tx("Off: it is not shown, here or in the other programs"), checked: cam.enabled !== false, disabled: readOnly, onChange: (enabled) => save({ enabled }) })),
       ),
       h(SettingsGroup, { title: tx("Kind") }, h(ChoiceRows, { label: tx("Kind"), options: services.map((one) => ({ id: one.id, label: one.label })), value: cam.service, onChange: (service) => !readOnly && save({ service }) })),
       !known && h("p", { className: "set-group__note set-group__note--warn" }, tx("KlippEye cannot show this kind: choose one of the others to see it here.")),
@@ -245,7 +245,7 @@ function WebcamPage({ uid, menu }) {
       icon: h(Icons.Trash),
       title: tx("Remove this camera?"),
       subtitle: String(cam.name || ""),
-      message: tx("It is removed from Moonraker: Mainsail and Fluidd will not show it either."),
+      message: tx("It is removed from Moonraker: the other programs of the printer will not show it either."),
       confirmLabel: tx("Remove"),
       onConfirm: remove,
       onCancel: () => setDeleting(false),

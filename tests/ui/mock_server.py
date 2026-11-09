@@ -1555,7 +1555,7 @@ Tutto a posto, solo manutenzione consigliata.
 @app.route("/api/logs/analyze", methods=["GET", "POST"])
 def logs_analyze():
     if not S["ai_key_ok"]:
-        return jsonify(error="API key non configurata", howto="Imposta la key"), 401
+        return jsonify(error="Chiave API non configurata", howto="Imposta la key"), 401
     if request.args.get("simple") or S.get("ai_simple"):
         return jsonify(analysis="Conclusione rapida: tutto ok, nessun errore critico.\n- klippy.log: avvio normale\n- Warning: fallback camera\n- Error: TMC error su driver", used_files=["klippy.log", "moonraker.log"], model="llama-3", provider="groq")
     if request.args.get("file"):

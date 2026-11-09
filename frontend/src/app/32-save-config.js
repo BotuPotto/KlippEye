@@ -35,7 +35,7 @@ function SaveConfigDialog({ open, onConfirm, onCancel }) {
     message: [
       tx("This will run "),
       h("code", { key: "cmd" }, "SAVE_CONFIG"),
-      tx(" — Klipper will save the configuration and restart the firmware. Confirm?"),
+      tx(" — Klipper will save the configuration and restart. Confirm?"),
     ],
     confirmLabel: tx("Save"),
     onConfirm,

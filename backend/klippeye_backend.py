@@ -861,7 +861,7 @@ def emergency_page():
         "lang": lang,
         "title": bt("KlippEye is putting its files back in order", lang),
         "lead": bt("After a sudden power loss the dashboard page is damaged. It is being restored by itself: this page reloads every few seconds.", lang),
-        "hint": bt("If nothing changes, open Mainsail → Machine → Update Manager → klippeye → Recover (hard).", lang),
+        "hint": bt("If nothing changes, on the Raspberry run  klippeye repair  and then  klippeye restart .", lang),
     }
 
 # The operations Moonraker answers only when the work is done (updates, service restarts): 10 seconds are not enough.

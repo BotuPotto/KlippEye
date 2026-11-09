@@ -55,7 +55,7 @@ const layoutCardTitle = (id, device) =>
     macros: tx("Macros"),
     tune: tx("Tuning"),
     endstops: tx("Endstops and probe"),
-    bedmesh: "Bed mesh",
+    bedmesh: tx("Height map / mesh"),
   })[id] || id;
 
 const layoutStore = (() => {

@@ -340,7 +340,7 @@ async function loadMainsailWebcams() {
     .map((cam) => {
       const method = MAINSAIL_SERVICES[String(cam.service || "").toLowerCase()] || "";
       const address = cleanCameraAddress(method === "adaptive" ? cam.snapshot_url || cam.stream_url : cam.stream_url);
-      return { name: String(cam.name || "Camera"), service: String(cam.service || ""), method: address ? method : "", address, snapshot: cleanCameraAddress(cam.snapshot_url) || "", flipH: cam.flip_horizontal === true, flipV: cam.flip_vertical === true, rotation: [90, 180, 270].includes(Number(cam.rotation)) ? Number(cam.rotation) : 0, fps: Number(cam.target_fps) || 0, ratio: cameraRatio(cam.aspect_ratio) };
+      return { name: String(cam.name || tx("Camera")), service: String(cam.service || ""), method: address ? method : "", address, snapshot: cleanCameraAddress(cam.snapshot_url) || "", flipH: cam.flip_horizontal === true, flipV: cam.flip_vertical === true, rotation: [90, 180, 270].includes(Number(cam.rotation)) ? Number(cam.rotation) : 0, fps: Number(cam.target_fps) || 0, ratio: cameraRatio(cam.aspect_ratio) };
     });
 }
 
@@ -350,14 +350,14 @@ function MainsailImport({ onPick }) {
     setState({ phase: "loading", cams: [], message: "" });
     try {
       const cams = await loadMainsailWebcams();
-      setState(cams.length ? { phase: "list", cams, message: "" } : { phase: "none", cams: [], message: tx("Mainsail has no cameras set up.") });
+      setState(cams.length ? { phase: "list", cams, message: "" } : { phase: "none", cams: [], message: tx("The printer has no cameras set up.") });
     } catch (error) {
-      setState({ phase: "none", cams: [], message: tx("Cannot read Mainsail's cameras.") });
+      setState({ phase: "none", cams: [], message: tx("Cannot read the printer's cameras.") });
     }
   };
   return h(
     SettingsGroup,
-    { title: tx("From Mainsail"), note: tx("Takes method and address from the cameras already set up in Mainsail's Webcam page.") },
+    { title: tx("From the printer"), note: tx("Takes method and address from the cameras already set up on the printer (Moonraker keeps them).") },
     state.phase === "list"
       ? h(
           "div",
@@ -370,7 +370,7 @@ function MainsailImport({ onPick }) {
             ),
           ),
         )
-      : h("button", { type: "button", className: "oui-btn oui-btn--block", disabled: state.phase === "loading", onClick: load }, h(Icons.Download, { size: 18 }), state.phase === "loading" ? tx("Reading…") : tx("Import from Mainsail")),
+      : h("button", { type: "button", className: "oui-btn oui-btn--block", disabled: state.phase === "loading", onClick: load }, h(Icons.Download, { size: 18 }), state.phase === "loading" ? tx("Reading…") : tx("Import from the printer")),
     state.message && h("p", { className: "set-group__note set-group__note--warn", role: "status" }, state.message),
   );
 }
@@ -400,7 +400,7 @@ function SnapshotSetting({ camera, update }) {
   useEffect(() => () => trial && trial.src && URL.revokeObjectURL(trial.src), [trial]);
   return h(
     SettingsGroup,
-    { title: tx("Snapshot (single photo)"), help: ["camera", "snapshot"], note: tx("The photo the AI monitor and the camera calibration take (later also the timelapse). Empty: automatic, from the address above.") },
+    { title: tx("Snapshot (single photo)"), help: ["camera", "snapshot"], note: tx("The photo the AI monitor and the camera calibration take. Empty: automatic, from the address above.") },
     h(TextSetting, {
       key: camera.method + "|" + (camera.urls[camera.method] || ""),
       label: tx("Snapshot address"),
@@ -707,7 +707,7 @@ function NotificationsPage({ active }) {
     h(SettingsGroup, { title: IN_APP_WEBVIEW ? tx("Other phones (ntfy app, iPhone)") : tx("Where they arrive"), help: ["notifications", IN_APP_WEBVIEW ? "ntfy" : "how"] }, h(NotificationChannels, { store: channels })),
     h(
       SettingsGroup,
-      { title: tx("Which notifications to receive"), help: ["notifications", "which"], note: tx("They apply to every phone with the app. Under each one, its text: change it if you like (1.38).") },
+      { title: tx("Which notifications to receive"), help: ["notifications", "which"], note: tx("They apply to every phone with the app. Under each one, its text: change it if you like.") },
       h("div", { className: "oui-list" }, NOTIFICATION_KINDS.map((kind) => h(NotifyKindRow, { key: kind.id, kind, settings, update }))),
     ),
     h(NotifyRules, { settings, update }),
@@ -800,7 +800,7 @@ const SETTINGS_ENTRIES = [
   { id: "functions", group: "printer", title: tx("Printer functions"), icon: Icons.Bulb },
   { id: "macros", group: "printer", title: tx("Macros"), icon: Icons.Play },
   { id: "motion", group: "printer", title: tx("Motion and Z-offset"), icon: Icons.Move },
-  { id: "camera", group: "watch", title: "Camera", icon: Icons.Camera },
+  { id: "camera", group: "watch", title: tx("Camera"), icon: Icons.Camera },
   { id: "ai", group: "watch", title: tx("AI monitor"), icon: Icons.Sparkle },
   { id: "notifications", group: "yours", title: tx("Notifications"), icon: Icons.Bell },
   { id: "appearance", group: "yours", title: tx("Appearance"), icon: Icons.Sliders },

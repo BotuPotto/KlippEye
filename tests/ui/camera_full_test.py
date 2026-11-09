@@ -70,7 +70,7 @@ with sync_playwright() as p:
     box = pg.locator(".camera-full__stage").bounding_box()
     ok("... and fills the screen turned (its long side along the screen's height)", box["height"] > box["width"] and box["height"] >= 840, box)
     pg.screenshot(path=out + "/phone_turned.png")
-    pg.get_by_role("button", name="Non girare l'immagine").click()
+    pg.get_by_role("button", name="Non ruotare l'immagine").click()
     ok("the turn button puts it back upright", wait_until(lambda: full(P).get_attribute("data-rotated") == "false"))
     pg.screenshot(path=out + "/phone_upright.png")
     pg.wait_for_timeout(4200)

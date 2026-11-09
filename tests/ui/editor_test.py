@@ -214,7 +214,7 @@ with sync_playwright() as p:
     pg = P.pg
     orig = value(P)
     u = pg.locator(".editor-tools button[aria-label=Annulla]")
-    r = pg.locator(".editor-tools button[aria-label=Ripristina]")
+    r = pg.locator(".editor-tools button[aria-label=Ripeti]")
     ok("titles say the shortcuts", "Ctrl+Z" in u.get_attribute("title") and "Ctrl+Y" in r.get_attribute("title"))
     ok("nothing to undo or redo yet: both disabled", u.is_disabled() and r.is_disabled())
     end = len(orig)
