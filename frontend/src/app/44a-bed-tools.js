@@ -213,6 +213,28 @@ function useBedTools({ capabilities, homedAxes, lockReason, onSaveConfig }) {
     };
   }, [run]);
 
+  // 1.69: a paper test (Klipper's manual probe) or a bed screws round still waiting for an answer opens its sheet by
+  // itself: after a reload, on every phone and computer, whatever started it (a menu here, the console, a macro). It stays
+  // until «Accept» or «Abort».
+  const openRef = useRef(false);
+  openRef.current = Boolean(run || bedScrews || manualProbe);
+  const hasBedScrews = Boolean(capabilities.bedScrewLayout && capabilities.bedScrewLayout.length);
+  useEffect(() => {
+    let alive = true;
+    const look = async () => {
+      if (openRef.current || document.hidden) return;
+      const status = await moonraker.queryObjects(hasBedScrews ? "manual_probe&bed_screws" : "manual_probe").catch(() => null);
+      if (!alive || !status || openRef.current) return;
+      if (status.bed_screws && status.bed_screws.is_active) setBedScrews(true);
+      else if (status.manual_probe && status.manual_probe.is_active) setManualProbe({ tool: MANUAL_PROBE_TOOL, generic: true, since: consoleClock.current });
+    };
+    const stop = startPolling(look, ACTIVE_CALIBRATION_POLL_MS);
+    return () => {
+      alive = false;
+      stop();
+    };
+  }, [hasBedScrews]);
+
   const start = async (tool) => {
     if (runRef.current || lockedReason || tool.unavailable || bedScrews || manualProbe) return;
     const current = { tool, since: consoleClock.current, startedAt: Date.now(), baseline: JSON.stringify(await tool.observe().catch(() => null)) };
@@ -382,6 +404,7 @@ function BedScrewsSheet({ controller }) {
   const [busy, setBusy] = useState(""); // the command being sent
   const [finished, setFinished] = useState(false);
   const seenActive = useRef(false);
+  const lastAnswer = useRef(""); // the last command this device sent
 
   useEffect(() => {
     let cancelled = false;
@@ -390,7 +413,8 @@ function BedScrewsSheet({ controller }) {
       if (cancelled || !next) return;
       setStatus(next);
       if (next.is_active) seenActive.current = true;
-      else if (seenActive.current) setFinished(true);
+      // over: «the bed is level» when this device gave the last «Accept»; ended elsewhere (another device, an abort): closes
+      else if (seenActive.current) lastAnswer.current === "LAST_ACCEPT" ? setFinished(true) : controller.closeBedScrews();
     };
     poll();
     const timer = setInterval(poll, BED_SCREWS_POLL_MS);
@@ -402,14 +426,20 @@ function BedScrewsSheet({ controller }) {
 
   const answer = async (command) => {
     if (busy) return;
+    // the «Accept» that can end the round: the last screw, every other one accepted in this round
+    const count = layout.length;
+    const last = command === "ACCEPT" && status && (!count || (Number(status.current_screw) === count - 1 && Number(status.accepted_screws) === count - 1));
+    lastAnswer.current = last ? "LAST_ACCEPT" : command;
     setBusy(command);
     const sent = await sendLongGcode(command);
     setBusy("");
     if (!sent.ok) toast.action("Bed screws adjust: " + String(sent.message || tx("unknown error")).replace(/^\s*!!\s*/, "").slice(0, BED_TOOL_ERROR_MAX_CHARS));
     else if (command === "ABORT") controller.closeBedScrews();
   };
-  const close = () => (status && status.is_active && !finished ? answer("ABORT") : controller.closeBedScrews());
-  useBackHandler(close, true);
+  const running = Boolean(status && status.is_active && !finished);
+  const close = () => (running ? answer("ABORT") : controller.closeBedScrews());
+  // 1.69: while Klipper waits, only its buttons (or ✕, which aborts) close it: not a tap beside it, not «back»
+  useBackHandler(() => (running ? toast.notice(tx("Accept or abort the calibration first")) : controller.closeBedScrews()), true);
 
   const index = status ? Number(status.current_screw) || 0 : 0;
   const screw = layout[index] || { name: tx("Screw") + " " + (index + 1) };
@@ -419,7 +449,7 @@ function BedScrewsSheet({ controller }) {
 
   return h(
     "div",
-    { className: "sheet-overlay sheet-overlay--screws", onClick: (event) => event.target === event.currentTarget && close() },
+    { className: "sheet-overlay sheet-overlay--screws", "data-calibration": "bed-screws", onClick: (event) => event.target === event.currentTarget && !running && close() },
     h(
       "div",
       { className: "sheet-card sheet-card--column bed-screws", "data-state": finished ? "done" : active ? status.state || "adjust" : "waiting" },
@@ -480,22 +510,31 @@ function BedScrewsSheet({ controller }) {
    height, ABORT stops. After the last point the values wait for SAVE_CONFIG.
    ------------------------------------------------------------------------- */
 const MANUAL_PROBE_POLL_MS = 800;
+const ACTIVE_CALIBRATION_POLL_MS = 2500; // how often every page looks for a paper test waiting for an answer
+const MANUAL_PROBE_GONE_MS = 6000; // a paper test opened by itself closes when Klipper has not asked again for this long
+/** A paper test not started from this sheet's menu (PROBE_CALIBRATE, Z_ENDSTOP_CALIBRATE, a macro…): which one is unknown. */
+const MANUAL_PROBE_TOOL = { short: "Manual probe", generic: true };
 const TESTZ_STEPS = [-1, -0.1, -0.05, -0.01, 0.01, 0.05, 0.1, 1];
 
 function ManualProbeSheet({ controller }) {
   useBodyScrollLock(true);
-  const { tool, baseline, since } = controller.manualProbe;
+  const { tool, baseline, since, generic } = controller.manualProbe;
   const [probe, setProbe] = useState(null); // the manual_probe object
   const [busy, setBusy] = useState("");
   const [accepted, setAccepted] = useState(0);
+  const lastActive = useRef(Date.now());
 
   useEffect(() => {
     let cancelled = false;
     const poll = async () => {
-      const [status, pending] = await Promise.all([moonraker.queryObjects("manual_probe").catch(() => ({})), bedToolsApi.pendingTwist().catch(() => null)]);
+      const [status, pending] = await Promise.all([moonraker.queryObjects("manual_probe").catch(() => ({})), generic ? null : bedToolsApi.pendingTwist().catch(() => null)]);
       if (cancelled) return;
-      if (pending !== null && JSON.stringify(pending) !== baseline) return controller.manualProbeDone(tool);
-      setProbe(status.manual_probe || null);
+      if (!generic && pending !== null && JSON.stringify(pending) !== baseline) return controller.manualProbeDone(tool);
+      const next = status.manual_probe || null;
+      if (next && next.is_active) lastActive.current = Date.now();
+      // opened by itself: done when Klipper stops asking (accepted or aborted here, or on another device)
+      else if (generic && Date.now() - lastActive.current > MANUAL_PROBE_GONE_MS) return controller.closeManualProbe();
+      setProbe(next);
     };
     poll();
     const timer = setInterval(poll, MANUAL_PROBE_POLL_MS);
@@ -528,20 +567,23 @@ function ManualProbeSheet({ controller }) {
   };
   const active = Boolean(probe && probe.is_active);
   const close = () => (active ? send("ABORT") : controller.closeManualProbe());
-  useBackHandler(close, true);
+  // 1.69: while Klipper waits, only «Accept» or «Abort» (or ✕, which aborts) close it: not a tap beside it, not «back»
+  useBackHandler(() => (active ? toast.notice(tx("Accept or abort the calibration first")) : controller.closeManualProbe()), true);
   const total = controller.twistSamples;
   const z = probe && typeof probe.z_position === "number" ? probe.z_position.toFixed(3) : "–";
 
   return h(
     "div",
-    { className: "sheet-overlay sheet-overlay--screws", onClick: (event) => event.target === event.currentTarget && close() },
+    { className: "sheet-overlay sheet-overlay--screws", "data-calibration": generic ? "manual-probe" : "twist", onClick: (event) => event.target === event.currentTarget && !active && close() },
     h(
       "div",
       { className: "sheet-card sheet-card--column manual-probe", "data-state": active ? "active" : "waiting" },
       h(
         "div",
         { className: "sheet-header sheet-header--bar" },
-        h("div", null, h("div", { className: "dialog-title" }, tx("Axis ") + tool.axis), h("div", { className: "dialog-sub" }, "Axis twist compensation")),
+        generic
+          ? h("div", null, h("div", { className: "dialog-title" }, tx("Nozzle height")), h("div", { className: "dialog-sub" }, tx("Paper test asked by Klipper")))
+          : h("div", null, h("div", { className: "dialog-title" }, tx("Axis ") + tool.axis), h("div", { className: "dialog-sub" }, "Axis twist compensation")),
         h("button", { className: "dialog-close", onClick: close, "aria-label": tx("Close") }, "✕"),
       ),
       h(
@@ -550,15 +592,15 @@ function ManualProbeSheet({ controller }) {
         h(
           "div",
           { className: "bed-screws__screw" },
-          h("span", { className: "bed-screws__step" }, tx("Point {n} of {total}", { n: Math.min(accepted + 1, total), total })),
-          h("span", { className: "bed-screws__name manual-probe__z" }, active ? "Z " + z : tx("Klipper is measuring with the probe…")),
+          !generic && h("span", { className: "bed-screws__step" }, tx("Point {n} of {total}", { n: Math.min(accepted + 1, total), total })),
+          h("span", { className: "bed-screws__name manual-probe__z" }, active ? "Z " + z : generic ? tx("Waiting for Klipper…") : tx("Klipper is measuring with the probe…")),
         ),
         h(
           "ol",
           { className: "bed-screws__how" },
           h("li", null, tx("Slide a sheet of paper between the nozzle and the bed.")),
           h("li", null, tx("Bring the nozzle down (−) or up (+) until the paper drags a little as it moves.")),
-          h("li", null, tx("Then «Accept»: Klipper measures the next point, up to the last one.")),
+          h("li", null, generic ? tx("Then «Accept»: Klipper takes this height.") : tx("Then «Accept»: Klipper measures the next point, up to the last one.")),
         ),
         h(
           "div",

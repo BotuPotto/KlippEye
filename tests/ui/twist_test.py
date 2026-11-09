@@ -110,6 +110,24 @@ with sync_playwright() as p:
     ok("... no SAVE_CONFIG question", P.pg.locator(".confirm-card:has-text('Compensazione calcolata')").count() == 0)
     P.close()
 
+    # 1.69: a paper test started elsewhere (PROBE_CALIBRATE from the console, say): the sheet opens by itself and stays
+    P = fresh(b)
+    pg = P.pg
+    urllib.request.urlopen(urllib.request.Request(mock.base + "/printer/gcode/script", data=json.dumps({"script": "PROBE_CALIBRATE"}).encode(), headers={"Content-Type": "application/json"}))
+    sheet = pg.locator(".manual-probe")
+    ok("1.69: PROBE_CALIBRATE sent from elsewhere: the paper-test sheet opens by itself", wait_until(lambda: sheet.count() == 1 and "Z 1.000" in sheet.inner_text(), 10), sheet.inner_text() if sheet.count() else "")
+    ok("... titled for any paper test (not an axis)", "Altezza dell'ugello" in sheet.inner_text() and "punto" not in sheet.inner_text().lower(), sheet.inner_text())
+    pg.mouse.click(5, 300)
+    P.settle(400)
+    ok("... a tap beside it does not close it", sheet.count() == 1)
+    pg.reload()
+    ok("... after a reload it is there again", wait_until(lambda: sheet.count() == 1 and "Z 1.000" in sheet.inner_text(), 10))
+    sheet.get_by_role("button", name="+0.1", exact=True).click()
+    ok("... TESTZ from it", wait_until(lambda: "TESTZ Z=0.1" in gcodes() and "Z 1.100" in sheet.inner_text()))
+    sheet.get_by_role("button", name="Accetta", exact=True).click()
+    ok("... «Accetta»: ACCEPT, and the sheet closes when Klipper stops asking", wait_until(lambda: "ACCEPT" in gcodes() and sheet.count() == 0, 12))
+    P.close()
+
     b.close()
 
 print("\n%d failure(s)" % len(FAILS) + (": " + ", ".join(FAILS) if FAILS else ""))

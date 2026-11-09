@@ -704,6 +704,9 @@ def gcode_script():
         S["mp_axis"] = next((w.split("=")[1] for w in words if w.upper().startswith("AXIS=")), "X")
         S["mp_points"] = 0
         S["mp"] = {"is_active": True, "z_position": 1.0, "z_position_lower": None, "z_position_upper": None}
+    elif cmd in ("PROBE_CALIBRATE", "Z_ENDSTOP_CALIBRATE", "MANUAL_PROBE"):
+        S["mp_points"] = 99  # one height only: ACCEPT ends it
+        S["mp"] = {"is_active": True, "z_position": 1.0, "z_position_lower": None, "z_position_upper": None}
     elif S["mp"]["is_active"] and cmd in ("TESTZ", "ACCEPT", "ABORT"):
         if cmd == "TESTZ":
             S["mp"]["z_position"] = round(S["mp"]["z_position"] + float(words[1].split("=")[1]), 4)
@@ -713,7 +716,9 @@ def gcode_script():
         else:
             S["mp"] = dict(S["mp"], is_active=False)
             S["mp_points"] += 1
-            if S["mp_points"] >= 3:
+            if S["mp_points"] >= 100:
+                console_line("// probe: z_offset: 1.100\n// The SAVE_CONFIG command will update the printer config file")
+            elif S["mp_points"] >= 3:
                 later(0.6, lambda: finish_twist(S["mp_axis"]))
             else:
                 later(0.8, lambda: S.__setitem__("mp", {"is_active": True, "z_position": 1.0, "z_position_lower": None, "z_position_upper": None}))

@@ -1,5 +1,17 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.69.2
+
+**A calibration waiting for an answer stays on screen.**
+
+* Bed screws adjust and every paper test (Klipper's manual probe: axis twist, PROBE_CALIBRATE, Z_ENDSTOP_CALIBRATE, a
+  macro…): while Klipper waits for «Accept» or «Abort», its sheet opens by itself on every phone and computer, on any
+  page, and again after a reload. Before, a reload closed it and it did not come back.
+* While Klipper waits, a tap beside the sheet or the back button no longer closes it (the ✕ still aborts). An answer
+  given on one device moves the others on; when it ends, it closes everywhere.
+* A paper test started elsewhere (the console, a macro) gets its own sheet: «Nozzle height», with the steps, «Accept»
+  and «Abort».
+
 ## 1.69.1
 
 **Timelapse settings read from moonraker.conf.**
