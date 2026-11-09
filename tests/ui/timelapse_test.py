@@ -95,31 +95,51 @@ with sync_playwright() as p:
     pg.locator(".confirm-card").get_by_role("button", name="Elimina").click()
     ok("deleting a video", wait_until(lambda: "timelapse_Vase_20261101_1010.mp4" not in state()["timelapse_files"]) and wait_until(lambda: "timelapse_Vase_20261101_1010.mp4" not in videos(P)))
 
-    # settings
+    # settings (1.67: changed here, written in moonraker.conf with «Salva», then Moonraker restarts)
     sett = pg.locator(".timelapse-settings")
     sett.scroll_into_view_if_needed()
+    ok("1.67: nothing to save yet; it says where they are kept", sett.locator('[data-timelapse-save="clean"]').count() == 1 and "moonraker.conf" in sett.locator(".timelapse-save").inner_text())
     sett.get_by_role("button", name="Ogni tot secondi").click()
-    ok("hyperlapse: saved, and its seconds appear", wait_until(lambda: state()["timelapse_settings"]["mode"] == "hyperlapse") and wait_until(lambda: sett.locator('[data-setting="hyperlapse_cycle"]').count() == 1))
+    ok("hyperlapse: its seconds appear, nothing sent yet", wait_until(lambda: sett.locator('[data-setting="hyperlapse_cycle"]').count() == 1) and state()["timelapse_settings"]["mode"] == "layermacro" and sett.locator('[data-timelapse-save="dirty"]').count() == 1)
     field = sett.locator('[data-setting="hyperlapse_cycle"] input')
     field.fill("15")
     field.press("Enter")
-    ok("... every 15 s", wait_until(lambda: state()["timelapse_settings"]["hyperlapse_cycle"] == 15), state()["timelapse_settings"]["hyperlapse_cycle"])
     sett.locator('[data-setting="parkhead"] [role=switch]').click()
-    ok("park the head: on, with where", wait_until(lambda: state()["timelapse_settings"]["parkhead"] is True) and wait_until(lambda: sett.get_by_role("button", name="Centro").count() == 1))
-    sett.get_by_role("button", name="Centro").click()
-    ok("... in the centre", wait_until(lambda: state()["timelapse_settings"]["parkpos"] == "center"))
-    sett.locator('[data-setting="variable_fps"] [role=switch]').click()
-    ok("frames a second from the length: the length field instead of the rate", wait_until(lambda: sett.locator('[data-setting="targetlength"]').count() == 1 and sett.locator('[data-setting="output_framerate"]').count() == 0))
+    ok("park the head: on, with where", wait_until(lambda: sett.get_by_role("button", name="Centro").count() == 1))
+    sett.get_by_role("button", name="Personalizzato").click() if sett.get_by_role("button", name="Personalizzato").count() else sett.get_by_role("button", name="Centro").click()
     crf = sett.locator('[data-setting="constant_rate_factor"] input')
     crf.fill("80")
     crf.press("Enter")
-    P.settle(500)
-    ok("a CRF of 80 is refused", state()["timelapse_settings"]["constant_rate_factor"] == 23)
+    P.settle(300)
+    ok("a CRF of 80 is refused", crf.input_value() != "80" or sett.locator('[data-setting="constant_rate_factor"]').inner_text().find("Da 0 a 51") >= 0)
+    # advanced
+    ok("«Avanzate» closed: the specific ones are hidden", sett.locator('[data-setting="park_travel_speed"]').count() == 0 and sett.locator('[data-setting="pixelformat"]').count() == 0)
+    sett.locator("[data-timelapse-advanced]").click(); P.settle(300)
+    ok("«Avanzate» open: parking, the photo, the video", sett.locator('[data-setting="park_travel_speed"]').count() == 1 and sett.locator('[data-setting="stream_delay_compensation"]').count() == 1 and sett.locator('[data-setting="pixelformat"]').count() == 1 and sett.locator('[data-setting="rotation"]').count() == 1)
+    if sett.locator('[data-setting="park_custom_pos_x"]').count():
+        x = sett.locator('[data-setting="park_custom_pos_x"] input'); x.fill("120.5"); x.press("Enter")
+    sett.locator('[data-setting="rotation"]').get_by_role("button", name="180°").click()
+    sett.locator('[data-setting="flip_x"] [role=switch]').click()
+    bad = sett.locator('[data-setting="extraoutputparams"] input'); bad.fill("-tune film # x"); P.settle(200)
+    ok("an option with a comment mark is refused (it would cut the line in moonraker.conf)", "Una riga sola" in sett.locator('[data-setting="extraoutputparams"]').inner_text())
+    bad.fill("-tune film"); bad.press("Enter")
     pg.screenshot(path=out + "/settings.png", full_page=True)
+    # save
+    sett.locator("[data-timelapse-save-btn]").click()
+    ok("«Salva e riavvia Moonraker»: moonraker.conf written, Moonraker restarted", wait_until(lambda: ["services/restart", "moonraker"] in [list(a) for a in state()["actions"]], 8))
+    conf = state()["cfg"]["files"]["moonraker.conf"]["content"] or ""
+    section = conf.split("[timelapse]")[1].split("[update_manager")[0] if "[timelapse]" in conf else ""
+    ok("... in its [timelapse] section: what differs from the defaults", all(line in section for line in ("mode: hyperlapse", "hyperlapse_cycle: 15", "parkhead: True", "rotation: 180", "flip_x: True", "extraoutputparams: -tune film")) and "constant_rate_factor" not in section, section)
+    ok("... the rest of the file as it was (comment, output_path, the other sections)", "# made by the installer" in section and "output_path: ~/printer_data/timelapse/" in section and conf.count("[timelapse]") == 1 and "[update_manager timelapse]" in conf and conf.startswith("[server]"))
+    ok("... back: saved, the settings are what was written", wait_until(lambda: sett.locator('[data-timelapse-save="clean"]').count() == 1, 25) and state()["timelapse_settings"]["mode"] == "hyperlapse" and state()["timelapse_settings"]["hyperlapse_cycle"] == 15)
+    ok("... and still editable here (locked for Mainsail, not for this card)", not sett.locator('[data-setting="parkhead"] [role=switch]').is_disabled())
+    # undo
+    sett.locator('[data-setting="flip_y"] [role=switch]').click()
+    ok("a change, then «Annulla modifiche»: back as saved", sett.locator('[data-timelapse-save="dirty"]').count() == 1 and (sett.get_by_role("button", name="Annulla modifiche").click() or True) and sett.locator('[data-timelapse-save="clean"]').count() == 1)
     sett.locator('[data-setting="enabled"] [role=switch]').click()
-    ok("timelapse off: the other settings hide", wait_until(lambda: state()["timelapse_settings"]["enabled"] is False) and wait_until(lambda: sett.locator('[data-setting="autorender"]').count() == 0))
+    ok("timelapse off: the other settings hide", wait_until(lambda: sett.locator('[data-setting="autorender"]').count() == 0))
     ok("no horizontal overflow", pg.evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth"))
-    ok("no page errors", not errs(P), errs(P)[:2])
+    ok("no page errors (but Moonraker's 502 while it restarts)", not [e for e in errs(P) if "502" not in e], errs(P)[:2])
     P.close()
 
     # a setting locked in moonraker.conf; no macro
@@ -133,7 +153,16 @@ with sync_playwright() as p:
     P.goto("files", 2200)
     P.pg.locator('[data-files-section="timelapse"]').click()
     ok("without TIMELAPSE_TAKE_FRAME it says to include timelapse.cfg", wait_until(lambda: P.pg.locator(".timelapse-macro").count() == 1) and "timelapse.cfg" in P.pg.locator(".timelapse-macro").inner_text())
-    ok("a setting fixed in moonraker.conf is locked and says so", wait_until(lambda: P.pg.locator('[data-setting="autorender"] [role=switch]').is_disabled()) and "moonraker.conf" in P.pg.locator('[data-setting="autorender"]').inner_text())
+    P.close()
+
+    # 1.67: not while printing
+    P = fresh(b, timelapse_on=True, printing=True)
+    P.pg.locator('[data-files-section="timelapse"]').click()
+    sett = P.pg.locator(".timelapse-settings")
+    wait_until(lambda: sett.locator('[data-setting="autorender"]').count() == 1)
+    sett.locator('[data-setting="autorender"] [role=switch]').click()
+    sett.locator("[data-timelapse-save-btn]").click()
+    ok("1.67: printing: «Salva» says to wait for the end, nothing written or restarted", wait_until(lambda: "Non durante una stampa" in P.pg.locator(".toast--action").inner_text()) and ["services/restart", "moonraker"] not in [list(a) for a in state()["actions"]] and state()["cfg"]["files"]["moonraker.conf"]["content"] is None)
     P.close()
 
     # computer

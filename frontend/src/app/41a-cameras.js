@@ -59,7 +59,7 @@ function useCameraList() {
   const main = { id: "main", name: tx("Camera"), method: camera.method, address: camera.urls[camera.method], fps: camera.fps, flipH: camera.flipH, flipV: camera.flipV };
   const others = webcams
     .filter((cam) => cam.method && !(cam.method === main.method && cam.address === main.address))
-    .map((cam) => ({ id: "w:" + cam.name, name: cam.name, method: cam.method, address: cam.address, fps: cam.fps || camera.fps, flipH: cam.flipH, flipV: cam.flipV, rotation: cam.rotation }));
+    .map((cam) => ({ id: "w:" + cam.name, name: cam.name, method: cam.method, address: cam.address, fps: cam.fps || camera.fps, flipH: cam.flipH, flipV: cam.flipV, rotation: cam.rotation, ratio: cam.ratio }));
   return [main].concat(others);
 }
 

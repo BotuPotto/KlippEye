@@ -1,5 +1,30 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.67.0
+
+**New versions looked for by itself; a larger camera on a computer; «Print again»; pictures over the whole screen.**
+
+* **New versions**: once a day (never while printing) the dashboard asks Moonraker to look for new versions. When KlippEye,
+  Klipper, Moonraker or the others have one, a number appears on the «System» tab and a message names them (once for
+  each new set; the operating system's packages are left out). Nothing is installed by itself. Settings → Updates →
+  «Look for new versions by itself» switches it off for that browser or phone.
+* **Computer, Device page**: the camera is as large as its shape needs at the column's full width (it stretched to the
+  column's height and the picture sat small between two grey bands), keeping the print card in view under it; the print
+  card is compact (the six figures on one line, the buttons on one line, «More details» among them).
+* **Computer**: the «AI monitoring» strip under the camera is gone (the AI badge at the top says the same and opens the
+  same panel). When nothing prints, the card of the last print has **«Print again»** (it asks first, like a file).
+* **A picture of the AI monitor** (an alarm, a recording) opens over the whole screen, black and edge to edge, as the
+  camera's full screen; turned on an upright phone; a tap shows or hides the buttons.
+* **Lights**: when on, the whole button lights up, its arrow too.
+* **Bed mesh**: the pill with the profile's name shows the whole name (it was cut to «def»).
+* **Temperature chart**: «now» is on the left and the lines flow to the right.
+* **Timelapse settings**: more of them, the specific ones behind **«Advanced»** (parking: custom position, Z lift,
+  speeds, retraction, wait; the photo: snapshot address, camera delay, wait for the photo, console messages; the
+  video: frame rate limits, rotation, mirroring, pixel format, date in the name, ffmpeg options). Changes are no longer
+  sent one by one: **«Save and restart Moonraker»** writes them in moonraker.conf, section [timelapse] (what differs
+  from moonraker-timelapse's defaults, or is already there; the rest of the file untouched), then restarts Moonraker to
+  read them. Refused while printing; «Undo changes» drops them. The camera choice is saved the same way.
+
 ## 1.66.0
 
 **Computer: the history and the timelapse scroll, nothing under the console bar.**

@@ -54,6 +54,7 @@ function BottomNav({ active, onSelect }) {
         { key: tab.id, className: cx("bottom-nav__tab", active === tab.id && "is-active"), "data-tab": tab.id, onClick: () => onSelect(tab.id) },
         h("svg", { viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round" }, NAV_ICONS[tab.id]),
         h("span", { className: "bottom-nav__label" }, tab.label),
+        tab.id === "sistema" && h(UpdateTabBadge, { className: "bottom-nav__badge" }),
       ),
     ),
   );

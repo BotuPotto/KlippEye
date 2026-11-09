@@ -41,3 +41,32 @@
 .timelapse-step__body .ai-codeblock__code { overflow-x: auto; }
 .timelapse-recheck__note { margin: 8px 2px 0; line-height: 1.4; }
 .timelapse-where { margin: 8px 2px 0; line-height: 1.4; }
+
+/* 1.67: «Advanced», and «Save» (moonraker.conf + a restart of Moonraker) */
+.timelapse-advanced-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  margin-top: 16px;
+  padding: 12px 14px;
+  border: 1px solid var(--oui-stroke);
+  border-radius: 14px;
+  background: var(--oui-surface-2);
+  color: var(--oui-text);
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+.timelapse-advanced-toggle__hint { flex: 1; min-width: 0; color: var(--oui-text-3); font-size: 12px; font-weight: 400; }
+.timelapse-advanced-toggle svg { flex: none; transition: transform var(--oui-dur-base) var(--oui-ease); }
+.timelapse-advanced-toggle.is-open svg { transform: rotate(180deg); }
+.timelapse-advanced { display: flex; flex-direction: column; gap: 6px; }
+.timelapse-group { margin-top: 12px; }
+.timelapse-group__title { margin: 6px 2px 0; color: var(--oui-text-3); font-size: 12px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
+.timelapse-save { margin-top: 14px; }
+.timelapse-save.is-dirty .timelapse-where { color: var(--oui-text); }
+.timelapse-save__buttons { margin-top: 10px; }
+.desk-split--timelapse .timelapse-save.is-dirty,
+.drawer .timelapse-save.is-dirty { position: sticky; bottom: 0; z-index: 2; padding: 10px 0 4px; background: var(--oui-surface); }

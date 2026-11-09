@@ -263,19 +263,20 @@ function CameraTimelapsePage() {
 
 function TimelapseSettingsInDrawer() {
   const timelapse = useTimelapse();
+  if (!timelapse.values) return h("p", { className: "set-group__note" }, timelapse.error || tx("Loading..."));
+  return h(SettingsGroup, null, h(TimelapseSettingsFields, { timelapse }));
+}
+
+/** 1.67: which camera takes the photos: one of the settings saved with «Save» (in the card of the Files page too). */
+function TimelapseCameraChoice({ timelapse }) {
   const webcams = useWebcams();
-  if (!timelapse.settings) return h("p", { className: "set-group__note" }, timelapse.error || tx("Loading..."));
   const names = (webcams.list || []).filter((cam) => cam.enabled !== false).map((cam) => String(cam.name));
-  const current = String(timelapse.settings.camera || "");
+  if (!names.length) return null;
+  const current = String(timelapse.values.camera || "");
   return h(
-    React.Fragment,
-    null,
-    names.length > 0 &&
-      h(
-        SettingsGroup,
-        { title: tx("Which camera"), note: tx("The timelapse takes its photos from this camera of the printer.") },
-        h(ChoiceRows, { label: tx("Which camera"), options: [{ id: "", label: tx("The default one"), detail: timelapse.settings.snapshoturl || "" }].concat(names.map((name) => ({ id: name, label: name }))), value: names.includes(current) ? current : "", onChange: (camera) => timelapse.change({ camera }) }),
-      ),
-    h(SettingsGroup, null, h(TimelapseSettingsFields, { timelapse })),
+    "div",
+    { className: "timelapse-camera", "data-setting": "camera" },
+    h("div", { className: "set-field__label timelapse-label" }, tx("Which camera")),
+    h(ChoiceRows, { label: tx("Which camera"), options: [{ id: "", label: tx("The default one"), detail: timelapse.values.snapshoturl || "" }].concat(names.map((name) => ({ id: name, label: name }))), value: names.includes(current) ? current : "", onChange: (choice) => timelapse.edit({ camera: choice }) }),
   );
 }

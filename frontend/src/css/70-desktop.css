@@ -69,9 +69,9 @@
 /* ---- Dispositivo ---- */
 .desk-device { display: grid; flex: 1; grid-template-columns: minmax(0, 1fr) 440px; gap: 16px; min-height: 0; }
 .desk-device__main { display: flex; flex-direction: column; gap: 16px; min-width: 0; min-height: 0; overflow-y: auto; }
-/* 1.30.1: the camera takes what is left; the AI strip and the print card keep their height, and when they need more (an
-   AI alarm to answer, «More details») the column scrolls instead of running under the console bar */
-.desk-device__main > :not(.desk-camera) { flex: none; }
+/* every card keeps its height; when they need more (an AI alarm to answer, «More details», the temperatures) the column
+   scrolls instead of running under the console bar */
+.desk-device__main > * { flex: none; }
 /* One column: heaters, movement (or Z-offset), fans, extruder. The two groups only exist for the extra-wide variant. */
 .desk-side { display: flex; flex-direction: column; gap: 16px; min-height: 0; overflow-y: auto; }
 .desk-side__group { display: contents; }
@@ -86,10 +86,15 @@
   .desk-side__group { display: flex; flex-direction: column; gap: 16px; min-height: 0; overflow-y: auto; }
 }
 
+/* 1.67: the camera is as tall as its shape needs at the column's full width (the column is a size container: 100cqw =
+   its width), so the picture fills the box instead of sitting small between two wide grey bands; at most as tall as
+   leaves the print card in view under it (--desk-cam-room, app/71-desktop-pages.js; the cards after them, like the
+   temperatures, are a scroll away) */
+.desk-device__main { container-type: inline-size; }
 .desk-camera {
   position: relative;
-  flex: 1;
-  min-height: 240px;
+  flex: none;
+  height: max(240px, min(calc(100cqw / var(--desk-cam-ratio, 1.7778)), var(--desk-cam-room, calc(100vh - 390px))));
   overflow: hidden;
   background: #000;
   border: 1px solid var(--oui-stroke);
@@ -117,59 +122,41 @@
 .desk-camera__light .light-btn { background: var(--oui-glass); border: 1px solid var(--oui-stroke-strong); }
 .desk-camera__light .light-btn.is-on { border-color: rgba(255, 200, 80, 0.45); background: rgba(80, 60, 20, 0.8); }
 
-/* ---- AI strip under the camera ---- */
-.desk-ai {
-  display: flex;
-  flex: none;
-  align-items: center;
-  gap: 10px;
-  box-sizing: border-box;
-  width: 100%;
-  min-height: 56px;
-  padding: 8px 14px 8px 18px;
-  background: var(--oui-surface);
-  border: 1px solid var(--oui-stroke);
-  border-radius: 20px;
-  color: inherit;
-  font: inherit;
-  text-align: left;
-}
-.desk-ai:hover { background: var(--oui-surface-2); }
-.desk-ai__title { flex: none; font-size: 14px; font-weight: 600; white-space: nowrap; }
-.desk-ai__pill { flex: 0 1 auto; min-width: 0; overflow: hidden; white-space: nowrap; }
-.desk-ai__spacer { flex: 1 1 0; min-width: 0; }
-.desk-ai .oui-badge { flex-shrink: 0; }
-.desk-ai .desk-ai__pill { flex-shrink: 1; }
-.desk-ai__chip {
-  display: inline-flex;
-  flex: none;
-  align-items: center;
-  gap: 8px;
-  height: 34px;
-  padding: 0 14px;
-  background: var(--oui-surface-2);
-  border-radius: var(--oui-r-pill);
-  font-size: 13px;
-  font-variant-numeric: tabular-nums;
-}
-.desk-ai__chip-label { color: var(--oui-text-2); }
-@media (max-width: 1239px) { .desk-ai__chip--minor { display: none; } } /* a narrow camera column keeps the state, not the counters */
-.desk-ai__chip b { font-weight: 600; }
-
 /* ---- print progress (row) and the card shown when nothing prints ---- */
-.desk-print { display: flex; flex: none; align-items: stretch; gap: 20px; padding: 16px; }
+.desk-print { display: flex; flex: none; align-items: stretch; gap: 18px; padding: 14px 16px; }
 .desk-thumb { display: flex; align-items: center; justify-content: center; overflow: hidden; background: var(--oui-inset); }
 .desk-thumb img { display: block; width: 100%; height: 100%; object-fit: contain; }
-.desk-print__thumb { flex: none; width: 168px; height: 168px; border-radius: 18px; }
+.desk-print__thumb { flex: none; width: 120px; height: 120px; border-radius: 16px; }
 .desk-print__thumb--small { width: 96px; height: 96px; border-radius: 16px; }
-.desk-print__body { display: flex; flex: 1; flex-direction: column; justify-content: space-between; gap: 12px; min-width: 0; }
+.desk-print__body { display: flex; flex: 1; flex-direction: column; justify-content: space-between; gap: 10px; min-width: 0; }
 .desk-print__top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.desk-print__file { min-width: 0; margin: 0; font-size: 19px; letter-spacing: -0.01em; }
-.desk-print__stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
-.desk-print__stats > .print-stat { padding: 9px 14px; background: var(--oui-surface-2); border-radius: 16px; }
+.desk-print__file { min-width: 0; margin: 0; font-size: 18px; letter-spacing: -0.01em; }
+/* 1.67: the six figures on one line (three on a narrow column) */
+.desk-print__stats { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; }
+.desk-print__live { display: contents; }
+.desk-print__stats .print-stat { min-width: 0; padding: 7px 12px; background: var(--oui-surface-2); border-radius: 14px; }
+.desk-print__stats .print-stat > * { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 1379px) {
+  .desk-print__stats .print-stat { padding: 6px 10px; }
+  .desk-print__stats .print-stat__value { font-size: 16px; }
+}
+@media (max-width: 1239px) {
+  .desk-print__stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+.desk-print__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.desk-print__actions > .oui-btn { width: auto; margin: 0; }
+.desk-print__actions .gcode-view-btn { flex: none; }
+.desk-print__gap { flex: 1 1 0; }
+.desk-print__pause, .desk-print__cancel { flex: none; min-width: 120px; }
+.desk-print__more svg { transition: transform var(--oui-dur-base) var(--oui-ease); }
+.desk-print__more.is-open svg { transform: rotate(180deg); }
+.desk-print .print-details { margin: 0; }
+.desk-print .print-details > summary { display: none; }
+.desk-print .print-details__list { padding-top: 8px; }
 .desk-print--idle { align-items: center; }
 .desk-print__body--idle { justify-content: center; gap: 4px; }
-.desk-print__cta { flex: none; min-width: 280px; }
+.desk-print__ctas { display: flex; flex: none; flex-direction: column; gap: 8px; }
+.desk-print__cta, .desk-print__again { flex: none; min-width: 260px; }
 
 /* ---- console bar ---- */
 .desk-dock {

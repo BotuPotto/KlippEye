@@ -76,6 +76,7 @@ with sync_playwright() as p:
     c = card(P)
     c.scroll_into_view_if_needed()
     ok("the card says the profile in use (default)", wait_until(lambda: c.locator("[data-active-profile]").get_attribute("data-active-profile") == "default"))
+    ok("1.67: ... the whole name fits its pill (it was cut to «def»)", c.locator("[data-active-profile]").evaluate("e => e.scrollWidth <= e.clientWidth + 1") and c.locator("[data-active-profile]").inner_text() == "default", c.locator("[data-active-profile]").evaluate("e => [e.scrollWidth, e.clientWidth]"))
     ok("minimum, maximum, range and points (7 × 7)", wait_until(lambda: stat(P, "Punti") == "7 × 7") and stat(P, "Minimo").endswith("mm") and stat(P, "Escursione").endswith("mm"), (stat(P, "Minimo"), stat(P, "Massimo"), stat(P, "Escursione")))
     c.screenshot(path=out + "/card_3d.png")
     c.get_by_role("button", name="2D", exact=True).click()

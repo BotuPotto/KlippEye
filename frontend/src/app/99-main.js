@@ -82,6 +82,7 @@ function App() {
   const files = useFileList(tab === "files" && filesSection === "files", desktop ? FILES_METADATA_LIMIT_WIDE : FILES_METADATA_LIMIT);
   const aiMonitor = useAiMonitor();
   const updates = useUpdateDialog();
+  useUpdateWatch(printStatus.printing); // 1.67: new versions, looked for by itself
 
   useExternalLinksInNewTab();
   useModalInputScroll();
@@ -115,7 +116,7 @@ function App() {
 
   const pages = {
     home: desktop
-      ? h(DesktopDevicePage, { printStatus, printControls, status, capabilities, motion, bedTools, zOffset, lockReason, aiMonitor, onEditTemperature: temperature.edit, onGcode: runFromConsole, onNavigate: selectTab })
+      ? h(DesktopDevicePage, { printStatus, printControls, status, capabilities, motion, bedTools, zOffset, lockReason, aiMonitor, onEditTemperature: temperature.edit, onGcode: runFromConsole, onNavigate: selectTab, onPrint: setPrintJob })
       : h(HomePage, { printStatus, printControls, status, motion, bedTools, zOffset, lockReason, onEditTemperature: temperature.edit, aiMonitor }),
     controllo: desktop
       ? h(DesktopCalibrationPage, { capabilities, lockReason, homedAxes: status.homedAxes, printState: printStatus.state, onGcode: runFromConsole, onMacroSettings: openMacroSettings })

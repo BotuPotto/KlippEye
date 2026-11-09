@@ -771,7 +771,11 @@ function UpdatesCard({ data, controller, onCheck }) {
 /** The page's data: fetched on every visit, plus on request and when Moonraker reports a refresh. */
 function useSystemData() {
   const [data, setData] = useState(null);
-  const reload = async () => setData(await loadSystemInfo());
+  const reload = async () => {
+    const info = await loadSystemInfo();
+    setData(info);
+    readUpdateNotice().catch(noop); // 1.67: the number on the «System» tab follows what this page shows
+  };
 
   useEffect(() => {
     reload();

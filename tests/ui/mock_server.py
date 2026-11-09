@@ -66,7 +66,7 @@ def default_state():
                                "park_retract_distance": 1.0, "park_extrude_distance": 1.0, "hyperlapse_cycle": 30, "autorender": True, "constant_rate_factor": 23, "output_framerate": 30,
                                "pixelformat": "yuv420p", "time_format_code": "%Y%m%d_%H%M", "extraoutputparams": "", "variable_fps": False, "targetlength": 10, "variable_fps_min": 5,
                                "variable_fps_max": 60, "rotation": 0, "flip_x": False, "flip_y": False, "duplicatelastframe": 0, "previewimage": True, "saveframes": False,
-                               "wait_for_snapshot": False, "blockedsettings": ["snapshoturl"]},
+                               "wait_for_snapshot": False, "stream_delay_compensation": 0.05, "park_time": 0.1, "fw_retract": False, "blockedsettings": ["snapshoturl"]},
         "timelapse_files": {"timelapse_Benchy_20261103_2210.mp4": NOW - 3600, "timelapse_Benchy_20261103_2210.jpg": NOW - 3600, "timelapse_Vase_20261101_1010.mp4": NOW - 200000},
         "queue_on": False, "queue": [], "queue_state": "ready", "queue_log": [], "queue_ids": 0,   # 1.44: Moonraker's [job_queue] (queue_on False: 404)
         "extra_temps": False, "extra_temp_values": default_extra_temps(),
@@ -406,7 +406,7 @@ def mock_reset():
     S.clear(); S.update(default_state()); return jsonify(ok=True)
 @app.route("/__mock/state")
 def mock_state():
-    return jsonify({k: v for k, v in S.items() if k in ("light", "light_cmds", "light_reads", "actions", "webhooks", "webhooks_msg", "disconnected", "moonraker_down", "host_off", "services", "update_log", "brain_cfg_log", "brain_release", "brain_started", "klippeye_info", "pending_release", "logos", "app_apk_hits", "app_apk_downloads", "update_channel", "channel_posts", "rec_posts", "measure_starts", "measure_bodies", "ai_cfg", "ai_posts", "ai_model_reads", "excluded", "strip", "caselight", "mesh_profiles", "mesh_active", "mp", "mp_points", "tune", "speed_factor", "extrude_factor", "bs", "level_applied", "recordings", "alerts", "pm_macros", "pm_wraps", "pm_posts", "gcode_log", "ntfy", "ntfy_posts", "ntfy_tests", "ntfy_app_reads", "ai_answers", "ai_answer", "history_log", "queue", "queue_state", "queue_log", "power_devices", "power_log", "pins", "sensors", "timelapse_settings", "timelapse_log", "timelapse_files", "spool_id", "spool_log", "webcams", "webcam_log", "peek_log")})
+    return jsonify({k: v for k, v in S.items() if k in ("light", "light_cmds", "light_reads", "actions", "webhooks", "webhooks_msg", "disconnected", "moonraker_down", "host_off", "services", "update_log", "brain_cfg_log", "brain_release", "brain_started", "klippeye_info", "pending_release", "logos", "app_apk_hits", "app_apk_downloads", "update_channel", "channel_posts", "rec_posts", "measure_starts", "measure_bodies", "ai_cfg", "ai_posts", "ai_model_reads", "excluded", "strip", "caselight", "mesh_profiles", "mesh_active", "mp", "mp_points", "tune", "speed_factor", "extrude_factor", "bs", "level_applied", "recordings", "alerts", "pm_macros", "pm_wraps", "pm_posts", "gcode_log", "ntfy", "ntfy_posts", "ntfy_tests", "ntfy_app_reads", "ai_answers", "ai_answer", "history_log", "queue", "queue_state", "queue_log", "power_devices", "power_log", "pins", "sensors", "timelapse_settings", "timelapse_log", "timelapse_conf_reads", "cfg", "timelapse_files", "spool_id", "spool_log", "webcams", "webcam_log", "peek_log")})
 @app.route("/__mock/print_actions")
 def mock_print_actions():
     return jsonify(S.get("print_actions", []))
@@ -836,6 +836,7 @@ def machine_service(action):
             brain_restart(S.pop("pending_release", None))
             return cut_response()
         if name == "moonraker":
+            timelapse_read_config()  # 1.67: moonraker-timelapse reads its [timelapse] section when Moonraker starts
             S["moonraker_down"] = True
             later(S["restart_down"] + 1.0, lambda: S.update(moonraker_down=False))
             return jsonify(error="Connection aborted (mock: Moonraker restarted itself)"), 502
@@ -946,6 +947,54 @@ def gcode_file(p):
         return send_file(png(), mimetype="image/png")
     size = next((s for q, m, s in GCODES if q == p), 2000)
     return Response(gcode_text(p, size), mimetype="application/octet-stream")
+MOONRAKER_TEXT = """[server]
+host: 0.0.0.0
+port: 7125
+
+[authorization]
+trusted_clients:
+    192.168.0.0/16
+cors_domains:
+    *.local
+
+[timelapse]
+# made by the installer
+output_path: ~/printer_data/timelapse/
+
+[update_manager timelapse]
+type: git_repo
+primary_branch: main
+path: ~/moonraker-timelapse
+origin: https://github.com/mainsail-crew/moonraker-timelapse.git
+managed_services: klipper moonraker
+"""
+
+
+def timelapse_read_config():
+    """Like moonraker-timelapse at start: a setting in moonraker.conf's [timelapse] wins and is locked (blockedsettings)."""
+    f = S["cfg"]["files"].get("moonraker.conf")
+    text = MOONRAKER_TEXT if not f or f["content"] is None else f["content"]
+    inside, found = False, {}
+    for line in text.split("\n"):
+        if re.match(r"^\s*\[", line):
+            inside = line.strip().lower() == "[timelapse]"
+            continue
+        m = re.match(r"^([A-Za-z_]\w*)\s*[:=]\s*(.*)$", line)
+        if inside and m: found[m.group(1).lower()] = m.group(2).strip()
+    sett = S["timelapse_settings"]
+    blocked = list(sett.get("blockedsettings", []))
+    for k, v in found.items():
+        if k not in sett: continue
+        old = sett[k]
+        if isinstance(old, bool): v = v.lower() in ("true", "1", "yes", "on")
+        elif isinstance(old, int): v = int(float(v))
+        elif isinstance(old, float): v = float(v)
+        sett[k] = v
+        if k not in blocked: blocked.append(k)
+    sett["blockedsettings"] = blocked
+    S["timelapse_conf_reads"] = S.get("timelapse_conf_reads", 0) + 1
+
+
 CFG_TEXT = """# KlippEye printer config
 [include macros/*.cfg]
 [stepper_x]
@@ -1005,6 +1054,7 @@ def cfg_file(p):
     if p.lower().endswith((".png", ".jpg")):
         return send_file(png(120, 80), mimetype="image/png")
     content = files[p]["content"]
+    if content is None and p == "moonraker.conf": content = MOONRAKER_TEXT
     # like Moonraker, which always hands a file out as an attachment
     return Response(CFG_TEXT if content is None else content, mimetype="text/plain", headers={"Content-Disposition": attachment_header(p.rsplit("/", 1)[-1])})
 @app.route("/server/files/content")
@@ -1012,7 +1062,7 @@ def cfg_content():
     p = request.args.get("path", "")
     f = S["cfg"]["files"].get(p)
     if f is None: return cfg_error(404, "File does not exist (config/%s)" % p)
-    return Response(CFG_TEXT if f["content"] is None else f["content"], mimetype="text/plain")
+    return Response((MOONRAKER_TEXT if p == "moonraker.conf" else CFG_TEXT) if f["content"] is None else f["content"], mimetype="text/plain")
 
 @app.route("/server/files/directory", methods=["GET", "POST", "DELETE"])
 def cfg_directory():
