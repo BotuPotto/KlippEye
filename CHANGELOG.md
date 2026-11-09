@@ -1,5 +1,16 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.68.1
+
+**The guide follows the reviewed texts** (docs/GUIDE.md, docs/GUIDA.md). Nothing changes in the dashboard.
+
+* The same words as the dashboard (in Italian: telecamera, Annulla stampa, Rimuovi, probe, inattiva, versione…; in both:
+  the KlippEye service instead of «the backend») and no other web interface named: the commands to run on the Raspberry
+  instead of Mainsail's Update Manager, «Import from the printer». The ready-made images (MainsailOS, FluiddPi) are still
+  named where the installation needs them.
+* Brought up to date: the settings menu as it is now, the cards dragged per kind of device, the timelapse with «Advanced»
+  and «Save and restart Moonraker», more printers, the daily look for new versions.
+
 ## 1.68.0
 
 **Texts reviewed** (roadmap phase 7): about 300 texts changed after a comparison with the Italian translations of the other

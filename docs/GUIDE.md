@@ -1,6 +1,6 @@
 # KlippEye guide
 
-KlippEye is a dashboard, a backend and an AI print monitor for 3D printers running **Klipper + Moonraker** on a Raspberry Pi
+KlippEye is a dashboard, a service and an AI print monitor for 3D printers running **Klipper + Moonraker** on a Raspberry Pi
 (or any Linux computer next to the printer), with push notifications and an Android app. This guide takes you from the
 installation to everyday use. *Una versione in italiano è in [GUIDA.md](GUIDA.md).*
 
@@ -21,12 +21,13 @@ A. [Building your own Android app](#a-building-your-own-android-app)
 **Already there:**
 
 * a printer with **Klipper and Moonraker** on a Raspberry Pi (or any Linux computer next to the printer), installed with
-  MainsailOS, FluiddPi, KIAUH or by hand. Mainsail or Fluidd can stay: KlippEye works next to them;
+  KIAUH, a ready-made image (such as MainsailOS or FluiddPi) or by hand. The printer's other web interfaces can stay: KlippEye
+  works next to them;
 * **SSH access** to the Raspberry, **once**, for the installation (with your user: it does not have to be `pi`). Everything after
   that happens in the dashboard;
 * internet on the Raspberry (to install, for updates, notifications and the AI monitor).
 
-**Optional:** a **camera** with crowsnest (as for Mainsail: MainsailOS and KIAUH install it already), an **AI service key** for the
+**Optional:** a **camera** with crowsnest (the ready-made images and KIAUH install it already), an **AI service key** for the
 AI monitor (Groq is free), a **phone** for notifications (Android with the KlippEye app, or any phone with the ntfy app).
 
 **What KlippEye installs by itself** (with `apt`, asking the password once, only if missing):
@@ -34,7 +35,7 @@ AI monitor (Groq is free), a **phone** for notifications (Android with the Klipp
 | Package | What for |
 |---|---|
 | `git` | updates and self-repair after a power cut |
-| `python3-flask`, `python3-requests` | the backend and the dashboard |
+| `python3-flask`, `python3-requests` | the KlippEye service and the dashboard |
 | `python3-numpy` | the camera calibration (and the AI monitor) |
 | `python3-opencv` | the AI monitor: looking at the camera's photos (left out with `--no-ai`) |
 
@@ -65,8 +66,8 @@ What the installer does:
   Any user works, not only `pi`: the printer's folders (config, logs, `printer_data` or `printer_1_data` with several
   printers, the old `~/klipper_config`) are asked to Moonraker. To choose the folder by hand:
   `KLIPPEYE_PRINTER_DATA=~/printer_2_data bash ~/klippeye/scripts/install.sh`;
-* installs the services **`klippeye`** (backend and dashboard, port **8085**) and **`klippeye-notifier`** (push notifications
-  and the automatic pause), started at every boot. If the new backend does not answer, it puts everything back as it was;
+* installs the services **`klippeye`** (the KlippEye service with the dashboard, port **8085**) and **`klippeye-notifier`** (push notifications
+  and the automatic pause), started at every boot. If the new service does not answer, it puts everything back as it was;
 * adds two terminal commands, `klippeye` and `klippeye-notifiche`;
 * connects KlippEye to **Moonraker's update manager** (an `[update_manager klippeye]` entry in `moonraker.conf` and two lines in
   `moonraker.asvc`, with backup copies) and restarts Moonraker, unless the printer is printing.
@@ -80,13 +81,13 @@ It can be run again at any time: it repairs without breaking anything. Options:
 * `--undo`: removes the services, the commands and the Moonraker entry (your folders and the packages stay);
 * `--help`.
 
-Open the dashboard: **`http://<address of the Raspberry>:8085`** (the address of Mainsail, with port 8085). The **guided set-up**
+Open the dashboard: **`http://<address of the Raspberry>:8085`** (the address you open in the browser for the printer, with port 8085). The **guided set-up**
 opens (chapter 3).
 
 **The camera and the AI monitor.** The AI monitor and the calibration take one photo at a time from the camera (the *snapshot*).
 Usually there is nothing to do: with crowsnest the address is `/webcam/?action=snapshot` and KlippEye works it out by itself. To
 check it: **Settings → Camera → Snapshot → Try: take a photo** shows the photo exactly as the Raspberry gets it. With another camera
-write there the same "Snapshot URL" you use in Mainsail.
+write there the address of its single photo (the snapshot).
 
 ## 3. First settings
 
@@ -98,26 +99,29 @@ Every page has a **?** button in its title bar that opens a short guide (with a 
 in the calibration, what the addresses are for, how the notifications arrive); some groups have their own small **?**.
 
 Everything is in the menu **☰ (Settings)**, in four groups. The settings are saved on the Raspberry and are the same on every
-device.
+device (except those marked "on this device"). On a phone each page fills the screen; on a computer the settings are one panel
+in the middle, with the list on the left.
 
 * **The printer**
-  * **Name and logo**: the logo in the top bar (KlippEye, VzBot, Voron, RatRig) and a name of your own, also used as the browser
-    tab title. Official brand logos go in the `logos/` folder of the repository (see [logos/README.md](../logos/README.md)).
+  * **Your printers**: the other printers with KlippEye on your network (see below).
   * **Printer functions** (marked *To check* until you confirm it): what the buttons that use your printer's own macros do, see
     below.
-  * **Z-offset**: the step sizes of the Z-offset card.
+  * **Macros**: how the macros are shown (see below).
+  * **Motion and Z-offset**: what Z moves, the motion steps and those of the Z-offset card.
 * **Camera and AI monitor**
-  * **Camera**: the method (WebRTC, MJPEG, MJPEG adaptive or any web page) and its address. **Import from Mainsail** takes them
-    from the webcams already set up in Mainsail. At the bottom, the way to the camera calibration of the AI monitor.
+  * **Camera**: the method (WebRTC, MJPEG, MJPEG adaptive or any web page) and its address. **Import from the printer** takes
+    them from the cameras already set up on the printer (Moonraker keeps them). Each camera of the printer has its own page;
+    there is also **Timelapse** (see below) and the way to the camera calibration of the AI monitor.
   * **AI monitor**: everything of the AI monitor (thresholds, camera calibration, recordings), see 5.
-* **Phone and network**
+* **Notifications and appearance**
   * **Notifications**: where they arrive (the KlippEye app or the ntfy app), which ones and their language (see 6).
+  * **Appearance**: name and logo, colour, look, cards (see below).
+  * **Language**: English or Italian, chosen on each device (*Automatic* follows the device's language).
+* **System**
   * **Addresses**: only needed if you open KlippEye from outside your home with ZeroTier, Tailscale or another VPN: the
     Raspberry's local IP and its external IP. Empty, the camera uses the address you opened the dashboard at.
-* **System**
   * **Access**: the optional password (see 7).
-  * **Updates**: releases, rollback, restart of the services, the Android app.
-  * **Language**: English or Italian, chosen on each device (*Automatic* follows the device's language).
+  * **Updates**: the version, new versions, going back to the previous one, restart of the services, the Android app.
 
 ### Printer functions
 
@@ -138,11 +142,11 @@ like `LIGHTS_ON`/`LIGHTS_OFF`) and for a light output. Check it once and press *
 
 **The light** can also be switched directly on its output (**Output**: an `[output_pin]`, `[led]`, `[neopixel]`...). Whatever
 switches it, the button reads the output itself (and the *klipper-led_effect* effects drawn on it), so it is always right, also
-when the light is switched from Mainsail, KlipperScreen, the console or a macro. With macros or G-code you choose where the button
+when the light is switched from another program, a screen on the printer, the console or a macro. With macros or G-code you choose where the button
 reads the state (or none: it shows what was asked last).
 
-**Lights** (1.37): as many as the printer has. KlippEye finds them by itself — each pair of light macros (`LUCI_ON` /
-`LUCI_OFF`…), each LED output (`[led]`, `[neopixel]`, `[dotstar]`…) and the pins whose name says light — and lists them
+**Lights** (1.37): as many as the printer has. KlippEye finds them by itself — each pair of light macros (`LIGHT_ON` /
+`LIGHT_OFF`…), each LED output (`[led]`, `[neopixel]`, `[dotstar]`…) and the pins whose name says light — and lists them
 under **Lights**: rename one, change how it is switched (an output, two macros, G-code) and where its state is read,
 remove it or add more; from the first change the list is yours (*Find the lights again* goes back to what KlippEye finds).
 The round button on the camera switches together the lights marked *Switched by the round button*; the arrow next to it
@@ -171,7 +175,7 @@ points (− / + move the nozzle, *Accept* goes on), then SAVE_CONFIG.
 
 ### Height map (bed mesh)
 
-The **Height map / mesh** card (Control page on the phone, Calibration page on a computer), like Mainsail's: **2D** (seen
+The **Height map / mesh** card (Control page on the phone, Calibration page on a computer): **2D** (seen
 from above, the back of the bed at the top, the value of each point; a tap says where a point is) or **3D** (drag to turn,
 pinch or wheel to zoom, ↻ to go back); the **probed** points or the **interpolated** mesh Klipper uses; minimum, maximum,
 range and number of points. **Calibrate mesh** asks for the profile name (and *Adaptive*: only where the objects of the
@@ -207,7 +211,7 @@ kept on this device — and **full screen**. A tap on a command puts it back in 
 
 ### Macros
 
-The macro cards (Control page on the phone, Calibration page on a computer) work like Mainsail's. **Settings → Macros**
+The macro cards (Control page on the phone, Calibration page on a computer) are your shortcuts. **Settings → Macros**
 (or the gear of a card) chooses how:
 * **All the macros**: one card with every macro of the printer; switch off the ones you never use (the macros whose name
   starts with `_` are never shown);
@@ -230,7 +234,7 @@ written to `printer.cfg`: a restart of Klipper brings its values back.
 
 The **Print files** card (Files page) has a **search** by name (also by folder) and an **order** to choose: newest or
 oldest first, name A→Z / Z→A, shortest or longest print, most filament, largest, last printed (kept on this device).
-A long press on a file opens its menu: **Details** shows what Mainsail shows — folder, size, last change, last printed,
+A long press on a file opens its menu: **Details** shows folder, size, last change, last printed,
 slicer, estimated time, layer and first layer height, object height, layers, filament (type, length, weight), nozzle,
 first layer temperatures — with *Start print*; then the editor and *Delete*. On a computer the panel next to the list has
 a *Details* button too.
@@ -256,10 +260,16 @@ state (filament or not) and the switch that turns them on or off. Names starting
 
 With moonraker-timelapse installed, the Files page has a third part, **Timelapse**: the **videos** (preview, date, size;
 tap one to watch it full screen, *Download*, delete), the **frames** of the last print not yet a video with **Make the
-video**, and the **settings**: on or off, a photo every layer or every few seconds, park the head for the photo and where,
-make the video at the end, frames a second or a video length, repeat the last frame, quality, preview, keep the frames.
-A setting fixed in `moonraker.conf` shows locked. If `printer.cfg` lacks `[include timelapse.cfg]` (the
-`TIMELAPSE_TAKE_FRAME` macro), the page says so.
+video**, and the **settings** (also in Settings → Camera → Timelapse): on or off, which camera, a photo every layer or at
+intervals, park the head for the photo and where, make the video at the end, frames a second or a video length, repeat
+the last frame, quality, preview, keep the frames. **Advanced** shows the others: custom park position and height, speeds,
+retraction, wait, camera delay, rotation and mirroring of the video, pixel format, date in the file name, ffmpeg options.
+
+Changes are not sent one by one: **Save and restart Moonraker** writes them in `moonraker.conf`, section `[timelapse]`
+(only those that differ from the defaults, or are already there; the rest of the file stays), and restarts Moonraker to
+read them. It cannot be saved while printing; *Undo changes* drops them. If `printer.cfg` lacks `[include timelapse.cfg]`
+(the `TIMELAPSE_TAKE_FRAME` macro), the page says so. Without moonraker-timelapse the Timelapse part explains how to
+install it.
 
 ### Spools (Spoolman)
 
@@ -270,10 +280,17 @@ each print's filament on it; **No spool** leaves none. If Spoolman does not answ
 
 ### More cameras
 
-Besides the camera of the settings (the one the AI monitor watches), the dashboard uses the webcams set up in Mainsail or
-Fluidd (Moonraker keeps them): with more than one, the camera card (and the computer's camera panel) has a **menu** to
+Besides the camera of the settings (the one the AI monitor watches), the dashboard uses the other cameras set up on the
+printer (Moonraker keeps them): with more than one, the camera card (and the computer's camera panel) has a **menu** to
 pick which to watch, and the full screen follows it. Each webcam keeps its own way of being shown and its flips; the
 choice stays on this device.
+
+### More printers
+
+Every printer has its own KlippEye. In **Settings → Your printers** add the others with their address on your network
+(*Try* checks they answer and reads the name they give themselves); then a tap on the name at the top lists them and
+switches between them (in the app, in the same window), and the **Overview** shows them all at once, with their state and
+temperatures. The list is the same on every device of this printer.
 
 ### G-code viewer
 
@@ -287,9 +304,9 @@ and the nozzle.
 ### Folding cards and the order of the pages
 
 The main cards have a **chevron** at the top right that folds them down to their title (it stays so on this device). In
-**Settings → Appearance** choose the **order** of the cards of Home and Control (the arrows) and which to show (the
-switch), see how many cards are folded (*Open them all*) and go back to the usual order. The print card always stays on
-top.
+**Settings → Appearance → Cards** there is a small drawing of each page: **drag** a card by its handle (or use the arrows)
+to move it, also into the other column; the switch shows or hides it. Phone, tablet and computer each keep their own
+layout. The print card always stays in its place; *Usual order, everything shown* goes back to the start.
 
 In **Settings → Appearance → Show the hints** you can hide on this device the small texts that explain how to use a page
 (*Tap to change*, *Long-press a file…* and the like).
@@ -300,9 +317,6 @@ page). It stays on this device.
 
 In **Settings → Appearance → Look** the same page dresses after another phone: **One UI** (the usual), **Liquid
 Glass**, **Material 3 Expressive** or **HyperOS 4**, always with the chosen colour.
-
-The **side menu** has a **Go to** group (Print history and, when there, Timelapse) and the **This device** group
-(Appearance, Notifications, Language, Addresses).
 
 ### Print queue
 
@@ -331,7 +345,7 @@ a dot). The choice stays on this device; a line under the list says how many are
 
 ### The text editor
 
-Configuration and G-code files open in the dashboard's editor, built on **CodeMirror 6** like Mainsail's: line numbers,
+Configuration and G-code files open in the dashboard's editor, built on **CodeMirror 6**: line numbers,
 colours (sections, keys, pins, values, comments, the G-code and Jinja2 of macros), the caret's line marked, brackets
 matched. The arrow next to a `[section]` **folds and unfolds** it; the **Sections of the file** button lists them all (tap
 one to go there) and folds or unfolds them all at once. The page button opens the **reference** for the section the caret
@@ -354,24 +368,29 @@ others go on; it cannot be put back in that print.
 
 ## 4. Updates
 
-**Settings → Updates → Check for a new release → Update KlippEye.** The backend restarts for a few seconds and the page reloads
+**Settings → Updates → Check for a new release → Update KlippEye.** The KlippEye service restarts for a few seconds and the page reloads
 by itself. Your settings, the AI key and the notifications stay. The button is off while printing.
 
-The same update is visible in **Mainsail / Fluidd → Update Manager** (entry `klippeye`), which also offers *Rollback* and *Recover*.
+The update goes through Moonraker's update manager (entry `klippeye`): the printer's other web interfaces see it too.
 
 **Update channel** (same page): **Stable releases** (the default) installs only the releases that passed all the automatic
 tests on GitHub, tagged `v1.10.0`, `v1.11.0`…; **Every change** installs every change as soon as it is on GitHub, for
 testing new things. Moonraker restarts for a few seconds when you switch.
 
+**New versions by themselves**: once a day (never while printing) the dashboard asks Moonraker whether KlippEye, Klipper,
+Moonraker or the other programs have new versions. If so, a number appears on the **System** tab and a message names them;
+nothing is installed by itself. **Settings → Updates → Look for new versions by itself** switches it off (for each browser
+or phone).
+
 | If… | then |
 |---|---|
 | the new release does not work as hoped | Settings → Updates → **Go back to the previous release** |
 | the page says the program files were changed by hand | Settings → Updates → **Restore the program files** (settings and keys are not touched) |
-| the dashboard does not open any more | Mainsail → Update Manager → `klippeye` → *Rollback* or *Recover*; from SSH: `klippeye status`, `klippeye log`, `klippeye update --force` |
+| the dashboard does not open any more | from SSH: `klippeye status`, `klippeye restart`, `klippeye log`; to put the files back as they are on GitHub: `klippeye update --force` |
 
 ## 5. AI monitor
 
-While a print runs, the backend looks at the camera every few seconds with **OpenCV**, on the Raspberry, without internet. It
+While a print runs, the KlippEye service looks at the camera every few seconds with **OpenCV**, on the Raspberry, without internet. It
 compares each picture with a *background* made of the last pictures, ignores light changes and the passing print head, and
 counts only changes that **stay**. When something suspicious stays for a few checks, it sends the picture (and how it looked
 before) to an **online AI**, which judges whether there is a real problem: spaghetti, a detached part, a layer shift, warping.
@@ -488,7 +507,7 @@ the start. During a print the live picture of this page shows them in green. Swi
 are**, on the same page (on by default). Where the toolhead is right on the part,
 the camera cannot see under it: a failure is recognised by what appears around the part.
 
-The calibration is valid **until the camera moves**. Every ten minutes the backend compares the picture with the one taken
+The calibration is valid **until the camera moves**. Every ten minutes the KlippEye service compares the picture with the one taken
 at calibration; if the camera has moved, the page (and its line in the menu) says so and the monitor stops using the
 calibration (and the masks) until you calibrate again. The sizes of the toolhead and the gantry are kept.
 
@@ -496,7 +515,7 @@ calibration (and the masks) until you calibrate again. The sizes of the toolhead
 
 Instead of guessing whether a change of the thresholds helps, measure it:
 
-1. **Settings → AI monitor → Recordings → Record the prints**. During every print the backend keeps the pictures the monitor looked at
+1. **Settings → AI monitor → Recordings → Record the prints**. During every print the KlippEye service keeps the pictures the monitor looked at
    (small, about 150 MB for a four-hour print) with layer, position and score, in `~/printer_data/klippeye/recordings/`. The
    oldest prints are deleted when the chosen space is full, and nothing is recorded with less than 1 GB free on the disk.
 2. After each print, open it in the same page: look through its pictures and say **It went fine**, or, if it failed, move to
@@ -522,10 +541,10 @@ Instead of guessing whether a change of the thresholds helps, measure it:
   each marked better, worse or the same: what the G-code weighs and whether the thresholds have margin (a few minutes;
   from the terminal `klippeye replay --current --compare`).
 
-The page also shows the **monitor load**: the time of one check and the CPU the backend used in the last minute.
+The page also shows the **monitor load**: the time of one check and the CPU the KlippEye service used in the last minute.
 
 **"AI error 429"** on an alarm means the AI service refused the request: too many requests or too much data (pictures) for
-the limits of its plan, per minute or per day; the alarm shows the service's own words. Since 1.26.1 the backend waits and asks
+the limits of its plan, per minute or per day; the alarm shows the service's own words. Since 1.26.1 the KlippEye service waits and asks
 once more when the service asks to wait a few seconds. If it keeps happening (a daily limit), raise *Pause between two AI
 analyses* (Monitor thresholds), turn off *Also send the earlier picture to the AI* (one picture per request instead of two), choose a model with
 higher limits, or use a paid plan of the service.
@@ -537,8 +556,8 @@ The Android app is a full-screen window on the dashboard, with push notification
 * **Install it**: open the dashboard in the phone's browser → **Settings → Updates → Android app → Download the app**, open the
   downloaded file and allow installing from this source. From then on the app updates itself: **Settings → Updates → Android
   app → Update the app** (Android always asks you to confirm).
-* **Addresses**: the first time the app asks for the Raspberry's address (the one of Mainsail, e.g. `192.168.1.20` or
-  `mainsailos.local`) and, if you use ZeroTier or a VPN, the external one. It tries each twice, in turn; when none answers it
+* **Addresses**: the first time the app asks for the Raspberry's address (the one you open in the browser for the printer, e.g.
+  `192.168.1.20` or `printer.local`) and, if you use ZeroTier or a VPN, the external one. It tries each twice, in turn; when none answers it
   shows *Retry* and *Addresses*. They can also be changed in **Settings → Addresses**.
 * **Back button**: closes the guide or the open dialog and goes back to the previous page of the menu or the previous step of
   the guided set-up. Links to websites, stores and the ntfy app open outside the app.
@@ -580,22 +599,22 @@ own texts in `notifier.json` (`"messages": {"complete": "Done!"}`).
 * **Optional password**: Settings → **Access** → type it twice → **Turn on the password**. This device stays logged in; the
   others (also the app) ask for it once and remember it for 6 months. From there you can change or remove it, and log out the
   other devices. **Forgot it?** On the Raspberry: `klippeye password remove` (or `klippeye password` to set a new one).
-* **Network checks**, always on: the backend answers only when called by an IP address, the Raspberry's name or a home-network
+* **Network checks**, always on: the KlippEye service answers only when called by an IP address, the Raspberry's name or a home-network
   name (`.local`, `.lan`…), and refuses commands coming from pages of other sites. To use a name of your own:
   `klippeye access host-add printer.example.com`. `klippeye access network-checks off` turns the checks off.
-* The password does not protect Moonraker (port 7125) or Mainsail/Fluidd, and the traffic is plain http on your home network.
+* The password does not protect Moonraker (port 7125) or the printer's other web interfaces, and the traffic is plain http on your home network.
   **Never open port 8085 to the internet**: from outside use a VPN (ZeroTier, Tailscale, WireGuard).
 
 ## 8. After a power cut
 
 A power cut while the Raspberry writes can leave a program file empty or half written. KlippEye repairs itself, without
 internet: before every start of the service `scripts/repair.sh` compares the program files with the copy git keeps in
-`~/klippeye/.git` and restores the damaged ones; the backend checks again when it starts and when the dashboard page is asked
+`~/klippeye/.git` and restores the damaged ones; the KlippEye service checks again when it starts and when the dashboard page is asked
 for. Your settings and Klipper's configuration are never touched.
 
 * `klippeye repair log` (or `~/printer_data/klippeye/repair.log`) tells what was restored; `klippeye repair` checks by hand.
 * Changing program files by hand? Create `~/printer_data/klippeye/no-repair` first, or the repair puts them back.
-* If git's own data is damaged, the log says so: use *Recover* in Mainsail or `klippeye update --force`.
+* If git's own data is damaged, the log says so: run `klippeye update --force`.
 
 ## 9. Where things live
 
@@ -620,7 +639,7 @@ managed_services: klippeye
 
 On **Update**, Moonraker fetches from GitHub the newest release tag (or, on the `dev` channel, the newest commit) into `~/klippeye` and restarts the `klippeye` service; the notifier
 notices its file changed and restarts by itself. The Android app comes the same way: the `apk/` folder of the repository holds
-the latest app built by GitHub, and the backend offers it to the phone only if its size and SHA-256 match `apk/version.json`.
+the latest app built by GitHub, and the KlippEye service offers it to the phone only if its size and SHA-256 match `apk/version.json`.
 
 ## 10. Troubleshooting
 
@@ -629,10 +648,10 @@ the latest app built by GitHub, and the backend offers it to the phone only if i
 
 | What you see | What to do |
 |---|---|
-| The dashboard does not answer | `klippeye status`; `klippeye restart`; `klippeye log` shows the last lines of the backend's log |
+| The dashboard does not answer | `klippeye status`; `klippeye restart`; `klippeye log` shows the last lines of the KlippEye service's log |
 | The page says the name is not allowed | open it with the IP address, or allow the name: `klippeye access host-add NAME` |
 | Moonraker "does not know KlippEye yet" | `bash ~/klippeye/scripts/install.sh`, then restart Moonraker from the Restart menu |
-| The camera stays black | Settings → Camera: check the method and the address (or *Import from Mainsail*); Settings → Addresses |
+| The camera stays black | Settings → Camera: check the method and the address (or *Import from the printer*); Settings → Addresses |
 | The AI monitor never calls the AI | the AI key (5.1); OpenCV installed (`sudo apt install python3-opencv`); the monitor is on |
 | No notifications | `klippeye notify check` lists what is missing; `klippeye notify test` sends a test |
 | The app cannot install an update | allow "Install unknown apps" for KlippEye; Samsung's Auto Blocker must be off |
