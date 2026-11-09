@@ -2233,7 +2233,10 @@ body.is-pulling { overscroll-behavior-y: none; }
 
 .files-section-bar { display: flex; justify-content: center; margin: 0 0 14px; }
 .files-section-switch > button { min-width: 132px; }
-.files-section-switch.has-three > button { min-width: 0; padding: 0 14px; }
+.files-section-switch.has-three > button { min-width: 0; padding: 0 14px; white-space: nowrap; }
+@media (max-width: 380px) {
+  .files-section-switch.has-three > button { padding: 0 10px; font-size: 12.5px; }
+}
 .is-wide .files-section-bar { justify-content: flex-start; margin-bottom: 16px; }
 
 .oui-segmented--sm { padding: 3px; }
@@ -2693,6 +2696,8 @@ body.is-pulling { overscroll-behavior-y: none; }
 .gcode-travels,
 .gcode-below { white-space: nowrap; }
 .gcode-view-btn { white-space: nowrap; }
+.gcode-view-btn.oui-btn--block { margin-bottom: 10px; } /* 1.70: not touching the buttons under it */
+.desk-print__actions .gcode-view-btn.oui-btn--block { margin-bottom: 0; }
 
 /* ============================================================================
    Config files card: header actions, search row and the folder / file list
@@ -4579,8 +4584,8 @@ input[type="range"] { touch-action: pan-y; }
 .desk-print__stats .print-stat { min-width: 0; padding: 7px 12px; background: var(--oui-surface-2); border-radius: 14px; }
 .desk-print__stats .print-stat > * { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @media (max-width: 1379px) {
-  .desk-print__stats .print-stat { padding: 6px 10px; }
-  .desk-print__stats .print-stat__value { font-size: 16px; }
+  .desk-print__stats .print-stat { padding: 6px 8px; }
+  .desk-print__stats .print-stat__value { font-size: 15px; letter-spacing: -0.01em; }
 }
 @media (max-width: 1239px) {
   .desk-print__stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -4682,7 +4687,7 @@ input[type="range"] { touch-action: pan-y; }
 .desk-fact__value { margin-top: 2px; font-size: 17px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .desk-detail__print { min-height: 50px; font-size: 16px; }
 .desk-detail__actions { display: flex; flex-wrap: wrap; gap: 8px; }
-.desk-detail__actions > .oui-btn { flex: 1; min-width: 0; padding: 0 10px; }
+.desk-detail__actions > .oui-btn { flex: 1 0 auto; min-width: 0; padding: 0 12px; white-space: nowrap; } /* 1.70: they wrap, never overlap */
 
 /* ---- Config: the editor sits in the page instead of over it ---- */
 .desk-editor { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
@@ -9081,7 +9086,7 @@ function usePrinterFunctions() {
    ========================================================================== */
 
 /** Written by build.py from the VERSION file of the release; stays as it is when the page is built by hand. */
-const DASHBOARD_RELEASE = "1.70.1";
+const DASHBOARD_RELEASE = "1.70.2";
 const dashboardRelease = () => (DASHBOARD_RELEASE.startsWith("__") ? "sviluppo" : DASHBOARD_RELEASE);
 
 /** The interface level this page needs from the backend (the backend says its own in /api/version). */
@@ -13338,6 +13343,7 @@ function TemperatureDialog({ dialog, onChange, onClose, onConfirm, maxTemp }) {
    and goes on with a reading every TEMP_POLL_MS while the card is on screen.
    ========================================================================== */
 
+const TEMP_TICK_MIN_PX = 52; // room a clock time (12:34) needs under the chart
 const TEMP_POLL_MS = 2000;
 const TEMP_KEEP_MS = 20 * 60 * 1000; // what is kept (Moonraker keeps 20 minutes too)
 const TEMP_GAP_MS = 10000; // back on screen after longer than this: Moonraker's history is read again
@@ -13640,7 +13646,8 @@ function TemperatureChart({ history, view, colors }) {
             h("text", { className: "temp-chart__tick", x: TEMP_PAD.left - 6, y: y(value) + 4, textAnchor: "end" }, value + "°"),
           ),
         ),
-        minutes.map((m) => h("text", { key: "x" + m, className: "temp-chart__tick", x: x(end - m * 60000), y: TEMP_CHART_HEIGHT - 6, textAnchor: m === view.range ? "start" : m === 0 ? "end" : "middle" }, new Date(end - m * 60000).toLocaleTimeString(LOCALE, { hour: "2-digit", minute: "2-digit" }))),
+        // 1.70: on a narrow chart every other time only (the newest kept), so they never run into each other
+        minutes.map((m, index) => (plotW / (minutes.length - 1) >= TEMP_TICK_MIN_PX || (minutes.length - 1 - index) % 2 === 0) && h("text", { key: "x" + m, className: "temp-chart__tick", x: x(end - m * 60000), y: TEMP_CHART_HEIGHT - 6, textAnchor: m === view.range ? "start" : m === 0 ? "end" : "middle" }, new Date(end - m * 60000).toLocaleTimeString(LOCALE, { hour: "2-digit", minute: "2-digit" }))),
         shown.map((name) =>
           data[name] && hasTarget(name)
             ? h("path", { key: "t" + name, className: "temp-chart__target", d: path(data[name].target), stroke: colors[name], "data-series-target": name })
@@ -31859,14 +31866,15 @@ function CameraPanel() {
   const light = useCaseLight();
   const reloads = useCameraReloads();
   const [full, setFull] = useState(false);
-  const camera = useCurrentCamera().current;
+  const cameras = useCurrentCamera();
+  const camera = cameras.current;
   const ratio = camera.ratio || 16 / 9;
   const shape = camera.rotation === 90 || camera.rotation === 270 ? 1 / ratio : ratio;
   return h(
     "div",
     { className: "desk-camera", style: { "--desk-cam-ratio": shape.toFixed(4) } },
     !full && h(CameraMedia, { className: "desk-camera__video", reloads }),
-    h("span", { className: "desk-camera__tag" }, h("span", { className: "oui-dot desk-camera__live" }), tx("Camera")),
+    cameras.list.length < 2 && h("span", { className: "desk-camera__tag" }, h("span", { className: "oui-dot desk-camera__live" }), tx("Camera")),
     h(CameraPicker, { className: "desk-camera__picker" }),
     h("div", { className: "desk-camera__light" }, light.available && h(LightButton, light), h(CameraFullscreenButton, { onOpen: () => setFull(true), className: "desk-camera__full" })),
     h(Presence, null, full && h(CameraFullscreen, { onClose: () => setFull(false) })),

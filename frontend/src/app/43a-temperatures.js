@@ -10,6 +10,7 @@
    and goes on with a reading every TEMP_POLL_MS while the card is on screen.
    ========================================================================== */
 
+const TEMP_TICK_MIN_PX = 52; // room a clock time (12:34) needs under the chart
 const TEMP_POLL_MS = 2000;
 const TEMP_KEEP_MS = 20 * 60 * 1000; // what is kept (Moonraker keeps 20 minutes too)
 const TEMP_GAP_MS = 10000; // back on screen after longer than this: Moonraker's history is read again
@@ -312,7 +313,8 @@ function TemperatureChart({ history, view, colors }) {
             h("text", { className: "temp-chart__tick", x: TEMP_PAD.left - 6, y: y(value) + 4, textAnchor: "end" }, value + "°"),
           ),
         ),
-        minutes.map((m) => h("text", { key: "x" + m, className: "temp-chart__tick", x: x(end - m * 60000), y: TEMP_CHART_HEIGHT - 6, textAnchor: m === view.range ? "start" : m === 0 ? "end" : "middle" }, new Date(end - m * 60000).toLocaleTimeString(LOCALE, { hour: "2-digit", minute: "2-digit" }))),
+        // 1.70: on a narrow chart every other time only (the newest kept), so they never run into each other
+        minutes.map((m, index) => (plotW / (minutes.length - 1) >= TEMP_TICK_MIN_PX || (minutes.length - 1 - index) % 2 === 0) && h("text", { key: "x" + m, className: "temp-chart__tick", x: x(end - m * 60000), y: TEMP_CHART_HEIGHT - 6, textAnchor: m === view.range ? "start" : m === 0 ? "end" : "middle" }, new Date(end - m * 60000).toLocaleTimeString(LOCALE, { hour: "2-digit", minute: "2-digit" }))),
         shown.map((name) =>
           data[name] && hasTarget(name)
             ? h("path", { key: "t" + name, className: "temp-chart__target", d: path(data[name].target), stroke: colors[name], "data-series-target": name })

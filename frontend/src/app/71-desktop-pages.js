@@ -22,14 +22,15 @@ function CameraPanel() {
   const light = useCaseLight();
   const reloads = useCameraReloads();
   const [full, setFull] = useState(false);
-  const camera = useCurrentCamera().current;
+  const cameras = useCurrentCamera();
+  const camera = cameras.current;
   const ratio = camera.ratio || 16 / 9;
   const shape = camera.rotation === 90 || camera.rotation === 270 ? 1 / ratio : ratio;
   return h(
     "div",
     { className: "desk-camera", style: { "--desk-cam-ratio": shape.toFixed(4) } },
     !full && h(CameraMedia, { className: "desk-camera__video", reloads }),
-    h("span", { className: "desk-camera__tag" }, h("span", { className: "oui-dot desk-camera__live" }), tx("Camera")),
+    cameras.list.length < 2 && h("span", { className: "desk-camera__tag" }, h("span", { className: "oui-dot desk-camera__live" }), tx("Camera")),
     h(CameraPicker, { className: "desk-camera__picker" }),
     h("div", { className: "desk-camera__light" }, light.available && h(LightButton, light), h(CameraFullscreenButton, { onOpen: () => setFull(true), className: "desk-camera__full" })),
     h(Presence, null, full && h(CameraFullscreen, { onClose: () => setFull(false) })),

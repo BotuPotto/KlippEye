@@ -29,3 +29,5 @@
 .gcode-travels,
 .gcode-below { white-space: nowrap; }
 .gcode-view-btn { white-space: nowrap; }
+.gcode-view-btn.oui-btn--block { margin-bottom: 10px; } /* 1.70: not touching the buttons under it */
+.desk-print__actions .gcode-view-btn.oui-btn--block { margin-bottom: 0; }
