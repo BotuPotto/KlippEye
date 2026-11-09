@@ -258,8 +258,8 @@ function TemperatureChart({ history, view, colors }) {
   const yMax = Math.max(step * 2, Math.ceil((top + 10) / step) * step);
   const plotW = Math.max(0, width - TEMP_PAD.left - TEMP_PAD.right);
   const plotH = TEMP_CHART_HEIGHT - TEMP_PAD.top - TEMP_PAD.bottom;
-  // 1.67: «now» is on the left and the lines flow to the right, as asked
-  const x = (time) => TEMP_PAD.left + ((end - time) / (end - start)) * plotW;
+  // 1.69: back to time running left to right (now on the right), with the clock time under each mark
+  const x = (time) => TEMP_PAD.left + ((time - start) / (end - start)) * plotW;
   const y = (value) => TEMP_PAD.top + (1 - value / yMax) * plotH;
   const path = (values) => {
     if (!values) return "";
@@ -285,7 +285,7 @@ function TemperatureChart({ history, view, colors }) {
     const rect = event.currentTarget.getBoundingClientRect();
     const px = event.clientX - rect.left;
     if (px < TEMP_PAD.left || !times.length) return setPointer(null);
-    setPointer(Math.max(start, end - ((px - TEMP_PAD.left) / plotW) * (end - start)));
+    setPointer(Math.min(end, start + ((px - TEMP_PAD.left) / plotW) * (end - start)));
   };
   const tooltipLeft = at >= 0 ? x(times[at]) : 0;
   return h(
@@ -312,7 +312,7 @@ function TemperatureChart({ history, view, colors }) {
             h("text", { className: "temp-chart__tick", x: TEMP_PAD.left - 6, y: y(value) + 4, textAnchor: "end" }, value + "°"),
           ),
         ),
-        minutes.map((m) => h("text", { key: "x" + m, className: "temp-chart__tick", x: x(end - m * 60000), y: TEMP_CHART_HEIGHT - 6, textAnchor: m === view.range ? "end" : m === 0 ? "start" : "middle" }, m === 0 ? tx("now") : "-" + m + "′")),
+        minutes.map((m) => h("text", { key: "x" + m, className: "temp-chart__tick", x: x(end - m * 60000), y: TEMP_CHART_HEIGHT - 6, textAnchor: m === view.range ? "start" : m === 0 ? "end" : "middle" }, new Date(end - m * 60000).toLocaleTimeString(LOCALE, { hour: "2-digit", minute: "2-digit" }))),
         shown.map((name) =>
           data[name] && hasTarget(name)
             ? h("path", { key: "t" + name, className: "temp-chart__target", d: path(data[name].target), stroke: colors[name], "data-series-target": name })

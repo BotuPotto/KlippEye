@@ -88,6 +88,7 @@ with sync_playwright() as p:
     panel = pg.locator(".lights-panel")
     ok("the arrow opens every light", wait_until(lambda: panel.count() == 1) and [e.get_attribute("data-light") for e in panel.locator(".light-row").all()] == ["m-luci-on", "o-neopixel-strip", "o-output-pin-caselight"],
        [e.get_attribute("data-light") for e in panel.locator(".light-row").all()])
+    ok("1.69: the panel is on the page's body, not squeezed inside the camera's buttons", panel.evaluate("e => !e.closest('.light-group, .camera-card, .desk-camera')") and panel.bounding_box()["width"] >= 300, panel.bounding_box())
     ok("... not the pin 'beeper' (its name does not say light)", "beeper" not in panel.inner_text().lower())
     ok("... brightness for the strip and the PWM pin, colour for the strip only, nothing for the macros",
        row(P, "o-neopixel-strip").locator(".light-row__level").count() == 1 and row(P, "o-neopixel-strip").locator(".light-row__swatch").count() == 1

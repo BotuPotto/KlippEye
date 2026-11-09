@@ -59,26 +59,66 @@ function lightNow(light, item) {
 }
 
 /** A text field with the printer's macros as suggestions. */
+/**
+ * A macro's name: typed, or (1.69) chosen from Klipper's macros in a menu opened by the arrow. Before, the choice was a
+ * browser suggestion list (datalist): with a name already written it offered only that name, and the app's web view
+ * never showed it at all.
+ */
 function MacroField({ label, value, macros, onCommit, testId }) {
   const [text, setText] = useState(value);
+  const menu = useDropdown();
   useEffect(() => setText(value), [value]);
-  const listId = "macros-" + testId;
+  const choose = (name) => {
+    menu.close();
+    setText(name);
+    onCommit(name);
+  };
   return h(
-    "label",
+    "div",
     { className: "set-field" },
-    h("span", { className: "set-field__label" }, label),
-    h("input", {
-      className: "oui-field set-field__input",
-      value: text,
-      list: listId,
-      autoCapitalize: "characters",
-      spellCheck: false,
-      "data-macro": testId,
-      placeholder: tx("Name of the macro"),
-      onChange: (event) => setText(event.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, "")),
-      onBlur: () => onCommit(text),
-    }),
-    h("datalist", { id: listId }, macros.map((name) => h("option", { key: name, value: name }))),
+    h("span", { className: "set-field__label", id: "macro-label-" + testId }, label),
+    h(
+      "div",
+      { className: "macro-field" },
+      h("input", {
+        className: "oui-field set-field__input",
+        value: text,
+        autoCapitalize: "characters",
+        spellCheck: false,
+        "aria-labelledby": "macro-label-" + testId,
+        "data-macro": testId,
+        placeholder: tx("Name of the macro"),
+        onChange: (event) => setText(event.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, "")),
+        onBlur: () => onCommit(text),
+        onKeyDown: (event) => event.key === "Enter" && event.currentTarget.blur(),
+      }),
+      h(
+        "button",
+        {
+          ref: menu.anchorRef,
+          type: "button",
+          className: "oui-btn oui-btn--icon macro-field__pick",
+          "aria-label": tx("Choose a macro"),
+          title: tx("Choose a macro"),
+          "aria-haspopup": "menu",
+          "aria-expanded": menu.open,
+          "data-macro-pick": testId,
+          disabled: !macros.length,
+          onClick: menu.toggle,
+        },
+        h(Icons.Chevron, { size: 16 }),
+      ),
+    ),
+    h(
+      DropdownMenu,
+      { menu },
+      h(MenuLabel, null, tx("Klipper's macros")),
+      h(
+        "div",
+        { className: "macro-field__list", "data-macro-list": testId },
+        macros.map((name) => h(MenuItem, { key: name, icon: name === text ? h(Icons.Check, { size: 16 }) : h(Icons.Code, { size: 16 }), title: name, onClick: () => choose(name) })),
+      ),
+    ),
     text && macros.length > 0 && !macros.includes(text) && h("span", { className: "set-field__hint set-field__hint--warn" }, tx("Klipper does not know this macro (yet).")),
   );
 }

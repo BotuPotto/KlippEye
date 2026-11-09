@@ -246,16 +246,123 @@ function ConsoleTools({ entries, fullscreen, onFullscreen }) {
    ------------------------------------------------------------------------- */
 const FOLLOW_TAIL_PX = 80;
 
-function ConsoleLine({ entry, onPick }) {
+/* ---------------------------------------------------------------------------
+   What a line says, shown as Mainsail shows it (1.69): the "!! " and "// " marks Klipper puts in front are
+   dropped (the colour already says it), and the little HTML that Klipper, its modules and many macros write
+   is drawn instead of printed: <a class="command">SAVE_CONFIG</a> becomes a link that puts SAVE_CONFIG in the
+   input field, <b>, <i>, <br>, a coloured <span>… Everything else (scripts, images, frames, events) is left out:
+   only the tags and attributes listed here get through.
+   ------------------------------------------------------------------------- */
+const CONSOLE_TAGS = new Set(["a", "b", "strong", "i", "em", "u", "s", "small", "code", "span", "div", "p", "pre", "br", "ul", "ol", "li", "font"]);
+const CONSOLE_DROPPED_TAGS = new Set(["script", "style", "iframe", "object", "embed", "template", "noscript", "svg", "math", "img", "video", "audio"]);
+const CONSOLE_SAFE_COLOR = /^(#[0-9a-f]{3,8}|[a-z]{3,20}|rgba?\([\d\s.,%]+\)|hsla?\([\d\s.,%deg]+\))$/i;
+
+/** The text to show: the marks Klipper puts in front of its answers dropped, as Mainsail does. */
+function consoleDisplayText(message) {
+  return String(message || "")
+    .replace(/^!! /, "")
+    .replace(/\n!! /g, "\n")
+    .replace(/^\/\/ /, "")
+    .replace(/\n\/\/ /g, "\n")
+    .replace(/^echo:/, "")
+    .trim();
+}
+
+function consoleColorStyle(element) {
+  const raw = element.getAttribute("color") || ((element.getAttribute("style") || "").match(/(?:^|;)\s*color\s*:\s*([^;]+)/i) || [])[1] || "";
+  const color = raw.trim();
+  return color && CONSOLE_SAFE_COLOR.test(color) ? { color } : undefined;
+}
+
+/** HTML nodes → React elements, through the list of allowed tags. */
+function consoleNodes(nodes, onPick, path) {
+  const out = [];
+  Array.from(nodes).forEach((node, index) => {
+    const key = path + "." + index;
+    if (node.nodeType === 3) {
+      out.push(node.nodeValue);
+      return;
+    }
+    if (node.nodeType !== 1) return;
+    const tag = node.nodeName.toLowerCase();
+    if (CONSOLE_DROPPED_TAGS.has(tag)) return;
+    if (!CONSOLE_TAGS.has(tag)) {
+      out.push(...consoleNodes(node.childNodes, onPick, key)); // an unknown tag: its text only
+      return;
+    }
+    if (tag === "br") {
+      out.push(h("br", { key }));
+      return;
+    }
+    const children = consoleNodes(node.childNodes, onPick, key);
+    const style = consoleColorStyle(node);
+    if (tag === "a") {
+      const classes = (node.getAttribute("class") || "").split(/\s+/);
+      const href = node.getAttribute("href") || "";
+      if (classes.includes("command")) {
+        const command = (node.textContent || "").trim();
+        out.push(
+          h(
+            "a",
+            {
+              key,
+              role: "button",
+              tabIndex: 0,
+              className: "log-cmd",
+              style,
+              title: tx("Click to copy into the input field"),
+              onClick: (event) => {
+                event.stopPropagation();
+                if (onPick) onPick(command);
+              },
+              onKeyDown: (event) => event.key === "Enter" && onPick && onPick(command),
+            },
+            children,
+          ),
+        );
+      } else if (/^https?:\/\//i.test(href)) {
+        out.push(h("a", { key, href, target: "_blank", rel: "noopener noreferrer", className: "log-link", style }, children));
+      } else out.push(h("span", { key, style }, children));
+      return;
+    }
+    out.push(h(tag === "font" ? "span" : tag, { key, style, className: tag === "code" ? "log-code" : undefined }, children));
+  });
+  return out;
+}
+
+/** What a console line shows: plain text, or the HTML in it drawn safely. */
+function consoleMessage(message, onPick) {
+  const text = consoleDisplayText(message);
+  if (!/[<&]/.test(text) || typeof DOMParser === "undefined") return text;
+  try {
+    const doc = new DOMParser().parseFromString("<body>" + text.replace(/\r\n|\r|\n/g, "<br>") + "</body>", "text/html");
+    return consoleNodes(doc.body.childNodes, onPick, "m");
+  } catch (e) {
+    return text;
+  }
+}
+
+function ConsoleLine({ entry, onPick, lineKey }) {
   if (entry.isCommand) {
     return h(
       "div",
-      { className: "log-line log-line--pick", title: tx("Click to copy into the input field"), onClick: () => onPick(entry.msg) },
+      { className: "log-line log-line--pick", "data-line": lineKey, title: tx("Click to copy into the input field"), onClick: () => onPick(entry.msg) },
       h("span", { className: "log-time" }, entry.t),
       h("span", { className: cx(entry.color, "log-msg") }, entry.msg),
     );
   }
-  return h("div", { className: "log-line" }, h("span", { className: "log-time" }, entry.t), h("span", { className: cx(entry.color, "log-msg") }, entry.msg));
+  return h("div", { className: "log-line", "data-line": lineKey }, h("span", { className: "log-time" }, entry.t), h("span", { className: cx(entry.color, "log-msg") }, consoleMessage(entry.msg, onPick)));
+}
+
+/** A key that stays the same for a line when the list is read again or the oldest lines drop off. */
+function consoleLineKeys(shown) {
+  const seen = new Map();
+  return shown.map((entry) => {
+    const base = (entry.time ? "t" + entry.time : "s" + (entry.seq || 0)) + "|" + entry.msg;
+    const count = (seen.get(base) || 0) + 1;
+    seen.set(base, count);
+    return base + "|" + count;
+  });
 }
 
 /**
@@ -268,14 +375,32 @@ function ConsoleLog({ entries, onPick, className }) {
   const listRef = useRef(null);
   const following = useRef(true);
   const shown = visibleConsoleEntries(entries, view);
+  const keys = consoleLineKeys(shown);
+
+  // Not following (autoscroll off, or the reader scrolled away): the line at the top of the view stays where it is,
+  // even when new lines come in above it or the oldest ones drop off the list (before 1.69 the text slid by).
+  const anchor = useRef(null);
+  const list = listRef.current;
+  if (list && !(view.autoscroll && following.current)) {
+    const top = list.getBoundingClientRect().top;
+    const first = Array.from(list.children).find((line) => line.getBoundingClientRect().bottom > top + 1);
+    anchor.current = first && first.dataset.line ? { key: first.dataset.line, offset: first.getBoundingClientRect().top - top } : null;
+  } else anchor.current = null;
 
   useEffect(() => {
     following.current = true; // the order changed: start from the newest line
   }, [view.newestOnTop]);
-  useEffect(() => {
+  useLayoutEffect(() => {
     const list = listRef.current;
-    if (!list || !view.autoscroll || !following.current) return;
-    list.scrollTop = view.newestOnTop ? 0 : list.scrollHeight;
+    if (!list) return;
+    if (view.autoscroll && following.current) {
+      list.scrollTop = view.newestOnTop ? 0 : list.scrollHeight;
+      return;
+    }
+    const held = anchor.current;
+    if (!held) return;
+    const line = Array.from(list.children).find((child) => child.dataset.line === held.key);
+    if (line) list.scrollTop += line.getBoundingClientRect().top - list.getBoundingClientRect().top - held.offset;
   }, [entries, view]);
 
   return h(
@@ -290,7 +415,7 @@ function ConsoleLog({ entries, onPick, className }) {
       },
     },
     shown.length === 0 && h("div", { className: "log-line log-empty" }, h("span", { className: "log--dim" }, view.clearedAt || view.clearedSeq ? tx("Nothing new since the console was cleared.") : tx("No lines yet."))),
-    shown.map((entry, index) => h(ConsoleLine, { key: (entry.time || "s" + entry.seq || index) + "|" + index, entry, onPick })),
+    shown.map((entry, index) => h(ConsoleLine, { key: keys[index], lineKey: keys[index], entry, onPick })),
   );
 }
 

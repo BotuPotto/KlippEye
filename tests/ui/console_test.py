@@ -93,6 +93,24 @@ with sync_playwright() as p:
     option(P, "newestOnTop")
     option(P, "showTemps")
 
+    # 1.69: the HTML in Klipper's messages is drawn, as in Mainsail; a command link fills the input field
+    mock.set(console_extra=[
+        {"message": '// Use <a class="command">SAVE_CONFIG</a> to <b>save</b><script>window.__hit=1</script><img src="x" onerror="window.__hit=2">', "time": NOW + 150, "type": "response"},
+        {"message": '!! Probe <span style="color: red" onclick="window.__hit=3">failed</span>', "time": NOW + 151, "type": "response"},
+    ])
+    link = pg.locator(".console-well .log-cmd").first
+    ok("a <a class=\"command\"> is drawn as a link, not printed", wait_until(lambda: link.count() == 1 and link.inner_text() == "SAVE_CONFIG"), lines(P)[-3:])
+    msg = pg.locator(".console-well .log-msg", has_text="SAVE_CONFIG").first
+    ok("... the '// ' mark dropped, <b> drawn, no tag printed", msg.inner_text().strip() == "Use SAVE_CONFIG to save" and msg.locator("b").count() == 1, msg.inner_text())
+    ok("... scripts, images and event attributes are left out", msg.locator("img, script").count() == 0 and pg.evaluate("() => window.__hit") is None)
+    red = pg.locator(".console-well .log-msg", has_text="failed").first
+    ok("... an error keeps its colour, the '!! ' dropped, a coloured span kept", red.inner_text().strip() == "Probe failed" and "log--error" in (red.get_attribute("class") or "") and red.locator("span").first.evaluate("e => e.style.color") == "red")
+    red.locator("span").first.click()
+    link.click()
+    ok("... a click on the command puts it in the input field", wait_until(lambda: pg.locator(".console-input").first.input_value() == "SAVE_CONFIG") and pg.evaluate("() => window.__hit") is None)
+    pg.locator(".console-input").first.fill("")
+    mock.set(console_extra=[])
+
     pg.locator('button[aria-label="Pulisci la console"]').first.click()
     ok("'Pulisci' empties the view", wait_until(lambda: lines(P) == [] and "Niente di nuovo" in pg.locator(".console-well").first.inner_text()), lines(P))
     mock.set(console_extra=extra(1, word="after the clear"))
@@ -109,6 +127,16 @@ with sync_playwright() as p:
     option(P, "autoscroll")
     mock.set(console_extra=extra(120))
     ok("autoscroll off: new lines arrive, the log stays where it was", wait_until(lambda: len(lines(P)) >= 120) and not well.evaluate(at_bottom))
+    # 1.69: ... and the text in view does not slide when the oldest lines drop off the list (it did, "autoscroll" seemed on)
+    well.evaluate("e => { e.scrollTop = e.scrollHeight - e.clientHeight - 300; e.dispatchEvent(new Event('scroll')); }")
+    P.settle(300)
+    first_visible = "e => { const top = e.getBoundingClientRect().top; const l = [...e.querySelectorAll('.log-line')].find(x => x.getBoundingClientRect().bottom > top + 1); return l ? [l.querySelector('.log-msg').textContent, Math.round(l.getBoundingClientRect().top - top)] : null; }"
+    before = well.evaluate(first_visible)
+    mock.set(console_extra=extra(220))
+    wait_until(lambda: "line 219" in lines(P))
+    P.settle(500)
+    after = well.evaluate(first_visible)
+    ok("autoscroll off: the oldest lines drop off, the text in view stays put", before is not None and before == after and lines(P)[0] != "G28", (before, after, lines(P)[:1]))
     option(P, "autoscroll")
 
     # full screen

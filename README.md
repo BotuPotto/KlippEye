@@ -110,5 +110,5 @@ which is a GitHub secret.
 
 ## License
 
-KlippEye is free software, released under the [GNU General Public License v3.0](LICENSE), like Klipper, Moonraker,
-Mainsail and Fluidd. Third-party components and their licenses: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+KlippEye is free software, released under the [GNU General Public License v3.0](LICENSE), like Klipper and Moonraker.
+Third-party components and their licenses: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

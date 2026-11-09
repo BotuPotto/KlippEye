@@ -881,6 +881,9 @@ def gcode_store():
     if S["webhooks"] == "shutdown":
         entries.append({"message": "Klipper state: SHUTDOWN", "time": base+9, "type": "response"})
     entries.extend(S["console_extra"])
+    count = request.args.get("count", type=int)
+    if count:
+        entries = entries[-count:]  # like Moonraker: the newest `count` lines
     return jsonify(result={"gcode_store": entries})
 
 GCODES = [("Benchy_0.2mm_PLA.gcode", NOW-3600, 123456), ("Calibration_cube_long_filename_for_wrapping_test.gcode", NOW-86400, 654321),

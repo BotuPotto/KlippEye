@@ -16,7 +16,14 @@
 .log-line--pick { cursor: pointer; }
 .log-line--pick:hover { background: var(--oui-surface-2); }
 .log-time { flex-shrink: 0; color: var(--oui-text-3); }
-.log-msg { word-break: break-all; }
+.log-msg { min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.console-well { overflow-anchor: none; } /* the line at the top is held by the console itself (1.69) */
+.log-cmd { color: var(--oui-accent-text); font-weight: 600; text-decoration: underline; text-decoration-color: color-mix(in srgb, currentColor 40%, transparent); text-underline-offset: 2px; cursor: pointer; border-radius: 4px; }
+.log-cmd:hover, .log-cmd:focus-visible { background: var(--oui-accent-soft); outline: none; }
+.log-link { color: var(--oui-accent-text); text-decoration: underline; }
+.log-code { font-family: inherit; color: var(--oui-text); }
+.log-msg p, .log-msg div, .log-msg pre, .log-msg ul, .log-msg ol { margin: 0; }
+.log-msg ul, .log-msg ol { padding-left: 1.4em; }
 .log--command { color: var(--oui-accent-text); }
 .log--input { color: var(--oui-text); }
 .log--ok { color: var(--oui-ok); }
