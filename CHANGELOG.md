@@ -1,5 +1,19 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.69.1
+
+**Timelapse settings read from moonraker.conf.**
+
+* The settings card (Files → Timelapse, and Settings → Camera → Timelapse) now shows what moonraker.conf says in its
+  [timelapse] section, each time it opens; what the section does not say shows moonraker-timelapse's default. Before, it
+  showed what the add-on kept in its own database, which could differ from the file (a change made from another
+  interface, say).
+* «Save» still writes the section and restarts Moonraker; nothing is sent to the add-on or to Klipper.
+* The add-on itself, when Moonraker or Klipper starts, sends its settings to its macros with a long
+  `_SET_TIMELAPSE_SETUP …` line: the console no longer shows it (Klipper still gets it).
+* The repeated last frame defaults to 5, as in the add-on (it said 0). «Wait for the photo» is gone: the add-on has no
+  such setting, and writing it in moonraker.conf would only give a warning.
+
 ## 1.69.0
 
 **Console like Mainsail's, the temperature chart with the clock, the light menus fixed.**

@@ -7,7 +7,8 @@
      · the settings: on / off, a frame per layer or every few seconds
        (hyperlapse), park the head for the photo, make the video at the end,
        frames a second (or a length to aim at), repeat the last frame, keep the
-       frames, the quality. A setting fixed in moonraker.conf is shown locked.
+       frames, the quality. 1.69: read from moonraker.conf, section [timelapse]
+     (what is not written there: moonraker-timelapse's default).
    The photo itself is taken by the TIMELAPSE_TAKE_FRAME macro (timelapse.cfg):
    without it the page says so.
    ========================================================================== */
@@ -21,10 +22,11 @@ const TIMELAPSE_CONFIG_FILE = "moonraker.conf";
 const TIMELAPSE_RESTART_WAIT_MS = 60000;
 
 /**
- * 1.67: moonraker-timelapse's own defaults (timelapse.py). The card saves its settings in moonraker.conf, section
- * [timelapse]: a setting is written there when it differs from these, or when the section already has it. What is in
- * moonraker.conf wins over what the add-on keeps in its database (and Mainsail cannot change it any more: it shows it
- * locked), so the file is where they stay.
+ * moonraker-timelapse's own defaults (component/timelapse.py, checked again in 1.69: the last frame is repeated 5 times).
+ * The card's settings live in moonraker.conf, section [timelapse] (1.67): a setting is written there when it differs
+ * from these, or when the section already has it. 1.69: the card also READS them from there, these filling in what the
+ * section does not say. What the add-on keeps in its own database (changed from another interface, say) is not shown:
+ * moonraker.conf is the one place where they are.
  */
 const TIMELAPSE_DEFAULTS = {
   enabled: true, mode: "layermacro", camera: "", snapshoturl: "http://localhost:8080/?action=snapshot", stream_delay_compensation: 0.05,
@@ -32,7 +34,7 @@ const TIMELAPSE_DEFAULTS = {
   park_travel_speed: 100, park_retract_speed: 15, park_extrude_speed: 15, park_retract_distance: 1, park_extrude_distance: 1, park_time: 0.1,
   fw_retract: false, hyperlapse_cycle: 30, autorender: true, constant_rate_factor: 23, output_framerate: 30, pixelformat: "yuv420p",
   time_format_code: "%Y%m%d_%H%M", extraoutputparams: "", variable_fps: false, targetlength: 10, variable_fps_min: 5, variable_fps_max: 60,
-  rotation: 0, flip_x: false, flip_y: false, duplicatelastframe: 0, previewimage: true, saveframes: false, wait_for_snapshot: false,
+  rotation: 0, flip_x: false, flip_y: false, duplicatelastframe: 5, previewimage: true, saveframes: false,
 };
 
 const configLineKey = (line) => {
@@ -88,6 +90,44 @@ function setConfigSection(text, section, values) {
   return lines.join("\n");
 }
 
+/**
+ * 1.69: the settings as moonraker.conf has them: its [timelapse] section read with the types of the defaults (as
+ * moonraker-timelapse reads it), and the defaults for what it does not say.
+ */
+function timelapseSettingsFromConfig(text) {
+  const values = { ...TIMELAPSE_DEFAULTS };
+  const lines = String(text || "").split("\n");
+  const found = findConfigSection(lines, "timelapse");
+  if (!found) return values;
+  for (let index = found.start + 1; index <= found.last; index += 1) {
+    const key = configLineKey(lines[index]);
+    if (!key || !Object.prototype.hasOwnProperty.call(TIMELAPSE_DEFAULTS, key)) continue;
+    const raw = lines[index]
+      .slice(lines[index].search(/[:=]/) + 1)
+      .replace(/\s[#;].*$/, "")
+      .trim();
+    const fallback = TIMELAPSE_DEFAULTS[key];
+    if (typeof fallback === "boolean") {
+      const word = raw.toLowerCase();
+      if (["true", "yes", "on", "1"].includes(word)) values[key] = true;
+      else if (["false", "no", "off", "0"].includes(word)) values[key] = false;
+    } else if (typeof fallback === "number") {
+      const number = Number(raw);
+      if (raw !== "" && isFinite(number)) values[key] = number;
+    } else values[key] = raw;
+  }
+  return values;
+}
+
+/** moonraker.conf as it is now (never the copy kept by the dashboard: it may have been changed elsewhere). */
+async function readTimelapseConfig() {
+  configFileCache.delete(TIMELAPSE_CONFIG_FILE);
+  const text = await configFilesApi.read(TIMELAPSE_CONFIG_FILE).catch(() => {
+    throw new Error(tx("Cannot read moonraker.conf"));
+  });
+  return { text, values: timelapseSettingsFromConfig(text) };
+}
+
 /** A value as moonraker.conf writes it. */
 const configValue = (value) => (value === true ? "True" : value === false ? "False" : String(value));
 
@@ -113,10 +153,7 @@ async function saveTimelapseConfig(values) {
   const stats = await moonraker.queryObjects("print_stats").catch(() => ({}));
   const state = ((stats && stats.print_stats) || {}).state;
   if (state === "printing" || state === "paused") throw new Error(tx("Not while printing: the timelapse is taking its photos. Save when the print is over."));
-  configFileCache.delete(TIMELAPSE_CONFIG_FILE); // read it as it is now: it may have been changed elsewhere
-  const text = await configFilesApi.read(TIMELAPSE_CONFIG_FILE).catch(() => {
-    throw new Error(tx("Cannot read moonraker.conf"));
-  });
+  const { text } = await readTimelapseConfig();
   const present = configSectionKeys(text, "timelapse");
   const written = {};
   Object.keys(values).forEach((key) => {
@@ -133,16 +170,8 @@ async function saveTimelapseConfig(values) {
   if (!components.includes("timelapse")) throw new Error(tx("Moonraker restarted without the timelapse: open moonraker.conf in Config and check the [timelapse] section."));
 }
 
+/** 1.69: the settings are not asked to the add-on any more (moonraker.conf is read instead), nor sent to it. */
 const timelapseApi = {
-  async settings() {
-    const json = await fetchJson("/machine/timelapse/settings");
-    return (json && json.result) || {};
-  },
-  async set(changes) {
-    const response = await fetchFresh("/machine/timelapse/settings", { method: "POST", headers: JSON_HEADERS, body: JSON.stringify(changes) });
-    if (!response.ok) throw new Error(await responseError(response));
-    return ((await response.json()).result || {});
-  },
   async frames() {
     const json = await fetchJson("/machine/timelapse/lastframeinfo");
     return (json && json.result) || {};
@@ -184,9 +213,19 @@ function useTimelapse() {
   useEffect(() => {
     let cancelled = false;
     let macroChecked = false;
+    // the settings: read once each time the card opens (and after «Save»), from moonraker.conf
+    const readSettings = async () => {
+      try {
+        const { values } = await readTimelapseConfig();
+        if (!cancelled) setState((previous) => ({ ...previous, settings: values, error: null }));
+      } catch (error) {
+        if (!cancelled) setState((previous) => ({ ...previous, error: error.message || tx("Error") }));
+      }
+    };
+    // the videos and the frames: every few seconds
     const refresh = async () => {
       try {
-        const [settings, files, frames] = await Promise.all([timelapseApi.settings(), timelapseApi.files(), timelapseApi.frames().catch(() => ({}))]);
+        const [files, frames] = await Promise.all([timelapseApi.files(), timelapseApi.frames().catch(() => ({}))]);
         let hasMacro = null;
         if (!macroChecked) {
           macroChecked = true;
@@ -195,12 +234,13 @@ function useTimelapse() {
           } catch (error) {}
         }
         if (cancelled) return;
-        setState((previous) => ({ settings, videos: timelapseVideos(files), frames: Number(frames.count) || 0, hasMacro: hasMacro === null ? previous.hasMacro : hasMacro, error: null }));
+        setState((previous) => ({ ...previous, videos: timelapseVideos(files), frames: Number(frames.count) || 0, hasMacro: hasMacro === null ? previous.hasMacro : hasMacro }));
       } catch (error) {
         if (!cancelled) setState((previous) => ({ ...previous, error: error.message || tx("Error") }));
       }
     };
-    refreshRef.current = refresh;
+    refreshRef.current = () => Promise.all([readSettings(), refresh()]);
+    readSettings();
     const stop = startPolling(refresh, TIMELAPSE_POLL_MS);
     return () => {
       cancelled = true;
@@ -232,7 +272,7 @@ function useTimelapse() {
       setSaving(true);
       try {
         await saveTimelapseConfig(values);
-        const settings = await timelapseApi.settings();
+        const { values: settings } = await readTimelapseConfig();
         setState((previous) => ({ ...previous, settings }));
         setDraft({});
         toast.notice(tx("Timelapse settings saved in moonraker.conf"));
@@ -430,7 +470,7 @@ function TimelapseSettingsFields({ timelapse }) {
               tx("The photo"),
               !settings.camera && text("snapshoturl", tx("Snapshot address"), tx("Used when no camera is chosen")),
               number("stream_delay_compensation", tx("Delay of the camera (s)"), 0, 10, tx("Waits this long before the photo, for a stream that lags behind"), true),
-              h("div", { className: "oui-list timelapse-switches" }, switchRow("wait_for_snapshot", tx("Wait for the photo"), tx("The print waits until the photo is taken")), switchRow("gcode_verbose", tx("Messages in the console"), tx("A line for every photo"))),
+              h("div", { className: "oui-list timelapse-switches" }, switchRow("gcode_verbose", tx("Messages in the console"), tx("A line for every photo"))),
             ),
             group(
               tx("The video"),
