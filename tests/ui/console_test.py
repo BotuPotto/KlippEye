@@ -97,6 +97,7 @@ with sync_playwright() as p:
     mock.set(console_extra=[
         {"message": '// Use <a class="command">SAVE_CONFIG</a> to <b>save</b><script>window.__hit=1</script><img src="x" onerror="window.__hit=2">', "time": NOW + 150, "type": "response"},
         {"message": '!! Probe <span style="color: red" onclick="window.__hit=3">failed</span>', "time": NOW + 151, "type": "response"},
+        {"message": "_SET_TIMELAPSE_SETUP  ENABLE=True VERBOSE=False PARK_ENABLE=False", "time": NOW + 152, "type": "command"},
     ])
     link = pg.locator(".console-well .log-cmd").first
     ok("a <a class=\"command\"> is drawn as a link, not printed", wait_until(lambda: link.count() == 1 and link.inner_text() == "SAVE_CONFIG"), lines(P)[-3:])
@@ -105,6 +106,7 @@ with sync_playwright() as p:
     ok("... scripts, images and event attributes are left out", msg.locator("img, script").count() == 0 and pg.evaluate("() => window.__hit") is None)
     red = pg.locator(".console-well .log-msg", has_text="failed").first
     ok("... an error keeps its colour, the '!! ' dropped, a coloured span kept", red.inner_text().strip() == "Probe failed" and "log--error" in (red.get_attribute("class") or "") and red.locator("span").first.evaluate("e => e.style.color") == "red")
+    ok("... moonraker-timelapse's own _SET_TIMELAPSE_SETUP line is not shown", not any("_SET_TIMELAPSE_SETUP" in l for l in lines(P)))
     red.locator("span").first.click()
     link.click()
     ok("... a click on the command puts it in the input field", wait_until(lambda: pg.locator(".console-input").first.input_value() == "SAVE_CONFIG") and pg.evaluate("() => window.__hit") is None)

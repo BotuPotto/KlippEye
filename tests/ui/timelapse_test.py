@@ -142,6 +142,29 @@ with sync_playwright() as p:
     ok("no page errors (but Moonraker's 502 while it restarts)", not [e for e in errs(P) if "502" not in e], errs(P)[:2])
     P.close()
 
+    # 1.69: what the card shows is moonraker.conf's [timelapse] (the defaults for what it does not say), not the add-on's database
+    mock.reset()
+    cfg = state()["cfg"]
+    conf_text = urllib.request.urlopen(mock.base + "/server/files/config/moonraker.conf").read().decode()
+    cfg["files"]["moonraker.conf"]["content"] = conf_text.replace("output_path: ~/printer_data/timelapse/", "output_path: ~/printer_data/timelapse/\nparkhead: yes  # parked for the photo\nparkpos: center\nconstant_rate_factor: 18\nflip_x: True")
+    db = state()["timelapse_settings"]
+    db.update({"parkhead": False, "constant_rate_factor": 30, "duplicatelastframe": 0, "flip_x": False, "rotation": 90})
+    mock.set(timelapse_on=True, cfg=cfg, timelapse_settings=db)
+    P = Page(b, mock, 390, 844)
+    CUR[0] = P
+    P.goto("files", 2200)
+    P.pg.locator('[data-files-section="timelapse"]').click()
+    sett = P.pg.locator(".timelapse-settings")
+    ok("1.69: the settings read from moonraker.conf: park the head on (a yes with its comment), at the centre",
+       wait_until(lambda: sett.locator('[data-setting="parkhead"] [role=switch]').get_attribute("aria-checked") == "true") and sett.locator('[data-setting="parkpos"] [aria-pressed="true"], [data-setting="parkpos"] [aria-checked="true"]').inner_text().strip() == "Centro",
+       sett.inner_text()[:400] if sett.count() else "")
+    ok("... CRF 18 from the file (the add-on's database says 30)", sett.locator('[data-setting="constant_rate_factor"] input').input_value() == "18")
+    ok("... not in the file: the add-on's default (the last frame 5 times), not its database's 0", sett.locator('[data-setting="duplicatelastframe"] input').input_value() == "5")
+    sett.locator("[data-timelapse-advanced]").click(); P.settle(300)
+    ok("... mirror left-right on (file), the video not turned (default, the database says 90°)", sett.locator('[data-setting="flip_x"] [role=switch]').get_attribute("aria-checked") == "true" and sett.locator('[data-setting="rotation"] [aria-pressed="true"], [data-setting="rotation"] [aria-checked="true"]').inner_text().strip() == "0°")
+    ok("... and nothing asked to the add-on's settings, nothing sent to it", not [r for r in P.take_reqs() if "/machine/timelapse/settings" in r["u"]] and not [l for l in state()["timelapse_log"] if l.startswith("SET:")])
+    P.close()
+
     # a setting locked in moonraker.conf; no macro
     mock.reset()
     mock.set(timelapse_on=True, timelapse_macro=False)

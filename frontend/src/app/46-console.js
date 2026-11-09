@@ -203,9 +203,16 @@ function useConsoleView() {
   return useSyncExternalStore(consoleViewStore.subscribe, consoleViewStore.snapshot);
 }
 
+/**
+ * 1.69: moonraker-timelapse sends its settings to its macros (_SET_TIMELAPSE_SETUP ENABLE=… VERBOSE=… PARK_ENABLE=…)
+ * each time Moonraker or Klipper starts: a long line nobody typed, after every «Save» of the timelapse settings. Not
+ * shown (Klipper still gets it).
+ */
+const isAddonSetupLine = (message) => /^_SET_TIMELAPSE_SETUP\b/i.test(message);
+
 /** The lines to show, in the order to show them. */
 function visibleConsoleEntries(entries, view, order = true) {
-  const shown = entries.filter((entry) => (view.showTemps || !isTemperatureReport(String(entry.msg || ""))) && (entry.time ? entry.time > view.clearedAt : (entry.seq || 0) > view.clearedSeq));
+  const shown = entries.filter((entry) => !isAddonSetupLine(String(entry.msg || "")) && (view.showTemps || !isTemperatureReport(String(entry.msg || ""))) && (entry.time ? entry.time > view.clearedAt : (entry.seq || 0) > view.clearedSeq));
   return order && view.newestOnTop ? shown.reverse() : shown;
 }
 

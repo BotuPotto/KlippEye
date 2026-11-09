@@ -996,6 +996,8 @@ def timelapse_read_config():
         if k not in blocked: blocked.append(k)
     sett["blockedsettings"] = blocked
     S["timelapse_conf_reads"] = S.get("timelapse_conf_reads", 0) + 1
+    if S.get("timelapse_on"):  # and then, Klipper ready, it sends its settings to its macros (a console line)
+        console_line("_SET_TIMELAPSE_SETUP  ENABLE=%s VERBOSE=%s PARK_ENABLE=%s PARK_POS=%s" % (sett["enabled"], sett["gcode_verbose"], sett["parkhead"], sett["parkpos"]), "command")
 
 
 CFG_TEXT = """# KlippEye printer config
