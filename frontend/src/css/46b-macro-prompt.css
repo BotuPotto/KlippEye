@@ -1,0 +1,18 @@
+/* ============================================================================
+   Windows opened by macros (app/46b-macro-prompt.js)
+   ========================================================================== */
+
+.macro-prompt-overlay { z-index: 260; } /* over the other sheets: a macro is waiting for it */
+.macro-prompt { display: flex; flex-direction: column; width: min(440px, calc(100vw - 32px)); max-height: calc(100dvh - 48px); }
+.macro-prompt .dialog-head { position: relative; padding-right: 40px; }
+.macro-prompt .dialog-close { position: absolute; top: 0; right: 0; }
+.macro-prompt__body { display: flex; flex-direction: column; gap: 10px; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+.macro-prompt__text { margin: 0; font-size: 14px; line-height: 1.5; color: var(--oui-text-2); overflow-wrap: anywhere; }
+.macro-prompt__row { display: flex; flex-wrap: wrap; gap: 8px; }
+.macro-prompt__row > .macro-prompt__btn { flex: 1 1 120px; }
+.macro-prompt__btn { min-height: 44px; white-space: normal; overflow-wrap: anywhere; }
+.macro-prompt__btn.is-secondary { background: var(--oui-surface-3, var(--oui-surface-2)); }
+.macro-prompt__btn.is-info { color: var(--oui-accent-text); }
+.macro-prompt__btn.is-warning { color: var(--oui-warn); background: color-mix(in srgb, var(--oui-warn) 14%, transparent); }
+.macro-prompt__footer { margin-top: 16px; }
+.macro-prompt__footer > .macro-prompt__btn { flex: 1 1 0; }

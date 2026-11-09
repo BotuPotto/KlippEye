@@ -705,6 +705,13 @@ def gcode_script():
         S["mp_axis"] = next((w.split("=")[1] for w in words if w.upper().startswith("AXIS=")), "X")
         S["mp_points"] = 0
         S["mp"] = {"is_active": True, "z_position": 1.0, "z_position_lower": None, "z_position_upper": None}
+    elif cmd == "RESPOND":   # 1.71: as Klipper's [respond]: TYPE=command → "// msg", error → "!! msg", echo → "echo: msg"
+        import re as _re
+        m = _re.search(r'MSG="(.*)"\s*$', script, _re.I) or _re.search(r"MSG=(\S+)", script, _re.I)
+        t = _re.search(r"TYPE=\"?(\w+)", script, _re.I)
+        kind = (t.group(1).lower() if t else "echo")
+        msg = m.group(1) if m else ""
+        console_line({"command": "// ", "error": "!! "}.get(kind, "echo: ") + msg)
     elif cmd in ("PROBE_CALIBRATE", "Z_ENDSTOP_CALIBRATE", "MANUAL_PROBE"):
         S["mp_points"] = 99  # one height only: ACCEPT ends it
         S["mp"] = {"is_active": True, "z_position": 1.0, "z_position_lower": None, "z_position_upper": None}

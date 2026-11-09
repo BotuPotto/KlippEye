@@ -193,6 +193,7 @@ function App() {
     ),
     h(FileActionDialogs, { controller: fileActions, onPrint: setPrintJob }),
     h(BedToolsDialogs, { controller: bedTools }),
+    h(MacroPromptDialog, { entries: consoleFeed.entries }), // 1.71: windows opened by macros
     h(ZOffsetDialogs, { controller: zOffset }),
     h(SaveConfigDialog, { open: saveConfig.dialogOpen, onConfirm: saveConfig.confirm, onCancel: saveConfig.close }),
     h(CancelPrintDialog, { open: printControls.confirmingCancel, onConfirm: printControls.cancelPrint, onCancel: printControls.dismissCancel }),

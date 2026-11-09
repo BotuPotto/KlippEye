@@ -212,7 +212,7 @@ const isAddonSetupLine = (message) => /^_SET_TIMELAPSE_SETUP\b/i.test(message);
 
 /** The lines to show, in the order to show them. */
 function visibleConsoleEntries(entries, view, order = true) {
-  const shown = entries.filter((entry) => !isAddonSetupLine(String(entry.msg || "")) && (view.showTemps || !isTemperatureReport(String(entry.msg || ""))) && (entry.time ? entry.time > view.clearedAt : (entry.seq || 0) > view.clearedSeq));
+  const shown = entries.filter((entry) => !isAddonSetupLine(String(entry.msg || "")) && !isMacroPromptLine(entry.msg) && (view.showTemps || !isTemperatureReport(String(entry.msg || ""))) && (entry.time ? entry.time > view.clearedAt : (entry.seq || 0) > view.clearedSeq));
   return order && view.newestOnTop ? shown.reverse() : shown;
 }
 
