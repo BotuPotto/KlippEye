@@ -137,8 +137,8 @@
 .desk-print__stats .print-stat { min-width: 0; padding: 7px 12px; background: var(--oui-surface-2); border-radius: 14px; }
 .desk-print__stats .print-stat > * { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @media (max-width: 1379px) {
-  .desk-print__stats .print-stat { padding: 6px 10px; }
-  .desk-print__stats .print-stat__value { font-size: 16px; }
+  .desk-print__stats .print-stat { padding: 6px 8px; }
+  .desk-print__stats .print-stat__value { font-size: 15px; letter-spacing: -0.01em; }
 }
 @media (max-width: 1239px) {
   .desk-print__stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -240,7 +240,7 @@
 .desk-fact__value { margin-top: 2px; font-size: 17px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .desk-detail__print { min-height: 50px; font-size: 16px; }
 .desk-detail__actions { display: flex; flex-wrap: wrap; gap: 8px; }
-.desk-detail__actions > .oui-btn { flex: 1; min-width: 0; padding: 0 10px; }
+.desk-detail__actions > .oui-btn { flex: 1 0 auto; min-width: 0; padding: 0 12px; white-space: nowrap; } /* 1.70: they wrap, never overlap */
 
 /* ---- Config: the editor sits in the page instead of over it ---- */
 .desk-editor { display: flex; flex-direction: column; min-width: 0; min-height: 0; }

@@ -1,5 +1,19 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.70.2
+
+**Visual review** (phone 360 and 390 px, tablet, computers 1024 to 1920 px; idle and printing; every page).
+
+* Temperature chart: on a narrow chart every other clock time, so they no longer run into each other.
+* Files: «File di stampa» on one line on a small phone.
+* Computer, file panel: the buttons go on two lines instead of squeezing into each other («Dettagli» and «Programma»
+  touched).
+* Computer, print card: the six figures fit at 1280 px («6,3 mm³/s» was cut to «6,3 mm…»).
+* Computer, camera: with more than one camera the name is no longer shown twice (the label and the camera menu).
+* Tablet and phone, print card: a gap between «Vedi i layer» and Pausa / Annulla stampa.
+* A new automatic check (tests/ui/visual_test.py) keeps these fixed, and looks at every page at six sizes, idle and
+  printing, for anything off the screen or scrolling sideways.
+
 ## 1.70.1
 
 **The AI monitor looks at the parts too.**
