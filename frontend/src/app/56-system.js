@@ -359,9 +359,9 @@ function confirmationFor(kind, subject) {
   if (kind === "rollback") {
     return {
       mode: "confirm-rollback",
-      confirmText: "Rollback",
+      confirmText: tx("Go back"),
       view: {
-        title: "Rollback " + subject.key + "?",
+        title: tx("Go back to the previous version of {name}?", { name: subject.key }),
         sub: tx("Restore ") + subject.rollbackVersion.substring(0, 7),
         info: h(InfoBox, null, h(InfoValue, null, tx("Rollback to: ") + subject.rollbackVersion)),
       },
@@ -437,7 +437,7 @@ function useUpdateDialog() {
   const showDone = (info) => patch({ mode: "progress-done", info, cancel: null, confirm: { text: tx("Reload") } });
   const brainLost = () =>
     showFailure(
-      tx("The KlippEye service did not come back within two and a half minutes. In Mainsail open Updates and use Rollback on the klippeye entry (or restart the klippeye service); from the terminal: klippeye log."),
+      tx("The KlippEye service did not come back within two and a half minutes. On the Raspberry:  klippeye restart  (and  klippeye log  to see why)."),
     );
   function showFailure(message) {
     patch({ cancel: { text: tx("Close") }, confirm: null, info: h(ResultBox, { tone: "error", title: tx("Failed"), text: message }) });
@@ -508,7 +508,7 @@ function useUpdateDialog() {
     const verify = async () => {
       const entry = await readProgramEntry();
       if (!entry) return true; // Moonraker did not answer: the backend is back, which is what could be checked
-      return Number(entry.commits_behind_count) > 0 ? tx("The KlippEye service is back but the update does not look completed: Mainsail's Updates page tells why.") : true;
+      return Number(entry.commits_behind_count) > 0 ? tx("The KlippEye service is back but the update does not look completed: on the Raspberry,  klippeye log  tells why.") : true;
     };
     try {
       progress(20, tx("Connecting..."));
@@ -527,12 +527,12 @@ function useUpdateDialog() {
 
   const runRollback = async (name) => {
     const brain = name === PROGRAM_COMPONENT;
-    startProgress(brain ? tx("Previous release of KlippEye") : "Rollback " + name, tx("Restoring..."), "Rollback...");
-    log("Rollback " + name);
+    startProgress(brain ? tx("Previous release of KlippEye") : tx("Previous version of {name}", { name }), tx("Restoring..."), tx("Going back…"));
+    log(tx("Back to the previous version: {name}", { name }));
     const before = brain ? await readBrainVersion() : null;
     try {
       await rollbackComponent(name);
-      log("Rollback OK");
+      log(tx("Done") + " ✓");
       if (brain) return finishAfterBrainRestart(before, tx("Previous release restored"), async () => true);
       progress(100, tx("Finished"));
       showDone(null);
@@ -550,7 +550,7 @@ function useUpdateDialog() {
     const before = await readBrainVersion();
     const verify = async () => {
       const entry = await readProgramEntry();
-      return !entry || (entry.is_valid !== false && !entry.is_dirty && !entry.corrupt) ? true : tx("The KlippEye service is back but Moonraker still marks the program as not in order: try restoring it from Mainsail (Updates, klippeye entry).");
+      return !entry || (entry.is_valid !== false && !entry.is_dirty && !entry.corrupt) ? true : tx("The KlippEye service is back but Moonraker still marks the program as not in order: try «Restore the program files» again, or on the Raspberry run  klippeye update --force .");
     };
     const attempt = async (hard) => {
       try {
@@ -631,7 +631,7 @@ function UpdateDialog({ controller }) {
           h(
             "div",
             { className: "dialog-log-section" },
-            h("div", { className: "oui-label mb-2" }, "Log live"),
+            h("div", { className: "oui-label mb-2" }, tx("Live log")),
             h("div", { className: "dialog-log oui-well", ref: logRef }, dialog.log.map((line, index) => h("div", { key: index, className: "dialog-log-line" }, line))),
           ),
       ),
@@ -744,7 +744,7 @@ function UpdateRow({ component, onUpdate, onRollback }) {
         "div",
         { className: "update-row-actions" },
         component.hasUpdate && h("button", { className: "oui-btn oui-btn--sm oui-btn--primary", onClick: () => onUpdate(component) }, tx("Update")),
-        component.canRollback && h("button", { className: "oui-btn oui-btn--sm", onClick: () => onRollback(component) }, "Rollback"),
+        component.canRollback && h("button", { className: "oui-btn oui-btn--sm", onClick: () => onRollback(component) }, tx("Go back")),
       ),
   );
 }
@@ -756,7 +756,7 @@ function UpdatesCard({ data, controller, onCheck }) {
     SystemCard,
     {
       label: tx("Updates"),
-      sublabel: (availableCount ? tx("{count} available", { count: availableCount }) : tx("All up to date")) + (busy ? " • busy" : ""),
+      sublabel: (availableCount ? tx("{count} available", { count: availableCount }) : tx("All up to date")) + (busy ? " • " + tx("busy") : ""),
       actions: h(
         "div",
         { className: "sys-actions" },

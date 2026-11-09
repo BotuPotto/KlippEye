@@ -79,7 +79,7 @@ with sync_playwright() as p:
     pg.locator("[data-printer-add]").click(); P.settle(900)
     ok("a second one with a port and a name of mine (nobody answers there: added anyway)", wait_until(lambda: [x["host"] for x in stored().get("printers", [])] == ["192.168.1.60", "192.168.1.61:9000"]))
     ok("... the list shows each one with its state", wait_until(lambda: "Non raggiungibile" in pg.locator('[data-printer="192.168.1.61:9000"]').inner_text() and "Stampa in corso · 30%" in pg.locator('[data-printer="192.168.1.60"]').inner_text()), pg.locator("[data-printers-list]").inner_text())
-    pg.locator('[data-printer="192.168.1.61:9000"]').get_by_role("button", name="Sposta in su").click(); P.settle(600)
+    pg.locator('[data-printer="192.168.1.61:9000"]').get_by_role("button", name="Sposta su").click(); P.settle(600)
     ok("moving one up changes the order", wait_until(lambda: [e.get_attribute("data-printer") for e in pg.locator("[data-printer]").all()] == ["192.168.1.61:9000", "192.168.1.60"]))
     P.shot_vp(out + "/settings.png")  # (a tall screenshot opens more camera streams than the browser's connections: after the saves)
     pg.click('.drawer button[aria-label="Chiudi"]'); P.settle(500)

@@ -143,9 +143,9 @@ function setupSteps(menuTo, printing) {
     { id: "printer", title: tx("Name and logo"), page: "printer", intro: tx("How the printer is called in the top bar and in the browser tab."), body: () => h(PrinterPage) },
     {
       id: "camera",
-      title: "Camera",
+      title: tx("Camera"),
       page: "camera",
-      intro: tx("If the camera works in Mainsail, «Import from Mainsail» at the bottom is the quickest way. The preview shows at once whether it is right."),
+      intro: tx("If the camera is already set up on the printer, «Import from the printer» at the bottom is the quickest way. The preview shows at once whether it is right."),
       body: () => h(React.Fragment, null, h(SetupCameraPreview), h(CameraPage)),
     },
     { id: "network", title: tx("Addresses"), page: "network", intro: tx("Only if you open KlippEye from outside your home with ZeroTier, Tailscale or another VPN. Otherwise leave them empty and go on."), body: () => h(NetworkPage) },

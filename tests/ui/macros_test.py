@@ -98,14 +98,14 @@ with sync_playwright() as p:
     pg.wait_for_selector(".sheet-overlay--params")
     pg.locator(".sheet-overlay--params .params-run").click()
     ok("the ⚙ of a macro with parameters: the form, then PARK_TEST X=100 Y=50", wait_until(lambda: "PARK_TEST X=100 Y=50" in gcodes()), gcodes()[-3:])
-    pg.locator('[data-macro-card="calib"] button[aria-label="Gestisci macro"]').click()
+    pg.locator('[data-macro-card="calib"] button[aria-label="Gestisci le macro"]').click()
     ok("the gear of a card opens Settings → Macros", wait_until(lambda: drawer(P).count() == 1 and "Come vengono mostrate le macro".lower() in drawer(P).inner_text().lower()))
     P.settle(400)
     pg.screenshot(path=out + "/settings_groups.png")
 
     # ---- the group editor
     ed = pg.locator('.macro-group-edit[data-group-id="calib"]')
-    ed.locator('[data-macro="SHAPER_CALIBRATE"] button[aria-label="Sposta in su"]').click()
+    ed.locator('[data-macro="SHAPER_CALIBRATE"] button[aria-label="Sposta su"]').click()
     ok("moving a macro up changes the order", wait_until(lambda: stored()["groups"][0]["macros"] == ["SHAPER_CALIBRATE", "PARK_TEST"]), stored())
     pg.get_by_role("button", name="Nuovo gruppo", exact=True).click()
     ok("'Nuovo gruppo' adds a group", wait_until(lambda: len(stored()["groups"]) == 2), stored())
@@ -115,7 +115,7 @@ with sync_playwright() as p:
     name.press("Enter")
     new.get_by_role("radio", name="Verde").click()
     new.locator('button[data-state="standby"]').click()
-    new.get_by_role("button", name="Aggiungi o togli macro").click()
+    new.get_by_role("button", name="Aggiungi o rimuovi macro").click()
     pg.wait_for_selector(".sheet-overlay--picker")
     P.settle(300)
     pg.locator(".sheet-overlay--picker .picker-row:has-text('CLEAN_NOZZLE')").first.click()
@@ -154,7 +154,7 @@ with sync_playwright() as p:
     ok("... in its colour", "macro-card--ok" in P.pg.locator('[data-macro-card="fil"]').get_attribute("class"))
     ok("... a macro Klipper does not have is left out", wait_until(lambda: card_buttons(P, "fil") == ["Clean nozzle"]), card_buttons(P, "fil"))
     P.pg.locator('[data-macro-card="fil"]').screenshot(path=out + "/card_green.png")
-    P.pg.locator('[data-macro-card="fil"] button[aria-label="Gestisci macro"]').click()
+    P.pg.locator('[data-macro-card="fil"] button[aria-label="Gestisci le macro"]').click()
     P.pg.wait_for_selector(".drawer")
     P.settle(400)
     ok("the editor says which macro Klipper does not have", "Klipper non ce l'ha" in P.pg.locator('.macro-group-edit[data-group-id="fil"] [data-macro="NOT_THERE"]').inner_text())
@@ -162,7 +162,7 @@ with sync_playwright() as p:
     P.pg.wait_for_selector(".confirm-card")
     P.pg.locator(".confirm-card").get_by_role("button", name="Elimina", exact=True).click()
     ok("deleting a group (after the question)", wait_until(lambda: [g["id"] for g in stored()["groups"]] == ["fil"]), stored())
-    P.pg.locator('.macro-group-edit[data-group-id="fil"] [data-macro="NOT_THERE"] button[aria-label="Togli"]').click()
+    P.pg.locator('.macro-group-edit[data-group-id="fil"] [data-macro="NOT_THERE"] button[aria-label="Rimuovi"]').click()
     ok("removing a macro from a group", wait_until(lambda: stored()["groups"][0]["macros"] == ["CLEAN_NOZZLE"]))
 
     # ---- "All the macros"

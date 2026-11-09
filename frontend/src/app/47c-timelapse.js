@@ -483,7 +483,7 @@ function TimelapseMissingContent() {
   return h(
     "div",
     { className: "timelapse-missing__body" },
-    h("p", { className: "timelapse-missing__intro" }, tx("To record a video of every print, Moonraker needs moonraker-timelapse: a free add-on by the Mainsail team. Once it is installed, the videos and their settings appear here.")),
+    h("p", { className: "timelapse-missing__intro" }, tx("To record a video of every print, Moonraker needs moonraker-timelapse: a free add-on for Moonraker. Once it is installed, the videos and their settings appear here.")),
     h(
       "ol",
       { className: "timelapse-steps" },

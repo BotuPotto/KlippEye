@@ -10,13 +10,13 @@ def ok(name, cond, extra=""):
 
 # the Italian texts the notifications were asked with (release 1.0): they stay the Italian ones
 ITALIAN_TEXTS = {
-    "error": "Stampante in errore! Effettuare riavvio.",
+    "error": "Stampante in errore! Riavviala.",
     "complete": "Stampa completata!",
-    "cancelled": "Stampa interrotta!",
+    "cancelled": "Stampa annullata!",
     "paused": "Stampante in pausa!",
-    "runout": "Filamento esaurito, effettuare cambio bobina!",
-    "ai_pause": "Difetti di stampa rilevati, verificare e mettere in pausa la stampa!",
-    "ai_cancel": "Difetti gravi di stampa rilevati, verificare e interrompere la stampa",
+    "runout": "Filamento esaurito: cambia la bobina!",
+    "ai_pause": "Difetti di stampa rilevati: controlla e metti in pausa la stampa!",
+    "ai_cancel": "Difetti gravi rilevati: controlla e annulla la stampa",
 }
 USER_TEXTS = vn.MESSAGES["en"]  # with no language chosen the notifications are in English
 RUNOUT = "echo: O2S: Printer paused due to filament runout!"

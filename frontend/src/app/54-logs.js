@@ -24,7 +24,7 @@ const logsApi = {
   },
   async content(name) {
     const json = await fetchJson("/api/logs/content?file=" + encodeURIComponent(name) + "&lines=3000");
-    if (!json.content) throw new Error(json.error || "no content");
+    if (!json.content) throw new Error(json.error || tx("no content"));
     return json.content;
   },
   /** Analyses one log (`name`) or all of them; resolves to { ok, json }. */
@@ -195,7 +195,7 @@ function LogRow({ file, onAnalyze, onOpen }) {
     h(
       "div",
       { className: "log-row__actions" },
-      h("button", { title: tx("Analyse only this one"), onClick: () => onAnalyze(file.name), className: "oui-btn oui-btn--sm log-row__ai" }, "AI"),
+      h("button", { title: tx("Analyse only this one"), onClick: () => onAnalyze(file.name), className: "oui-btn oui-btn--sm log-row__ai" }, tx("AI")), // «IA» in Italian (the header badge stays «AI»)
       h("button", { onClick: () => onOpen(file.name), className: "oui-btn oui-btn--sm" }, txc("verb", "Open")),
       h("button", { title: "Download", "aria-label": "Download", onClick: () => logsApi.download(file.name), className: "oui-btn oui-btn--sm oui-btn--icon" }, h(Icons.Download, { size: 18 })),
     ),

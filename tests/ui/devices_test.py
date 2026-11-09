@@ -71,7 +71,7 @@ with sync_playwright() as p:
     ok("... the printer says it is locked while printing", "Bloccato durante la stampa" in card.locator('[data-power="printer"]').inner_text())
     ok("outputs: caselight (PWM, a slider), beeper and relay (switches), not _secret",
        card.locator('[data-pin="caselight"] input[type=range]').count() == 1 and card.locator('[data-pin="beeper"] [role=switch]').count() == 1 and card.locator('[data-pin="relay"] [role=switch]').count() == 1 and card.locator('[data-pin="_secret"]').count() == 0)
-    ok("filament sensors: runout has filament, the encoder is empty", "Filamento presente" in card.locator('[data-sensor="runout"]').inner_text() and "Niente filamento" in card.locator('[data-sensor="encoder"]').inner_text())
+    ok("filament sensors: runout has filament, the encoder is empty", "Filamento presente" in card.locator('[data-sensor="runout"]').inner_text() and "Filamento assente" in card.locator('[data-sensor="encoder"]').inner_text())
     pg.screenshot(path=out + "/card.png", full_page=True)
     card.locator('[data-power="led_strip"] [role=switch]').click()
     ok("switching a power device on: POST action=on", wait_until(lambda: "led_strip:on" in state()["power_log"]))

@@ -343,7 +343,7 @@ async function restartForFile(target) {
   }
   const status = await moonraker.queryObjects("print_stats=state&configfile=save_config_pending", { timeout: 4000 }).catch(() => ({}));
   const state = (status.print_stats || {}).state;
-  if ((state === "printing" || state === "paused") && !window.confirm(tx("A print is running and it will fail!") + " " + tx("Restart Klipper anyway?"))) throw new Error("cancelled");
+  if ((state === "printing" || state === "paused") && !window.confirm(tx("A print is running: it will fail!") + " " + tx("Restart Klipper anyway?"))) throw new Error("cancelled");
   if ((status.configfile || {}).save_config_pending) return sendSaveConfig();
   const response = await moonraker.firmwareRestart();
   if (!response.ok) throw new Error("HTTP " + response.status);

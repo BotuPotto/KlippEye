@@ -294,7 +294,7 @@ function SoftwarePage({ active, menu, updates, printing, actions }) {
         h("span", { className: "set-status__dot" }),
         version.state === "old"
           ? h("span", null, tx("The KlippEye service on the Raspberry is older than 1.0: it cannot update itself from the dashboard. Install KlippEye 1.0 once with"), " ", h("code", null, INSTALL_COMMAND), " (", tx("guide:"), " ", h("code", null, tx("docs/GUIDE.md")), ").")
-          : tx("The KlippEye service does not answer: if the printer works, restart it from Mainsail (Services → klippeye)."),
+          : tx("The KlippEye service does not answer: on the Raspberry run  klippeye restart ."),
       ),
       h(InfoLine, { label: tx("Dashboard (this page)"), value: dashboardRelease() }),
     );
@@ -313,7 +313,7 @@ function SoftwarePage({ active, menu, updates, printing, actions }) {
       h(
         "div",
         { className: "oui-list set-info-list" },
-        h(InfoLine, { label: "Release", value: info.release }),
+        h(InfoLine, { label: tx("Version"), value: info.release }),
         h(InfoLine, { label: tx("Dashboard (this page)"), value: dashboardRelease(), warn: differs }),
         git && h(InfoLine, { label: tx("Code version"), value: git.commit + (git.branch ? " • " + git.branch : "") }),
         h(InfoLine, { label: tx("Service up for"), value: formatUptime(info.uptime) }),
@@ -395,5 +395,5 @@ function softwareSummary(version, update, appWaiting) {
   if (version.state === "down") return tx("KlippEye service not reachable");
   if (version.state !== "ok") return tx("Release and updates");
   const waiting = update.phase === "ok" && Number(update.raw.commits_behind_count) > 0;
-  return "Release " + version.info.release + (waiting ? tx(" • update available") : appWaiting ? tx(" • app to update") : "");
+  return tx("Version") + " " + version.info.release + (waiting ? tx(" • update available") : appWaiting ? tx(" • app to update") : "");
 }

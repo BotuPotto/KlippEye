@@ -29,7 +29,7 @@ function CameraPanel() {
     "div",
     { className: "desk-camera", style: { "--desk-cam-ratio": shape.toFixed(4) } },
     !full && h(CameraMedia, { className: "desk-camera__video", reloads }),
-    h("span", { className: "desk-camera__tag" }, h("span", { className: "oui-dot desk-camera__live" }), "Camera"),
+    h("span", { className: "desk-camera__tag" }, h("span", { className: "oui-dot desk-camera__live" }), tx("Camera")),
     h(CameraPicker, { className: "desk-camera__picker" }),
     h("div", { className: "desk-camera__light" }, light.available && h(LightButton, light), h(CameraFullscreenButton, { onOpen: () => setFull(true), className: "desk-camera__full" })),
     h(Presence, null, full && h(CameraFullscreen, { onClose: () => setFull(false) })),

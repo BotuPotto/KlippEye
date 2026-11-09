@@ -82,7 +82,7 @@ with sync_playwright() as p:
     bn = banner(P)
     ok("[shutdown] panel shown with the orange tone and Mainsail's title", bn and bn["tone"] == "warn" and bn["title"] == "Klipper segnala: SHUTDOWN" and not bn["loading"], bn)
     ok("[shutdown] Klipper's own message, line breaks included", bn and bn["message"] == SHUT_MSG, bn and bn["message"])
-    ok("[shutdown] restart and log buttons", bn and bn["buttons"] == ["Firmware restart", "Klipper restart", "Log Klipper", "Log Moonraker"], bn and bn["buttons"])
+    ok("[shutdown] restart and log buttons", bn and bn["buttons"] == ["Riavvia firmware", "Riavvia Klipper", "Log di Klipper", "Log di Moonraker"], bn and bn["buttons"])
     ok("[shutdown] announced as an alert", bn and bn["role"] == "alert")
     P.shot_vp(f"{out}/shutdown_phone.png"); P.close()
     P = fresh(webhooks="error", webhooks_msg=CFG_ERR)
@@ -96,7 +96,7 @@ with sync_playwright() as p:
 
     # ------------------------------------------------------------ 3. Firmware restart that works: ring, then the page reloads
     P = fresh(webhooks="shutdown", webhooks_msg=SHUT_MSG)
-    click(P, "Firmware restart"); P.pg.wait_for_timeout(300)
+    click(P, "Riavvia firmware"); P.pg.wait_for_timeout(300)
     bn = banner(P)
     ok("[restart ok] the ring appears at once", bn and bn["loading"] and bn["title"] == "Riavvio del firmware...", bn)
     ok("[restart ok] the old message is gone while it restarts", bn and bn["message"] is None, bn)
@@ -110,12 +110,12 @@ with sync_playwright() as p:
 
     # ------------------------------------------------------------ 4. Klipper restart that fails: the panel comes back with the NEW error
     P = fresh(webhooks="shutdown", webhooks_msg=SHUT_MSG, restart_result="error", restart_result_msg=CFG_ERR)
-    click(P, "Klipper restart"); P.pg.wait_for_timeout(300)
+    click(P, "Riavvia Klipper"); P.pg.wait_for_timeout(300)
     ok("[restart fails] ring while restarting", (banner(P) or {}).get("loading") is True, banner(P))
     t = wait_for(P, lambda: (banner(P) or {}).get("tone") == "error" and not (banner(P) or {}).get("loading"), 20)
     bn = banner(P)
     ok("[restart fails] the panel is back, red, with the new error", t is not None and bn["message"] == CFG_ERR and bn["title"] == "Klipper segnala: ERROR", bn)
-    ok("[restart fails] with the restart buttons again", bn and "Firmware restart" in bn["buttons"], bn and bn["buttons"])
+    ok("[restart fails] with the restart buttons again", bn and "Riavvia firmware" in bn["buttons"], bn and bn["buttons"])
     P.pg.wait_for_timeout(250)
     seen = samples(P)
     after_click = [s for s in seen[seen.index(next(s for s in seen if s and s[1])) :]] if any(s and s[1] for s in seen) else []
@@ -127,12 +127,12 @@ with sync_playwright() as p:
 
     # ------------------------------------------------------------ 5. the endpoint refuses: G-code is the fallback; if that fails too, it says so
     P = fresh(webhooks="shutdown", webhooks_msg=SHUT_MSG, restart_refuse=500)
-    click(P, "Firmware restart")
+    click(P, "Riavvia firmware")
     t = wait_for(P, lambda: reloaded(P), 20)
     ok("[endpoint refuses] the G-code fallback restarts it anyway", t is not None and ("gcode:FIRMWARE_RESTART", "") in actions(), (t, actions()))
     P.close()
     P = fresh(webhooks="shutdown", webhooks_msg=SHUT_MSG, restart_refuse=500, gcode_refuse=True)
-    click(P, "Firmware restart"); P.pg.wait_for_timeout(1500)
+    click(P, "Riavvia firmware"); P.pg.wait_for_timeout(1500)
     bn = banner(P)
     ok("[all refused] no ring, the old panel stays", bn and not bn["loading"] and bn["message"] == SHUT_MSG, bn)
     ok("[all refused] it says why", "Riavvio non riuscito" in " ".join(P.pg.locator(".toast").all_inner_texts()), P.pg.locator(".toast").all_inner_texts())
@@ -144,7 +144,7 @@ with sync_playwright() as p:
     ok("[disconnected] right after: ring + title 'Moonraker segnala: DISCONNECTED'", bn and bn["loading"] and bn["title"] == "Moonraker segnala: DISCONNECTED" and bn["tone"] == "neutral", bn)
     t = wait_for(P, lambda: not (banner(P) or {"loading": True})["loading"], 40)
     bn = banner(P)
-    ok("[disconnected] after a while the explanation and the way out", t is not None and "klippy_uds_address" in (bn["text"] or "") and bn["buttons"] == ["Riavvia il servizio Klipper", "Log Moonraker"], (t, bn))
+    ok("[disconnected] after a while the explanation and the way out", t is not None and "klippy_uds_address" in (bn["text"] or "") and bn["buttons"] == ["Riavvia il servizio Klipper", "Log di Moonraker"], (t, bn))
     P.shot_vp(f"{out}/disconnected_phone.png")
     click(P, "Riavvia il servizio Klipper"); P.pg.wait_for_timeout(300)
     ok("[disconnected] restart of the service shows the ring", (banner(P) or {}).get("loading") is True and "servizio Klipper" in banner(P)["title"], banner(P))
@@ -153,7 +153,7 @@ with sync_playwright() as p:
 
     # ------------------------------------------------------------ 7. emergency stop, console line, Moonraker away
     P = fresh()
-    P.pg.locator("button[aria-label='Emergency stop']").click()
+    P.pg.locator("button[aria-label='Arresto di emergenza']").click()
     t = wait_for(P, lambda: banner(P) is not None, 5)
     bn = banner(P)
     ok("[emergency stop] the panel appears within 2 s with Klipper's own message", t is not None and t <= 2 and bn and "M112" in (bn["message"] or ""), (t, bn))
@@ -170,7 +170,7 @@ with sync_playwright() as p:
 
     # ------------------------------------------------------------ 8. SAVE_CONFIG restarts Klipper: ring, no reload, capabilities read again
     P = fresh()
-    P.pg.locator("button[aria-label='Save config']").click(); P.pg.wait_for_timeout(500)
+    P.pg.locator("button[aria-label='Salva configurazione']").click(); P.pg.wait_for_timeout(500)
     P.pg.get_by_role("button", name="Salva", exact=True).click(); P.pg.wait_for_timeout(300)
     bn = banner(P)
     ok("[SAVE_CONFIG] ring at once", bn and bn["loading"] and bn["title"].startswith("Salvataggio e riavvio"), bn)
@@ -216,13 +216,13 @@ with sync_playwright() as p:
     # a print is running: asked first
     P = fresh(printing=True)
     P.pg.locator("button[aria-label='Alimentazione e servizi']").click(); P.pg.wait_for_timeout(600)
-    click(P, "Klipper restart", exact=False); P.pg.wait_for_timeout(500)
-    ok("[menu, printing] asks first and says the print will fail", P.pg.locator(".confirm-card").count() == 1 and "fallirà" in P.pg.locator(".confirm-card").inner_text(), P.pg.locator(".confirm-card").all_inner_texts())
+    click(P, "Riavvia Klipper", exact=False); P.pg.wait_for_timeout(500)
+    ok("[menu, printing] asks first and says the print will fail", P.pg.locator(".confirm-card").count() == 1 and "andrà persa" in P.pg.locator(".confirm-card").inner_text(), P.pg.locator(".confirm-card").all_inner_texts())
     P.pg.screenshot(path=f"{out}/confirm_printing_phone.png")
     click(P, "Annulla"); P.pg.wait_for_timeout(500)
     ok("[menu, printing] cancel: nothing sent", [a for a in actions() if a[0].startswith("printer/")] == [])
     P.pg.locator("button[aria-label='Alimentazione e servizi']").click(); P.pg.wait_for_timeout(600)
-    click(P, "Klipper restart", exact=False); P.pg.wait_for_timeout(500)
+    click(P, "Riavvia Klipper", exact=False); P.pg.wait_for_timeout(500)
     P.pg.locator(".confirm-card").get_by_role("button", name="Riavvia", exact=True).click(); P.pg.wait_for_timeout(500)
     ok("[menu, printing] confirmed: restart goes out, ring shows", ("printer/restart", "") in actions() and (banner(P) or {}).get("loading") is True, (actions(), banner(P)))
     P.close()
@@ -265,9 +265,9 @@ with sync_playwright() as p:
 
     # a restart in progress: its entries are greyed out
     P = fresh(webhooks="shutdown", webhooks_msg=SHUT_MSG)
-    click(P, "Klipper restart"); P.pg.wait_for_timeout(400)
+    click(P, "Riavvia Klipper"); P.pg.wait_for_timeout(400)
     P.pg.locator("button[aria-label='Alimentazione e servizi']").click(); P.pg.wait_for_timeout(600)
-    ok("[menu, restarting] Klipper entries disabled", P.pg.get_by_role("button", name="Klipper restart", exact=False).first.is_disabled())
+    ok("[menu, restarting] Klipper entries disabled", P.pg.get_by_role("button", name="Riavvia Klipper", exact=False).first.is_disabled())
     P.close()
 
     # ------------------------------------------------------------ 10. layouts

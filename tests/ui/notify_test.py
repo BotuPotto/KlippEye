@@ -104,7 +104,7 @@ with sync_playwright() as p:
     temp.get_by_role("button", name="Ugello").click()
     ok("a temperature: the nozzle", wait_until(lambda: stored()["rules"][2]["value"] == "extruder"), stored()["rules"])
     pg.screenshot(path=out + "/rules.png", full_page=True)
-    temp.locator('button[aria-label^="Togli"]').click()
+    temp.locator('button[aria-label^="Rimuovi"]').click()
     ok("removing one", wait_until(lambda: [r["kind"] for r in stored()["rules"]] == ["progress", "line"]))
     ok("the placeholders are listed", "{remaining}" in pg.locator(".notify-placeholders").inner_text())
     ok("no horizontal overflow in the menu", pg.evaluate("() => { const b = document.querySelector('.drawer__body'); return b.scrollWidth <= b.clientWidth; }"))

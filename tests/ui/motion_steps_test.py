@@ -91,12 +91,12 @@ with sync_playwright() as p:
     # --- Settings → Motion
     open_motion(P)
     body = pg.locator(".drawer__body").inner_text()
-    ok("Settings → Motion: what Z moves (automatic: the toolhead, from Klipper) and the steps", "Dalla configurazione di Klipper: la testina." in body and "passi del cerchio x / y" in body.lower() and "passi dei tasti z" in body.lower(), body[:700])
+    ok("Settings → Motion: what Z moves (automatic: the toolhead, from Klipper) and the steps", "Dalla configurazione di Klipper: la testina." in body and "passi del cerchio x / y" in body.lower() and "passi dei pulsanti z" in body.lower(), body[:700])
     pg.locator(".set-choice", has_text="Il piatto").click()
     P.settle(400)
     pg.locator(".set-group", has_text="Passi del cerchio X / Y").locator(".set-switch", has_text="± 50 mm").click()
     pg.locator(".set-group", has_text="Passi del cerchio X / Y").locator(".set-switch", has_text="± 100 mm").click()
-    pg.locator(".set-group", has_text="Passi dei tasti Z").locator(".set-switch", has_text="± 50 mm").click()
+    pg.locator(".set-group", has_text="Passi dei pulsanti Z").locator(".set-switch", has_text="± 50 mm").click()
     P.settle(400)
     ok("... 1 and 10 mm are always on (not switchable)", pg.locator(".set-group", has_text="Passi del cerchio X / Y").locator(".set-switch", has_text="± 1 mm").first.is_disabled())
     entry_line = None

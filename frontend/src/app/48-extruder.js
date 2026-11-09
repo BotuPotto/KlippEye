@@ -6,10 +6,10 @@
 
 /** The one-tap buttons: what each one runs comes from Settings → Printer functions (16a-printer-functions.js). */
 const EXTRUDER_MACROS = [
-  { id: "park", label: "Park" },
-  { id: "wipe", label: "Wipe" },
-  { id: "load", label: "Filament load" },
-  { id: "unload", label: "Filament unload" },
+  { id: "park", label: tx("Park") },
+  { id: "wipe", label: tx("Wipe") },
+  { id: "load", label: tx("Load filament") },
+  { id: "unload", label: tx("Unload filament") },
 ];
 const EXTRUDE_LENGTH_PRESETS_MM = [50, 25, 10, 5, 1];
 const EXTRUDE_SPEED_PRESETS_MM_S = [10, 5, 2, 1];
@@ -88,8 +88,8 @@ function ExtruderCard({ hotend, onGcode, onEditTemperature }) {
     h(
       "div",
       { className: "oui-btn-row mt-4" },
-      h("button", { onClick: () => moveFilament(-1), className: "oui-btn" }, h("span", null, "↑"), " Retract"),
-      h("button", { onClick: () => moveFilament(1), className: "oui-btn" }, h("span", null, "↓"), " Extrude"),
+      h("button", { onClick: () => moveFilament(-1), className: "oui-btn" }, h("span", null, "↑"), " " + tx("Retract")),
+      h("button", { onClick: () => moveFilament(1), className: "oui-btn" }, h("span", null, "↓"), " " + tx("Extrude")),
     ),
   );
 }

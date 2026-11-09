@@ -51,11 +51,11 @@ with sync_playwright() as p:
     CUR[0] = P
     P.goto("home", 2400)
     pg = P.pg
-    ok("two cameras (the settings' and Mainsail's 'Piatto'; its own copy and the go2rtc one left out): a menu on the card", wait_until(lambda: pg.locator(".camera-picker").count() == 1) and pg.locator(".camera-picker").get_attribute("data-camera-now") == "main" and "Camera" in pg.locator(".camera-picker").get_attribute("aria-label"))
+    ok("two cameras (the settings' and Mainsail's 'Piatto'; its own copy and the go2rtc one left out): a menu on the card", wait_until(lambda: pg.locator(".camera-picker").count() == 1) and pg.locator(".camera-picker").get_attribute("data-camera-now") == "main" and "Telecamera" in pg.locator(".camera-picker").get_attribute("aria-label"))
     ok("the settings' camera shows first (WebRTC page)", media(P)[0] == "IFRAME" and media(P)[1].endswith("/webcam/webrtc"), media(P))
     pg.locator(".camera-picker").click()
     pg.wait_for_selector(".oui-menu")
-    ok("the menu: Camera and Piatto", [e.get_attribute("data-camera") for e in pg.locator(".oui-menu [data-camera]").all()] == ["main", "w:Piatto"])
+    ok("the menu: Telecamera and Piatto", [e.get_attribute("data-camera") for e in pg.locator(".oui-menu [data-camera]").all()] == ["main", "w:Piatto"])
     pg.screenshot(path=out + "/menu.png")
     pg.locator('.oui-menu [data-camera="w:Piatto"]').click()
     ok("Piatto: its MJPEG stream, flipped as Mainsail says", wait_until(lambda: media(P) and media(P)[0] == "IMG" and "/webcam2/?action=stream" in media(P)[1]) and "scaleX(-1)" in (pg.locator(".camera-frame__video").get_attribute("style") or ""), media(P))

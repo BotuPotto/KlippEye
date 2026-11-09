@@ -103,7 +103,7 @@ function PrintAnalysis({ text, progress, detector }) {
         badge: realStarted ? h(ConfidenceBadge, { value: emptyBed.confidence }) : h("span", { className: "oui-badge" }, tx("Ignored")),
         note: !realStarted && tx("Heating/mesh in progress (") + realReason + tx("), an empty bed is normal - empty-bed check paused"),
       }),
-      h(CheckTile, { title: "Layer shift", detected: layerShift.detected, badge: h(ConfidenceBadge, { value: layerShift.confidence }) }),
+      h(CheckTile, { title: tx("Layer shift"), detected: layerShift.detected, badge: h(ConfidenceBadge, { value: layerShift.confidence }) }),
       h(CheckTile, { title: "Warping", detected: warping.detected, badge: warping.confidence ? h(ConfidenceBadge, { value: warping.confidence }) : null }),
     ),
   );

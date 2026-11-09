@@ -524,7 +524,7 @@ function CameraStream({ className, url, style }) {
   return h(
     React.Fragment,
     null,
-    h("img", { key: attempt, className: cx(className, "camera-img"), src: url, alt: "Camera", style, onLoad: () => setFailed(false), onError: () => setFailed(true) }),
+    h("img", { key: attempt, className: cx(className, "camera-img"), src: url, alt: tx("Camera"), style, onLoad: () => setFailed(false), onError: () => setFailed(true) }),
     failed && h(CameraNote),
   );
 }
@@ -582,7 +582,7 @@ function CameraSnapshots({ className, url, fps, style }) {
   return h(
     React.Fragment,
     null,
-    h("div", { className: cx(className, "camera-snaps") }, [0, 1].map((index) => h("img", { key: index, ref: images[index], className: cx("camera-snaps__img", front === index && "is-front"), alt: index === front ? "Camera" : "", style }))),
+    h("div", { className: cx(className, "camera-snaps") }, [0, 1].map((index) => h("img", { key: index, ref: images[index], className: cx("camera-snaps__img", front === index && "is-front"), alt: index === front ? tx("Camera") : "", style }))),
     failed && h(CameraNote),
   );
 }
@@ -695,7 +695,7 @@ function CameraFullscreen({ onClose }) {
 
   return h(
     "div",
-    { ref: box, className: "camera-full", role: "dialog", "aria-label": "Camera", "data-rotated": rotated ? "true" : "false", onClick: showControls, onPointerMove: (event) => event.pointerType === "mouse" && showControls() },
+    { ref: box, className: "camera-full", role: "dialog", "aria-label": tx("Camera"), "data-rotated": rotated ? "true" : "false", onClick: showControls, onPointerMove: (event) => event.pointerType === "mouse" && showControls() },
     h(
       "div",
       { className: cx("camera-full__stage", rotated && "is-rotated"), style: stage },
@@ -728,7 +728,7 @@ function CameraCard() {
     h(
       Card,
       { cardId: "camera" },
-      h(CardHeader, { title: "Camera" }, h("div", { className: "camera-head-actions" }, h(CameraPicker), light.available && h(LightButton, light), h(CameraFullscreenButton, { onOpen: () => setFull(true) }))),
+      h(CardHeader, { title: tx("Camera") }, h("div", { className: "camera-head-actions" }, h(CameraPicker), light.available && h(LightButton, light), h(CameraFullscreenButton, { onOpen: () => setFull(true) }))),
       h("div", { className: "camera-frame" }, !full && h(CameraMedia, { className: "camera-frame__video", reloads })),
     ),
     h(Presence, null, full && h(CameraFullscreen, { onClose: () => setFull(false) })),
