@@ -10,6 +10,10 @@ never looked at, so a failure on the part itself (spaghetti, a part torn off) co
     are the print itself and do not count;
 and a change that stays OUTSIDE the expected zone but inside the watched area (plastic where no part should be) is what the
 monitor counts. The toolhead and the gantry are left out as before (machine_masks.py).
+1.70: the part itself is no longer a blind spot. What is already printed (the objects' own outlines, without the margin,
+from the bed up to SETTLED_BELOW_MM under the height being printed now) does not change any more: the background is the
+picture of the last minute, so a change that stays there (a string, spaghetti hanging in front of the part, the part
+moving) counts like plastic outside the parts. Only the slice being printed now (with the margin) is left out.
 
 Where the outlines of the objects come from:
   1. Klipper's exclude_object (when the slicer labels the objects: PrusaSlicer, SuperSlicer, OrcaSlicer "Label objects",
@@ -28,6 +32,7 @@ ZONE_MARGIN_MM = 6.0       # around the objects (the part may be a little wider 
 ZONE_ABOVE_MM = 4.0        # above the height being printed
 WATCH_ABOVE_MM = 40.0      # the watched volume goes up to this much above the nozzle (spaghetti hanging from it)
 GRID_MM = 5.0
+SETTLED_BELOW_MM = 2.0     # 1.70: the part below the height being printed minus this is settled (it does not change any more)
 FIRST_LAYER_MM = 0.6       # what is printed below this height (first layer) may be skirt or purge
 
 
@@ -132,22 +137,32 @@ def outlines(calibration, objects, z, bed_min, bed_max):
             piece = prism_outline(calibration, [[xs[i], ys[j]], [xs[i + 1], ys[j]], [xs[i + 1], ys[j + 1]], [xs[i], ys[j + 1]]], bed, nozzle + WATCH_ABOVE_MM)
             if piece:
                 watched.append(piece)
-    expected = []
+    expected, settled, growing = [], [], []
     for item in objects or []:
-        piece = prism_outline(calibration, grow(item["polygon"], ZONE_MARGIN_MM), bed, nozzle + ZONE_ABOVE_MM)
+        wide = grow(item["polygon"], ZONE_MARGIN_MM)
+        piece = prism_outline(calibration, wide, bed, nozzle + ZONE_ABOVE_MM)
         if piece:
             expected.append(piece)
-    return {"watched": watched, "expected": expected}
+        if nozzle - SETTLED_BELOW_MM > bed:
+            done = prism_outline(calibration, item["polygon"], bed, nozzle - SETTLED_BELOW_MM)
+            slice_now = prism_outline(calibration, wide, nozzle - SETTLED_BELOW_MM, nozzle + ZONE_ABOVE_MM)
+            if done:
+                settled.append(done)
+            if slice_now:
+                growing.append(slice_now)
+    return {"watched": watched, "expected": expected, "settled": settled, "growing": growing}
 
 
 def masks(cv2, np, calibration, objects, z, bed_min, bed_max, width, height):
-    """The two pictures (uint8, 255 = in) of outlines(): (watched, expected), at `width` x `height`."""
+    """The pictures (uint8, 255 = in) of outlines() at `width` x `height`: (watched, expected, settled). `settled` (1.70) is
+    the part already printed as the camera sees it, without the slice being printed now: watched like the rest of the bed."""
     parts = outlines(calibration, objects, z, bed_min, bed_max)
-    result = []
-    for key in ("watched", "expected"):
+    result = {}
+    for key in ("watched", "expected", "settled", "growing"):
         out = np.zeros((height, width), np.uint8)
         for polygon in parts[key]:
             pts = np.clip(np.array([[u * width, v * height] for u, v in polygon], np.float32), -4 * width, 5 * width).astype(np.int32)
             cv2.fillPoly(out, [pts], 255)
-        result.append(out)
-    return result[0], result[1]
+        result[key] = out
+    settled = cv2.bitwise_and(result["settled"], cv2.bitwise_not(result["growing"]))
+    return result["watched"], result["expected"], settled
