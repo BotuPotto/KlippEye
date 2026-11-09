@@ -838,7 +838,7 @@ function MaskSwitches({ active }) {
   const config = useBrainConfig(active);
   const data = useMemo(() => (config.data ? localizeBrainSchema(config.data) : null), [config.data]);
   if (config.phase !== "ok" || !data) return null;
-  const specs = ["machine_masks", "expected_zone"].map((key) => data.spec.find((spec) => spec.key === key)).filter(Boolean);
+  const specs = ["machine_masks", "expected_zone", "inside_parts"].map((key) => data.spec.find((spec) => spec.key === key)).filter(Boolean);
   return h(SettingsGroup, { title: tx("What the AI monitor does with it") }, h("div", { className: "oui-list" }, specs.map((spec) => h(BrainSettingControl, { key: spec.key, spec, config }))));
 }
 

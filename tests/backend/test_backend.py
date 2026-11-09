@@ -1677,6 +1677,58 @@ check("whole bed outside the part: the part growing for 10 minutes raises no ala
 _zf = run_zone(True, 100)
 check("... and the plastic next to it is caught within a few checks", _zf and 100 < _zf[0] <= 110, _zf)
 
+# 1.70: the part itself is watched below the layer being printed: a string in front of the part (inside its outline)
+_WIDE = [[80.0, 140.0], [270.0, 140.0], [270.0, 190.0], [80.0, 190.0]]   # a long part, growing to 30 mm
+_WOBJ = [{"name": "w", "polygon": _WIDE}]
+_wrng = _core.np.random.default_rng(5)
+_wpath = []
+for _i in range(200):
+    _h = 0.3 + _i * 0.15
+    _wpath.append((_h, [80 + _wrng.random() * 190, 165 + _wrng.random() * 25, _h], [80 + _wrng.random() * 190, 165 + _wrng.random() * 25, _h]))
+
+
+def render_string(pos, height, string=False):
+    img = _core.cv2.cvtColor(_tex2, _core.cv2.COLOR_GRAY2BGR)
+    poly = _pz.prism_outline(MCAM, _WIDE, -pos[2], -pos[2] + height)
+    _core.cv2.fillPoly(img, [(_core.np.array(poly) * [CAM_W, CAM_H]).astype(_core.np.int32)], (40, 140, 200))
+    if string:   # strings across the front face of the part, low down (printed long ago)
+        uv, _ = _cm.project(MCAM, [[95.0, 140.0, -pos[2] + 4.0], [150.0, 140.0, -pos[2] + 9.0], [110.0, 140.0, -pos[2] + 13.0], [165.0, 140.0, -pos[2] + 6.0]])
+        pts = [(int(u * CAM_W), int(v * CAM_H)) for u, v in uv]
+        for p0, p1 in zip(pts, pts[1:]):
+            _core.cv2.line(img, p0, p1, (245, 245, 245), 6)
+    parts = _mm.polygons(MCAM, REAL_SHAPE, pos, (0, 350))
+    for poly, colour in [(p, (90, 60, 30)) for p in parts["gantry"]] + [(p, (25, 25, 25)) for p in parts["toolhead"]]:
+        _core.cv2.fillPoly(img, [(_core.np.array(poly) * [CAM_W, CAM_H]).astype(_core.np.int32)], colour)
+    return img
+
+
+def run_inside(inside, string_from=None):
+    judge = _core.FrameJudge()
+    judge.verbose = False
+    judge.inside_parts = inside
+    alarms = []
+    for i, (height, before, after) in enumerate(_wpath):
+        now = i * 3.0
+        if now < judge.cooldown_until:
+            continue
+        ignore = _mm.mask(_core.cv2, _core.np, MCAM, SET_SHAPE, [before, after], 540, 360)
+        zone = _pz.masks(_core.cv2, _core.np, MCAM, _WOBJ, before[2], [0, 0], [350, 350], 540, 360)
+        if judge.judge(render_string(before, height, string_from is not None and i >= string_from), b"", now, ignore, zone)[1]:
+            alarms.append(i)
+    return alarms
+
+
+_zm3 = _pz.masks(_core.cv2, _core.np, MCAM, _WOBJ, 20.0, [0, 0], [350, 350], 540, 360)
+check("1.70: the zone has a third picture, the part already printed (inside the expected zone, without the slice being printed)",
+      len(_zm3) == 3 and _zm3[2].any() and not _core.cv2.countNonZero(_core.cv2.bitwise_and(_zm3[2], _core.cv2.bitwise_not(_zm3[1]))), len(_zm3))
+check("1.70: ... empty in the first millimetres (nothing settled yet)", not _pz.masks(_core.cv2, _core.np, MCAM, _WOBJ, 1.0, [0, 0], [350, 350], 540, 360)[2].any())
+check("1.70: the part growing for 10 minutes still raises no alarm with the part watched", run_inside(True) == [])
+_si = run_inside(True, 140)
+check("1.70: a string in front of the part, inside its outline, is caught within a few checks", _si and 140 < _si[0] <= 150, _si)
+check("1.70: ... and was missed before (the part not watched)", run_inside(False, 140) == [])
+check("1.70: the setting 'Watch the parts too' (on by default)", any(c["key"] == "inside_parts" and c["default"] is True for c in mk.CONFIG_SPEC))
+
+
 # the backend: where the objects come from, the zone of the live monitor, the overlay, the recording
 det = mk.detector
 det.expected_zone = True

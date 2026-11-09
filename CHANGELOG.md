@@ -1,5 +1,19 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.70.1
+
+**The AI monitor looks at the parts too.**
+
+* Until now, with the whole bed watched (camera calibrated), the parts were a blind spot: their outline, from the bed up
+  to the nozzle, was left out entirely, so a string or spaghetti that stayed in front of a part was never seen.
+* Now only the layers being printed (the last 2 mm and the slice above, with its margin) are left out. What is already
+  printed does not change any more, and the background is the picture of the last minute: a change that stays there
+  counts. Its edges are left out (a bed that moves in Z shifts them), and it is measured against the part's own area,
+  not the whole bed (halved), so a thin string is not lost in a big picture.
+* While the toolhead hides the part a check says nothing about it (it no longer lowers an alarm that is building up).
+* A switch, on by default: Settings → Camera calibration → «Watch the parts too, below the layer being printed».
+* Very thin strings far from the camera may still not be seen: they are thinner than what the camera resolves.
+
 ## 1.70.0
 
 **Scheduled prints.**

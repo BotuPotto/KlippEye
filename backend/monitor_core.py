@@ -29,7 +29,9 @@ OPENCV_WIDTH = 1080   # the pictures are looked at in this size (the filter work
 OPENCV_HEIGHT = 720
 REFERENCE_SAMPLES = 7  # background pictures (median)
 REFERENCE_MIN = 5  # below this number the comparison is not ready
-GLOBAL_STREAK_MAX = 10  # checks in a row with a "global" change before it counts as real
+GLOBAL_STREAK_MAX = 10
+INSIDE_WEIGHT = 0.5  # 1.70: a change on the part counts half: a share of the part, not of the whole bed
+INSIDE_MIN_PX = 150  # a part this small in the picture (half resolution) is not looked inside  # checks in a row with a "global" change before it counts as real
 
 
 class FrameJudge:
@@ -57,6 +59,7 @@ class FrameJudge:
         self.persist_checks = 3
         self.machine_masks = True  # leave out the toolhead and the gantry (the caller gives the mask: machine_masks.py)
         self.expected_zone = True  # watch the whole bed except the objects (the caller gives the zone: print_zone.py)
+        self.inside_parts = True  # 1.70: inside the zone, the part already printed is watched too (print_zone.py, "settled")
         self.reference_seconds = 60
         self.global_change = 30.0
         self.ai_min_confidence = 70
@@ -100,6 +103,7 @@ class FrameJudge:
         self.persistent_filter = get("persistent_filter", self.persistent_filter)
         self.machine_masks = get("machine_masks", self.machine_masks)
         self.expected_zone = get("expected_zone", self.expected_zone)
+        self.inside_parts = get("inside_parts", self.inside_parts)
         persist = get("persist_checks", self.persist_checks)
         if persist != self.persist_checks or self.recent_masks.maxlen != 2 * persist:
             self.recent_masks = deque(maxlen=2 * persist)
@@ -337,15 +341,38 @@ class FrameJudge:
     def _zone_score(self, thresh, keep, zone):
         """Phase 4c (print_zone.py): the whole watched area (the volume above the bed) except the expected zone (the
         objects up to the height being printed): a change that stays there is plastic where no part should be.
-        -> % of the watched area."""
-        watched, expected = (self._fit_mask(m, thresh.shape) for m in zone)
+        1.70: with a third picture (the part already printed, `settled`) the part is watched too: it does not change any
+        more, so what stays changed there (a string, spaghetti in front of it) counts. Its edges are left out (a bed that
+        moves in Z shifts them a little), and it is measured against the part's own visible area, not the whole bed: a
+        thin string is a small share of the bed but a clear share of the part.
+        -> % of the watched area (or of the part, halved, when that is higher)."""
+        fitted = [self._fit_mask(m, thresh.shape) for m in zone]
+        watched, expected = fitted[0], fitted[1]
         area = cv2.bitwise_and(watched, cv2.bitwise_not(expected))
-        changed = cv2.bitwise_and(thresh, area)
-        seen = area if keep is None else cv2.bitwise_and(area, keep)
+        inside = None
+        hidden_part = False
+        if self.inside_parts and len(fitted) > 2 and fitted[2] is not None:
+            inside = cv2.bitwise_and(cv2.erode(fitted[2], np.ones((7, 7), np.uint8)), watched)
+            if keep is not None:
+                inside = cv2.bitwise_and(inside, keep)
+            if cv2.countNonZero(inside) < INSIDE_MIN_PX:
+                # the part is there but hidden now (the toolhead in front of it): this check knows nothing about it
+                hidden_part = cv2.countNonZero(fitted[2]) >= INSIDE_MIN_PX
+                inside = None
+        both = area if inside is None else cv2.bitwise_or(area, inside)
+        changed = cv2.bitwise_and(thresh, both)
+        seen = both if keep is None else cv2.bitwise_and(both, keep)
         persistent = self._persistent(changed, seen)
-        self.stats["status"] = "scanning (whole bed, outside the parts)"
+        self.stats["status"] = "scanning (whole bed, and the parts below the layer being printed)" if inside is not None else "scanning (whole bed, outside the parts)"
         total = cv2.countNonZero(watched)
         self.stats["zone_watched"] = round(total * 100.0 / watched.size, 1)
         if persistent is None or total == 0:
             return 0.0
-        return cv2.countNonZero(cv2.bitwise_and(persistent, area)) * 100.0 / total
+        score = cv2.countNonZero(cv2.bitwise_and(persistent, area)) * 100.0 / total
+        if hidden_part and score <= self.score_threshold:
+            return None  # neither a yes nor a no: an alarm building up on the part is not lowered by it
+        if inside is not None:
+            part = cv2.countNonZero(cv2.bitwise_and(persistent, inside)) * 100.0 / cv2.countNonZero(inside)
+            self.stats["inside_change"] = round(part, 1)
+            score = max(score, part * INSIDE_WEIGHT)
+        return score

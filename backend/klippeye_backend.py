@@ -564,6 +564,8 @@ CONFIG_SPEC = [
      "help": "With a good camera calibration (Settings → Camera calibration) the monitor knows where the toolhead and the gantry are at every check and does not look there. Without a calibration, or when the camera has moved, it has no effect."},
     {"key": "expected_zone", "type": "bool", "default": True, "group": "filtro", "label": "Watch the whole bed, except where the parts are",
      "help": "With a good camera calibration the monitor knows where the objects of the print are (from Klipper's exclude_object or from the G-code) and watches the whole bed around them, not only the edges of the watched area: plastic that appears where no part should be counts. Without a calibration it has no effect."},
+    {"key": "inside_parts", "type": "bool", "default": True, "group": "filtro", "label": "Watch the parts too, below the layer being printed",
+     "help": "With the whole bed watched: what is already printed does not change any more, so a string or spaghetti in front of a part (inside its outline) counts too. Only the layers being printed now are left out. Off: the parts are not looked at, as before 1.70."},
     {"key": "persist_checks", "type": "int", "default": 3, "min": 2, "max": 6, "step": 1, "unit": "", "group": "filtro",
      "label": "Checks in a row the change must stay for",
      "help": "Higher = fewer false alarms but a problem is noticed a few seconds later (checks × interval)."},
