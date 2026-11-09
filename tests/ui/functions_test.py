@@ -112,6 +112,13 @@ with sync_playwright() as p:
     ok("park -> macro: typed in lower case, kept as PARK_TEST, saved in the shared settings", wait_until(lambda: stored().get("functions", {}).get("park") == {"mode": "macro", "macro": "PARK_TEST", "gcode": ""}), stored().get("functions"))
     ok("... the page says it runs PARK_TEST", "PARK_TEST" in P.pg.locator('[data-now="park"]').inner_text())
 
+    # 1.69: the arrow lists Klipper's macros (all of them, even with a name already written) and a tap chooses one
+    P.pg.locator('[data-macro-pick="park"]').click(); P.settle(400)
+    names = [t.strip() for t in P.pg.locator('[data-macro-list="park"] .oui-menu__title').all_inner_texts()]
+    ok("1.69: the arrow opens Klipper's macros, all of them", len(names) >= 3 and "CLEAN_NOZZLE" in names, names)
+    P.pg.locator('[data-macro-list="park"] .oui-menu__item', has_text="CLEAN_NOZZLE").click(); P.settle(600)
+    ok("... a tap on one writes it and saves it", P.pg.locator('[data-macro="park"]').input_value() == "CLEAN_NOZZLE" and wait_until(lambda: stored().get("functions", {}).get("park", {}).get("macro") == "CLEAN_NOZZLE"), stored().get("functions", {}).get("park"))
+    field.fill("PARK_TEST"); field.blur(); P.settle(600)
     ok("... the row's few words follow", "Macro · PARK_TEST" in P.pg.locator('[data-summary="park"]').inner_text(), P.pg.locator('[data-summary="park"]').inner_text())
 
     # load -> G-code written in the editor

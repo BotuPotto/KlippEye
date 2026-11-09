@@ -354,3 +354,10 @@
 .layout-row__fixed { min-width: 56px; color: var(--oui-text-3); font-size: 12px; text-align: center; }
 .layout-board--columns .layout-row { padding-left: 12px; }
 .layout-board--columns .layout-row__name { font-size: 14px; white-space: normal; }
+
+/* 1.69: a macro's name, typed or chosen from Klipper's macros */
+.macro-field { display: flex; gap: 8px; min-width: 0; }
+.macro-field .set-field__input { flex: 1; min-width: 0; }
+.macro-field__pick { flex: none; width: 44px; min-height: 44px; }
+.macro-field__pick[aria-expanded="true"] svg { transform: rotate(180deg); }
+.macro-field__list .oui-menu__title { font-family: var(--oui-font-mono); font-size: 13px; }

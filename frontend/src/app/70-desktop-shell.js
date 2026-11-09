@@ -120,7 +120,7 @@ function ConsoleDock({ entries }) {
         "div",
         { className: "desk-dock__log" },
         recent.map((entry, index) =>
-          h("span", { key: index + "|" + entry.t + "|" + entry.msg, className: "desk-dock__line" }, h("span", { className: "log-time" }, entry.t), " ", h("span", { className: cx(entry.color, "desk-dock__msg") }, entry.msg)),
+          h("span", { key: index + "|" + entry.t + "|" + entry.msg, className: "desk-dock__line" }, h("span", { className: "log-time" }, entry.t), " ", h("span", { className: cx(entry.color, "desk-dock__msg") }, entry.isCommand ? entry.msg : consoleMessage(entry.msg, pick))),
         ),
       ),
       h("input", {

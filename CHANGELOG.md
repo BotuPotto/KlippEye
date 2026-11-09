@@ -1,5 +1,24 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.69.0
+
+**Console like Mainsail's, the temperature chart with the clock, the light menus fixed.**
+
+* Console: the HTML that Klipper and many macros write in their messages is drawn, as in Mainsail: `<a class="command">
+  SAVE_CONFIG</a>` is a link that puts the command in the input field, bold, italics, line breaks and colours are shown.
+  Only a short list of harmless tags gets through (no scripts, images or frames). The «!! » and «// » in front of
+  Klipper's answers are no longer printed (the colour says it).
+* Console: with «Autoscroll» off the text no longer slides by. The console keeps the last 200 lines: each new line pushed
+  the oldest one out and the whole text moved up, as if it scrolled by itself. Now the line at the top of the view stays
+  where it is.
+* Temperature chart: time runs left to right again (now on the right), and the marks under it are clock times (14:05,
+  14:07…) instead of «-2′, -4′».
+* Lights: on a computer the panel of the lights (the arrow next to the light button) opened squeezed inside the camera's
+  corner; it opens in the middle of the page again.
+* Printer functions: the macro of a light (and of park, load…) is chosen from Klipper's macros with the arrow next to the
+  field. Before, the browser's suggestion list showed only the name already written, and the app never showed it.
+* README: the license line no longer names other interfaces.
+
 ## 1.68.1
 
 **The guide follows the reviewed texts** (docs/GUIDE.md, docs/GUIDA.md). Nothing changes in the dashboard.

@@ -447,7 +447,8 @@ function LightButton(controller) {
     { className: cx("light-group", controller.lights && "is-split", on && "is-on") }, // 1.67: the whole button lights up, arrow too
     h(LightMainButton, { on, waiting, failures, toggle }),
     controller.lights && h("button", { type: "button", className: "light-more", "aria-label": tx("All the lights"), title: tx("All the lights"), "aria-haspopup": "dialog", onClick: () => setPanel(true) }, h(Icons.Chevron, { size: 14 })),
-    h(Presence, null, panel && h(LightsPanel, { controller, onClose: () => setPanel(false) })),
+    // 1.69: on the page's body: inside the camera's corner of buttons the panel was squeezed to their width on a computer
+    createPortal(h(Presence, null, panel && h(LightsPanel, { controller, onClose: () => setPanel(false) })), document.body),
   );
 }
 
