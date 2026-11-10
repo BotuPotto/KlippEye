@@ -38,21 +38,26 @@ JS = """() => { const out = []; const vw = document.documentElement.clientWidth;
 
 with sync_playwright() as p:
     b = p.chromium.launch()
-    for w in (320, 390):
+    # 1.86: in Spanish too (longer words than Italian)
+    for lang, w in (("it-IT", 320), ("it-IT", 390), ("es-ES", 320), ("es-ES", 390)):
         mock.reset()
         mock.set(extra_temps=True, power_on=True, extra_devices=True, spoolman_on=True, queue_on=True, timelapse_on=True, printing=True,
                  queue=[{"filename": "Benchy_0.2mm_PLA.gcode", "job_id": "1", "time_added": 1}])
-        P = Page(b, mock, w, 800)
+        P = Page(b, mock, w, 800, locale=lang)
+        if lang == "es-ES":
+            P.goto("home", 2600)
+            ok("[%d] es: the page is in Spanish" % w, P.pg.evaluate("document.documentElement.lang") == "es" and P.pg.locator('.app-header button[aria-label="Ajustes"]').count() == 1 and "Calentadores" in P.pg.locator("body").inner_text())
+        tag = "" if lang == "it-IT" else " es"
         for tab in ("home", "controllo", "files", "config", "sistema"):
             P.goto(tab, 2600)
             r = P.pg.evaluate(JS)
-            ok("[%d] %s: nothing out of its card, no sideways scroll" % (w, tab), not r["page"] and not r["out"], json.dumps(r, ensure_ascii=False))
+            ok("[%d%s] %s: nothing out of its card, no sideways scroll" % (w, tag, tab), not r["page"] and not r["out"], json.dumps(r, ensure_ascii=False))
         for section in ("history", "timelapse"):
             P.goto("files", 1500)
             P.pg.locator('[data-files-section="%s"]' % section).click()
             P.pg.wait_for_timeout(1500)
             r = P.pg.evaluate(JS)
-            ok("[%d] files / %s: nothing out of its card" % (w, section), not r["page"] and not r["out"], json.dumps(r, ensure_ascii=False))
+            ok("[%d%s] files / %s: nothing out of its card" % (w, tag, section), not r["page"] and not r["out"], json.dumps(r, ensure_ascii=False))
         P.close()
     b.close()
 

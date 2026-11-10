@@ -2,7 +2,8 @@
 """
 Translation helpers for the dashboard (see app/02-i18n.js).
 
-    python3 tools/i18n.py check                     every tx()/txc() text has an Italian translation; lists Italian texts left outside tx()
+    python3 tools/i18n.py check                     every tx()/txc() text has an Italian translation; lists Italian texts left outside tx();
+                                                    every other src/i18n/<lang>.json has the same texts and placeholders
     python3 tools/i18n.py extract src/app/FILE.js   prints the visible string literals of a file as a JSON object {"text": ""}
     python3 tools/i18n.py apply src/app/FILE.js MAP.json
                                                     MAP = {"original text": "English text"}: every literal "original text" in FILE
@@ -174,7 +175,26 @@ def check():
     if "-v" in sys.argv:
         for name, text in left:
             print("  left     %s: %r" % (name, text))
-    return 1 if missing else 0
+    # 1.86: every other language has the same texts as Italian, with the same {placeholders}
+    others = 0
+    for path in sorted(glob.glob(os.path.join(ROOT, "src", "i18n", "*.json"))):
+        lang = os.path.basename(path)[:-5]
+        if lang == "it":
+            continue
+        with open(path, encoding="utf-8") as f:
+            other = json.load(f)
+        lacking = [key for key in table if key not in other]
+        extra = [key for key in other if key not in table]
+        wrong = [key for key in table if key in other and sorted(re.findall(r"\{\w+\}", key)) != sorted(re.findall(r"\{\w+\}", other[key]))]
+        print("%s: %d translations, %d missing, %d extra, %d with other {placeholders}" % (lang, len(other), len(lacking), len(extra), len(wrong)))
+        for key in lacking:
+            print("  MISSING  %s: %r" % (lang, key))
+        for key in extra:
+            print("  extra    %s: %r" % (lang, key))
+        for key in wrong:
+            print("  PLACEHOLDERS  %s: %r -> %r" % (lang, key, other[key]))
+        others += len(lacking) + len(wrong)
+    return 1 if missing or others else 0
 
 
 if __name__ == "__main__":

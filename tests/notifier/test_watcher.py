@@ -55,6 +55,9 @@ ok("... and the same Italian ones", all(_it.get(v) == vn.MESSAGES["it"][k] for k
 _rules = dict(_re.findall(r'id: "(\w+)", title: [^}]*?defaultText: txn\("([^"]+)"\)', open(os.path.join(_root, "frontend", "src", "app", "16-settings.js"), encoding="utf-8").read()))
 ok("1.7: the dashboard's defaults of your own notifications are the service's (English)", sorted(_rules) == sorted(vn.RULE_KINDS) and all(vn.MESSAGES["en"]["rule_" + k] == v for k, v in _rules.items()), _rules)
 ok("... and Italian", all(_it.get(v) == vn.MESSAGES["it"]["rule_" + k] for k, v in _rules.items()), {k: _it.get(v) for k, v in _rules.items()})
+_es = json.load(open(os.path.join(_root, "frontend", "src", "i18n", "es.json"), encoding="utf-8"))
+ok("1.86: ... and Spanish", all(_es.get(v) == vn.MESSAGES["es"][k] for k, v in _dash.items()) and all(_es.get(v) == vn.MESSAGES["es"]["rule_" + k] for k, v in _rules.items()),
+   {k: (_es.get(v), vn.MESSAGES["es"][k]) for k, v in _dash.items() if _es.get(v) != vn.MESSAGES["es"][k]})
 ok("every language has every text", all(set(texts) == set(vn.MESSAGES["en"]) and all(texts.values()) for texts in vn.MESSAGES.values()), {k: set(vn.MESSAGES["en"]) ^ set(t) for k, t in vn.MESSAGES.items()})
 
 # --------------------------------------------------------------------------------------------------- starting up says nothing

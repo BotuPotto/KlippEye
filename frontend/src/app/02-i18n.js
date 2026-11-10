@@ -23,6 +23,7 @@ const I18N_DICTIONARIES = {/*__I18N__*/};
 const I18N_LANGUAGES = [
   { code: "en", name: "English" },
   { code: "it", name: "Italiano" },
+  { code: "es", name: "Español" }, // 1.86
 ];
 const I18N_STORAGE_KEY = "ke_lang";
 
@@ -54,7 +55,7 @@ const LANG = (() => {
 const LOCALE = (() => {
   const device = String(navigator.language || "");
   if (device.toLowerCase().split("-")[0] === LANG) return device;
-  return LANG === "it" ? "it-IT" : LANG;
+  return { it: "it-IT", es: "es-ES" }[LANG] || LANG;
 })();
 try {
   document.documentElement.lang = LANG;
