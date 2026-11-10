@@ -1,5 +1,12 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.95.0
+
+**Portuguese (Brazil).**
+
+* The dashboard, the login page, the notifications and the AI monitor's texts are now also in Brazilian Portuguese
+  (Settings → Language → Português (Brasil), or «Automatic» on a Portuguese device).
+
 ## 1.94.0
 
 **KlippEye at the Raspberry's own address, without a port.**
