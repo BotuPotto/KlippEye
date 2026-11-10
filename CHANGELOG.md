@@ -1,5 +1,14 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.86.0
+
+**Spanish.**
+
+* The dashboard, the login page, the notifications and the AI monitor's texts are now also in Spanish: Settings →
+  Language (or «Automatic», which follows the device). The notifications' language is chosen in Notifications.
+* `frontend/tools/i18n.py check` now also checks every other language file: the same texts as Italian, with the same
+  {placeholders}.
+
 ## 1.85.1
 
 **Accessibility checks.**

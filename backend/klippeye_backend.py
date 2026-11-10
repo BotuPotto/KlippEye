@@ -202,11 +202,23 @@ ACCESS_TEXT = {
         "title": "KlippEye · Accesso", "lead": "Questa stampante è protetta da una password.", "label": "Password", "button": "Accedi",
         "hint": "Password dimenticata? Sul Raspberry: <code>klippeye password remove</code>",
     },
+    "es": {
+        "host": "KlippEye solo responde cuando se le llama con la dirección IP de la Raspberry o con un nombre de la red de casa. Para usar el nombre '%(host)s', ejecuta en la Raspberry:  klippeye access host-add %(host)s",
+        "origin_cmd": "Comando rechazado: viene de una página que no es el panel de KlippEye (%(origin)s).",
+        "origin_read": "Petición rechazada: viene de otro sitio.",
+        "login": "Hay que iniciar sesión: abre el panel e introduce la contraseña.",
+        "wait": "Demasiados intentos fallidos: inténtalo de nuevo dentro de %(seconds)d segundos.",
+        "password": "Contraseña incorrecta.",
+        "guest": "Los invitados solo pueden mirar: para hacer esto entra con la contraseña principal.",
+        "guest_same": "La contraseña de invitados debe ser distinta de la principal.",
+        "title": "KlippEye · Acceso", "lead": "Esta impresora está protegida con una contraseña.", "label": "Contraseña", "button": "Entrar",
+        "hint": "¿Olvidaste la contraseña? En la Raspberry: <code>klippeye password remove</code>",
+    },
 }
 
 
-LANGUAGES = ("en", "it")
-LANGUAGE_NAMES = {"en": "English", "it": "Italian"}
+LANGUAGES = ("en", "it", "es")
+LANGUAGE_NAMES = {"en": "English", "it": "Italian", "es": "Spanish"}
 LANG_COOKIE = "klippeye_lang"  # set by the dashboard: the language it is shown in on that device
 
 
@@ -216,7 +228,8 @@ def _lang():
         chosen = request.cookies.get(LANG_COOKIE)
         if chosen in LANGUAGES:
             return chosen
-        return "it" if (request.accept_languages.best_match(["en", "it"]) or "en") == "it" else "en"
+        best = request.accept_languages.best_match(list(LANGUAGES)) or "en"
+        return best if best in LANGUAGES else "en"
     except Exception:
         return "en"
 
