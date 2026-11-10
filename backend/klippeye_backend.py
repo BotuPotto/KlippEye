@@ -1400,6 +1400,26 @@ def api_calibration_selected_post():
         import traceback
         return jsonify({"ok": False, "error": str(e), "trace": traceback.format_exc()}), 500
 
+# === INPUT SHAPER GRAPHS (1.80) ===
+# The files Klipper's SHAPER_CALIBRATE leaves in /tmp, read for the graphs (backend/shaper_data.py).
+import shaper_data  # noqa: E402
+
+
+@app.route("/api/shaper/files", methods=["GET"])
+def api_shaper_files():
+    return jsonify({"files": shaper_data.list_files()})
+
+
+@app.route("/api/shaper/data", methods=["GET"])
+def api_shaper_data():
+    try:
+        return jsonify(shaper_data.read(request.args.get("name", "")))
+    except shaper_data.ShaperError as error:
+        return jsonify({"error": str(error)}), 404 if str(error) == "file not found" else 400
+    except OSError as error:
+        return jsonify({"error": str(error)}), 500
+
+
 # === LOGS SYSTEM V27 ===
 
 

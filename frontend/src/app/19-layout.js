@@ -21,10 +21,10 @@ const LAYOUT_KEY = "ke_layout";
  */
 const LAYOUT_DEVICES = ["phone", "tablet", "computer"];
 const LAYOUT_DEFAULTS = {
-  phone: { home: { main: ["camera", "heaters", "temps", "spool", "movement"] }, control: { main: ["console", "extruder", "devices", "macros", "tune", "endstops", "bedmesh"] } },
+  phone: { home: { main: ["camera", "heaters", "temps", "spool", "movement"] }, control: { main: ["console", "extruder", "devices", "macros", "tune", "endstops", "bedmesh", "shaper"] } },
   computer: {
     home: { main: ["camera", "print", "temps"], side: ["heaters", "motion", "fans", "spool", "devices", "extruder", "tune"] },
-    control: { left: ["bedmesh"], right: ["macros", "endstops"] },
+    control: { left: ["bedmesh", "shaper"], right: ["macros", "endstops"] },
   },
 };
 LAYOUT_DEFAULTS.tablet = LAYOUT_DEFAULTS.phone;
@@ -56,6 +56,7 @@ const layoutCardTitle = (id, device) =>
     tune: tx("Tuning"),
     endstops: tx("Endstops and probe"),
     bedmesh: tx("Height map / mesh"),
+    shaper: tx("Input shaper"),
   })[id] || id;
 
 const layoutStore = (() => {

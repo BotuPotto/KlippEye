@@ -247,6 +247,7 @@ function DesktopCalibrationPage({ capabilities, lockReason, homedAxes, printStat
     bedmesh: h(BedMeshCard, { onGcode, lockReason, homedAxes }),
     macros: h(MacroCards, { printState, onGcode, onSettings: onMacroSettings }),
     endstops: h(EndstopsCard, { capabilities, lockReason }),
+    shaper: h(ShaperCard, { capabilities, lockReason, homedAxes, onGcode }),
   };
   return h("div", { className: "desk-split" }, h("div", { className: "desk-col" }, arrangeCards("control", cards, "left")), h("div", { className: "desk-col" }, arrangeCards("control", cards, "right")));
 }

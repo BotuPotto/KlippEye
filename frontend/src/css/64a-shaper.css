@@ -1,0 +1,41 @@
+/* 1.80 · the input shaper graphs (57b-shaper.js) */
+.shaper-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 10px; }
+.shaper-file { width: auto; min-width: 0; max-width: 100%; padding-top: 6px; padding-bottom: 6px; }
+.shaper-current { white-space: normal; }
+.shaper-empty { padding: 18px 14px; color: var(--oui-text-2); text-align: center; }
+.shaper-chart { position: relative; width: 100%; min-height: 220px; touch-action: pan-y; -webkit-user-select: none; user-select: none; }
+.shaper-chart__svg { display: block; overflow: visible; }
+.shaper-chart__grid { stroke: var(--oui-stroke); stroke-width: 1; }
+.shaper-chart__tick { fill: var(--oui-text-3); font-family: var(--oui-font); font-size: 11px; font-variant-numeric: tabular-nums; }
+.shaper-chart__area { fill: var(--oui-text); opacity: 0.08; }
+.shaper-chart__psd { fill: none; stroke: var(--oui-text-2); stroke-width: 2; stroke-linejoin: round; }
+.shaper-chart__own { fill: none; stroke: var(--oui-text-3); stroke-width: 1; stroke-dasharray: 3 3; }
+.shaper-chart__peak { stroke: var(--oui-danger); stroke-width: 1; stroke-dasharray: 4 4; opacity: 0.7; }
+.shaper-chart__peak-label { fill: var(--oui-danger); font-family: var(--oui-font); font-size: 11px; font-weight: 600; }
+.shaper-chart__shaper { fill: none; stroke-width: 1.6; stroke-linejoin: round; cursor: pointer; transition: opacity var(--oui-dur-fast) var(--oui-ease); }
+.shaper-chart__shaper.is-dim { opacity: 0.22; }
+.shaper-chart__shaper.is-selected { stroke-width: 2.6; }
+.shaper-chart__cursor { stroke: var(--oui-text-3); stroke-width: 1; }
+.shaper-chart__tip {
+  position: absolute; top: 8px; margin-left: 12px; padding: 8px 10px; border-radius: var(--oui-r-tile);
+  background: var(--oui-glass-solid); box-shadow: var(--oui-shadow-float); color: var(--oui-text); font-size: 12px; line-height: 1.5;
+  pointer-events: none; white-space: nowrap; z-index: 2;
+}
+.shaper-chart__tip.is-left { transform: translateX(-100%); margin-left: -12px; }
+.shaper-chart__tip-freq { font-weight: 600; }
+.shaper-list { display: grid; gap: 4px; margin-top: 10px; }
+.shaper-row {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; width: 100%; min-width: 0; padding: 8px 10px; border: 0; border-radius: var(--oui-r-row);
+  background: transparent; color: var(--oui-text); font: inherit; text-align: left; cursor: pointer;
+}
+.shaper-row:hover { background: var(--oui-surface-2); }
+.shaper-row.is-selected { background: var(--oui-accent-soft); }
+.shaper-row__key { flex: none; width: 12px; height: 12px; border-radius: 4px; }
+.shaper-row__name { flex: none; min-width: 78px; font-weight: 600; }
+.shaper-row__freq { flex: none; min-width: 56px; color: var(--oui-text-2); font-variant-numeric: tabular-nums; }
+.shaper-row__vib { flex: 1 0 auto; white-space: nowrap; color: var(--oui-text-2); font-variant-numeric: tabular-nums; }
+.shaper-row__tag { flex: none; margin-left: auto; }
+.shaper-row__tag.is-best { background: var(--oui-ok-soft); color: var(--oui-ok); }
+.shaper-note { margin-top: 10px; }
+.shaper-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.shaper-actions:empty { display: none; }

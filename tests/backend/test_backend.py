@@ -2035,6 +2035,28 @@ else:
     sys.modules["waitress"] = _saved_waitress
 _bk.app.run = _orig_run
 
+# 1.80: the input shaper graphs: the files SHAPER_CALIBRATE leaves in /tmp, listed and read (backend/shaper_data.py)
+_shd = tmp()
+_csv = ["freq,psd_x,psd_y,psd_z,psd_xyz,zv(60.0),mzv(52.0)"]
+for _i in range(300):
+    _f = 5 + _i * 0.78
+    _p = 1000.0 / (1 + ((_f - 50) / 3) ** 2) + 10
+    _csv.append("%.1f,%.3e,%.3e,%.3e,%.3e,%.3f,%.3f" % (_f, _p, _p / 10, _p / 20, _p * 1.1, 1.0 if _f < 45 else 0.3, 1.0 if _f < 40 else 0.02))
+open(os.path.join(_shd, "calibration_data_x_20261109_221500.csv"), "w").write("\n".join(_csv) + "\n")
+open(os.path.join(_shd, "calibration_data_y_20261109_222300.csv"), "w").write("freq,psd_x\n")
+open(os.path.join(_shd, "adxl345-x.csv"), "w").write("#time,accel_x\n")
+os.environ["KLIPPEYE_SHAPER_DIRS"] = _shd
+j = _ca.get("/api/shaper/files").get_json()
+check("1.80: the shaper files: the two calibration files (not the raw accelerometer one), with their axis", sorted((f["name"][:18], f["axis"]) for f in j["files"]) == [("calibration_data_x", "x"), ("calibration_data_y", "y")], j)
+j = _ca.get("/api/shaper/data?name=calibration_data_x_20261109_221500.csv").get_json()
+check("1.80: a file read: the frequencies up to 200 Hz, the four vibrations, the two shapers, the peak at 50 Hz",
+      j["axis"] == "x" and max(j["freq"]) <= 200 and len(j["freq"]) == len(j["psd"]["sum"]) and sorted(j["psd"]) == ["sum", "x", "y", "z"]
+      and [(sh["name"], sh["freq"]) for sh in j["shapers"]] == [("zv", 60.0), ("mzv", 52.0)] and abs(j["peak"]["freq"] - 50) < 1, {k: j.get(k) for k in ("axis", "peak", "shapers")} if "shapers" not in j else [(sh["name"], sh["vibrations"]) for sh in j["shapers"]])
+check("1.80: the vibrations left: MZV (cuts at 40 Hz) leaves fewer than ZV (cuts at 45 Hz, lets 30% through)", j["shapers"][1]["vibrations"] < j["shapers"][0]["vibrations"] and 0 <= j["shapers"][1]["vibrations"] <= 100, [(sh["name"], sh["vibrations"]) for sh in j["shapers"]])
+check("1.80: a file without rows: 400", _ca.get("/api/shaper/data?name=calibration_data_y_20261109_222300.csv").status_code == 400)
+check("1.80: a name outside the list, or with a folder: refused", all(_ca.get("/api/shaper/data?name=" + n).status_code == 400 for n in ("..%2Fetc%2Fpasswd", "printer.cfg", "adxl345-x.csv", "")) and _ca.get("/api/shaper/data?name=calibration_data_z_20261109_000000.csv").status_code == 404)
+os.environ.pop("KLIPPEYE_SHAPER_DIRS")
+
 stop_all()
 fake.close()
 print("\n%d PASS, %d FAIL" % (passed, failed))
