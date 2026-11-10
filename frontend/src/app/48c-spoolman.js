@@ -172,3 +172,46 @@ function SpoolCard() {
     h(Presence, null, picking && h(SpoolPicker, { activeId: spoolman.activeId, onChoose: spoolman.choose, onClose: () => setPicking(false) })),
   );
 }
+
+/* ---------------------------------------------------------------------------
+   1.77: the spool in the print's confirmation. With Spoolman, before a print starts: the spool in use (or none), «Change»,
+   and a warning when the file needs more filament than is left on it, or another material.
+   ------------------------------------------------------------------------- */
+function PrintSpoolRow({ path }) {
+  const spoolman = useSpoolman();
+  const [picking, setPicking] = useState(false);
+  const [needs, setNeeds] = useState(null); // { grams, material } of the file
+  useEffect(() => {
+    let cancelled = false;
+    if (!path) return undefined;
+    fetchJson("/server/files/metadata?filename=" + encodeURIComponent(path))
+      .then((json) => {
+        const meta = (json && json.result) || {};
+        if (!cancelled) setNeeds({ grams: Number(meta.filament_weight_total) || 0, material: String(meta.filament_type || "").split(";")[0].trim() });
+      })
+      .catch(noop);
+    return () => {
+      cancelled = true;
+    };
+  }, [path]);
+  if (!spoolman.available || !spoolman.connected) return null;
+  const spool = spoolman.active;
+  const left = spool ? Number(spool.remaining_weight) : NaN;
+  const material = spool && spool.filament ? String(spool.filament.material || "") : "";
+  const warnings = [];
+  if (spool && needs && needs.grams > 0 && isFinite(left) && needs.grams > left) warnings.push(tx("The file needs {need}, the spool has {left} left.", { need: grams(needs.grams), left: grams(left) }));
+  if (spool && needs && needs.material && material && needs.material.toUpperCase() !== material.toUpperCase()) warnings.push(tx("The file is sliced for {file}, the spool is {spool}.", { file: needs.material, spool: material }));
+  return h(
+    "div",
+    { className: "print-spool", "data-print-spool": spool ? spool.id : "none" },
+    h(
+      "div",
+      { className: "print-spool__row" },
+      h(SpoolSwatch, { spool, size: 32 }),
+      h("div", { className: "print-spool__text" }, h("div", { className: "print-spool__name" }, spool ? spoolName(spool) : tx("No spool in use")), h("div", { className: "print-spool__meta" }, spool ? [material, grams(spool.remaining_weight) + " " + tx("left")].filter(Boolean).join(" · ") : tx("The filament of this print is not counted on any spool."))),
+      h("button", { type: "button", className: "oui-btn oui-btn--sm print-spool__change", onClick: () => setPicking(true) }, txc("spool", "Change")),
+    ),
+    warnings.map((text) => h("div", { key: text, className: "print-spool__warn" }, h(Icons.Warning, { size: 14 }), text)),
+    createPortal(h(Presence, null, picking && h(SpoolPicker, { activeId: spoolman.activeId, onChoose: spoolman.choose, onClose: () => setPicking(false) })), document.body),
+  );
+}

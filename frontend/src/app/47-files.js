@@ -360,6 +360,7 @@ function PrintConfirmDialog({ job, onConfirm, onCancel }) {
         h("b", null, job.fileName || job.path || ""),
         "?",
       ),
+      h(PrintSpoolRow, { path: job.path }), // 1.77: the spool, with Spoolman
       h(
         "div",
         { className: "oui-btn-row" },
