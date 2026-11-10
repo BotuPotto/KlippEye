@@ -1,5 +1,14 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.84.0
+
+**`klippeye benchmark`.**
+
+* On the Raspberry, `klippeye benchmark [--seconds 30] [--json]` measures how much processor and memory KlippEye,
+  Moonraker, Klipper and the camera use, the Raspberry's load, free memory, temperature and power or heat warnings,
+  and how long the AI monitor takes to check one picture here; then it says in plain words whether there is room.
+  It only reads.
+
 ## 1.83.0
 
 **Checks before a print.**

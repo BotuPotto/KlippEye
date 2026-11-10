@@ -668,6 +668,10 @@ corrispondono ad `apk/version.json`.
 **Chiedi aiuto?** Allega il rapporto di diagnostica: *Impostazioni → Aggiornamenti → Diagnostica → Scarica il rapporto di
 diagnostica*, oppure `klippeye diagnose --save` sul Raspberry. Non contiene chiavi, password o token.
 
+**Il Raspberry ce la fa?** `klippeye benchmark` (meglio durante una stampa, con il monitor IA acceso) misura per 30 secondi
+quanto processore e memoria usano KlippEye, Moonraker, Klipper e la camera, la temperatura e gli avvisi di alimentazione del
+Raspberry, e quanto impiega il monitor IA per ogni foto, poi dice a parole se c'è margine.
+
 | Cosa vedi | Cosa fare |
 |---|---|
 | La dashboard non risponde | `klippeye status`; `klippeye restart`; `klippeye log` mostra le ultime righe del registro del servizio KlippEye |

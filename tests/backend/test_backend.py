@@ -2101,6 +2101,19 @@ check("1.82: a guest may not command, nor read the configuration, logs or settin
               ("GET", "/api/logs/list", {}), ("GET", "/api/notifications/channels", {}), ("GET", "/api/ai/config", {}), ("GET", "/machine/update/status", {"refresh": "true"}),
               ("GET", "/printer/restart", {}), ("POST", "/api/auth/password", {}), ("GET", "/server/files/gcodes/../config/printer.cfg", {}))))
 
+# 1.84: klippeye benchmark (scripts/benchmark.py): a busy process named like the KlippEye service is measured
+_busy = subprocess.Popen([sys.executable, "-c", "import time\nt = time.time() + 6\nwhile time.time() < t: pass", "klippeye_backend.py"])
+try:
+    _bench = subprocess.run([sys.executable, os.path.join(ROOT, "scripts", "benchmark.py"), "--seconds", "2", "--json", "--no-monitor"], capture_output=True, text=True, timeout=60)
+    _bj = json.loads(_bench.stdout)
+    _kg = _bj["groups"]["KlippEye"]
+    check("1.84: benchmark: the KlippEye group found and busy (one core almost full), its memory, the Raspberry's figures",
+          _kg["processes"] >= 1 and _kg["cpu_core_percent"] > 40 and _kg["rss_mb"] > 1 and _bj["system"]["memory_mb"] > 0 and _bj["verdict"], _bench.stdout[:600] + _bench.stderr[-300:])
+    _bt = subprocess.run([sys.executable, os.path.join(ROOT, "scripts", "benchmark.py"), "--seconds", "2"], capture_output=True, text=True, timeout=120)
+    check("1.84: benchmark: the text report, with the AI monitor timed (or said why not)", _bt.returncode == 0 and "KlippEye" in _bt.stdout and "AI monitor:" in _bt.stdout, _bt.stdout[-600:] + _bt.stderr[-300:])
+finally:
+    _busy.kill()
+
 stop_all()
 fake.close()
 print("\n%d PASS, %d FAIL" % (passed, failed))

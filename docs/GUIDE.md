@@ -650,6 +650,10 @@ the latest app built by GitHub, and the KlippEye service offers it to the phone 
 **Asking for help?** Attach the diagnostic report: *Settings → Updates → Diagnostics → Download a diagnostic report*, or
 `klippeye diagnose --save` on the Raspberry. It contains no keys, passwords or tokens.
 
+**Is the Raspberry keeping up?** `klippeye benchmark` (best while printing, with the AI monitor on) measures for 30 seconds
+how much processor and memory KlippEye, Moonraker, Klipper and the camera use, the temperature and the power warnings of the
+Raspberry, and how long the AI monitor takes per picture, then says in plain words whether there is room to spare.
+
 | What you see | What to do |
 |---|---|
 | The dashboard does not answer | `klippeye status`; `klippeye restart`; `klippeye log` shows the last lines of the KlippEye service's log |
