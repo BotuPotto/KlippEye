@@ -257,6 +257,25 @@ MESSAGES = {
         "rule_line": "{line}",
         "rule_temp": "{heater}: температура достигнута, {temp}°C",
     },
+    "uk": {
+        "error": "Помилка принтера! Перезапустіть його.",
+        "complete": "Друк завершено!",
+        "cancelled": "Друк скасовано!",
+        "paused": "Принтер на паузі!",
+        "runout": "Філамент закінчився, замініть котушку!",
+        "ai_pause": "Знайдено дефекти друку, перевірте й поставте друк на паузу!",
+        "ai_cancel": "Знайдено серйозні дефекти друку, перевірте й скасуйте друк",
+        "ai_pause_auto": "Знайдено дефекти друку: друк автоматично поставлено на паузу.",
+        "ai_cancel_auto": "Знайдено серйозні дефекти друку: друк автоматично скасовано.",
+        "test": "Тестове сповіщення: усе працює!",
+        "error_detail": "Помилка принтера: {message}",
+        "rule_started": "Друк розпочато: {file}",
+        "rule_progress": "{file}: виконано {progress}%",
+        "rule_remaining": "{file}: залишилося близько {remaining}",
+        "rule_layer": "{file}: шар {layer} з {total_layers}",
+        "rule_line": "{line}",
+        "rule_temp": "{heater}: температуру досягнуто, {temp}°C",
+    },
 }
 LANGUAGES = tuple(MESSAGES)
 DEFAULT_MESSAGES = MESSAGES["en"]
@@ -271,7 +290,8 @@ HEATER_NAMES = {"en": {"extruder": "Nozzle", "heater_bed": "Bed"}, "it": {"extru
                 "pt": {"extruder": "Bico", "heater_bed": "Mesa"},
                 "pl": {"extruder": "Dysza", "heater_bed": "Stół"},
                 "zh": {"extruder": "喷嘴", "heater_bed": "热床"},
-                "ru": {"extruder": "Сопло", "heater_bed": "Стол"}}
+                "ru": {"extruder": "Сопло", "heater_bed": "Стол"},
+                "uk": {"extruder": "Сопло", "heater_bed": "Стіл"}}
 
 
 def fill(text: str, values: Dict[str, Any]) -> str:
@@ -315,7 +335,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     # which notifications are on
     "events": {key: True for key in ("error", "complete", "cancelled", "paused", "runout", "ai_pause", "ai_cancel")},
     "messages": {},  # your own texts, e.g. {"complete": "Done!"}: they win over the language's
-    "language": "",  # "en", "it", "es", "de", "fr", "pt", "pl", "zh", "ru": used until the dashboard's choice is known
+    "language": "",  # "en", "it", "es", "de", "fr", "pt", "pl", "zh", "ru", "uk": used until the dashboard's choice is known
     # timing (seconds)
     "poll_seconds": 2,
     "ai_poll_seconds": 5,

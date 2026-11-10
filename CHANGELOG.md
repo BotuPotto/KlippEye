@@ -1,5 +1,13 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.99.0
+
+**Ukrainian.**
+
+* The dashboard, the login page, the notifications and the AI monitor's texts are now also in Ukrainian (Settings →
+  Language → Українська, or «Automatic» on a Ukrainian device).
+* Tests: the history page's test no longer fails when it starts just before midnight (Rome time).
+
 ## 1.98.0
 
 **Russian.**
