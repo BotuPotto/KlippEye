@@ -1,5 +1,12 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.79.0
+
+**Read a file again.**
+
+* «Read the file again» in a file's menu: Moonraker reads its times, filament and pictures again, for a file it read
+  wrong or before the slicer's settings changed.
+
 ## 1.78.0
 
 **Hidden lines in the console.**

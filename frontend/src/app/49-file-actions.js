@@ -132,7 +132,20 @@ function useFileActions(list, openEditor) {
     setTarget(null);
     setDetails(item);
   };
+  /** 1.79: Moonraker reads the file again (times, filament, thumbnails), for a file it read wrong or before a slicer change. */
+  const rescan = async (item) => {
+    setTarget(null);
+    try {
+      const response = await fetchFresh("/server/files/metascan?filename=" + encodeURIComponent(item.file.path), { method: "POST", timeout: 60000 });
+      if (!response.ok) throw new Error(await responseError(response));
+      toast.notice(tx("Read again: {name}", { name: item.fileName }));
+      list.reload();
+    } catch (error) {
+      toast.action(tx("Cannot read it again: {reason}", { reason: error.message || error }));
+    }
+  };
   return {
+    rescan,
     target,
     pendingDelete,
     details,
@@ -209,6 +222,7 @@ function FileActionSheet({ item, controller }) {
         { className: "oui-list file-sheet__actions" },
         h(FileActionRow, { icon: h(Icons.Info), title: tx("Details"), subtitle: tx("Slicer, times, filament, temperatures, last print"), onClick: controller.openDetails }),
         queue.available && h(FileActionRow, { icon: h(Icons.Queue), title: tx("Add to the queue"), subtitle: tx("Prints after the jobs already waiting; as many copies as you like"), onClick: () => controller.openQueueItem(item) }),
+        h(FileActionRow, { icon: h(Icons.Refresh), title: tx("Read the file again"), subtitle: tx("Times, filament and pictures, read again by Moonraker"), onClick: () => controller.rescan(item) }),
         h(FileActionRow, { icon: h(Icons.Clock), title: tx("Schedule the print"), subtitle: tx("It starts by itself at the day and time you choose"), onClick: () => controller.openScheduleItem(item) }),
         h(FileActionRow, { icon: h(Icons.Layers), title: tx("See the layers"), subtitle: tx("The G-code drawn layer by layer"), onClick: () => (controller.closeMenu(), gcodeViewerStore.open(file.path)) }),
         h(FileActionRow, { icon: h(Icons.Code), title: tx("Open in the editor"), subtitle: tooLong ? tx("Huge file: read-only, first lines") : tx("Read and edit the G-code"), onClick: controller.openInEditor }),

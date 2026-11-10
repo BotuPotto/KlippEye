@@ -151,6 +151,15 @@ with sync_playwright() as p:
     P.pg.screenshot(path=out + "/desktop.png")
     ok("desktop: no page errors", not errs(P), errs(P)[:2])
     P.close()
+    # 1.79: «Rileggi il file» in the file's menu: Moonraker reads its metadata again
+    mock.reset()
+    P = Page(b, mock, 390, 844)
+    CUR[0] = P
+    P.goto("files", 2200)
+    long_press(P, "Benchy")
+    P.pg.locator(".file-action", has_text="Rileggi il file").click()
+    ok("1.79: «Rileggi il file» asks Moonraker to read it again, and says so", wait_until(lambda: state()["metascan_log"] == [B]) and wait_until(lambda: "Riletto" in P.pg.evaluate("() => document.body.innerText")), state().get("metascan_log"))
+    P.close()
     b.close()
 
 print("\n%d failure(s)" % len(FAILS) + (": " + ", ".join(FAILS) if FAILS else ""))
