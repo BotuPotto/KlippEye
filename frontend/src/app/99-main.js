@@ -21,6 +21,7 @@ function HomePage({ printStatus, printControls, status, motion, bedTools, zOffse
       heaters: h("div", { className: "md:col-span-2" }, h(HeatersFansCard, { hotend: status.hotend, bed: status.bed, onEditTemperature })),
       temps: h("div", { className: "md:col-span-2" }, h(TemperatureCard, { onEditTemperature })),
       spool: h(SpoolCard),
+      mmu: h(MmuCard),
       movement: h(React.Fragment, null, zOffsetCard, placement !== "instead" && h("div", { className: "md:col-span-2" }, h(MovementCard, { position: status.position, homedAxes: status.homedAxes, motion, bedTools, lockReason }))),
     }),
   );

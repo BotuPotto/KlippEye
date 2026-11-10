@@ -1,0 +1,20 @@
+/* 1.85 · the multi-material unit (48e-mmu.js) */
+.mmu-now { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-bottom: 12px; }
+.mmu-fact { padding: 10px 12px; min-width: 0; }
+.mmu-fact__value { margin-top: 2px; font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mmu-gates { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; }
+.mmu-gate {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 0; padding: 10px; border: 2px solid transparent;
+  border-radius: var(--oui-r-tile); background: var(--oui-surface-2); color: var(--oui-text); font: inherit; text-align: left; cursor: pointer;
+}
+.mmu-gate.is-current { border-color: var(--oui-accent); }
+.mmu-gate.is-chosen { background: var(--oui-accent-soft); }
+.mmu-gate.is-empty { opacity: 0.6; }
+.mmu-gate__swatch {
+  width: 28px; height: 28px; margin-bottom: 4px; border-radius: 50%; background: var(--mmu-color);
+  box-shadow: inset 0 0 0 2px var(--oui-stroke-strong);
+}
+.mmu-gate__name { font-weight: 600; font-size: 13px; }
+.mmu-gate__material, .mmu-gate__status { max-width: 100%; overflow: hidden; color: var(--oui-text-2); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.mmu-chosen, .mmu-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.mmu-note { margin-top: 10px; }

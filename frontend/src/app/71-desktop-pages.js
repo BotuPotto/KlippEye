@@ -219,6 +219,7 @@ function DesktopDevicePage({ printStatus, printControls, status, capabilities, m
     ),
     fans: h(DesktopFansCard),
     spool: h(SpoolCard),
+    mmu: h(MmuCard, { onGcode }),
     devices: h(DevicesCard),
     extruder: printStatus.state !== "printing" && h(ExtruderCard, { hotend: status.hotend, onGcode, onEditTemperature }), // out of the way while a job prints
     tune: h(TuneCard, { capabilities, onGcode }),

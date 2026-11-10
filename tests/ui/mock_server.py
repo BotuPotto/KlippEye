@@ -369,6 +369,9 @@ def status_for(keys, fields=None):
             st[k] = {"color_data": [[0.0, 0.0, 0.0, 0.0]] * 3}
         elif k == "led_effect IDLE":
             st[k] = {"enabled": S["light"] == 1, "frame_rate": 60.0}
+        elif k == "mmu":   # 1.85: a multi-material unit (Happy Hare), when a test sets one
+            if S.get("mmu"):
+                st[k] = S["mmu"]
         elif k == "configfile":
             if S["caps_down"]:
                 continue

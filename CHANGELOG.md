@@ -1,5 +1,14 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.85.0
+
+**Multi-material units (Happy Hare).**
+
+* On printers with Happy Hare, a «Multi-material unit» card on the Home page (in the side column on the computer): the
+  tool, gate and filament in use, what the unit is doing, and the gates with their colour, material, state and tools.
+* Tap a gate to change to its tool or select it; «Load», «Unload», «Home the unit», «Recover». The commands wait
+  while the unit is busy or a print runs (except «Recover»). Without a unit the card does not show.
+
 ## 1.84.0
 
 **`klippeye benchmark`.**
