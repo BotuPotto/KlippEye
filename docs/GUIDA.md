@@ -616,6 +616,10 @@ anche scrivere testi tuoi (`"messages": {"complete": "Fatto!"}`).
 * **Password facoltativa**: Impostazioni → **Accesso** → scrivila due volte → **Attiva la password**. Il dispositivo che usi resta
   connesso; gli altri (anche l'app) la chiedono una volta e la ricordano per 6 mesi. Da lì la cambi o la rimuovi, e disconnetti gli altri
   dispositivi. **Dimenticata?** Sul Raspberry: `klippeye password remove` (oppure `klippeye password` per sceglierne una nuova).
+* **Password ospiti** (con la password attiva): Impostazioni → **Accesso** → **Password ospiti**. Chi entra con questa vede la
+  stampante, la camera, i file e lo storico, ma non può mandare comandi, avviare o fermare stampe, né aprire configurazione, log
+  o impostazioni. Sul Raspberry: `klippeye password guest-set` / `guest-remove`. Nota: KlippEye protegge il proprio indirizzo;
+  la porta di Moonraker (7125) la protegge la sezione `[authorization]` di Moonraker, non KlippEye.
 * **Controlli di rete**, sempre accesi: il servizio KlippEye risponde solo se lo chiami con un indirizzo IP, il nome del Raspberry o un nome
   della rete di casa (`.local`, `.lan`…), e rifiuta i comandi che arrivano da pagine di altri siti. Per usare un nome tuo:
   `klippeye access host-add stampante.esempio.it`. `klippeye access network-checks off` li spegne.

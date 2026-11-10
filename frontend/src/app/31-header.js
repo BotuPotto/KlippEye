@@ -12,6 +12,7 @@
 function AppHeader({ onSettings, onPrinters, onPower, onSaveConfig, onEmergencyStop, saveBusy, aiBadge, wide }) {
   const { settings } = useSettings();
   const printer = settings.printer;
+  const guest = useAccessRole() === "guest"; // 1.82: a guest looks: no power menu, no SAVE_CONFIG, no emergency stop
   return h(
     "header",
     { className: cx("app-header", wide && "app-header--wide") },
@@ -30,8 +31,10 @@ function AppHeader({ onSettings, onPrinters, onPower, onSaveConfig, onEmergencyS
         "div",
         { className: "app-header__actions" },
         wide && wide.state && h("span", { className: cx("oui-badge header-state", "oui-badge--" + wide.state.tone) }, h("span", { className: "oui-dot" }), wide.state.text),
-        h("button", { onClick: onPower, className: "header-btn", "aria-label": tx("Power and services"), title: tx("Restart Klipper, services and Raspberry") }, h(Icons.Power)),
-        h(
+        guest && h("span", { className: "oui-badge header-guest", "data-guest": "1", title: tx("Logged in as a guest: you can look, not command the printer") }, h(Icons.Lock, { size: 14 }), tx("Guest")),
+        !guest && h("button", { onClick: onPower, className: "header-btn", "aria-label": tx("Power and services"), title: tx("Restart Klipper, services and Raspberry") }, h(Icons.Power)),
+        !guest &&
+          h(
           "button",
           {
             onClick: onSaveConfig,
@@ -41,7 +44,7 @@ function AppHeader({ onSettings, onPrinters, onPower, onSaveConfig, onEmergencyS
           },
           h(Icons.Save),
         ),
-        h("button", { onClick: onEmergencyStop, className: "header-btn header-btn--danger", "aria-label": tx("Emergency stop") }, h(Icons.Emergency)),
+        !guest && h("button", { onClick: onEmergencyStop, className: "header-btn header-btn--danger", "aria-label": tx("Emergency stop") }, h(Icons.Emergency)),
       ),
     ),
   );

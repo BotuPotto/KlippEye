@@ -7,6 +7,7 @@
      POST /api/auth/disable     { current }        turns it off
      POST /api/auth/logout      this device goes out
      POST /api/auth/logout_all  every other device goes out
+     POST /api/auth/guest       { current, new }   1.82: the guest password (look only); /api/auth/guest/remove { current }
    Without the cookie the backend answers 401 with the header X-KlippEye-Login: 1; the watcher below then opens the
    login page (/login, served by the backend itself). Forgotten password: on the Raspberry, `klippeye password remove`.
    The backend words its refusals in the browser's language (English or Italian); "weak" is worded here.
@@ -14,19 +15,71 @@
 
 const ACCESS_STATUS_URL = "/api/auth/status";
 
+/**
+ * 1.82: who is using the dashboard: "admin" (the main password, or no password), "guest" (the guest password: looks,
+ * never commands) or null while not known. Read once when the page opens.
+ */
+const accessRoleStore = (() => {
+  let role = null;
+  const listeners = new Set();
+  const set = (value) => {
+    role = value;
+    document.documentElement.classList.toggle("is-guest", role === "guest");
+    listeners.forEach((listener) => listener(role));
+  };
+  return {
+    get: () => role,
+    set,
+    subscribe(listener) {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+  };
+})();
+
+function useAccessRole() {
+  const [role, setRole] = useState(accessRoleStore.get());
+  useEffect(() => accessRoleStore.subscribe(setRole), []);
+  return role;
+}
+
+const GUEST_ALLOWED_POSTS = ["/api/auth/logout", "/api/auth/login"];
+let guestToastAt = 0;
+
+/** A guest's command never leaves the page: it is answered here (403) and a note says why, once every few seconds. */
+function guestRefusal(input, init) {
+  if (accessRoleStore.get() !== "guest") return null;
+  const method = String((init && init.method) || (input && input.method) || "GET").toUpperCase();
+  if (method === "GET" || method === "HEAD") return null;
+  const url = new URL(typeof input === "string" ? input : input.url, window.location.href);
+  if (url.origin !== window.location.origin || GUEST_ALLOWED_POSTS.includes(url.pathname)) return null;
+  if (Date.now() - guestToastAt > 4000 && typeof toast !== "undefined") {
+    guestToastAt = Date.now();
+    toast.notice(tx("Guests can only look: log in with the main password to command the printer."), 5000);
+  }
+  return new Response(JSON.stringify({ ok: false, error: "guest", message: tx("Guests can only look: log in with the main password to command the printer.") }), { status: 403, headers: { "Content-Type": "application/json" } });
+}
+
 /** Any request answered "log in first" (expired or revoked cookie) brings the page to the login form, once. */
 (function watchForLogin() {
   if (typeof window.fetch !== "function") return;
   const original = window.fetch.bind(window);
   let leaving = false;
-  window.fetch = (...args) =>
-    original(...args).then((response) => {
+  window.fetch = (...args) => {
+    const refused = guestRefusal(args[0], args[1]);
+    return (refused ? Promise.resolve(refused) : original(...args)).then((response) => {
       if (!leaving && response && response.status === 401 && response.headers && response.headers.get("X-KlippEye-Login") === "1") {
         leaving = true;
         window.location.replace("/login");
       }
       return response;
     });
+  };
+  // who is using the page (1.82)
+  original(ACCESS_STATUS_URL, { cache: "no-store" })
+    .then((response) => (response.ok ? response.json() : null))
+    .then((info) => accessRoleStore.set(info && info.role ? info.role : "admin"))
+    .catch(() => accessRoleStore.set("admin"));
 })();
 
 /** { phase: "loading" | "ok" | "old" | "down", info } — "old": a backend before 1.2.0, with no password at all. */
@@ -130,6 +183,14 @@ function AccessPage({ active }) {
     );
   }
 
+  if (info.role === "guest")
+    return h(
+      SettingsGroup,
+      { title: tx("Guest"), note: tx("Logged in with the guest password: you can look at the printer, the camera, the files and the history, not command it or read its configuration.") },
+      h("div", { className: "set-status set-status--warn", "data-guest-status": "1" }, h("span", { className: "set-status__dot" }), tx("Guest: look only")),
+      h("button", { type: "button", className: "oui-btn oui-btn--primary oui-btn--block", onClick: () => accessPost("/api/auth/logout", {}).then(() => window.location.replace("/login")) }, tx("Log in with the main password")),
+    );
+
   const hostsNote = (info.allowed_hosts || []).length ? tx("Extra names allowed: ") + info.allowed_hosts.join(", ") + "." : tx("Besides IP addresses only home network names work (.local, .lan…). For a name of your own: klippeye access host-add NAME");
 
   return h(
@@ -150,6 +211,7 @@ function AccessPage({ active }) {
       h("button", { type: "button", className: "oui-btn oui-btn--primary oui-btn--block", disabled: busy || !first, onClick: setPassword }, info.enabled ? tx("Change the password") : tx("Turn on the password")),
       h(AccessMessage, { result }),
     ),
+    info.enabled && h(GuestPasswordGroup, { info, min, onChanged: reload }),
     info.enabled &&
       h(
         SettingsGroup,
@@ -172,6 +234,51 @@ function AccessPage({ active }) {
         h("span", { className: "set-status__dot" }),
         info.network_checks ? tx("Commands accepted only from the dashboard and the app, not from other sites") : tx("Network checks off (klippeye access network-checks on to turn them on again)"),
       ),
+    ),
+  );
+}
+
+/** 1.82: the guest password: who logs in with it looks at the printer, never commands it. Set with the main password. */
+function GuestPasswordGroup({ info, min, onChanged }) {
+  const [current, setCurrent] = useState("");
+  const [first, setFirst] = useState("");
+  const [second, setSecond] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState(null);
+  const run = async (url, body, okMessage) => {
+    setBusy(true);
+    setResult(null);
+    const outcome = await accessPost(url, body);
+    setBusy(false);
+    setResult({ ok: outcome.ok, message: outcome.ok ? okMessage : outcome.message });
+    if (outcome.ok) {
+      setCurrent("");
+      setFirst("");
+      setSecond("");
+      onChanged();
+    }
+  };
+  const set = () => {
+    const problem = newPasswordProblem(first, second, min);
+    if (problem) return setResult({ ok: false, message: problem });
+    run("/api/auth/guest", { current, new: first }, info.guest_enabled ? tx("Guest password changed: guests will have to log in again.") : tx("Guest password on: who logs in with it can look, not command."));
+  };
+  return h(
+    "div",
+    { "data-guest-group": "1" },
+    h(
+      SettingsGroup,
+      {
+        title: tx("Guest password"),
+        note: tx("A second password, for who should only look: the printer's state, the camera, the files and the history. Guests cannot send commands, start or stop prints, or read the configuration and the settings."),
+      },
+      h("div", { className: cx("set-status", info.guest_enabled ? "set-status--ok" : "set-status--warn") }, h("span", { className: "set-status__dot" }), info.guest_enabled ? tx("Guest password on") : tx("Guest password off")),
+      h(PasswordField, { label: tx("Main password"), value: current, onChange: setCurrent, autoComplete: "current-password", id: "guest-current" }),
+      h(PasswordField, { label: info.guest_enabled ? tx("New guest password") : tx("Guest password (at least {min} characters)", { min }), value: first, onChange: setFirst, autoComplete: "new-password", id: "guest-new" }),
+      h(PasswordField, { label: tx("Repeat the password"), value: second, onChange: setSecond, autoComplete: "new-password", id: "guest-repeat" }),
+      h("button", { type: "button", className: "oui-btn oui-btn--primary oui-btn--block", "data-guest-set": "1", disabled: busy || !first || !current, onClick: set }, info.guest_enabled ? tx("Change the guest password") : tx("Turn on the guest password")),
+      info.guest_enabled && h("button", { type: "button", className: "oui-btn oui-btn--danger-soft oui-btn--block", "data-guest-remove": "1", disabled: busy || !current, onClick: () => run("/api/auth/guest/remove", { current }, tx("Guest password removed: guests are logged out.")) }, tx("Remove the guest password")),
+      h(AccessMessage, { result }),
     ),
   );
 }

@@ -599,6 +599,10 @@ own texts in `notifier.json` (`"messages": {"complete": "Done!"}`).
 * **Optional password**: Settings → **Access** → type it twice → **Turn on the password**. This device stays logged in; the
   others (also the app) ask for it once and remember it for 6 months. From there you can change or remove it, and log out the
   other devices. **Forgot it?** On the Raspberry: `klippeye password remove` (or `klippeye password` to set a new one).
+* **Guest password** (with the password on): Settings → **Access** → **Guest password**. Who logs in with it sees the printer,
+  the camera, the files and the history, but cannot send commands, start or stop prints, or open the configuration, the logs
+  or the settings. On the Raspberry: `klippeye password guest-set` / `guest-remove`. Note: KlippEye protects its own address;
+  Moonraker's own port (7125) is protected by Moonraker's `[authorization]` section, not by KlippEye.
 * **Network checks**, always on: the KlippEye service answers only when called by an IP address, the Raspberry's name or a home-network
   name (`.local`, `.lan`…), and refuses commands coming from pages of other sites. To use a name of your own:
   `klippeye access host-add printer.example.com`. `klippeye access network-checks off` turns the checks off.

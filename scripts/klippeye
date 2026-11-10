@@ -116,8 +116,8 @@ PY
     [ "$(id -u)" = 0 ] && { echo "Run it without sudo: the password file must stay owned by the service user."; exit 1; }
     # optional dashboard password: "klippeye password" sets it, "remove" removes it, "status" tells how it is
     case "${2:-set}" in
-      set|remove|status|logout-all) KLIPPEYE_DATA="$DATA" exec python3 "$REPO/backend/access.py" "${2:-set}" ;;
-      *) echo "Usage: klippeye password [set|remove|status|logout-all]"; exit 2 ;;
+      set|remove|status|logout-all|guest-set|guest-remove) KLIPPEYE_DATA="$DATA" exec python3 "$REPO/backend/access.py" "${2:-set}" ;;
+      *) echo "Usage: klippeye password [set|remove|status|logout-all|guest-set|guest-remove]"; exit 2 ;;
     esac
     ;;
   access)
@@ -151,6 +151,7 @@ klippeye repair              check the program files and restore those damaged b
 klippeye update [--force]    download the latest release and restart (like the dashboard's Update button)
 klippeye notify test         send a test notification to the phone   (also: check)
 klippeye password [set|remove|status|logout-all]   optional dashboard password ("klippeye password" sets it)
+klippeye password guest-set|guest-remove          a second password for guests, who can look but not command
 klippeye access host-add NAME   allow one more host name (e.g. printer.example.com)   (also: host-remove NAME, network-checks on|off, status)
 klippeye diagnose [--save]   a report to share when asking for help (nothing secret in it; --save writes it to a file)
 klippeye replay [--current] [--set KEY=VALUE]   measure the AI monitor on the recorded prints: alarms per hour, how many false

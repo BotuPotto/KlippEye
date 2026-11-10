@@ -8,6 +8,8 @@ Used by the backend (import) and from the terminal, for example through `klippey
     python3 access.py set                       asks for a new password (twice) and turns it on
     python3 access.py remove                    removes the password (forgotten password: needs access to the Raspberry)
     python3 access.py logout-all                every device has to log in again
+    python3 access.py guest-set                 asks for a guest password (1.82: look only, no commands)
+    python3 access.py guest-remove              removes the guest password (guests are logged out)
     python3 access.py host-add NAME             allows one more host name (e.g. printer.example.com)
     python3 access.py host-remove NAME
     python3 access.py network-checks on|off     turns the host/origin checks on or off (off = behaviour before 1.2.0)
@@ -72,7 +74,9 @@ def _write_private(path, text):
 
 def default_settings():
     return {"formato": FORMAT, "enabled": False, "salt": "", "hash": "", "iterations": ITERATIONS,
-            "secret": secrets.token_hex(32), "generation": 1, "allowed_hosts": [], "network_checks": True}
+            "secret": secrets.token_hex(32), "generation": 1, "allowed_hosts": [], "network_checks": True,
+            # 1.82: a second password for guests, who can look but not command (only with the main password on)
+            "guest_enabled": False, "guest_salt": "", "guest_hash": "", "guest_iterations": ITERATIONS, "guest_generation": 1}
 
 
 class Store:
@@ -182,8 +186,28 @@ def set_password(settings, password):
     return settings
 
 
+def verify_guest_password(settings, password):
+    """The guest password, when there is one (and the main password is on: without it everyone may do everything)."""
+    if not settings.get("enabled") or not settings.get("guest_enabled") or not settings.get("guest_hash"):
+        return False
+    return verify_password({"enabled": True, "salt": settings.get("guest_salt"), "hash": settings.get("guest_hash"), "iterations": settings.get("guest_iterations")}, password)
+
+
+def set_guest_password(settings, password):
+    salt, digest = hash_password(password)
+    settings.update({"guest_enabled": True, "guest_salt": salt, "guest_hash": digest, "guest_iterations": ITERATIONS})
+    settings["guest_generation"] = int(settings.get("guest_generation") or 1) + 1   # guests logged in before must log in again
+    return settings
+
+
+def clear_guest_password(settings):
+    settings.update({"guest_enabled": False, "guest_salt": "", "guest_hash": ""})
+    settings["guest_generation"] = int(settings.get("guest_generation") or 1) + 1
+    return settings
+
+
 def clear_password(settings):
-    settings.update({"enabled": False, "salt": "", "hash": ""})
+    settings.update({"enabled": False, "salt": "", "hash": "", "guest_enabled": False, "guest_salt": "", "guest_hash": ""})
     settings["generation"] = int(settings.get("generation") or 1) + 1
     return settings
 
@@ -196,25 +220,81 @@ def _unb64(text):
     return base64.urlsafe_b64decode(text + "=" * (-len(text) % 4))
 
 
-def make_token(settings, now=None):
+def make_token(settings, now=None, role="admin"):
     now = int(now or time.time())
-    body = _b64(json.dumps({"v": 1, "exp": now + TOKEN_DAYS * 86400, "gen": int(settings.get("generation") or 1)}, separators=(",", ":")).encode())
+    data = {"v": 1, "exp": now + TOKEN_DAYS * 86400, "gen": int(settings.get("generation") or 1)}
+    if role == "guest":
+        data.update({"role": "guest", "ggen": int(settings.get("guest_generation") or 1)})
+    body = _b64(json.dumps(data, separators=(",", ":")).encode())
     sig = _b64(hmac.new(bytes.fromhex(settings["secret"]), body.encode("ascii"), hashlib.sha256).digest())
     return body + "." + sig
 
 
 def token_valid(settings, token, now=None):
+    return token_role(settings, token, now) is not None
+
+
+def token_role(settings, token, now=None):
+    """Who the token is for: "admin" (the password), "guest" (the guest password, 1.82), or None (not valid)."""
     if not token or not isinstance(token, str) or token.count(".") != 1 or len(token) > 512:
-        return False
+        return None
     body, sig = token.split(".")
     try:
         expected = _b64(hmac.new(bytes.fromhex(settings["secret"]), body.encode("ascii"), hashlib.sha256).digest())
         if not hmac.compare_digest(expected, sig):
-            return False
+            return None
         data = json.loads(_unb64(body))
-    except (ValueError, TypeError, KeyError):
+        if not (data.get("v") == 1 and int(data.get("gen", -1)) == int(settings.get("generation") or 1) and int(data.get("exp", 0)) > int(now or time.time())):
+            return None
+        if data.get("role") == "guest":
+            ok = settings.get("guest_enabled") and int(data.get("ggen", -1)) == int(settings.get("guest_generation") or 1)
+            return "guest" if ok else None
+        return "admin" if data.get("role") in (None, "admin") else None
+    except (ValueError, TypeError, KeyError, AttributeError):
+        return None
+
+
+# ---------------------------------------------------------------------------------------------------------------------
+# 1.82: what a guest may do: look (the printer, the camera, the files to print, the history), never command, never read
+# the configuration, the logs or the settings (they hold keys and passwords). Everything else is refused.
+# ---------------------------------------------------------------------------------------------------------------------
+GUEST_GET_EXACT = {
+    "/", "/api/auth/status", "/api/health", "/api/status", "/api/printer", "/api/version", "/api/app/version", "/api/logos",
+    "/api/print/detector/status", "/api/print/last_analysis", "/api/print/alerts/history", "/api/print/snapshot",
+    "/api/camera/snapshot", "/api/schedule", "/api/printers/self", "/api/macros/list",
+    "/printer/info", "/printer/gcode/help", "/printer/query_endstops/status",
+    "/server/info", "/server/files/list", "/server/files/metadata", "/server/files/directory", "/server/files/content",
+    "/server/history/list", "/server/history/totals", "/server/history/job", "/server/job_queue/status",
+    "/server/temperature_store", "/server/gcode_store", "/server/webcams/list", "/server/spoolman/status",
+    "/server/spoolman/spool_id", "/server/database/item",
+    "/machine/system_info", "/machine/proc_stats", "/machine/update/status", "/machine/device_power/devices",
+    "/machine/timelapse/lastframeinfo",
+}
+GUEST_GET_PREFIXES = ("/logos/", "/api/print/alerts/image/", "/api/shaper/", "/printer/objects/", "/server/files/gcodes/",
+                      "/webcam")
+GUEST_POST = {"/api/auth/logout"}
+GUEST_FILE_ROOTS = ("gcodes", "timelapse")   # the folders a guest may list or read (never config: it holds keys)
+
+
+def guest_may(method, path, args=None):
+    """True when a guest may make this request. `args`: the query string as a dict."""
+    args = args or {}
+    method = (method or "").upper()
+    if method == "POST":
+        return path in GUEST_POST
+    if method not in ("GET", "HEAD"):
         return False
-    return data.get("v") == 1 and int(data.get("gen", -1)) == int(settings.get("generation") or 1) and int(data.get("exp", 0)) > int(now or time.time())
+    if "/.." in path or "//" in path:
+        return False
+    if path == "/server/files/list" or path == "/server/files/content":
+        return str(args.get("root") or "gcodes") in GUEST_FILE_ROOTS
+    if path == "/server/files/directory":
+        return str(args.get("path") or "gcodes").strip("/").split("/")[0] in GUEST_FILE_ROOTS
+    if path == "/machine/update/status":
+        return str(args.get("refresh") or "false").lower() in ("false", "0", "")
+    if path in GUEST_GET_EXACT:
+        return True
+    return any(path.startswith(prefix) for prefix in GUEST_GET_PREFIXES)
 
 
 class Throttle:
@@ -307,6 +387,7 @@ def main(argv):
     settings = store.load()
     if cmd == "status":
         print("Password: %s" % ("ON" if settings["enabled"] else "off (anyone who can reach the dashboard can use it)"))
+        print("Guest password (look only): %s" % ("ON" if settings["enabled"] and settings.get("guest_enabled") else "off"))
         print("Network checks (host name and origin of requests): %s" % ("on" if settings.get("network_checks", True) else "OFF"))
         extra = settings.get("allowed_hosts") or []
         print("Extra host names: %s" % (", ".join(extra) if extra else "none (IP addresses, .local/.lan names and the Raspberry's own name are always allowed)"))
@@ -324,6 +405,25 @@ def main(argv):
     if cmd == "remove":
         store.save(clear_password(settings))
         print("Password removed: the dashboard opens without logging in again.")
+        return 0
+    if cmd == "guest-set":
+        if not settings["enabled"]:
+            print("Set the main password first (access.py set): without it everyone can already do everything.")
+            return 1
+        password = argv[2] if len(argv) > 2 and argv[2] != "-" else _ask_password()
+        problem = check_new_password(password)
+        if problem:
+            print(problem)
+            return 1
+        if verify_password(settings, password):
+            print("The guest password must be different from the main one.")
+            return 1
+        store.save(set_guest_password(settings, password))
+        print("Guest password set: who logs in with it can look, not command.")
+        return 0
+    if cmd == "guest-remove":
+        store.save(clear_guest_password(settings))
+        print("Guest password removed: guests are logged out.")
         return 0
     if cmd == "logout-all":
         settings["generation"] = int(settings.get("generation") or 1) + 1
