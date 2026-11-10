@@ -21,9 +21,9 @@ const LAYOUT_KEY = "ke_layout";
  */
 const LAYOUT_DEVICES = ["phone", "tablet", "computer"];
 const LAYOUT_DEFAULTS = {
-  phone: { home: { main: ["camera", "heaters", "temps", "spool", "movement"] }, control: { main: ["console", "extruder", "devices", "macros", "tune", "endstops", "bedmesh", "shaper"] } },
+  phone: { home: { main: ["camera", "heaters", "temps", "spool", "movement", "mmu"] }, control: { main: ["console", "extruder", "devices", "macros", "tune", "endstops", "bedmesh", "shaper"] } },
   computer: {
-    home: { main: ["camera", "print", "temps"], side: ["heaters", "motion", "fans", "spool", "devices", "extruder", "tune"] },
+    home: { main: ["camera", "print", "temps"], side: ["heaters", "motion", "fans", "spool", "mmu", "devices", "extruder", "tune"] },
     control: { left: ["bedmesh", "shaper"], right: ["macros", "endstops"] },
   },
 };
@@ -45,6 +45,7 @@ const layoutCardTitle = (id, device) =>
     heaters: device === "computer" ? tx("Heaters") : tx("Heaters and fans"),
     temps: tx("Temperatures"),
     spool: tx("Spool"),
+    mmu: tx("Multi-material unit"),
     movement: tx("Movement and Z-offset"),
     motion: tx("Movement and Z-offset"),
     fans: tx("Fans"),

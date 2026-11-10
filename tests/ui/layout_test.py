@@ -73,7 +73,7 @@ with sync_playwright() as p:
     ok("... it stays folded on this device", wait_until(lambda: "is-collapsed" in pg.locator('[data-card="heaters"]').get_attribute("class")))
 
     open_appearance(P)
-    ok("Settings → Appearance: Home's cards in order", [e.get_attribute("data-layout-card") for e in pg.locator('[data-layout-page="home"] [data-layout-card]').all()] == ["camera", "heaters", "temps", "spool", "movement"])
+    ok("Settings → Appearance: Home's cards in order", [e.get_attribute("data-layout-card") for e in pg.locator('[data-layout-page="home"] [data-layout-card]').all()] == ["camera", "heaters", "temps", "spool", "movement", "mmu"])
     ok("... '1 card è richiusa'", "1 card è richiusa" in pg.locator(".drawer").inner_text())
     pg.locator('[data-layout-page="home"] [data-layout-card="movement"]').get_by_role("button", name="Su: Movimento e Z-offset").click()
     pg.locator('[data-layout-page="home"] [data-layout-card="movement"]').get_by_role("button", name="Su: Movimento e Z-offset").click()
