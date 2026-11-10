@@ -7,7 +7,7 @@ Raspberry: Moonraker's update manager installs and updates it from here.
 > Until release 1.0.x the project was called **VzBot**. The move of those installs to KlippEye was part of releases 1.1.0 to
 > 1.10.0 (tag `v1.10.0`): an install still on VzBot moves with that release first.
 
-**Step-by-step guide: [docs/GUIDE.md](docs/GUIDE.md)** (in Italian: [docs/GUIDA.md](docs/GUIDA.md)).
+**Step-by-step guide: [docs/GUIDE.md](docs/GUIDE.md)** (in Italian: [docs/GUIDA.md](docs/GUIDA.md)). For scripts and home automation: [docs/API.md](docs/API.md).
 Security: [SECURITY.md](SECURITY.md) · Contributing: [CONTRIBUTING.md](CONTRIBUTING.md) · Changes: [CHANGELOG.md](CHANGELOG.md)
 
 ## Features
