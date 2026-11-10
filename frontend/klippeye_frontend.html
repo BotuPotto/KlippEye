@@ -3928,11 +3928,12 @@ button.ai-header-badge { cursor: pointer; font: inherit; color: inherit; }
 .shaper-advice { display: grid; gap: 2px; margin-top: 12px; padding: 10px 12px; border-radius: var(--oui-r-tile); background: var(--oui-surface-2); font-size: 13px; font-variant-numeric: tabular-nums; }
 .shaper-advice__title { font-weight: 600; }
 .shaper-table-box { margin-top: 10px; overflow-x: auto; }
-.shaper-table { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
+.shaper-table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
 .shaper-table__caption { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .shaper-table th, .shaper-table td { padding: 6px 3px; text-align: right; border-bottom: 1px solid var(--oui-stroke); }
 .shaper-table thead th { color: var(--oui-text-3); font-size: 10.5px; font-weight: 600; line-height: 1.25; vertical-align: bottom; }
-.shaper-table th:first-child { text-align: left; }
+.shaper-table th:first-child { width: 31%; text-align: left; }
+.shaper-table th, .shaper-table td { overflow-wrap: anywhere; }
 .shaper-row { cursor: pointer; }
 .shaper-row:hover { background: var(--oui-surface-2); }
 .shaper-row.is-selected { background: var(--oui-accent-soft); }
@@ -9358,7 +9359,7 @@ function usePrinterFunctions() {
    ========================================================================== */
 
 /** Written by build.py from the VERSION file of the release; stays as it is when the page is built by hand. */
-const DASHBOARD_RELEASE = "1.89.0";
+const DASHBOARD_RELEASE = "1.89.1";
 const dashboardRelease = () => (DASHBOARD_RELEASE.startsWith("__") ? "sviluppo" : DASHBOARD_RELEASE);
 
 /** The interface level this page needs from the backend (the backend says its own in /api/version). */

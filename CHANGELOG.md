@@ -1,18 +1,31 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.89.1
+
+**Input shaper: Klipper's own figures.**
+
+* The card now shows what SHAPER_CALIBRATE said in the console for that measurement: each shaper's vibrations,
+  smoothing and suggested max acceleration, and the shaper Klipper recommends (read from Moonraker, or from
+  klippy.log after a Moonraker restart). When those messages are gone, the figures are worked out from the file the
+  way Klipper does, and the card says so.
+* The «low vibrations» recommendation is gone: the card shows Klipper's choice, already selected for «Save», and what
+  the chosen shaper leaves.
+* With a high peak the chart could spill over the rest of the card: its scale now always reaches above the highest
+  value and the lines stay inside it.
+* The shaper table fits narrow phones.
+
 ## 1.89.0
 
 **Input shaper: a clearer chart, the shapers' figures, saving in printer.cfg.**
 
 * The chart is now an axis frequency profile: the vibrations of all axes together and of X, Y and Z, what is left with
-  the shaper Klipper recommends (and with the one chosen), the two bands (below the green line the vibrations do not
-  matter, above the orange one they show in the prints), the peaks numbered, each shaper's response dotted. The title
-  gives the resonance frequency (ω0) and the estimated damping ratio (ζ); the legend hides and shows each line. The
-  scale always reaches above the highest peak and nothing is drawn outside the chart.
-* Under it: Klipper's recommendation, the estimated damping ratio and a table with each shaper's frequency,
-  vibrations, smoothing and highest acceleration. The figures are the ones SHAPER_CALIBRATE gave in the console
-  (read from Moonraker, or from klippy.log); when they are no longer there they are worked out from the file the way
-  Klipper does, and the card says so.
+  the shaper recommended for performance and the one for low vibrations, the two bands (below the green line the
+  vibrations do not matter, above the orange one they show in the prints), the peaks numbered, each shaper's response
+  dotted. The title gives the resonance frequency (ω0) and the estimated damping ratio (ζ); the legend hides and shows
+  each line.
+* Under it: the recommended shapers (performance, low vibrations), the estimated damping ratio and a table with each
+  shaper's frequency, vibrations, smoothing and highest acceleration, computed as Klipper does with the printer's
+  square corner velocity and damping ratio.
 * «Measure X» and «Measure Y» each have a menu with the measurement's settings (start and end frequency, sweep speed,
   acceleration per Hz, max smoothing): empty ones use Klipper's (shown in grey). They are kept on the device.
 * «Try» is now «Save»: the chosen shaper and its frequency are written in [input_shaper] where Klipper reads it
