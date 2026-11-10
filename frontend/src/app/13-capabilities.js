@@ -197,7 +197,12 @@ function deriveCapabilities(configfile, commands) {
     bedScrewLayout: screwLayoutOf(settings.bed_screws),
     tune: tuneDefaultsFrom(settings),
     // 1.80: the input shaper graphs: a measurement needs [resonance_tester] (an accelerometer); the shaper printer.cfg sets
-    shaper: { canMeasure: hasSection("resonance_tester") && registered("SHAPER_CALIBRATE"), current: shaperInUse(settings.input_shaper) },
+    shaper: {
+      canMeasure: hasSection("resonance_tester") && registered("SHAPER_CALIBRATE"),
+      current: shaperInUse(settings.input_shaper),
+      defaults: shaperMeasureDefaults(settings.resonance_tester), // 1.89: what a measurement uses without settings
+      damping: { x: shaperDamping(settings.input_shaper, "x"), y: shaperDamping(settings.input_shaper, "y") },
+    },
   };
 }
 
@@ -210,6 +215,21 @@ function shaperInUse(section) {
     return { type: String(section["shaper_type_" + name] || section.shaper_type || "mzv").toLowerCase(), freq };
   };
   return { x: axis("x"), y: axis("y") };
+}
+
+/** 1.89: [resonance_tester]'s sweep, with Klipper's own values for what it does not say (max_smoothing: no limit). */
+function shaperMeasureDefaults(section) {
+  const read = (option, fallback) => {
+    const value = Number((section || {})[option]);
+    return (section || {})[option] !== undefined && Number.isFinite(value) && value > 0 ? Math.round(value * 100) / 100 : fallback;
+  };
+  return { freq_start: read("min_freq", 5), freq_end: read("max_freq", 133.33), hz_per_sec: read("hz_per_sec", 1), accel_per_hz: read("accel_per_hz", 60), max_smoothing: read("max_smoothing", null) };
+}
+
+/** 1.89: the damping ratio [input_shaper] sets for an axis (damping_ratio_x), or null (Klipper's 0.1). */
+function shaperDamping(section, axis) {
+  const value = Number((section || {})["damping_ratio_" + axis]);
+  return value > 0 && value < 1 ? value : null;
 }
 
 /** Loads the capabilities; resolves null when Klipper does not answer (not ready yet). */

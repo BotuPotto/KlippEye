@@ -1,5 +1,24 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.89.0
+
+**Input shaper: a clearer chart, the shapers' figures, saving in printer.cfg.**
+
+* The chart is now an axis frequency profile: the vibrations of all axes together and of X, Y and Z, what is left with
+  the shaper recommended for performance and the one for low vibrations, the two bands (below the green line the
+  vibrations do not matter, above the orange one they show in the prints), the peaks numbered, each shaper's response
+  dotted. The title gives the resonance frequency (ω0) and the estimated damping ratio (ζ); the legend hides and shows
+  each line.
+* Under it: the recommended shapers (performance, low vibrations), the estimated damping ratio and a table with each
+  shaper's frequency, vibrations, smoothing and highest acceleration, computed as Klipper does with the printer's
+  square corner velocity and damping ratio.
+* «Measure X» and «Measure Y» each have a menu with the measurement's settings (start and end frequency, sweep speed,
+  acceleration per Hz, max smoothing): empty ones use Klipper's (shown in grey). They are kept on the device.
+* «Try» is now «Save»: the chosen shaper and its frequency are written in [input_shaper] where Klipper reads it
+  (Klipper's own block at the end of printer.cfg, printer.cfg itself or the included file that has the section; a new
+  section otherwise), keeping a copy of the file first, and applied at once.
+* The snowflake icon of the temperature card is now symmetric.
+
 ## 1.88.0
 
 **French.**

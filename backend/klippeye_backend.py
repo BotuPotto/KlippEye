@@ -1502,7 +1502,9 @@ def api_shaper_files():
 @app.route("/api/shaper/data", methods=["GET"])
 def api_shaper_data():
     try:
-        return jsonify(shaper_data.read(request.args.get("name", "")))
+        args = request.args  # 1.89: the printer's square_corner_velocity and damping ratio, for smoothing and max accel
+        return jsonify(shaper_data.read(args.get("name", ""), scv=shaper_data.number_arg(args.get("scv"), 5.0, 0.1, 100.0),
+                                        damping=shaper_data.number_arg(args.get("damping"), 0.1, 0.01, 0.5)))
     except shaper_data.ShaperError as error:
         return jsonify({"error": str(error)}), 404 if str(error) == "file not found" else 400
     except OSError as error:

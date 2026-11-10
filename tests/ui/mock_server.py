@@ -266,7 +266,7 @@ def settings_now():
     out["extruder"] = dict(out["extruder"], pressure_advance=0.05, pressure_advance_smooth_time=0.04)
     if S.get("shaper_files"):
         out["input_shaper"] = {"shaper_type_x": "mzv", "shaper_freq_x": 52.4, "shaper_type_y": "ei", "shaper_freq_y": 55.0}
-    out["resonance_tester"] = {"accel_chip": "adxl345", "probe_points": "150, 150, 20"}
+    out["resonance_tester"] = {"accel_chip": "adxl345", "probe_points": "150, 150, 20", "max_freq": 120.0}
     if S["has_retraction"]:
         out["firmware_retraction"] = {"retract_length": 0.8, "retract_speed": 35.0, "unretract_extra_length": 0.0, "unretract_speed": 30.0}
     if S.get("extra_devices"):
@@ -1879,7 +1879,9 @@ def api_shaper_files():
 @app.route("/api/shaper/data")
 def api_shaper_data():
     try:
-        return jsonify(shaper_data.read(request.args.get("name", ""), shaper_dirs()))
+        args = request.args
+        return jsonify(shaper_data.read(args.get("name", ""), shaper_dirs(), scv=shaper_data.number_arg(args.get("scv"), 5.0, 0.1, 100.0),
+                                        damping=shaper_data.number_arg(args.get("damping"), 0.1, 0.01, 0.5)))
     except shaper_data.ShaperError as error:
         return jsonify(error=str(error)), 404 if str(error) == "file not found" else 400
 
