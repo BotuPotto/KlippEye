@@ -77,7 +77,7 @@
 .desk-side__group { display: contents; }
 .desk-slot { display: flex; flex: none; flex-direction: column; gap: 16px; }
 /* 1.66: a slot per card of the side column, in the order of the computer's layout (Settings → Appearance → Cards) */
-.desk-slot--heaters, .desk-slot--motion, .desk-slot--fans, .desk-slot--spool, .desk-slot--devices, .desk-slot--extruder, .desk-slot--tune, .desk-slot--camera, .desk-slot--print, .desk-slot--temps { min-width: 0; }
+.desk-slot--heaters, .desk-slot--motion, .desk-slot--fans, .desk-slot--spool, .desk-slot--mmu, .desk-slot--shaper, .desk-slot--devices, .desk-slot--extruder, .desk-slot--tune, .desk-slot--camera, .desk-slot--print, .desk-slot--temps { min-width: 0; }
 .heater-tiles--last { margin-bottom: 0; }
 /* extra wide: the side column in two (its cards in their order: the first half, then the second; 1.66) */
 @media (min-width: 1600px) {
