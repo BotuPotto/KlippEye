@@ -806,6 +806,6 @@ function SystemPage({ controller }) {
   const { data, reload, checkForUpdates } = useSystemData();
 
   return data
-    ? h("div", { className: "sys-grid" }, h(HostCard, { data, onRefresh: reload }), h(McuCard, { data }), h(UpdatesCard, { data, controller, onCheck: checkForUpdates }))
+    ? h("div", { className: "sys-grid" }, h(HostCard, { data, onRefresh: reload }), h(McuCard, { data }), h(PeripheralsCard), h(UpdatesCard, { data, controller, onCheck: checkForUpdates }))
     : h(LoadingCard, { label: tx("System"), text: tx("Loading...") });
 }

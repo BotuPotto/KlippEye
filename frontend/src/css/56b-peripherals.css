@@ -1,0 +1,11 @@
+/* Devices connected to the Raspberry (app/56b-peripherals.js) */
+.peripherals-kinds { margin: 4px 0 12px; max-width: 100%; overflow-x: auto; }
+.peripherals-kinds > button { white-space: nowrap; }
+.peripherals-note { margin-top: 10px; }
+.peripheral-row { display: flex; flex-direction: column; gap: 4px; padding: 10px 2px; min-width: 0; }
+.peripheral-row + .peripheral-row { border-top: 1px solid var(--oui-stroke); }
+.peripheral-row__title { font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
+.peripheral-row__detail { font-size: 12px; color: var(--oui-text-3); overflow-wrap: anywhere; }
+.peripheral-row__copy { display: flex; align-items: center; gap: 6px; min-height: 36px; padding: 6px 10px; border-radius: 10px; background: var(--oui-surface-2); color: var(--oui-text-2); text-align: left; }
+.peripheral-row__copy code { flex: 1; min-width: 0; font-size: 12px; overflow-wrap: anywhere; }
+.peripheral-row__copy:hover { background: var(--oui-surface-3); }

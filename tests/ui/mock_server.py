@@ -1794,6 +1794,24 @@ def db_item():
 def webcams_list():
     return jsonify(result={"webcams": S["webcams"]})
 
+# 1.76: what is plugged into the Raspberry (Moonraker's /machine/peripherals/*)
+@app.route("/machine/peripherals/serial")
+def periph_serial():
+    return jsonify(result={"serial_devices": [{"device_type": "usb", "device_path": "/dev/ttyACM0", "device_name": "ttyACM0", "driver_name": "cdc_acm", "manufacturer": "Klipper", "product": "stm32h723xx",
+        "path_by_id": "/dev/serial/by-id/usb-Klipper_stm32h723xx_1D0028000E51313433343333-if00", "path_by_hardware": "/dev/serial/by-path/platform-xhci-hcd.0-usb-0:1:1.0"}]})
+@app.route("/machine/peripherals/usb")
+def periph_usb():
+    return jsonify(result={"usb_devices": [{"vendor_id": "1d50", "product_id": "614e", "manufacturer": "Klipper", "product": "stm32h723xx", "class": "Communications"},
+        {"vendor_id": "046d", "product_id": "0825", "manufacturer": "Logitech", "product": "Webcam C270", "class": "Miscellaneous"}]})
+@app.route("/machine/peripherals/video")
+def periph_video():
+    return jsonify(result={"v4l2_devices": [{"device_name": "video0", "device_path": "/dev/video0", "camera_name": "C270 HD WEBCAM", "driver_name": "uvcvideo", "hardware_bus": "usb-xhci-hcd.0-1.2", "path_by_id": "/dev/v4l/by-id/usb-046d_C270_HD_WEBCAM-video-index0"}], "libcamera_devices": []})
+@app.route("/machine/peripherals/canbus")
+def periph_can():
+    S.setdefault("can_queries", 0)
+    S["can_queries"] += 1
+    return jsonify(error={"code": 404, "message": "Interface can0 not found"}), 404
+
 # 1.70: scheduled prints, as the KlippEye service keeps them (backend/print_schedule.py); its clock ticks at each read here
 @app.route("/api/schedule", methods=["GET", "POST"])
 def schedule_api():

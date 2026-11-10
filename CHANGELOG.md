@@ -1,5 +1,14 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.76.0
+
+**Devices connected to the Raspberry.**
+
+* A **Connected devices** card on the System page: the serial ports (the boards, with the address to write after
+  `serial:` in printer.cfg), the USB devices, the cameras and, on a CAN network, the boards not set up yet (their
+  `canbus_uuid`). A tap on an address copies it.
+* Read when the page opens and with «Look again» (Moonraker 0.8 or newer).
+
 ## 1.75.0
 
 **Temperature chart: the clock slides with the lines; a button to turn every heater off.**

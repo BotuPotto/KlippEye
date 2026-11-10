@@ -367,6 +367,7 @@ function DesktopSystemPage({ controller, aiMonitor, onEditFile }) {
             null,
             h(HostCard, { data, onRefresh: reload }),
             h(McuCard, { data }),
+            h(PeripheralsCard),
             h(UpdatesCard, { data, controller, onCheck: checkForUpdates }),
           )
         : h(LoadingCard, { label: tx("System"), text: tx("Loading...") }),
