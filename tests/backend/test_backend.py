@@ -2053,6 +2053,13 @@ check("1.80: a file read: the frequencies up to 200 Hz, the four vibrations, the
       j["axis"] == "x" and max(j["freq"]) <= 200 and len(j["freq"]) == len(j["psd"]["sum"]) and sorted(j["psd"]) == ["sum", "x", "y", "z"]
       and [(sh["name"], sh["freq"]) for sh in j["shapers"]] == [("zv", 60.0), ("mzv", 52.0)] and abs(j["peak"]["freq"] - 50) < 1, {k: j.get(k) for k in ("axis", "peak", "shapers")} if "shapers" not in j else [(sh["name"], sh["vibrations"]) for sh in j["shapers"]])
 check("1.80: the vibrations left: MZV (cuts at 40 Hz) leaves fewer than ZV (cuts at 45 Hz, lets 30% through)", j["shapers"][1]["vibrations"] < j["shapers"][0]["vibrations"] and 0 <= j["shapers"][1]["vibrations"] <= 100, [(sh["name"], sh["vibrations"]) for sh in j["shapers"]])
+_sx = {sh["name"]: sh for sh in j["shapers"]}
+check("1.89: each shaper's smoothing and max accel as Klipper computes them (MZV 52 Hz: 0.075, 7970 mm/s²)", _sx["mzv"]["smoothing"] == 0.075 and _sx["mzv"]["max_accel"] == 7970 and _sx["zv"]["smoothing"] < _sx["mzv"]["smoothing"] and _sx["zv"]["max_accel"] > _sx["mzv"]["max_accel"], _sx)
+check("1.89: the recommendations, ω0 and ζ (the half-power width), the peaks, the bands", j["recommended"]["low_vibrations"] == "mzv" and j["recommended"]["performance"] in ("zv", "mzv") and abs(j["resonance"]["freq"] - 50) < 1 and 0.04 < j["resonance"]["damping"] < 0.08
+      and len(j["peaks"]) == 1 and abs(j["peaks"][0]["freq"] - 50) < 1 and 0 < j["bands"]["relax"] < j["bands"]["warning"] and j["scv"] == 5.0, {k: j.get(k) for k in ("recommended", "resonance", "peaks", "bands", "scv")})
+_j2 = _ca.get("/api/shaper/data?name=calibration_data_x_20261109_221500.csv&scv=8&damping=0.05").get_json()
+_j3 = _ca.get("/api/shaper/data?name=calibration_data_x_20261109_221500.csv&scv=abc&damping=7").get_json()
+check("1.89: the printer's square corner velocity and damping used; values out of range: the defaults", _j2["scv"] == 8.0 and _j2["shapers"][1]["smoothing"] != _sx["mzv"]["smoothing"] and _j3["scv"] == 5.0 and _j3["shapers"][1]["smoothing"] == _sx["mzv"]["smoothing"], [_j2["scv"], _j2["shapers"][1]["smoothing"], _j3["scv"]])
 check("1.80: a file without rows: 400", _ca.get("/api/shaper/data?name=calibration_data_y_20261109_222300.csv").status_code == 400)
 check("1.80: a name outside the list, or with a folder: refused", all(_ca.get("/api/shaper/data?name=" + n).status_code == 400 for n in ("..%2Fetc%2Fpasswd", "printer.cfg", "adxl345-x.csv", "")) and _ca.get("/api/shaper/data?name=calibration_data_z_20261109_000000.csv").status_code == 404)
 os.environ.pop("KLIPPEYE_SHAPER_DIRS")
