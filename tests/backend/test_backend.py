@@ -2280,8 +2280,12 @@ _conf = os.path.join(_ng, "nginx.conf")
 open(_conf, "w").write("pid %s/nginx.pid;\nerror_log %s/error.log;\nevents {}\nhttp {\n    access_log off;\n" % (_ng, _ng)
                        + "".join("    %s_temp_path %s/%s;\n" % (kind, _ng, kind) for kind in ("client_body", "proxy", "fastcgi", "uwsgi", "scgi"))
                        + "    include %s/conf.d/*.conf;\n    include %s/sites-enabled/*;\n}\n" % (_ng, _ng))
+# nginx -t also opens the ports it would listen on: below 1024 that needs root (sudo without a password, as on CI)
+_root = "" if os.geteuid() == 0 else ("sudo -n " if subprocess.run(["sudo", "-n", "true"], capture_output=True).returncode == 0 else None)
+if _root is None:
+    _nginx = None
 _wenv = dict(os.environ, KLIPPEYE_NGINX_DIR=_ng, KLIPPEYE_NGINX_RELOAD="true",
-             KLIPPEYE_NGINX_TEST=("%s -t -q -p %s -c %s -e %s/error.log" % (_nginx, _ng, _conf, _ng)) if _nginx else "true")
+             KLIPPEYE_NGINX_TEST=("%s%s -t -q -p %s -c %s -e %s/error.log" % (_root, _nginx, _ng, _conf, _ng)) if _nginx else "true")
 _wf = os.path.join(ROOT, "scripts", "web_front.py")
 _web = lambda *args: subprocess.run([sys.executable, _wf] + list(args), capture_output=True, text=True, env=_wenv, timeout=60)
 _r = _web("main")
