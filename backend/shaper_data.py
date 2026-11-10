@@ -277,17 +277,18 @@ def find_klipper_results(name, sources):
 FIT_CACHE = {}  # (file, scv, damping) -> fitted shapers: the fit takes seconds on a Raspberry
 
 
-def _fitted(data, scv, damping):
-    key = (data.get("name"), data.get("modified"), round(scv, 3), round(damping, 4))
+def _fitted(data, scv, damping, max_smoothing=None, accel_step=100):
+    """Klipper's fitting on the file. accel_step: the max accel rounded as Klipper's console (100) or to 10."""
+    key = (data.get("name"), data.get("modified"), round(scv, 3), round(damping, 4), max_smoothing, accel_step)
     if key not in FIT_CACHE:
         total = data["psd"].get("sum") or []
-        best, fitted = shaper_fit.find_best_shaper(data["freq"], total, damping_ratio=damping, scv=scv)
+        best, fitted = shaper_fit.find_best_shaper(data["freq"], total, damping_ratio=damping, scv=scv, max_smoothing=max_smoothing)
         freqs = shaper_fit.np.asarray(data["freq"], dtype=float)
         shapers = []
         for one in fitted:
             vals = shaper_fit.remaining(shaper_fit.init_shaper(one["name"], one["freq"], damping), freqs, shaper_fit.np.asarray(total, dtype=float))[1]
             shapers.append({"name": one["name"], "freq": round(one["freq"], 1), "vibrations": round(one["vibrs"] * 100, 1), "smoothing": round(one["smoothing"], 3),
-                            "max_accel": int(round(one["max_accel"] / 100.0) * 100), "response": [round(float(v), 3) for v in vals]})
+                            "max_accel": int(round(one["max_accel"] / accel_step) * accel_step), "response": [round(float(v), 3) for v in vals]})
         if len(FIT_CACHE) > 32:
             FIT_CACHE.clear()
         FIT_CACHE[key] = {"shapers": shapers, "recommended": {"name": best["name"], "freq": round(best["freq"], 1)} if best else None}
@@ -315,19 +316,21 @@ def _estimated(data, scv):
     return {"shapers": shapers, "recommended": {"name": best["name"], "freq": best["freq"]} if best else None}
 
 
-def analyse(data, scv=5.0, mode="klipper", klipper=None):
+def analyse(data, scv=5.0, mode="measured", klipper=None, max_smoothing=None):
     """Adds to a parsed file the resonance (ω0, ζ), the peaks, the bands and `analysis`: the shapers (frequency,
     vibrations %, smoothing, max accel, response) and the recommendations, for `mode`:
-    - "klipper": Klipper's result — its messages after SHAPER_CALIBRATE (source "console"), else its fitting run again
-      on the file with its damping ratio 0.1 (source "computed"), else, without numpy, the file's shapers with their
-      figures counted as Klipper does (source "estimate");
-    - "measured": the shapers fitted again with the damping ratio measured on the curve (source "computed")."""
+    - "measured" (the default): Klipper's fitting run on the file with the damping ratio measured on the curve (0.1 when
+      it cannot be measured), the printer's square corner velocity and the allowed smoothing (source "computed");
+    - "klipper": SHAPER_CALIBRATE's own result — its messages in the console (source "console"), else its fitting run
+      again on the file with its damping ratio 0.1 (source "computed"), else, without numpy, the file's shapers with
+      their figures counted as Klipper does (source "estimate")."""
     total = data["psd"].get("sum") or []
     omega, zeta = damping_estimate(data["freq"], total)
     top = max(total) if total else 0.0
-    measurable = shaper_fit.available() and bool(total) and zeta is not None
+    measurable = shaper_fit.available() and bool(total)
     if mode == "measured" and measurable:
-        found, source, damping = _fitted(data, scv, min(max(zeta, 0.01), 0.3)), "computed", zeta
+        damping = min(max(zeta, 0.01), 0.3) if zeta is not None else DEFAULT_DAMPING
+        found, source = _fitted(data, scv, damping, max_smoothing, accel_step=10), "computed"
     elif klipper:
         by_name = {one["name"]: one for one in data["shapers"]}
         shapers = []
@@ -342,8 +345,8 @@ def analyse(data, scv=5.0, mode="klipper", klipper=None):
                     vals = shaper_fit.remaining(shaper_fit.init_shaper(one["name"], one["freq"], DEFAULT_DAMPING), freqs, shaper_fit.np.asarray(total, dtype=float))[1]
                     one["response"] = [round(float(v), 3) for v in vals]
         found, source, damping = {"shapers": shapers, "recommended": klipper.get("recommended")}, "console", DEFAULT_DAMPING
-    elif shaper_fit.available() and total:
-        found, source, damping = _fitted(data, scv, DEFAULT_DAMPING), "computed", DEFAULT_DAMPING
+    elif measurable:
+        found, source, damping = _fitted(data, scv, DEFAULT_DAMPING, max_smoothing), "computed", DEFAULT_DAMPING
     else:
         found, source, damping = _estimated(data, scv), "estimate", DEFAULT_DAMPING
     shapers = sorted(found["shapers"], key=lambda sh: SHAPER_ORDER.index(sh["name"]) if sh["name"] in SHAPER_ORDER else 99)
@@ -355,6 +358,8 @@ def analyse(data, scv=5.0, mode="klipper", klipper=None):
             "mode": "measured" if mode == "measured" and measurable else "klipper",
             "source": source,
             "damping": damping,
+            "max_smoothing": max_smoothing,
+            "max_smoothing_computed": max((one["smoothing"] or 0 for one in shapers), default=0),
             "shapers": shapers,
             "low_vibrations": found["recommended"],
             "performance": {"name": fast_one["name"], "freq": fast_one["freq"]} if fast_one else None,
@@ -378,7 +383,7 @@ def number_arg(text, default, low, high):
     return value if low <= value <= high and value == value else default
 
 
-def read(name, dirs=None, scv=5.0, mode="klipper", sources=None):
+def read(name, dirs=None, scv=5.0, mode="measured", sources=None, max_smoothing=None):
     full = find_file(name, dirs)
     if os.path.getsize(full) > 4 * 1024 * 1024:
         raise ShaperError("file too large")
@@ -386,4 +391,4 @@ def read(name, dirs=None, scv=5.0, mode="klipper", sources=None):
         data = parse(handle.read())
     match = FILE_RE.match(name)
     data.update({"name": name, "axis": match.group(1).lower(), "modified": int(os.path.getmtime(full))})
-    return analyse(data, scv, mode, find_klipper_results(name, sources) if mode != "measured" else None)
+    return analyse(data, scv, mode, find_klipper_results(name, sources) if mode == "klipper" else None, max_smoothing)

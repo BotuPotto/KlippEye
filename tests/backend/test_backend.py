@@ -2052,7 +2052,7 @@ import shaper_data as _shdata
 import shaper_fit as _shfit
 _shdata.KLIPPER_FOUND.clear()
 _shdata.FIT_CACHE.clear()
-j = _ca.get("/api/shaper/data?name=calibration_data_x_20261109_221500.csv").get_json()
+j = _ca.get("/api/shaper/data?name=calibration_data_x_20261109_221500.csv&mode=klipper").get_json()
 _an = j.get("analysis") or {}
 check("1.80: a file read: the frequencies up to 200 Hz, the four vibrations, the peak at 50 Hz",
       j["axis"] == "x" and max(j["freq"]) <= 200 and len(j["freq"]) == len(j["psd"]["sum"]) and sorted(j["psd"]) == ["sum", "x", "y", "z"] and abs(j["peak"]["freq"] - 50) < 1, {k: j.get(k) for k in ("axis", "peak")})
@@ -2065,11 +2065,14 @@ check("1.90: ω0 and ζ (half-power bandwidth at peak/√2), the peaks, the band
 _mz = _shfit.init_shaper("mzv", 52.0)
 check("1.90: Klipper's shapers, smoothing and max accel (MZV 52 Hz: 0.075, 8000 mm/s² rounded)", round(_shfit.smoothing(_mz), 3) == 0.075 and round(_shfit.max_accel(_mz) / 100) * 100 == 8000
       and [round(a, 5) for a in _shfit.init_shaper("ei", 50.0, 0.1)[0]] == [0.35488, 0.453, 0.19212], [_shfit.smoothing(_mz), _shfit.max_accel(_mz), _shfit.init_shaper("ei", 50.0, 0.1)[0]])
-_jm = _ca.get("/api/shaper/data?name=calibration_data_x_20261109_221500.csv&mode=measured").get_json()
-check("1.90: «measured»: the shapers fitted again with the damping measured on the curve", _jm["analysis"]["mode"] == "measured" and _jm["analysis"]["damping"] == _jm["resonance"]["damping"] and _jm["analysis"]["source"] == "computed"
+_jm = _ca.get("/api/shaper/data?name=calibration_data_x_20261109_221500.csv").get_json()
+_js = _ca.get("/api/shaper/data?name=calibration_data_x_20261109_221500.csv&max_smoothing=0.07").get_json()
+check("1.90: by default the measured damping: the shapers fitted again with it, max accel to the 10, the largest smoothing given; the allowed smoothing used", _jm["analysis"]["mode"] == "measured" and _jm["analysis"]["damping"] == _jm["resonance"]["damping"] and _jm["analysis"]["source"] == "computed"
+      and all(sh["max_accel"] % 10 == 0 for sh in _jm["analysis"]["shapers"]) and _jm["analysis"]["max_smoothing_computed"] == max(sh["smoothing"] for sh in _jm["analysis"]["shapers"]) and _jm["analysis"]["max_smoothing"] is None
+      and _js["analysis"]["max_smoothing"] == 0.07 and all(sh["smoothing"] <= 0.07 for sh in _js["analysis"]["shapers"] if sh["name"] != "zv")
       and [sh["freq"] for sh in _jm["analysis"]["shapers"]] != [sh["freq"] for sh in _an["shapers"]], [_jm["analysis"]["damping"], [(sh["name"], sh["freq"]) for sh in _jm["analysis"]["shapers"]]])
-_j2 = _ca.get("/api/shaper/data?name=calibration_data_x_20261109_221500.csv&scv=8").get_json()
-_j3 = _ca.get("/api/shaper/data?name=calibration_data_x_20261109_221500.csv&scv=abc").get_json()
+_j2 = _ca.get("/api/shaper/data?name=calibration_data_x_20261109_221500.csv&scv=8&mode=klipper").get_json()
+_j3 = _ca.get("/api/shaper/data?name=calibration_data_x_20261109_221500.csv&scv=abc&mode=klipper").get_json()
 check("1.89: the printer's square corner velocity used; a value out of range: the default", _j2["scv"] == 8.0 and [sh["smoothing"] for sh in _j2["analysis"]["shapers"]] != [sh["smoothing"] for sh in _an["shapers"]] and _j3["scv"] == 5.0, [_j2["scv"], _j3["scv"]])
 check("1.90: performance: the highest max accel among the shapers under 5 % vibrations, only when it beats the choice",
       _shfit.performance_pick([{"name": "zv", "vibrations": 9.0, "max_accel": 14000}, {"name": "mzv", "vibrations": 2.0, "max_accel": 9000}, {"name": "ei", "vibrations": 0.0, "max_accel": 8000}], "ei") == "mzv"
@@ -2079,11 +2082,11 @@ _klines = ["// Calculating the best input shaper parameters for x axis", "// Fit
            "// To avoid too much smoothing with 'zv', suggested max_accel <= 14600 mm/sec^2", "// Fitted shaper 'mzv' frequency = 52.0 Hz (vibrations = 1.4%, smoothing ~= 0.075)\n// To avoid too much smoothing with 'mzv', suggested max_accel <= 8000 mm/sec^2",
            "// Recommended shaper_type_x = zv, shaper_freq_x = 60.0 Hz", "// Shaper calibration data written to /tmp/calibration_data_x_20261109_221500.csv file"]
 _shdata.KLIPPER_FOUND.clear()
-_k = _shdata.read("calibration_data_x_20261109_221500.csv", [_shd], sources=[lambda: (_ for _ in ()).throw(OSError("no Moonraker")), lambda: [l.replace("// ", "") for l in _klines]])
+_k = _shdata.read("calibration_data_x_20261109_221500.csv", [_shd], mode="klipper", sources=[lambda: (_ for _ in ()).throw(OSError("no Moonraker")), lambda: [l.replace("// ", "") for l in _klines]])
 check("1.89: Klipper's messages (here from klippy.log, Moonraker unreachable): its figures and its choice, as they are, with the file's responses", _k["analysis"]["source"] == "console" and _k["analysis"]["low_vibrations"] == {"name": "zv", "freq": 60.0}
       and [(sh["name"], sh["vibrations"], sh["smoothing"], sh["max_accel"]) for sh in _k["analysis"]["shapers"]] == [("zv", 12.3, 0.047, 14600), ("mzv", 1.4, 0.075, 8000)] and all(len(sh["response"]) == len(_k["freq"]) for sh in _k["analysis"]["shapers"]), _k["analysis"])
 _shdata.KLIPPER_FOUND.clear()
-_k = _shdata.read("calibration_data_x_20261109_221500.csv", [_shd], sources=[lambda: [l.replace("calibration_data_x_20261109_221500", "calibration_data_x_20261108_100000") for l in _klines]])
+_k = _shdata.read("calibration_data_x_20261109_221500.csv", [_shd], mode="klipper", sources=[lambda: [l.replace("calibration_data_x_20261109_221500", "calibration_data_x_20261108_100000") for l in _klines]])
 check("1.89: Klipper's messages about another measurement: not used", _k["analysis"]["source"] == "computed", _k["analysis"].get("source"))
 _shdata.KLIPPER_FOUND.clear()
 check("1.80: a file without rows: 400", _ca.get("/api/shaper/data?name=calibration_data_y_20261109_222300.csv").status_code == 400)

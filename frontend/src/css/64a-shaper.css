@@ -76,3 +76,8 @@
 .shaper-table__unit { display: block; font-weight: 400; }
 .shaper-mode { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin-bottom: 10px; }
 .shaper-advice__source { margin-top: 4px; }
+.shaper-legend__item.is-region { cursor: default; }
+.shaper-legend__item.is-region:hover { background: transparent; }
+.shaper-legend__swatch { flex: none; width: 14px; height: 10px; border-radius: 3px; }
+.shaper-legend__swatch.is-relax { background: rgba(47, 158, 68, 0.35); }
+.shaper-legend__swatch.is-warning { background: rgba(245, 159, 0, 0.4); }

@@ -70,7 +70,7 @@ def with_files(**contents):
     return tree
 
 
-def open_page(b, w, hh, files=None, **st):
+def open_page(b, w, hh, files=None, mode="klipper", **st):
     mock.reset()
     st.setdefault("console_extra", CONSOLE)
     if files:
@@ -83,7 +83,10 @@ def open_page(b, w, hh, files=None, **st):
     card = P.pg.locator(".shaper-card")
     wait_until(lambda: card.count() == 1, 8)
     card.scroll_into_view_if_needed()  # the cards below the screen fill in when they come into view
-    wait_until(lambda: card.locator(".shaper-chart").count() == 1, 8)
+    wait_until(lambda: card.locator(".shaper-chart").count() == 1, 15)
+    if mode == "klipper":  # SHAPER_CALIBRATE's own result (the card opens on the measured damping)
+        card.locator('[data-shaper-mode="klipper"]').click()
+        wait_until(lambda: card.locator('[data-shaper-mode="klipper"]').get_attribute("aria-pressed") == "true" and card.locator(".shaper-chart").count() == 1 and card.locator("[data-shaper-source]").get_attribute("data-shaper-source") in ("console", "computed"), 15)
     return P
 
 
@@ -131,18 +134,26 @@ kinematics: corexy
 with sync_playwright() as p:
     b = p.chromium.launch()
     for w, hh in ((390, 844), (1440, 900)):
+        # first what the card opens on: the shapers fitted with the damping ratio measured on the curve
+        P = open_page(b, w, hh, mode="measured")
+        card = P.pg.locator(".shaper-card")
+        chart = card.locator(".shaper-chart[data-axis=x]")
+        ok("%d: opens on the measured damping: Klipper's fitting with it, the five shapers, said so" % w, wait_until(lambda: card.locator('[data-shaper-mode="measured"]').get_attribute("aria-pressed") == "true" and card.locator('[data-shaper-source="computed"]').count() == 1 and "smorzamento misurato sulla curva" in card.locator("[data-shaper-source]").inner_text() and card.locator("[data-shaper-row]").count() == 5, 20), card.locator("[data-shaper-advice]").inner_text() if card.locator("[data-shaper-advice]").count() else "")
+        ok("%d: measured: X+Y+Z, X, Y, Z, what the recommended shapers leave, both regions in the legend; SCV and allowed smoothing" % w, all(chart.locator('[data-series="%s"]' % one).count() == 1 for one in ("sum", "x", "y", "z")) and 1 <= chart.locator('[data-series^="after-"]').count() <= 2 and card.locator("[data-shaper-region]").count() == 2 and "Smussatura ammessa: predefinita (=0," in card.locator("[data-shaper-settings]").inner_text(), [chart.locator("[data-series]").evaluate_all("l => l.map(e => e.dataset.series)"), card.locator("[data-shaper-settings]").inner_text()])
+        ok("%d: measured: the recommended filters and the table's max accel to the 10" % w, ("Per le prestazioni:" in card.locator("[data-shaper-advice]").inner_text() or "Shaper migliore:" in card.locator("[data-shaper-advice]").inner_text()) and all(int(v) % 10 == 0 for v in card.locator("[data-max-accel]").evaluate_all("l => l.map(e => e.dataset.maxAccel)")), card.locator("[data-shaper-advice]").inner_text())
+        P.close()
         P = open_page(b, w, hh, files={"macros/park.cfg": "[gcode_macro PARK]\ngcode:\n    G28\n", "macros/led.cfg": "[led status]\nred_pin: PA2\n"})
         pg = P.pg
         card = pg.locator(".shaper-card")
         ok("%d: the card, with the shaper printer.cfg sets" % w, wait_until(lambda: "X MZV 52,4 Hz" in card.locator("[data-shaper-current]").inner_text() and "Y EI 55,0 Hz" in card.locator("[data-shaper-current]").inner_text(), 8), card.evaluate("e => e.outerHTML.slice(0, 900)") if card.count() else "no card")
         chart = card.locator(".shaper-chart[data-axis=x]")
         ok("%d: X first: the title with ω0 and ζ" % w, wait_until(lambda: "Profilo di frequenza dell'asse (ω0=5" in chart.locator("[data-shaper-title]").inner_text() and "ζ=0," in chart.locator("[data-shaper-title]").inner_text(), 8), chart.locator("[data-shaper-title]").inner_text() if chart.count() else "")
-        ok("%d: the vibrations of all axes, X and Y (Z hidden at first), what EI (Klipper's choice) and MZV (performance) leave" % w, all(chart.locator('[data-series="%s"]' % s).count() == 1 for s in ("sum", "x", "y", "after-ei", "after-mzv")) and chart.locator('[data-series="z"]').count() == 0, [chart.locator("[data-series]").evaluate_all("l => l.map(e => e.dataset.series)")])
+        ok("%d: the vibrations of all axes, X, Y and Z, what EI (Klipper's choice) and MZV (performance) leave" % w, all(chart.locator('[data-series="%s"]' % s).count() == 1 for s in ("sum", "x", "y", "z", "after-ei", "after-mzv")), [chart.locator("[data-series]").evaluate_all("l => l.map(e => e.dataset.series)")])
         ok("%d: the four shapers' responses, the two bands, the numbered peaks" % w, chart.locator(".shaper-chart__shaper").count() == 4 and chart.locator("[data-shaper-band]").count() == 2 and chart.locator("[data-shaper-peak]").count() >= 1 and chart.locator('[data-shaper-peak="1"] text').text_content() == "1", [chart.locator(".shaper-chart__shaper").count(), chart.locator("[data-shaper-band]").count(), chart.locator("[data-shaper-peak]").count()])
         ok("%d: the vibrations' scale with its power of ten" % w, chart.locator("[data-shaper-exponent]").count() == 1 and "×10" in chart.locator("[data-shaper-exponent]").text_content())
         advice = card.locator("[data-shaper-advice]")
         ok("%d: the recommended filters from Klipper's console: low vibrations EI (its choice), performance MZV (highest accel under 5 %%), the damping" % w, wait_until(lambda: "Per le prestazioni: MZV a 52,0 Hz" in advice.inner_text() and "Per meno vibrazioni: EI a 65,0 Hz" in advice.inner_text() and "Smorzamento stimato ζ = 0," in advice.inner_text() and card.locator('[data-shaper-source="console"]').count() == 1), advice.inner_text() if advice.count() else "")
-        ok("%d: the switch: Klipper's damping chosen, the measured one offered; the square corner velocity" % w, card.locator('[data-shaper-mode="klipper"]').get_attribute("aria-pressed") == "true" and "Misurato (ζ = 0," in card.locator('[data-shaper-mode="measured"]').inner_text() and "SCV" in card.locator(".shaper-mode").inner_text())
+        ok("%d: the switch: SHAPER_CALIBRATE's result chosen, the measured damping offered; the square corner velocity" % w, card.locator('[data-shaper-mode="klipper"]').get_attribute("aria-pressed") == "true" and "Misurato (ζ = 0," in card.locator('[data-shaper-mode="measured"]').inner_text() and "SCV" in card.locator(".shaper-mode").inner_text())
         ok("%d: the vibrations' scale reaches above the highest peak (nothing outside the chart)" % w, chart.evaluate("""e => { const svg = e.querySelector('svg'); const top = 14; return [...svg.querySelectorAll('[data-series]')].every(p => p.getBBox().y >= top - 1) && svg.querySelector('[data-shaper-clip]') !== null; }"""), chart.evaluate("e => [...e.querySelectorAll('[data-series]')].map(p => [p.dataset.series, Math.round(p.getBBox().y)])"))
         heads = card.locator(".shaper-table thead th").all_inner_texts()
         ok("%d: the table's columns" % w, [t.strip().lower() for t in heads] == ["tipo", "frequenza\nhz", "vibrazioni\n%", "smussatura", "accel. max\nmm/s²"], heads)
@@ -160,10 +171,12 @@ with sync_playwright() as p:
             ok("the legend: X+Y+Z hidden (and its peaks)", wait_until(lambda: chart.locator('[data-series="sum"]').count() == 0 and chart.locator("[data-shaper-peak]").count() == 0 and card.locator('[data-shaper-legend="sum"]').get_attribute("aria-pressed") == "false"))
             card.locator('[data-shaper-legend="sum"]').click()
             card.locator('[data-shaper-legend="z"]').click()
-            ok("the legend: X+Y+Z back, Z shown", wait_until(lambda: chart.locator('[data-series="sum"]').count() == 1 and chart.locator('[data-series="z"]').count() == 1))
+            ok("the legend: X+Y+Z back, Z hidden", wait_until(lambda: chart.locator('[data-series="sum"]').count() == 1 and chart.locator('[data-series="z"]').count() == 0))
+            card.locator('[data-shaper-legend="z"]').click()
             # a row chosen: its line stands out
             card.locator('[data-shaper-row="zv"] .shaper-row__pick').click()
-            ok("ZV chosen: its line stands out, what it leaves drawn too, the button says ZV", wait_until(lambda: chart.locator('.shaper-chart__shaper.is-selected[data-shaper="zv"]').count() == 1 and chart.locator('[data-series="after-zv"]').count() == 1 and card.locator('[data-shaper-save="zv"]').count() == 1))
+            ok("ZV chosen: its line stands out, the button says ZV", wait_until(lambda: chart.locator('.shaper-chart__shaper.is-selected[data-shaper="zv"]').count() == 1 and card.locator('[data-shaper-save="zv"]').count() == 1))
+            card.locator(".shaper-chart__svg").scroll_into_view_if_needed()
             box = card.locator(".shaper-chart__svg").bounding_box()
             pg.mouse.move(box["x"] + box["width"] * 0.3, box["y"] + box["height"] / 2)
             ok("the pointer: the frequency, the vibrations, what ZV lets through", wait_until(lambda: "Hz" in card.locator(".shaper-chart__tip").inner_text() and "Vibrazioni:" in card.locator(".shaper-chart__tip").inner_text() and "ZV lascia passare" in card.locator(".shaper-chart__tip").inner_text()), card.locator(".shaper-chart__tip").inner_text() if card.locator(".shaper-chart__tip").count() else "")

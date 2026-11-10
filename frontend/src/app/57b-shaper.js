@@ -17,7 +17,7 @@
    ========================================================================== */
 
 const SHAPER_CHART_HEIGHT = 260;
-const SHAPER_PAD = { left: 40, right: 40, top: 14, bottom: 24 };
+const SHAPER_PAD = { left: 40, right: 14, top: 14, bottom: 24 };
 const SHAPER_POLL_MS = 15000;
 const SHAPER_COLORS = { zv: "#3987e5", mzv: "#c98500", zvd: "#9085e9", ei: "#d55181", "2hump_ei": "#199e70", "3hump_ei": "#d95926" };
 const SHAPER_PSD_COLORS = { sum: "#8a5cd1", x: "#e5484d", y: "#2f9e44", z: "#3b82f6" };
@@ -261,17 +261,18 @@ function ShaperChart({ data, selected, onSelect }) {
   const [boxRef, width] = useWidth();
   const clipId = useMemo(() => "shaper-clip-" + Math.random().toString(36).slice(2), []);
   const [pointer, setPointer] = useState(null); // index of the frequency under the pointer
-  const [hidden, setHidden] = useState(() => new Set(["z"]));
+  const [hidden, setHidden] = useState(() => new Set());
   const freq = data.freq;
-  // what is left with the shaper for low vibrations, the one for performance and the one chosen (each once)
-  const applied = [data.recommended, data.performance, selected]
+  // what is left with the two recommended shapers (low vibrations, performance), each once
+  const applied = [data.recommended, data.performance]
     .map((name, index) => ({ name, color: SHAPER_AFTER_COLORS[index] }))
     .filter((one, index, all) => one.name && all.findIndex((other) => other.name === one.name) === index)
     .map((one) => ({ shaper: data.shapers.find((item) => item.name === one.name), color: one.color }))
     .filter((one) => one.shaper);
   const series = shaperSeries(data, applied);
   const psdSeries = series.filter((one) => one.kind !== "response");
-  const top = Math.max(1e-9, ...psdSeries.filter((one) => !hidden.has(one.id)).flatMap((one) => one.values), data.bands ? data.bands.warning : 0);
+  // the scale: the highest vibration of all axes together, +5 % (it does not move when lines are hidden)
+  const top = Math.max(1e-9, ...(data.psd.sum || psdSeries.flatMap((one) => one.values)));
   const { ticks, exponent, digits } = psdTicks(top * 1.05);
   const scaleTop = Math.max(ticks[ticks.length - 1], 1e-9) * Math.pow(10, exponent);
   const fMax = Math.min(200, Math.ceil(freq[freq.length - 1] / 25) * 25);
@@ -342,7 +343,6 @@ function ShaperChart({ data, selected, onSelect }) {
             ),
           ),
           exponent !== 0 && h("text", { className: "shaper-chart__tick", x: SHAPER_PAD.left - 6, y: SHAPER_PAD.top - 4, textAnchor: "end", "data-shaper-exponent": exponent }, "×10" + superscript(exponent)),
-          [0, 0.25, 0.5, 0.75, 1].map((value) => h("text", { key: "r" + value, className: "shaper-chart__tick", x: width - SHAPER_PAD.right + 6, y: yResponse(value) + 4 }, Math.round(value * 100) + "%")),
           freqTicks.map((f) => h("line", { key: "fg" + f, className: "shaper-chart__grid is-vertical", x1: x(f), x2: x(f), y1: SHAPER_PAD.top, y2: bottom })),
           freqTicks.map((f) => h("text", { key: "f" + f, className: "shaper-chart__tick", x: x(f), y: SHAPER_CHART_HEIGHT - 6, textAnchor: f === 0 ? "start" : f === fMax ? "end" : "middle" }, f + (f === fMax ? " Hz" : ""))),
           bands && h("line", { className: "shaper-chart__band-line is-relax", x1: SHAPER_PAD.left, x2: width - SHAPER_PAD.right, y1: yPsd(bands.relax), y2: yPsd(bands.relax), "data-shaper-band": "relax" }),
@@ -397,6 +397,8 @@ function ShaperChart({ data, selected, onSelect }) {
           one.label,
         ),
       ),
+      bands && h("span", { className: "shaper-legend__item is-region", "data-shaper-region": "relax" }, h("span", { className: "shaper-legend__swatch is-relax" }), tx("Relax region")),
+      bands && h("span", { className: "shaper-legend__item is-region", "data-shaper-region": "warning" }, h("span", { className: "shaper-legend__swatch is-warning" }), tx("Warning region")),
     ),
   );
 }
@@ -463,8 +465,9 @@ function ShaperCard({ capabilities, lockReason, homedAxes, onGcode }) {
   const shaper = (capabilities && capabilities.shaper) || { canMeasure: true, current: null };
   const defaults = shaper.defaults || { freq_start: 5, freq_end: 133.33, hz_per_sec: 1, accel_per_hz: 60, max_smoothing: null };
   const scv = (capabilities && capabilities.tune && capabilities.tune.scv) || 5;
-  const [mode, setMode] = useState(() => (storage.get(SHAPER_MODE_KEY) === "measured" ? "measured" : "klipper"));
-  const { data: raw, error } = useShaperData(file && file.name, "&scv=" + scv + "&mode=" + mode);
+  const [mode, setMode] = useState(() => (storage.get(SHAPER_MODE_KEY) === "klipper" ? "klipper" : "measured"));
+  const maxSmoothing = defaults.max_smoothing;
+  const { data: raw, error } = useShaperData(file && file.name, "&scv=" + scv + "&mode=" + mode + (maxSmoothing ? "&max_smoothing=" + maxSmoothing : ""));
   const analysis = raw && raw.analysis;
   // what the chart and the table show: the shapers of the analysis chosen, the two recommendations
   const data = analysis
@@ -568,10 +571,18 @@ function ShaperCard({ capabilities, lockReason, homedAxes, onGcode }) {
         h(
           "div",
           { className: "oui-segmented oui-segmented--sm", role: "group", "aria-label": tx("Damping ratio used") },
-          h("button", { type: "button", className: cx(mode !== "measured" && "is-selected"), "aria-pressed": mode !== "measured", "data-shaper-mode": "klipper", onClick: () => changeMode("klipper") }, tx("Klipper (ζ = {value})", { value: shaperNumber(0.1, 1) })),
-          h("button", { type: "button", className: cx(mode === "measured" && "is-selected"), "aria-pressed": mode === "measured", "data-shaper-mode": "measured", onClick: () => changeMode("measured") }, tx("Measured (ζ = {value})", { value: shaperNumber(raw.resonance.damping, 3) })),
+          h("button", { type: "button", className: cx(mode === "measured" && "is-selected"), "aria-pressed": mode === "measured", "data-shaper-mode": "measured", onClick: () => changeMode("measured") }, tx("Measured (ζ = {value})", { value: shaperNumber(raw.resonance.damping || 0.1, 3) })),
+          h("button", { type: "button", className: cx(mode !== "measured" && "is-selected"), "aria-pressed": mode !== "measured", "data-shaper-mode": "klipper", onClick: () => changeMode("klipper") }, tx("SHAPER_CALIBRATE (ζ = {value})", { value: shaperNumber(0.1, 1) })),
         ),
-        h("span", { className: "oui-caption" }, tx("Square corner velocity: {value} mm/s", { value: shaperNumber(raw.scv, 1) })),
+        h(
+          "span",
+          { className: "oui-caption", "data-shaper-settings": "1" },
+          tx("Square corner velocity: {value} mm/s", { value: shaperNumber(raw.scv, 1) }),
+          " · ",
+          raw.analysis.max_smoothing
+            ? tx("Allowed smoothing: {value}", { value: shaperNumber(raw.analysis.max_smoothing, 3) })
+            : tx("Allowed smoothing: default (={value})", { value: shaperNumber(raw.analysis.max_smoothing_computed || 0, 3) }),
+        ),
       ),
     data && h(ShaperChart, { data, selected: chosenName, onSelect: setSelected }),
     data &&
