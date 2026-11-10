@@ -1,5 +1,18 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.93.0
+
+**HTTPS.**
+
+* Settings › Access › HTTPS: an encrypted entrance next to the usual one, at https://<raspberry>:8443 (the port can be
+  changed). Off until you switch it on; on and off at once, no restart.
+* Its certificate is made on the Raspberry for its names and addresses (no authority signs it): the first time the
+  browser warns that it does not know it. The page shows the certificate's fingerprint to compare with the browser's,
+  and makes a new one after the Raspberry gets a new address.
+* Behind it the service knows who is on the other side and that the connection was encrypted (the login cookie is then
+  sent only encrypted); the camera comes through the service on the encrypted page. The Android app keeps using the
+  usual address.
+
 ## 1.92.0
 
 **One live connection to Moonraker.**

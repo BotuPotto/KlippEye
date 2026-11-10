@@ -35,6 +35,7 @@ fake = fakes.Fake()
 spec = importlib.util.spec_from_file_location("ke_backend", os.path.join(repo, "backend", "klippeye_backend.py"))
 b = importlib.util.module_from_spec(spec); sys.modules["ke_backend"] = b; spec.loader.exec_module(b)
 b.MOONRAKER_URL = fake.url
+b.PORT = port  # the HTTPS relay (1.93) hands its connections to this server
 b.CAMERA_NGINX_URL = fake.url + "/webcam"
 from werkzeug.serving import make_server  # noqa: E402
 server = make_server("127.0.0.1", port, b.app, threaded=True)
@@ -160,6 +161,41 @@ with sync_playwright() as p:
     C = browser.new_context(locale="it-IT").new_page(); C.goto(BASE + "/")
     ok("... e un dispositivo nuovo entra senza accesso", C.url.endswith("/"), C.url)
     ok("nessun errore JavaScript", not errors, errors[:3])
+
+    # 1.93: HTTPS, an encrypted entrance next to the usual one (the real relay, a certificate made by openssl)
+    hport = port + 1500
+    A.goto(BASE + "/"); A.wait_for_selector('.app-header button[aria-label="Impostazioni"]', timeout=15000); A.wait_for_timeout(600)
+    A.click('.app-header button[aria-label="Impostazioni"]'); A.wait_for_timeout(500)
+    A.click('.set-entry[data-page="access"]'); A.wait_for_timeout(500)
+    ok("HTTPS: off at first, with its port", wait(A, lambda: A.locator('[data-https-status="off"]').count() == 1 and A.locator("[data-https-port]").input_value() == "8443"))
+    A.fill("[data-https-port]", str(port))
+    A.locator(".https-port button").click()
+    ok("HTTPS: the service's own port refused", wait(A, lambda: "1024" in A.locator(".set-status--warn[role=alert]").last.inner_text()))
+    A.fill("[data-https-port]", str(hport))
+    A.locator(".https-port button").click()
+    ok("HTTPS: another port kept", wait(A, lambda: A.locator(".https-port button").count() == 0 and "%d" % hport in A.locator(".set-switch__detail").last.inner_text()))
+    A.locator('button[role=switch]', has_text="Ingresso cifrato").click()
+    ok("HTTPS: switched on: running, its addresses, the certificate's fingerprint", wait(A, lambda: A.locator('[data-https-status="on"]').count() == 1 and A.locator("[data-https-links] a").count() >= 1
+       and len(A.locator("[data-https-fingerprint]").inner_text().split(":")) == 32, 15), A.locator(".set-group").last.inner_text() if A.locator(".set-group").count() else "")
+    A.screenshot(path=out + "/https_on.png", full_page=True)
+    S = browser.new_context(locale="it-IT", ignore_https_errors=True).new_page()
+    S.goto("https://127.0.0.1:%d/" % hport)
+    ok("HTTPS: the dashboard opens on https://…:%d" % hport, wait(S, lambda: S.locator('.app-header button[aria-label="Impostazioni"]').count() == 1, 15), S.url)
+    S.click('.app-header button[aria-label="Impostazioni"]'); S.wait_for_timeout(500)
+    S.click('.set-entry[data-page="access"]'); S.wait_for_timeout(500)
+    ok("HTTPS: the page knows it came encrypted", wait(S, lambda: "arrivata cifrata" in S.locator('[data-https-status="on"]').inner_text()))
+    first_print = A.locator("[data-https-fingerprint]").inner_text()
+    A.locator("[data-https-renew]").click()
+    ok("HTTPS: a new certificate (another fingerprint), still running", wait(A, lambda: A.locator("[data-https-fingerprint]").inner_text() != first_print and A.locator('[data-https-status="on"]').count() == 1, 15))
+    A.locator('button[role=switch]', has_text="Ingresso cifrato").click()
+    ok("HTTPS: switched off", wait(A, lambda: A.locator('[data-https-status="off"]').count() == 1))
+    import socket as _socket
+    refused = False
+    try:
+        _socket.create_connection(("127.0.0.1", hport), timeout=2).close()
+    except OSError:
+        refused = True
+    ok("HTTPS: its port closed", refused)
     browser.close()
 
 server.shutdown(); fake.close(); shutil.rmtree(root, ignore_errors=True)

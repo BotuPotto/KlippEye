@@ -685,6 +685,8 @@ function pickCameraHost(settings, hostname = window.location.hostname) {
 /** `address` (a path on the printer or a full address) as a full address. */
 function cameraAddress(settings, address, hostname) {
   if (/^https?:\/\//i.test(address)) return address;
+  // 1.93: on the encrypted entrance the camera comes through the service too (an https page cannot show http pictures)
+  if (window.location.protocol === "https:" && /^\/webcam/.test(address)) return window.location.origin + address;
   const protocol = window.location.protocol === "https:" ? "https:" : "http:";
   return protocol + "//" + pickCameraHost(settings, hostname).host + address;
 }

@@ -4132,6 +4132,94 @@ try:
 except Exception as e:
     print(f"[OPENCV] Auto-start fail: {e}")
 
+# === HTTPS (1.93) ====================================================================================================
+# An encrypted entrance next to the usual one (backend/https_relay.py): off until switched on in Settings › Access.
+import https_relay  # noqa: E402
+
+HTTPS_FILE = os.path.join(DATA_DIR, "https.json")
+HTTPS_DEFAULT_PORT = 8443
+_HTTPS = {"relay": None, "error": None}
+
+
+def _https_settings():
+    try:
+        with open(HTTPS_FILE, "r", encoding="utf-8") as handle:
+            data = json.load(handle)
+    except (OSError, ValueError):
+        data = {}
+    port = data.get("port")
+    return {"enabled": bool(data.get("enabled")), "port": port if isinstance(port, int) and 1024 <= port <= 65535 and port != PORT else HTTPS_DEFAULT_PORT}
+
+
+def _https_apply(settings):
+    """Starts or stops the relay as `settings` say; the error (a port taken, no openssl...) is kept for the page."""
+    relay = _HTTPS["relay"]
+    if relay and (not settings["enabled"] or relay.port != settings["port"]):
+        relay.stop()
+        _HTTPS["relay"] = None
+    _HTTPS["error"] = None
+    if settings["enabled"] and _HTTPS["relay"] is None:
+        try:
+            cert, key = https_relay.ensure_certificate(os.path.join(DATA_DIR, "https"))
+            relay = https_relay.HttpsRelay(settings["port"], PORT, cert, key)
+            relay.start()
+            _HTTPS["relay"] = relay
+        except Exception as error:  # noqa: BLE001 - said on the page
+            _HTTPS["error"] = str(error)[:300]
+            print(f"[HTTPS] not started: {error}")
+
+
+def _https_status():
+    settings = _https_settings()
+    cert = os.path.join(DATA_DIR, "https", "https-cert.pem")
+    try:
+        print_ = https_relay.fingerprint(cert) if os.path.exists(cert) else None
+    except Exception:  # noqa: BLE001
+        print_ = None
+    relay = _HTTPS["relay"]
+    return {"ok": True, **settings, "running": bool(relay and relay.running()), "fingerprint": print_, "error": _HTTPS["error"],
+            "addresses": https_relay.local_addresses(), "secure": request.headers.get("X-Forwarded-Proto") == "https" or request.is_secure}
+
+
+@app.route("/api/https", methods=["GET"])
+def api_https():
+    return jsonify(_https_status())
+
+
+@app.route("/api/https", methods=["POST"])
+def api_https_set():
+    """{enabled, port?, renew?}: switches the HTTPS entrance on or off at once; renew makes a new certificate (after the
+    Raspberry got a new address)."""
+    body = request.get_json(silent=True) or {}
+    settings = _https_settings()
+    if "port" in body:
+        try:
+            port = int(body["port"])
+        except (TypeError, ValueError):
+            port = 0
+        if not (1024 <= port <= 65535) or port == PORT:
+            return jsonify({"ok": False, "error": bt("Choose a port between 1024 and 65535, not {port}.", _lang(), port=PORT)}), 400
+        settings["port"] = port
+    if "enabled" in body:
+        settings["enabled"] = bool(body["enabled"])
+    if body.get("renew"):
+        for name in ("https-cert.pem", "https-key.pem"):
+            try:
+                os.remove(os.path.join(DATA_DIR, "https", name))
+            except OSError:
+                pass
+        if _HTTPS["relay"]:
+            _HTTPS["relay"].stop()
+            _HTTPS["relay"] = None
+    os.makedirs(DATA_DIR, exist_ok=True)
+    with open(HTTPS_FILE + ".tmp", "w", encoding="utf-8") as handle:
+        json.dump(settings, handle)
+    os.replace(HTTPS_FILE + ".tmp", HTTPS_FILE)
+    _https_apply(settings)
+    print("[HTTPS] %s from %s" % ("on, port %d" % settings["port"] if settings["enabled"] else "off", request.remote_addr))
+    return jsonify(_https_status())
+
+
 # === THE WEB SERVER (1.74) ===========================================================================================
 # Waitress (python3-waitress, installed with KlippEye since 1.74) is a server made to run for months: a fixed number of
 # threads, requests that time out, no development warnings. Without it (an installation older than 1.74 not repaired
@@ -4149,7 +4237,9 @@ def serve_forever():
     if serve is not None:
         SERVER_NAME = "waitress"
         print(f"KlippEye backend running on 0.0.0.0:{PORT} (waitress, {SERVER_THREADS} threads)")
-        serve(app, host="0.0.0.0", port=PORT, threads=SERVER_THREADS, channel_timeout=120, ident="KlippEye", clear_untrusted_proxy_headers=True)
+        # 1.93: the HTTPS relay (127.0.0.1) says who the browser is and that it came encrypted; nobody else is believed
+        serve(app, host="0.0.0.0", port=PORT, threads=SERVER_THREADS, channel_timeout=120, ident="KlippEye", clear_untrusted_proxy_headers=True,
+              trusted_proxy="127.0.0.1", trusted_proxy_count=1, trusted_proxy_headers={"x-forwarded-for", "x-forwarded-proto"})
         return
     SERVER_NAME = "flask"
     print(f"KlippEye backend running on 0.0.0.0:{PORT} (Flask's own server: install python3-waitress for the production one)")
@@ -4159,5 +4249,6 @@ def serve_forever():
 if __name__ == "__main__":
     threading.Thread(target=_repair_at_startup, name="repair", daemon=True).start()
     threading.Thread(target=_schedule_loop, name="schedule", daemon=True).start()
+    _https_apply(_https_settings())  # 1.93: the encrypted entrance, when it was switched on
     print(f"KlippEye backend {RELEASE} (api {API_LEVEL}) - data in {DATA_DIR} - settings {'read from ' + BRAIN_CONFIG_PATH if brain_config.saved else 'default (no saved file)'}")
     serve_forever()
