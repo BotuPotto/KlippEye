@@ -407,7 +407,7 @@ def mock_reset():
     S.clear(); S.update(default_state()); return jsonify(ok=True)
 @app.route("/__mock/state")
 def mock_state():
-    return jsonify({k: v for k, v in S.items() if k in ("light", "light_cmds", "light_reads", "actions", "webhooks", "webhooks_msg", "disconnected", "moonraker_down", "host_off", "services", "update_log", "brain_cfg_log", "brain_release", "brain_started", "klippeye_info", "pending_release", "logos", "app_apk_hits", "app_apk_downloads", "update_channel", "channel_posts", "rec_posts", "measure_starts", "measure_bodies", "ai_cfg", "ai_posts", "ai_model_reads", "excluded", "strip", "caselight", "mesh_profiles", "mesh_active", "mp", "mp_points", "tune", "speed_factor", "extrude_factor", "bs", "level_applied", "recordings", "alerts", "pm_macros", "pm_wraps", "pm_posts", "gcode_log", "ntfy", "ntfy_posts", "ntfy_tests", "ntfy_app_reads", "ai_answers", "ai_answer", "history_log", "queue", "queue_state", "queue_log", "power_devices", "power_log", "pins", "sensors", "timelapse_settings", "timelapse_log", "timelapse_conf_reads", "cfg", "timelapse_files", "spool_id", "spool_log", "webcams", "webcam_log", "peek_log", "schedule", "schedule_log")})
+    return jsonify({k: v for k, v in S.items() if k in ("light", "light_cmds", "light_reads", "actions", "webhooks", "webhooks_msg", "disconnected", "moonraker_down", "host_off", "services", "update_log", "brain_cfg_log", "brain_release", "brain_started", "klippeye_info", "pending_release", "logos", "app_apk_hits", "app_apk_downloads", "update_channel", "channel_posts", "rec_posts", "measure_starts", "measure_bodies", "ai_cfg", "ai_posts", "ai_model_reads", "excluded", "strip", "caselight", "mesh_profiles", "mesh_active", "mp", "mp_points", "tune", "speed_factor", "extrude_factor", "bs", "level_applied", "recordings", "alerts", "pm_macros", "pm_wraps", "pm_posts", "gcode_log", "ntfy", "ntfy_posts", "ntfy_tests", "ntfy_app_reads", "ai_answers", "ai_answer", "history_log", "queue", "queue_state", "queue_log", "power_devices", "power_log", "pins", "sensors", "timelapse_settings", "timelapse_log", "timelapse_conf_reads", "cfg", "timelapse_files", "spool_id", "spool_log", "webcams", "webcam_log", "peek_log", "schedule", "schedule_log", "metascan_log")})
 @app.route("/__mock/print_actions")
 def mock_print_actions():
     return jsonify(S.get("print_actions", []))
@@ -1793,6 +1793,12 @@ def db_item():
 @app.route("/server/webcams/list")
 def webcams_list():
     return jsonify(result={"webcams": S["webcams"]})
+
+# 1.79: Moonraker reads a file's metadata again
+@app.route("/server/files/metascan", methods=["GET", "POST"])
+def metascan():
+    S.setdefault("metascan_log", []).append(request.args.get("filename", ""))
+    return jsonify(result={"filename": request.args.get("filename", ""), "estimated_time": 7260})
 
 # 1.76: what is plugged into the Raspberry (Moonraker's /machine/peripherals/*)
 @app.route("/machine/peripherals/serial")
