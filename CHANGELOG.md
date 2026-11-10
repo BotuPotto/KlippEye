@@ -1,5 +1,17 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.82.0
+
+**A password for guests: look, don't touch.**
+
+* With the password on, Settings → Access → «Guest password» sets a second password. Who logs in with it sees the
+  printer, the camera, the files to print and the history; the top bar shows «Guest» instead of the power, save and
+  emergency stop buttons.
+* The KlippEye service refuses a guest's commands (anything but reading) and the configuration files, the logs and the
+  settings (they hold keys); the page answers a guest's command itself and says why.
+* Changing or removing the guest password logs the guests out; removing the main password removes it too.
+* On the Raspberry: `klippeye password guest-set` / `klippeye password guest-remove`.
+
 ## 1.81.0
 
 **Earlier versions of the config files.**

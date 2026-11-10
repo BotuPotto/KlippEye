@@ -185,6 +185,8 @@ ACCESS_TEXT = {
         "login": "Login required: open the dashboard and enter the password.",
         "wait": "Too many wrong attempts: try again in %(seconds)d seconds.",
         "password": "Wrong password.",
+        "guest": "Guests can only look: log in with the main password to do this.",
+        "guest_same": "The guest password must be different from the main one.",
         "title": "KlippEye · Login", "lead": "This printer is protected by a password.", "label": "Password", "button": "Log in",
         "hint": "Forgot the password? On the Raspberry: <code>klippeye password remove</code>",
     },
@@ -195,6 +197,8 @@ ACCESS_TEXT = {
         "login": "Serve l'accesso: apri la dashboard e inserisci la password.",
         "wait": "Troppi tentativi sbagliati: riprova tra %(seconds)d secondi.",
         "password": "Password sbagliata.",
+        "guest": "Gli ospiti possono solo guardare: per farlo entra con la password principale.",
+        "guest_same": "La password degli ospiti deve essere diversa da quella principale.",
         "title": "KlippEye · Accesso", "lead": "Questa stampante è protetta da una password.", "label": "Password", "button": "Accedi",
         "hint": "Password dimenticata? Sul Raspberry: <code>klippeye password remove</code>",
     },
@@ -349,8 +353,15 @@ def _is_internal():
         return False
 
 
+def _role(settings):
+    """Who is asking: "admin" (no password, the services on the Raspberry, the main password), "guest" (1.82) or None."""
+    if not settings.get("enabled") or _is_internal():
+        return "admin"
+    return access.token_role(settings, request.cookies.get(access.COOKIE_NAME))
+
+
 def _logged_in(settings):
-    return (not settings.get("enabled")) or _is_internal() or access.token_valid(settings, request.cookies.get(access.COOKIE_NAME))
+    return _role(settings) is not None
 
 
 def _refuse(status, code, message):
@@ -378,28 +389,35 @@ def _access_guard():
                 return _refuse(403, "origin", _text("origin_read"))
     if not settings.get("enabled") or internal or request.path in ACCESS_PUBLIC:
         return None
-    if access.token_valid(settings, request.cookies.get(access.COOKIE_NAME)):
+    role = access.token_role(settings, request.cookies.get(access.COOKIE_NAME))
+    if role == "admin":
         return None
+    if role == "guest":  # 1.82: look, never command
+        return None if access.guest_may(request.method, request.path, request.args) else _refuse(403, "guest", _text("guest"))
     if request.method == "GET" and request.path == "/":
         return _redirect("/login", code=303)
     return _refuse(401, "login", _text("login"))
 
 
-def _set_access_cookie(response, settings):
-    response.set_cookie(access.COOKIE_NAME, access.make_token(settings), max_age=access.TOKEN_DAYS * 86400, httponly=True,
+def _set_access_cookie(response, settings, role="admin"):
+    response.set_cookie(access.COOKIE_NAME, access.make_token(settings, role=role), max_age=access.TOKEN_DAYS * 86400, httponly=True,
                         samesite="Strict", secure=request.is_secure, path="/")
     return response
 
 
-def _check_password_or_wait(settings, password):
-    """(ok, error response or None). Slows down whoever tries passwords in a row."""
+def _check_password_or_wait(settings, password, allow_guest=False):
+    """(ok, error response or None); with `allow_guest` (logging in) ok is the role: "admin" or "guest" (1.82).
+    Slows down whoever tries passwords in a row."""
     ip = request.remote_addr or "?"
     wait = ACCESS_THROTTLE.wait_seconds(ip)
     if wait > 0:
         return False, _refuse(429, "wait", _text("wait", seconds=wait))
     if access.verify_password(settings, password):
         ACCESS_THROTTLE.ok(ip)
-        return True, None
+        return ("admin" if allow_guest else True), None
+    if allow_guest and access.verify_guest_password(settings, password):
+        ACCESS_THROTTLE.ok(ip)
+        return "guest", None
     ACCESS_THROTTLE.failed(ip)
     return False, _refuse(401, "password", _text("password"))
 
@@ -443,16 +461,18 @@ def access_page():
         return _redirect("/", code=303)
     if request.method == "GET":
         return _redirect("/", code=303) if _logged_in(settings) else _login_page()
-    ok, error = _check_password_or_wait(settings, request.form.get("password", ""))
-    if not ok:
+    role, error = _check_password_or_wait(settings, request.form.get("password", ""), allow_guest=True)
+    if not role:
         return _login_page(error.get_json().get("message", _text("password")), status=error.status_code)
-    return _set_access_cookie(_redirect("/", code=303), settings)
+    return _set_access_cookie(_redirect("/", code=303), settings, role)
 
 
 @app.route("/api/auth/status", methods=["GET"])
 def access_status():
     settings = _access_settings()
-    response = jsonify({"ok": True, "enabled": bool(settings.get("enabled")), "logged_in": _logged_in(settings),
+    role = _role(settings)
+    response = jsonify({"ok": True, "enabled": bool(settings.get("enabled")), "logged_in": role is not None, "role": role,
+                        "guest_enabled": bool(settings.get("enabled") and settings.get("guest_enabled")),
                         "network_checks": bool(settings.get("network_checks", True)), "allowed_hosts": list(settings.get("allowed_hosts") or []),
                         "min_length": access.MIN_PASSWORD})
     response.headers["Cache-Control"] = "no-store"
@@ -465,10 +485,10 @@ def access_login():
     if not settings.get("enabled"):
         return jsonify({"ok": True, "enabled": False})
     body = request.get_json(silent=True) or {}
-    ok, error = _check_password_or_wait(settings, body.get("password", ""))
-    if not ok:
+    role, error = _check_password_or_wait(settings, body.get("password", ""), allow_guest=True)
+    if not role:
         return error
-    return _set_access_cookie(jsonify({"ok": True, "enabled": True}), settings)
+    return _set_access_cookie(jsonify({"ok": True, "enabled": True, "role": role}), settings, role)
 
 
 @app.route("/api/auth/logout", methods=["POST"])
@@ -510,6 +530,38 @@ def access_disable():
     response = jsonify({"ok": True, "enabled": False})
     response.delete_cookie(access.COOKIE_NAME, path="/")
     return response
+
+
+@app.route("/api/auth/guest", methods=["POST"])
+def access_set_guest():
+    """1.82: sets or changes the guest password (look only); the main password is needed. Guests logged in before log in again."""
+    settings = _access_settings()
+    if not settings.get("enabled"):
+        return _refuse(409, "no_password", _text("login"))
+    body = request.get_json(silent=True) or {}
+    new = body.get("new", "")
+    problem = access.check_new_password(new)
+    if problem:
+        return _refuse(400, "weak", problem)
+    ok, error = _check_password_or_wait(settings, body.get("current", ""))
+    if not ok:
+        return error
+    if access.verify_password(settings, new):
+        return _refuse(400, "same", _text("guest_same"))
+    ACCESS.save(access.set_guest_password(settings, new))
+    print("[ACCESS] guest password set from %s" % request.remote_addr)
+    return jsonify({"ok": True, "guest_enabled": True})
+
+
+@app.route("/api/auth/guest/remove", methods=["POST"])
+def access_remove_guest():
+    settings = _access_settings()
+    ok, error = _check_password_or_wait(settings, (request.get_json(silent=True) or {}).get("current", ""))
+    if not ok:
+        return error
+    ACCESS.save(access.clear_guest_password(settings))
+    print("[ACCESS] guest password removed from %s" % request.remote_addr)
+    return jsonify({"ok": True, "guest_enabled": False})
 
 
 @app.route("/api/auth/logout_all", methods=["POST"])

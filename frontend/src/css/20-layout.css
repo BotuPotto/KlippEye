@@ -134,3 +134,6 @@ body:has(.modal, .confirm-overlay, .sheet-overlay, .screen) .bottom-nav { opacit
   margin-right: auto;
   padding: calc(var(--oui-header-h) + 18px) var(--oui-gutter) calc(var(--oui-nav-h) + 56px);
 }
+
+/* 1.82: a guest's badge in the top bar, instead of the power, save and stop buttons */
+.header-guest { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px; font-weight: 600; white-space: nowrap; }
