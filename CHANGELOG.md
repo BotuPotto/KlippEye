@@ -1,5 +1,13 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.77.0
+
+**The spool, before a print starts.**
+
+* With Spoolman, the print's confirmation shows the spool in use (colour, name, material, what is left) and «Change»
+  to pick another one before starting.
+* It warns when the file needs more filament than is left on the spool, or was sliced for another material.
+
 ## 1.76.0
 
 **Devices connected to the Raspberry.**

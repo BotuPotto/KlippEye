@@ -91,6 +91,20 @@ with sync_playwright() as p:
     ok("Spoolman unreachable: the card says so, no 'Cambia bobina'", wait_until(lambda: "non raggiunge Spoolman" in P.pg.locator(".spool-card").inner_text()) and P.pg.locator(".spool-change").count() == 0)
     P.close()
 
+    # 1.77: the spool in the print's confirmation
+    P = fresh(b, spoolman_on=True)
+    P.goto("files", 2200)
+    P.pg.locator(".file-card", has_text="Benchy").locator('button[aria-label="Avvia stampa"]').first.click()
+    row = P.pg.locator(".confirm-card .print-spool")
+    ok("1.77: the print's confirmation shows the spool in use (PETG Orange, 640 g left)", wait_until(lambda: row.count() == 1 and "Sunlu PETG Orange" in row.inner_text() and "640 g" in row.inner_text()), row.inner_text() if row.count() else "")
+    ok("... and warns: the file is sliced for PLA", wait_until(lambda: "preparato per PLA" in row.inner_text() and "la bobina è PETG" in row.inner_text()), row.inner_text())
+    P.pg.screenshot(path=out + "/print-spool.png")
+    row.locator(".print-spool__change").click()
+    P.pg.locator('.spool-picker [data-spool="1"]').click()
+    ok("«Cambia» → the PLA spool: made active, no warning left (12.4 g needed, 120 g left)", wait_until(lambda: state()["spool_id"] == 1) and wait_until(lambda: "PLA Basic Black" in row.inner_text() and "preparato" not in row.inner_text() and "richiede" not in row.inner_text()), row.inner_text())
+    ok("... the confirmation is still open", P.pg.locator(".confirm-card .print-spool").count() == 1)
+    P.close()
+
     P = fresh(b, 1440, 900, spoolman_on=True)
     ok("desktop: the card with the fans", wait_until(lambda: P.pg.locator(".desk-slot--spool .spool-card").count() == 1 and "PETG" in P.pg.locator(".spool-card").inner_text()))
     ok("desktop: no page errors", not errs(P), errs(P)[:2])

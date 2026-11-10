@@ -1,0 +1,9 @@
+/* The spool in the print's confirmation (app/48c-spoolman.js, PrintSpoolRow) */
+.print-spool { display: flex; flex-direction: column; gap: 8px; margin: 4px 0 16px; padding: 10px 12px; border-radius: var(--oui-r-row); background: var(--oui-surface-2); }
+.print-spool__row { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.print-spool__text { flex: 1; min-width: 0; }
+.print-spool__name { overflow: hidden; font-size: 14px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.print-spool__meta { font-size: 12px; color: var(--oui-text-3); }
+.print-spool__change { flex: none; }
+.print-spool__warn { display: flex; align-items: flex-start; gap: 6px; font-size: 12px; color: var(--oui-warn); }
+.print-spool__warn svg { flex: none; margin-top: 1px; }
