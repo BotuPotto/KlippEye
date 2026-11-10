@@ -84,3 +84,12 @@
 .console-suggest__name { font-family: var(--oui-font-mono); font-size: 13px; font-weight: 600; color: var(--oui-accent-text); }
 .console-suggest__help { font-size: 12px; color: var(--oui-text-3); overflow-wrap: anywhere; }
 .console-suggest__more { padding: 6px 10px; font-size: 12px; color: var(--oui-text-3); }
+
+/* 1.78: hidden lines */
+.console-filters { display: flex; flex-direction: column; gap: 12px; }
+.console-filters .dialog-head { margin-bottom: 0; }
+.console-filters__add { display: flex; gap: 8px; }
+.console-filters__add input { flex: 1; min-width: 0; }
+.console-filters__list { display: flex; flex-direction: column; gap: 6px; max-height: 40vh; overflow-y: auto; }
+.console-filters__row { display: flex; align-items: center; gap: 8px; padding: 6px 6px 6px 12px; border-radius: 10px; background: var(--oui-surface-2); }
+.console-filters__row code { flex: 1; min-width: 0; font-size: 13px; overflow-wrap: anywhere; }

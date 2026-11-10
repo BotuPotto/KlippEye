@@ -1,5 +1,13 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.78.0
+
+**Hidden lines in the console.**
+
+* Console options → «Hidden lines»: lines with a piece of text you choose are not shown (any case), or, between
+  slashes, those matching a regular expression (`/^Homed/`). Klipper still gets and keeps them.
+* Kept on this device; the menu says how many rules there are, and each one can be removed.
+
 ## 1.77.0
 
 **The spool, before a print starts.**
