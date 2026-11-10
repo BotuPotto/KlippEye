@@ -225,6 +225,7 @@ function AccessPage({ active }) {
         { title: tx("Remove the password"), note: tx("It needs the current password (field at the top). The dashboard will open again without logging in.") },
         h("button", { type: "button", className: "oui-btn oui-btn--danger-soft oui-btn--block", disabled: busy || !current, onClick: () => run("/api/auth/disable", { current }, tx("Password removed.")) }, tx("Remove the password")),
       ),
+    h(HttpsGroup, null),
     h(
       SettingsGroup,
       { title: tx("Network"), note: hostsNote },
@@ -285,3 +286,92 @@ function GuestPasswordGroup({ info, min, onChanged }) {
 
 /** One line for the settings list. */
 const accessSummary = (status) => (status.phase !== "ok" ? tx("Optional password") : status.info.enabled ? tx("Password on") : tx("Password off"));
+
+/* ---- HTTPS (1.93) ---------------------------------------------------------------------------------------------- */
+
+/** An encrypted entrance next to the usual one (backend/https_relay.py): on, off, its port, its certificate. */
+function HttpsGroup() {
+  const [info, setInfo] = useState(null);
+  const [port, setPort] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState(null);
+  const load = React.useCallback(async () => {
+    try {
+      const response = await fetchFresh("/api/https", { timeout: BRAIN_READ_TIMEOUT_MS });
+      if (!response.ok) return setInfo((old) => old || { missing: true });
+      const json = await response.json();
+      setInfo(json);
+      setPort((old) => old || String(json.port));
+    } catch (error) {
+      setInfo((old) => old || { missing: true });
+    }
+  }, []);
+  useEffect(() => {
+    load();
+  }, [load]);
+  if (!info || info.missing) return null;
+  const send = async (body, okMessage) => {
+    setBusy(true);
+    setResult(null);
+    try {
+      const response = await fetch("/api/https", { method: "POST", headers: JSON_HEADERS, body: JSON.stringify(body) });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok || json.ok === false) setResult({ ok: false, message: json.error || tx("Error {status}", { status: response.status }) });
+      else {
+        setInfo(json);
+        setPort(String(json.port));
+        setResult(json.error ? { ok: false, message: tx("HTTPS could not start: {error}", { error: json.error }) } : { ok: true, message: okMessage });
+        // switched off from the encrypted page: this page goes away with it, back to the usual address
+        if (info.secure && json.enabled === false) window.location.replace("http://" + window.location.hostname + ":" + KLIPPEYE_PORT + "/");
+      }
+    } catch (error) {
+      setResult({ ok: false, message: tx("The KlippEye service does not answer") });
+    }
+    setBusy(false);
+  };
+  const addresses = (info.addresses && info.addresses.length ? info.addresses : [window.location.hostname]).map((host) => "https://" + host + ":" + info.port);
+  const portChanged = port.trim() !== String(info.port);
+  return h(
+    SettingsGroup,
+    {
+      title: "HTTPS",
+      note: tx(
+        "An encrypted entrance next to the usual one. Its certificate is made on the Raspberry and no authority signed it: the first time the browser warns that it does not know it. Compare the fingerprint below with the one the browser shows, then go on. The Android app keeps using the usual address.",
+      ),
+    },
+    h(
+      "div",
+      { className: cx("set-status", info.running ? "set-status--ok" : "set-status--warn"), "data-https-status": info.running ? "on" : "off" },
+      h("span", { className: "set-status__dot" }),
+      info.running ? tx("On") + (info.secure ? " · " + tx("this page came encrypted") : "") : info.enabled ? tx("On, but not running") : tx("Off"),
+    ),
+    h("div", { className: "oui-list" }, h(SwitchRow, { title: tx("Encrypted entrance (HTTPS)"), detail: info.running ? addresses.join(" · ") : tx("Port {port}", { port: info.port }), checked: info.enabled, disabled: busy, onChange: (value) => send({ enabled: value }, value ? tx("HTTPS on.") : tx("HTTPS off.")) })),
+    info.running &&
+      h(
+        "div",
+        { className: "https-links", "data-https-links": "1" },
+        addresses.map((address) => h("a", { key: address, className: "oui-btn oui-btn--quiet oui-btn--sm", href: address + "/", target: "_blank", rel: "noopener" }, address)),
+      ),
+    h(
+      "label",
+      { className: "set-field" },
+      h("span", { className: "set-field__label" }, tx("Port")),
+      h(
+        "div",
+        { className: "https-port" },
+        h("input", { className: "oui-field set-field__input", inputMode: "numeric", value: port, "data-https-port": "1", onChange: (event) => setPort(event.target.value.replace(/[^0-9]/g, "").slice(0, 5)) }),
+        portChanged && h("button", { type: "button", className: "oui-btn oui-btn--sm", disabled: busy || !port, onClick: () => send({ port: Number(port) }, tx("Port changed.")) }, tx("Apply")),
+      ),
+    ),
+    info.fingerprint &&
+      h("div", { className: "https-fingerprint" }, h("div", { className: "oui-caption" }, tx("Certificate fingerprint (SHA-256)")), h("code", { "data-https-fingerprint": "1" }, info.fingerprint)),
+    info.fingerprint &&
+      h(
+        "button",
+        { type: "button", className: "oui-btn oui-btn--quiet oui-btn--block", disabled: busy, "data-https-renew": "1", onClick: () => send({ renew: true }, tx("New certificate made: the browsers will warn once more.")) },
+        tx("Make a new certificate (after the Raspberry got a new address)"),
+      ),
+    info.error && !result && h("div", { className: "set-status set-status--warn", role: "alert" }, h("span", { className: "set-status__dot" }), tx("HTTPS could not start: {error}", { error: info.error })),
+    h(AccessMessage, { result }),
+  );
+}

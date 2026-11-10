@@ -361,3 +361,10 @@
 .macro-field__pick { flex: none; width: 44px; min-height: 44px; }
 .macro-field__pick[aria-expanded="true"] svg { transform: rotate(180deg); }
 .macro-field__list .oui-menu__title { font-family: var(--oui-font-mono); font-size: 13px; }
+/* 1.93 · HTTPS (59d-access-settings.js) */
+.https-links { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.https-links .oui-btn { max-width: 100%; overflow-wrap: anywhere; }
+.https-port { display: flex; gap: 8px; align-items: center; }
+.https-port .oui-field { width: 120px; flex: none; }
+.https-fingerprint { margin-top: 10px; }
+.https-fingerprint code { display: block; margin-top: 4px; font-size: 12px; overflow-wrap: anywhere; color: var(--oui-text-2); }

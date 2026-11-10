@@ -9,6 +9,7 @@ the watched area makes a "movement" of a known size, so each threshold can be ch
 """
 import importlib.util
 import json
+import socket
 import os
 import shutil
 import stat
@@ -2188,6 +2189,65 @@ os.environ["KLIPPEYE_LIVE"] = "0"
 _lb._LIVE["live"] = None
 check("1.92: KLIPPEYE_LIVE=0 switches it off", _lb.live_status() is None and _lb.live_query({"extruder": None}) is None)
 os.environ.pop("KLIPPEYE_LIVE")
+
+# 1.93: HTTPS (backend/https_relay.py): the certificate, the relay and the headers it adds
+import https_relay as _hr  # noqa: E402
+import http.server as _hs  # noqa: E402
+import ssl as _ssl  # noqa: E402
+import urllib.request as _ur  # noqa: E402
+
+
+class _Echo(_hs.BaseHTTPRequestHandler):
+    protocol_version = "HTTP/1.1"
+
+    def do_GET(self):
+        body = json.dumps({"path": self.path, "xff": self.headers.get_all("X-Forwarded-For"), "proto": self.headers.get("X-Forwarded-Proto"), "connection": self.headers.get("Connection")}).encode()
+        self.send_response(200)
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def log_message(self, *args):
+        pass
+
+
+_echo = _hs.ThreadingHTTPServer(("127.0.0.1", 0), _Echo)
+threading.Thread(target=_echo.serve_forever, daemon=True).start()
+_hd = tmp()
+_cert, _key = _hr.ensure_certificate(_hd, names=["printer", "printer.local"], addresses=["192.168.1.50"])
+_san = subprocess.run(["openssl", "x509", "-in", _cert, "-noout", "-ext", "subjectAltName"], capture_output=True, text=True).stdout
+check("1.93: the certificate: made for the Raspberry's names and addresses, key readable only by its owner, kept",
+      "DNS:printer.local" in _san and "IP Address:192.168.1.50" in _san and "IP Address:127.0.0.1" in _san and (os.stat(_key).st_mode & 0o077) == 0
+      and _hr.ensure_certificate(_hd) == (_cert, _key) and len(_hr.fingerprint(_cert).split(":")) == 32, _san)
+_hport = 20000 + os.getpid() % 20000
+_relay = _hr.HttpsRelay(_hport, _echo.server_address[1], _cert, _key, log=lambda *a: None)
+_relay.start()
+_ctx = _ssl.create_default_context(cafile=_cert)
+_ans = json.loads(_ur.urlopen(_ur.Request("https://127.0.0.1:%d/a?b=1" % _hport, headers={"X-Forwarded-For": "6.6.6.6", "X-Forwarded-Proto": "http"}), context=_ctx).read())
+check("1.93: through the relay: the request as it was, the client's X-Forwarded-* replaced by the relay's, one request per connection",
+      _ans == {"path": "/a?b=1", "xff": ["127.0.0.1"], "proto": "https", "connection": "close"}, _ans)
+check("1.93: an upgrade keeps its Connection header", b"Connection: Upgrade" in _hr.forward_head(b"GET /websocket HTTP/1.1\r\nHost: x\r\nUpgrade: websocket\r\nConnection: Upgrade", "1.2.3.4")
+      and b"Connection: close" not in _hr.forward_head(b"GET /websocket HTTP/1.1\r\nUpgrade: websocket\r\nConnection: Upgrade", "1.2.3.4"))
+_relay.stop()
+_closed = False
+try:
+    socket.create_connection(("127.0.0.1", _hport), timeout=2).close()
+except OSError:
+    _closed = True
+_again = _hr.HttpsRelay(_hport, 1, _cert, _key, log=lambda *a: None)
+check("1.93: stopped: its port free at once", _closed and _raises(_again.start) is None)
+_again.stop()
+_echo.shutdown()
+os.environ["KLIPPEYE_DATA"] = tmp()
+_hb = load_brain(NEW_BRAIN, os.environ["KLIPPEYE_DATA"], fake=fake, brain_json={"formato": 1, "values": {"enabled": False}})
+_hc = _hb.app.test_client()
+_st = _hc.get("/api/https").get_json()
+check("1.93: /api/https: off at first, port 8443, no certificate yet", _st["enabled"] is False and _st["port"] == 8443 and _st["running"] is False and _st["fingerprint"] is None, _st)
+check("1.93: a port out of range, or the service's own, refused", _hc.post("/api/https", json={"port": 80}).status_code == 400 and _hc.post("/api/https", json={"port": _hb.PORT}).status_code == 400)
+_on = _hc.post("/api/https", json={"enabled": True, "port": _hport + 1}).get_json()
+check("1.93: switched on: running at once, with its certificate; kept for the next start", _on["running"] is True and _on["fingerprint"] and _hb._https_settings() == {"enabled": True, "port": _hport + 1}, _on)
+_off = _hc.post("/api/https", json={"enabled": False}).get_json()
+check("1.93: switched off: stopped", _off["running"] is False and _off["enabled"] is False, _off)
 
 stop_all()
 fake.close()

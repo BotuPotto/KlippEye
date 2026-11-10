@@ -1268,6 +1268,12 @@ def api_version():
     return jsonify(ok=True, release=S["brain_release"], api=2, git={"commit": "a1b2c3d", "branch": "main"}, started=S["brain_started"], uptime=int(time.time()) % 5000 + 600,
                    python="3.11.2", has_cv2=S["brain_has_cv2"], data_dir="/home/pi/printer_data/klippeye", frontend="/home/pi/klippeye/frontend/klippeye_frontend.html")
 
+@app.route("/api/https", methods=["GET", "POST"])
+def mock_https():
+    """1.93: the encrypted entrance, off (its real behaviour is tested by access_test.py with the real backend)."""
+    return jsonify(ok=True, enabled=False, port=8443, running=False, fingerprint=None, error=None, addresses=["192.168.1.50"], secure=False)
+
+
 @app.route("/api/auth/status")
 def mock_auth_status():
     """Release 1.2.0: password facoltativa (qui sempre spenta: la password vera si prova con access_test.py e il backend vero)."""
