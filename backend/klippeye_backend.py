@@ -262,11 +262,23 @@ ACCESS_TEXT = {
         "title": "KlippEye · Logowanie", "lead": "Ta drukarka jest chroniona hasłem.", "label": "Hasło", "button": "Zaloguj",
         "hint": "Nie pamiętasz hasła? Na Raspberry: <code>klippeye password remove</code>",
     },
+    "zh": {
+        "host": "只有通过 Raspberry 的 IP 地址或家庭网络中的名称访问时，KlippEye 才会响应。要使用名称 '%(host)s'，请在 Raspberry 上运行：  klippeye access host-add %(host)s",
+        "origin_cmd": "命令被拒绝：它来自一个不是 KlippEye 控制面板的页面（%(origin)s）。",
+        "origin_read": "请求被拒绝：它来自其他网站。",
+        "login": "需要登录：打开控制面板并输入密码。",
+        "wait": "错误尝试次数过多：请在 %(seconds)d 秒后重试。",
+        "password": "密码错误。",
+        "guest": "访客只能查看：要执行此操作，请用主密码登录。",
+        "guest_same": "访客密码必须与主密码不同。",
+        "title": "KlippEye · 登录", "lead": "这台打印机受密码保护。", "label": "密码", "button": "登录",
+        "hint": "忘记密码？在 Raspberry 上：<code>klippeye password remove</code>",
+    },
 }
 
 
-LANGUAGES = ("en", "it", "es", "de", "fr", "pt", "pl")
-LANGUAGE_NAMES = {"en": "English", "it": "Italian", "es": "Spanish", "de": "German", "fr": "French", "pt": "Portuguese", "pl": "Polish"}
+LANGUAGES = ("en", "it", "es", "de", "fr", "pt", "pl", "zh")
+LANGUAGE_NAMES = {"en": "English", "it": "Italian", "es": "Spanish", "de": "German", "fr": "French", "pt": "Portuguese", "pl": "Polish", "zh": "Simplified Chinese"}
 LANG_COOKIE = "klippeye_lang"  # set by the dashboard: the language it is shown in on that device
 
 

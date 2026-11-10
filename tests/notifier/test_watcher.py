@@ -70,6 +70,9 @@ ok("1.95: ... and Portuguese (Brazil)", all(_pt.get(v) == vn.MESSAGES["pt"][k] f
 _pl = json.load(open(os.path.join(_root, "frontend", "src", "i18n", "pl.json"), encoding="utf-8"))
 ok("1.96: ... and Polish", all(_pl.get(v) == vn.MESSAGES["pl"][k] for k, v in _dash.items()) and all(_pl.get(v) == vn.MESSAGES["pl"]["rule_" + k] for k, v in _rules.items()),
    {k: (_pl.get(v), vn.MESSAGES["pl"][k]) for k, v in _dash.items() if _pl.get(v) != vn.MESSAGES["pl"][k]})
+_zh = json.load(open(os.path.join(_root, "frontend", "src", "i18n", "zh.json"), encoding="utf-8"))
+ok("1.97: ... and Simplified Chinese", all(_zh.get(v) == vn.MESSAGES["zh"][k] for k, v in _dash.items()) and all(_zh.get(v) == vn.MESSAGES["zh"]["rule_" + k] for k, v in _rules.items()),
+   {k: (_zh.get(v), vn.MESSAGES["zh"][k]) for k, v in _dash.items() if _zh.get(v) != vn.MESSAGES["zh"][k]})
 ok("every language has every text", all(set(texts) == set(vn.MESSAGES["en"]) and all(texts.values()) for texts in vn.MESSAGES.values()), {k: set(vn.MESSAGES["en"]) ^ set(t) for k, t in vn.MESSAGES.items()})
 
 # --------------------------------------------------------------------------------------------------- starting up says nothing

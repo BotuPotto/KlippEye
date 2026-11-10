@@ -219,6 +219,25 @@ MESSAGES = {
         "rule_line": "{line}",
         "rule_temp": "{heater}: osiągnięto temperaturę {temp}°C",
     },
+    "zh": {
+        "error": "打印机错误！请重启它。",
+        "complete": "打印完成！",
+        "cancelled": "打印已取消！",
+        "paused": "打印机已暂停！",
+        "runout": "耗材用完，请更换料盘！",
+        "ai_pause": "发现打印缺陷，请检查并暂停打印！",
+        "ai_cancel": "发现严重的打印缺陷，请检查并取消打印",
+        "ai_pause_auto": "发现打印缺陷：打印已自动暂停。",
+        "ai_cancel_auto": "发现严重的打印缺陷：打印已自动取消。",
+        "test": "测试通知：一切正常！",
+        "error_detail": "打印机错误：{message}",
+        "rule_started": "打印已开始：{file}",
+        "rule_progress": "{file}：已完成 {progress}%",
+        "rule_remaining": "{file}：剩余约 {remaining}",
+        "rule_layer": "{file}：第 {layer} / {total_layers} 层",
+        "rule_line": "{line}",
+        "rule_temp": "{heater} 已达到温度：{temp}°C",
+    },
 }
 LANGUAGES = tuple(MESSAGES)
 DEFAULT_MESSAGES = MESSAGES["en"]
@@ -231,7 +250,8 @@ HEATER_NAMES = {"en": {"extruder": "Nozzle", "heater_bed": "Bed"}, "it": {"extru
                 "es": {"extruder": "Boquilla", "heater_bed": "Cama"}, "de": {"extruder": "Düse", "heater_bed": "Bett"},
                 "fr": {"extruder": "Buse", "heater_bed": "Plateau"},
                 "pt": {"extruder": "Bico", "heater_bed": "Mesa"},
-                "pl": {"extruder": "Dysza", "heater_bed": "Stół"}}
+                "pl": {"extruder": "Dysza", "heater_bed": "Stół"},
+                "zh": {"extruder": "喷嘴", "heater_bed": "热床"}}
 
 
 def fill(text: str, values: Dict[str, Any]) -> str:
@@ -275,7 +295,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     # which notifications are on
     "events": {key: True for key in ("error", "complete", "cancelled", "paused", "runout", "ai_pause", "ai_cancel")},
     "messages": {},  # your own texts, e.g. {"complete": "Done!"}: they win over the language's
-    "language": "",  # "en", "it", "es", "de", "fr", "pt", "pl": used until the dashboard's choice is known
+    "language": "",  # "en", "it", "es", "de", "fr", "pt", "pl", "zh": used until the dashboard's choice is known
     # timing (seconds)
     "poll_seconds": 2,
     "ai_poll_seconds": 5,
