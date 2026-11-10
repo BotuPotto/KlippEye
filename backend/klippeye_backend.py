@@ -955,6 +955,49 @@ def emergency_page():
         "hint": bt("If nothing changes, on the Raspberry run  klippeye repair  and then  klippeye restart .", lang),
     }
 
+# 1.92: one live connection to Moonraker (backend/moonraker_live.py): the printer's state the dashboards ask for is kept
+# up to date by Moonraker's own notifications and answered from that copy, without asking Moonraker each time.
+import moonraker_live  # noqa: E402
+
+_LIVE = {"live": None}
+
+
+def live_status():
+    """The live copy (created on first use, with the Moonraker address of now), or None when switched off."""
+    if os.environ.get("KLIPPEYE_LIVE", "1") == "0":
+        return None
+    if _LIVE["live"] is None:
+        _LIVE["live"] = moonraker_live.MoonrakerLive(MOONRAKER_URL)
+    return _LIVE["live"]
+
+
+def live_query(objects):
+    """{name: fields or None} → the status from the live copy, or None (then the objects are added to it for next time)."""
+    live = live_status()
+    if live is None:
+        return None
+    answer = live.query(objects)
+    if answer is None:
+        live.want(objects.keys())
+    return answer
+
+
+def moonraker_status(query, timeout=3):
+    """The `status` of /printer/objects/query?<query> ("print_stats&extruder=temperature,target"): from the live copy
+    when it has it, else from Moonraker (raising like requests does)."""
+    objects = {}
+    for part in query.split("&"):
+        name, _, fields = part.partition("=")
+        if name:
+            objects[urllib.parse.unquote(name)] = [field for field in fields.split(",") if field] or None
+    answer = live_query(objects)
+    if answer is not None:
+        return answer
+    r = requests.get(f"{MOONRAKER_URL}/printer/objects/query?{query}", timeout=timeout)
+    r.raise_for_status()
+    return r.json().get("result", {}).get("status", {})
+
+
 # The operations Moonraker answers only when the work is done (updates, service restarts): 10 seconds are not enough.
 LONG_MOONRAKER_PATHS = ("machine/update/", "machine/services/")
 
@@ -1013,6 +1056,8 @@ def index():
 @app.route("/api/health")
 def health():
     out = {}
+    live = live_status()
+    out["live"] = live.info() if live else "off"
     try:
         r = requests.get(f"{MOONRAKER_URL}/printer/info", timeout=2)
         out["moonraker"] = f"ok ({r.status_code})" if r.ok else f"fail {r.status_code}"
@@ -1034,13 +1079,19 @@ def health():
 @app.route("/api/status")
 def api_printer():
     try:
-        url = f"{MOONRAKER_URL}/printer/objects/query?heater_bed&extruder&print_stats&heater_fan&toolhead&gcode_move&virtual_sdcard&display_status&extruder&heater_bed"
-        r = requests.get(url, timeout=3)
-        data = r.json()
-        status = data.get("result", {}).get("status", {})
-        info = requests.get(f"{MOONRAKER_URL}/printer/info", timeout=2).json().get("result", {})
+        objects = {name: None for name in ("heater_bed", "extruder", "print_stats", "heater_fan", "toolhead", "gcode_move", "virtual_sdcard", "display_status", "webhooks")}
+        status = live_query(objects)
+        if status is not None:  # 1.92: from the live copy (webhooks.state is what /printer/info says)
+            state = (status.pop("webhooks", {}) or {}).get("state", "ready")
+        else:
+            url = f"{MOONRAKER_URL}/printer/objects/query?heater_bed&extruder&print_stats&heater_fan&toolhead&gcode_move&virtual_sdcard&display_status&extruder&heater_bed"
+            r = requests.get(url, timeout=3)
+            data = r.json()
+            status = data.get("result", {}).get("status", {})
+            info = requests.get(f"{MOONRAKER_URL}/printer/info", timeout=2).json().get("result", {})
+            state = info.get("state", "ready")
         return jsonify({
-            "state": info.get("state", "ready"),
+            "state": state,
             "heater_bed": status.get("heater_bed", {}),
             "extruder": status.get("extruder", {}),
             "print_stats": status.get("print_stats", {}),
@@ -1085,6 +1136,10 @@ def api_gcode():
 @app.route("/server", methods=["GET","POST"])
 def moonraker_proxy(path=""):
     full = request.path.lstrip("/")
+    if request.method == "GET" and full == "printer/objects/query" and request.args:
+        answer = live_query(moonraker_live.parse_query(request.args))
+        if answer is not None:  # 1.92: answered from the live copy, Moonraker not asked
+            return jsonify({"result": {"eventtime": _LIVE["live"].eventtime, "status": answer}})
     # gcode/script has its own handler
     return proxy_moonraker(full)
 
@@ -2193,7 +2248,7 @@ class LightDetector(FrameJudge):
     def _position_now(self, key):
         """Klipper's live position of the toolhead into self.meta[key] (just before / just after the picture)."""
         try:
-            status = requests.get(f"{MOONRAKER_URL}/printer/objects/query?motion_report=live_position", timeout=2).json()["result"]["status"]
+            status = moonraker_status("motion_report=live_position", timeout=2)
             live = (status.get("motion_report") or {}).get("live_position") or []
             self.meta[key] = [round(float(v), 1) for v in live[:3]] if len(live) >= 3 else self.meta.get(key)
         except Exception:
@@ -2313,8 +2368,7 @@ class LightDetector(FrameJudge):
                 # Check if printing
                 # === SOLUTION 5 - HYBRID - IS THE REAL PRINT RUNNING ===
                 try:
-                    pr = requests.get(f"{MOONRAKER_URL}/printer/objects/query?print_stats&extruder&display_status&virtual_sdcard&toolhead&heater_bed&motion_report=live_position&exclude_object=objects", timeout=3).json()
-                    status = pr.get("result",{}).get("status",{})
+                    status = moonraker_status("print_stats&extruder&display_status&virtual_sdcard&toolhead&heater_bed&motion_report=live_position&exclude_object=objects")
                     ps = status.get("print_stats",{})
                     extr = status.get("extruder",{})
                     disp = status.get("display_status",{})
@@ -2516,8 +2570,7 @@ class LightDetector(FrameJudge):
             # Telemetria
             telemetry = {}
             try:
-                pr = requests.get(f"{MOONRAKER_URL}/printer/objects/query?print_stats&extruder&heater_bed&display_status&virtual_sdcard", timeout=3).json()
-                telemetry = pr.get("result",{}).get("status",{})
+                telemetry = moonraker_status("print_stats&extruder&heater_bed&display_status&virtual_sdcard")
             except Exception as e:
                 telemetry = {}
 
@@ -3930,8 +3983,7 @@ def api_print_analyze():
         # 2. print telemetry
         telemetry = {}
         try:
-            pr = requests.get(f"{MOONRAKER_URL}/printer/objects/query?print_stats&extruder&heater_bed&display_status&toolhead&virtual_sdcard&gcode_move", timeout=3).json()
-            telemetry = pr.get("result",{}).get("status",{})
+            telemetry = moonraker_status("print_stats&extruder&heater_bed&display_status&toolhead&virtual_sdcard&gcode_move")
         except Exception as e:
             telemetry = {"error": str(e)}
 

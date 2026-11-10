@@ -2150,6 +2150,45 @@ try:
 finally:
     _busy.kill()
 
+# 1.92: one live connection to Moonraker (backend/moonraker_live.py): the state the dashboards ask for, kept up to date
+import moonraker_live as _ml  # noqa: E402
+sys.path.insert(0, HERE)
+from fake_moonraker_ws import FakeMoonrakerWS  # noqa: E402
+_ml.SILENCE_S, _ml.RETRY_S = 2.0, (0.3, 0.5)
+_fws = FakeMoonrakerWS({"extruder": {"temperature": 24.5, "target": 0.0, "power": 0.0}, "heater_bed": {"temperature": 22.0, "target": 0.0},
+                        "print_stats": {"state": "standby", "filename": ""}, "toolhead": {"homed_axes": "", "position": [0, 0, 0, 0]},
+                        "gcode_move": {"homing_origin": [0, 0, 0.05, 0]}, "virtual_sdcard": {"progress": 0}, "display_status": {"progress": 0},
+                        "webhooks": {"state": "ready", "state_message": "Printer is ready"}, "fan": {"speed": 0.25}}, heartbeat=0.3)
+_lb = load_brain(NEW_BRAIN, tmp(), fake=fake, brain_json={"formato": 1, "values": {"enabled": False}})
+_lb._LIVE["live"] = _ml.MoonrakerLive("http://127.0.0.1:%d" % _fws.port, log=lambda *a: None)
+_lc = _lb.app.test_client()
+_before = _lc.get("/printer/objects/query?extruder=temperature,target&fan")
+check("1.92: the first question goes to Moonraker as before (nothing live yet), and asks for those objects", _before.status_code in (200, 502) and wait_for(lambda: _lb._LIVE["live"].query({"extruder": None, "fan": None}) is not None, 5))
+_hits = len(_fws.subscriptions)
+_lc.get("/printer/objects/query?extruder=temperature,target&fan&nothere")
+_ok = wait_for(lambda: _lb._LIVE["live"].query({"nothere": None}) is not None, 3)
+_r = _lc.get("/printer/objects/query?extruder=temperature,target&fan&nothere")
+check("1.92: then answered from the live copy: the fields asked, an unknown object left out as Moonraker does", _ok and _r.status_code == 200 and _r.get_json()["result"]["status"] == {"extruder": {"temperature": 24.5, "target": 0.0}, "fan": {"speed": 0.25}}, _r.get_json())
+_fws.update({"extruder": {"temperature": 210.0, "target": 210.0}})
+check("1.92: Moonraker's notifications keep it up to date", wait_for(lambda: _lc.get("/printer/objects/query?extruder=temperature").get_json()["result"]["status"].get("extruder", {}).get("temperature") == 210.0, 3))
+_lc.get("/api/printer")
+check("1.92: /api/printer from the live copy too (state from webhooks), once its objects are subscribed",
+      wait_for(lambda: _lc.get("/api/printer").get_json().get("state") == "ready" and _lb._LIVE["live"].query({"webhooks": None, "toolhead": None}) is not None, 5) and _lc.get("/api/printer").get_json()["extruder"]["temperature"] == 210.0, _lc.get("/api/printer").get_json())
+check("1.92: the monitor's own questions too", _lb.moonraker_status("print_stats=state&extruder") == {"print_stats": {"state": "standby"}, "extruder": {"temperature": 210.0, "target": 210.0, "power": 0.0}})
+check("1.92: configfile is never kept live", _lb._LIVE["live"].query({"configfile": None}) is None and "configfile" not in _lb._LIVE["live"].wanted)
+_fws.broadcast({"jsonrpc": "2.0", "method": "notify_klippy_disconnected", "params": []})
+check("1.92: Klipper disconnected: the copy stops answering (Moonraker is asked again)", wait_for(lambda: _lb._LIVE["live"].query({"extruder": None}) is None, 2))
+_fws.broadcast({"jsonrpc": "2.0", "method": "notify_klippy_ready", "params": []})
+check("1.92: Klipper ready again: subscribed again, answering again", wait_for(lambda: _lb._LIVE["live"].query({"extruder": None}) is not None, 3) and len(_fws.subscriptions) > _hits)
+_fws.drop_all()
+check("1.92: the connection lost: not answering, then connected again by itself", wait_for(lambda: _lb._LIVE["live"].query({"extruder": None}) is None, 2) and wait_for(lambda: _lb._LIVE["live"].query({"extruder": None}) is not None, 6))
+check("1.92: /api/health says it", _lc.get("/api/health").get_json()["live"]["live"] is True)
+_lb._LIVE["live"].stop()
+os.environ["KLIPPEYE_LIVE"] = "0"
+_lb._LIVE["live"] = None
+check("1.92: KLIPPEYE_LIVE=0 switches it off", _lb.live_status() is None and _lb.live_query({"extruder": None}) is None)
+os.environ.pop("KLIPPEYE_LIVE")
+
 stop_all()
 fake.close()
 print("\n%d PASS, %d FAIL" % (passed, failed))

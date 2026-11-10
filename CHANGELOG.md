@@ -1,5 +1,17 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.92.0
+
+**One live connection to Moonraker.**
+
+* The KlippEye service now keeps one live connection (WebSocket) to Moonraker: Moonraker sends it the changes of the
+  printer's state as they happen (temperatures, fans, position, the print...). The questions of the dashboards (on
+  every phone and computer that has one open) and of the AI monitor are answered from that copy, at once, without
+  asking Moonraker and Klipper each time: less work for the Raspberry, quicker answers.
+* When the connection is not there (Moonraker restarting, Klipper not ready yet) everything asks Moonraker directly, as
+  before, and the connection comes back by itself. `KLIPPEYE_LIVE=0` in the service's environment switches it off.
+* `/api/health` says whether it is live and how many questions it answered.
+
 ## 1.91.0
 
 **AFC in the multi-material card.**
