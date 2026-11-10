@@ -1,5 +1,12 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.87.0
+
+**German.**
+
+* The dashboard, the login page, the notifications and the AI monitor's texts are now also in German (Settings →
+  Language → Deutsch, or «Automatic» on a German device).
+
 ## 1.86.0
 
 **Spanish.**

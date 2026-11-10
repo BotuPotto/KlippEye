@@ -682,7 +682,7 @@ with sync_playwright() as p:
     ok("language: an Italian device gets the Italian page, and the list says it follows the device", pg.evaluate("() => document.documentElement.lang") == "it" and meta() == "Automatica (Italiano)", meta())
     go(P, "language")
     titles = pg.locator(".set-choice .set-switch__title").all_inner_texts()
-    ok("... four choices: automatic (selected), English, Italiano, Español", titles == ["Automatico", "English", "Italiano", "Español"] and choice(pg, "Automatico").get_attribute("aria-checked") == "true", titles)
+    ok("... five choices: automatic (selected), English, Italiano, Español, Deutsch", titles == ["Automatico", "English", "Italiano", "Español", "Deutsch"] and choice(pg, "Automatico").get_attribute("aria-checked") == "true", titles)
     ok("... the automatic one names the device's language", "Italiano" in choice(pg, "Automatico").inner_text())
     choice(pg, "English").click(); pg.wait_for_load_state("load"); P.settle(1500)
     ok("choosing English reloads the page in English", pg.evaluate("() => document.documentElement.lang") == "en" and pg.locator('.app-header button[aria-label="Settings"]').count() == 1)
