@@ -595,7 +595,7 @@ function HistoryPage({ desktop, onPrint }) {
   return h(
     React.Fragment,
     null,
-    desktop ? h("div", { className: "desk-split desk-split--history" }, h("div", { className: "desk-col" }, stats), h("div", { className: "desk-col" }, list)) : h("div", { className: "history-page" }, stats, list),
+    desktop ? h("div", { className: "desk-split desk-split--history" }, h("div", { className: "desk-col" }, stats, h(MaintenanceCard)), h("div", { className: "desk-col" }, list)) : h("div", { className: "history-page" }, stats, h(MaintenanceCard), list),
     h(Presence, null, open && h(HistoryJobSheet, { job: open, history, onClose: () => setOpenId(null), onPrint })),
     h(ConfirmDialog, {
       open: confirmingReset,

@@ -83,6 +83,7 @@ function App() {
   const aiMonitor = useAiMonitor();
   const updates = useUpdateDialog();
   useUpdateWatch(printStatus.printing); // 1.67: new versions, looked for by itself
+  useMaintenanceWatch(); // 1.73: a maintenance reminder that is due, said once a day
 
   useExternalLinksInNewTab();
   useModalInputScroll();

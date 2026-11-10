@@ -1,5 +1,17 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.73.0
+
+**Maintenance reminders.**
+
+* Files → History has a **Maintenance** card: «Add» a reminder (what to do, every N printing hours, N metres of
+  filament and/or N days, a note). It counts from Moonraker's own totals (every print ever) since the last time it was
+  done: a bar, «Soon» from 90 %, «To do» when it is time.
+* «Done» starts it again from now; a tap on the reminder changes or removes it.
+* When one is due, a message says so once a day on each device.
+* Kept in Moonraker's database: every phone and computer sees the same reminders. If Moonraker's totals are reset,
+  a reminder counts what was printed since then.
+
 ## 1.72.1
 
 **No other interface named.**
