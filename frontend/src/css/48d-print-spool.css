@@ -7,3 +7,7 @@
 .print-spool__change { flex: none; }
 .print-spool__warn { display: flex; align-items: flex-start; gap: 6px; font-size: 12px; color: var(--oui-warn); }
 .print-spool__warn svg { flex: none; margin-top: 1px; }
+
+/* 1.83 · the checks before a print (47e-print-checks.js) */
+.print-checks { display: flex; flex-direction: column; gap: 6px; margin: 4px 0 12px; }
+.print-checks__ok { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--oui-ok); }

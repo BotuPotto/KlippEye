@@ -1,5 +1,13 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.83.0
+
+**Checks before a print.**
+
+* The «Confirm print» dialog reads the file and the printer and says what would spoil the print: taller than the
+  printer's Z, sliced for another nozzle, layers too thick for the nozzle, temperatures over the printer's limits,
+  Klipper not ready, settings still waiting for SAVE_CONFIG. Nothing is blocked; when all is well one line says so.
+
 ## 1.82.0
 
 **A password for guests: look, don't touch.**
