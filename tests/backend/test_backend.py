@@ -2057,6 +2057,28 @@ check("1.80: a file without rows: 400", _ca.get("/api/shaper/data?name=calibrati
 check("1.80: a name outside the list, or with a folder: refused", all(_ca.get("/api/shaper/data?name=" + n).status_code == 400 for n in ("..%2Fetc%2Fpasswd", "printer.cfg", "adxl345-x.csv", "")) and _ca.get("/api/shaper/data?name=calibration_data_z_20261109_000000.csv").status_code == 404)
 os.environ.pop("KLIPPEYE_SHAPER_DIRS")
 
+# 1.81: the earlier versions of the config files (backend/config_versions.py)
+r = _ca.post("/api/config/versions", json={"path": "printer.cfg", "content": "[printer]\nkinematics: corexy\n"})
+_v1 = r.get_json()["version"]
+check("1.81: a version kept: id, size, 2 lines", r.status_code == 200 and _v1["size"] == 29 and _v1["lines"] == 2 and _v1["reason"] == "save", r.get_json())
+check("1.81: the same text again is not kept twice", _ca.post("/api/config/versions", json={"path": "/config/printer.cfg", "content": "[printer]\nkinematics: corexy\n"}).get_json()["version"] is None)
+time.sleep(0.01)
+_v2 = _ca.post("/api/config/versions", json={"path": "printer.cfg", "content": "[printer]\nkinematics: cartesian\n"}).get_json()["version"]
+j = _ca.get("/api/config/versions?path=printer.cfg").get_json()
+check("1.81: the list, newest first", [v["id"] for v in j["versions"]] == [_v2["id"], _v1["id"]], j)
+check("1.81: a version read back", _ca.get("/api/config/versions/%s?path=printer.cfg" % _v1["id"]).get_json()["content"] == "[printer]\nkinematics: corexy\n")
+check("1.81: another file has its own list", _ca.get("/api/config/versions?path=macros/park.cfg").get_json()["versions"] == [])
+check("1.81: a version of another file is not found", _ca.get("/api/config/versions/%s?path=macros/park.cfg" % _v1["id"]).status_code == 404)
+check("1.81: bad paths and ids refused", all(_ca.post("/api/config/versions", json={"path": bad, "content": "x"}).status_code == 400 for bad in ("../x.cfg", "", "a//b", None))
+      and _ca.get("/api/config/versions/..%2Fx?path=printer.cfg").status_code in (400, 404))
+import config_versions as _cv
+_store = _cv.ConfigVersions(tmp())
+for _i in range(_cv.MAX_VERSIONS + 5):
+    _store.add("a.cfg", "text %d" % _i)
+check("1.81: only the last %d versions are kept (files too)" % _cv.MAX_VERSIONS, len(_store.list("a.cfg")) == _cv.MAX_VERSIONS and _store.read("a.cfg", _store.list("a.cfg")[0]["id"]) == "text %d" % (_cv.MAX_VERSIONS + 4)
+      and len([n for n in os.listdir(_store._folder("a.cfg")) if n.endswith(".txt")]) == _cv.MAX_VERSIONS)
+check("1.81: too large a text refused", _ca.post("/api/config/versions", json={"path": "big.cfg", "content": "x" * (_cv.MAX_BYTES + 1)}).status_code == 413)
+
 stop_all()
 fake.close()
 print("\n%d PASS, %d FAIL" % (passed, failed))

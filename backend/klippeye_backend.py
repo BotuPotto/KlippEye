@@ -1420,6 +1420,39 @@ def api_shaper_data():
         return jsonify({"error": str(error)}), 500
 
 
+# === EARLIER VERSIONS OF THE CONFIG FILES (1.81) ===
+# The editor hands the text a file had before it writes it over; kept in the data folder (backend/config_versions.py).
+import config_versions  # noqa: E402
+
+config_versions_store = config_versions.ConfigVersions(DATA_DIR)
+
+
+@app.route("/api/config/versions", methods=["GET", "POST"])
+def api_config_versions():
+    """GET ?path=: {versions: [{id, time, size, lines, reason}]} newest first. POST {path, content, reason}: keeps one."""
+    try:
+        if request.method == "POST":
+            body = request.get_json(silent=True) or {}
+            version = config_versions_store.add(body.get("path"), body.get("content"), body.get("reason") or "save")
+            return jsonify({"ok": True, "version": version})
+        return jsonify({"ok": True, "versions": config_versions_store.list(request.args.get("path"))})
+    except config_versions.VersionError as error:
+        return jsonify({"ok": False, "error": str(error)}), 413 if str(error) == "too_large" else 400
+    except OSError as error:
+        return jsonify({"ok": False, "error": str(error)}), 500
+
+
+@app.route("/api/config/versions/<version_id>", methods=["GET"])
+def api_config_version(version_id):
+    """?path=: {content} of that version."""
+    try:
+        return jsonify({"ok": True, "content": config_versions_store.read(request.args.get("path"), version_id)})
+    except config_versions.VersionError as error:
+        return jsonify({"ok": False, "error": str(error)}), 404 if str(error) == "not_found" else 400
+    except OSError as error:
+        return jsonify({"ok": False, "error": str(error)}), 500
+
+
 # === LOGS SYSTEM V27 ===
 
 

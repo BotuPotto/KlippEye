@@ -404,6 +404,7 @@ function EditorScreen({ session, onClose, inline, onDirtyChange }) {
   const [historyDepth, setHistoryDepth] = useState({ undo: 0, redo: 0 });
   const [caretLine, setCaretLine] = useState(1);
   const [confirmingDiscard, setConfirmingDiscard] = useState(false);
+  const [versionsOpen, setVersionsOpen] = useState(false); // 1.81: the earlier versions of the file
   const hostRef = useRef(null);
   const viewRef = useRef(null);
   const statusTimer = useRef(0);
@@ -415,6 +416,7 @@ function EditorScreen({ session, onClose, inline, onDirtyChange }) {
   const sections = useMemo(() => (isGcode ? [] : configSections(text)), [text, isGcode]);
   const docsUrl = isGcode ? null : configDocsUrl(path, (sectionAtLine(sections, caretLine) || {}).name);
   const canOpenLinks = !IN_APP_WEBVIEW || APP_OPENS_LINKS;
+  const keepsVersions = !readOnly && !isGcode && !session.onSave && root === CONFIG_ROOT;
 
   useBodyScrollLock(!inline);
 
@@ -564,6 +566,8 @@ function EditorScreen({ session, onClose, inline, onDirtyChange }) {
     setBusy(true);
     setStatus(SAVE_STATUS.saving);
     try {
+      // 1.81: the text the file had is kept by the service first (the «Versions» of the tools bar)
+      if (keepsVersions && content !== saved) await configVersionsApi.keep(path, saved);
       await (session.onSave ? session.onSave(content) : configFilesApi.save(path, content, root));
     } catch (error) {
       setStatus(tx("Error: ") + (error.message || error));
@@ -586,6 +590,16 @@ function EditorScreen({ session, onClose, inline, onDirtyChange }) {
     }
     if (inline) setBusy(false);
     else onClose();
+  };
+
+  /** 1.81: an earlier version goes back into the editor as one change (Undo takes it back); it is written by Save. */
+  const restoreVersion = (content) => {
+    const view = viewRef.current;
+    setVersionsOpen(false);
+    if (!view) return;
+    view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: content }, userEvent: "input.restore", scrollIntoView: true });
+    view.focus();
+    flashStatus(tx("Version put back: Save to keep it"));
   };
 
   const saveDisabled = (!dirty && !session.onSave) || busy || readOnly; // a proposed macro can be saved as it is
@@ -620,6 +634,7 @@ function EditorScreen({ session, onClose, inline, onDirtyChange }) {
         !readOnly && h("button", { type: "button", className: "oui-btn oui-btn--sm editor-history", title: tx("Redo (Ctrl+Y)"), "aria-label": txc("edit", "Redo"), disabled: historyDepth.redo === 0, onMouseDown: keepFocus, onClick: () => runHistory(CM.redo) }, h(Icons.Redo, { size: 20 })),
         !readOnly && h("button", { type: "button", className: "oui-btn oui-btn--sm editor-comment", title: tx("Puts {mark} in front of the selected lines (Ctrl+/)", { mark: commentMark }), onMouseDown: keepFocus, onClick: () => markComments("comment") }, h(Icons.Hash, { size: 18 }), tx("Comment")),
         !readOnly && h("button", { type: "button", className: "oui-btn oui-btn--sm editor-comment", title: tx("Removes one {mark} from the selected lines that have it (Ctrl+/)", { mark: commentMark }), onMouseDown: keepFocus, onClick: () => markComments("uncomment") }, h(Icons.HashOff, { size: 18 }), tx("Uncomment")),
+        keepsVersions && h("button", { type: "button", className: "oui-btn oui-btn--sm editor-history editor-versions", title: tx("Earlier versions"), "aria-label": tx("Earlier versions"), "data-editor-versions": "1", onMouseDown: keepFocus, onClick: () => setVersionsOpen(true) }, h(Icons.Clock, { size: 19 })),
         sections.length > 0 && h(EditorSectionsButton, { sections, current: sectionAtLine(sections, caretLine), onJump: jumpToLine, onFoldAll: () => foldEverything(true), onUnfoldAll: () => foldEverything(false) }),
         docsUrl &&
           canOpenLinks &&
@@ -630,6 +645,7 @@ function EditorScreen({ session, onClose, inline, onDirtyChange }) {
           ),
       ),
     h("div", { className: "editor-body", ref: hostRef }),
+    versionsOpen && createPortal(h(ConfigVersionsDialog, { path, current: viewRef.current ? viewRef.current.state.doc.toString() : text, onRestore: restoreVersion, onClose: () => setVersionsOpen(false) }), document.body),
     h(ConfirmDialog, {
       open: confirmingDiscard,
       zIndex: 10002,
