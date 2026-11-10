@@ -48,6 +48,12 @@ fun main() {
     prova("locale e esterno uguali non si ripetono nel giro", hosts(Indirizzi.Coppia("10.0.0.9", "10.0.0.9")) == listOf("10.0.0.9"))
     prova("candidati: il primo e' sempre il locale", Indirizzi.candidati(Indirizzi.Coppia("pi.local", "172.25.1.1")).first().let { it.host == "pi.local" && it.etichetta == "rete locale" })
     prova("candidato: indirizzo con la porta del Brain", Indirizzi.Candidato("192.168.1.17", "x").url == "http://192.168.1.17:8085/")
+    // app 1.7.0: dove cercare KlippEye, e come riconoscerlo
+    prova("varianti senza certificato: senza porta, poi la porta del servizio", Indirizzi.varianti("192.168.1.17", false) == listOf("http://192.168.1.17/", "http://192.168.1.17:8085/"))
+    prova("varianti con il certificato: prima https", Indirizzi.varianti("pi.local", true) == listOf("https://pi.local/", "http://pi.local/", "http://pi.local:8085/"))
+    prova("candidato trovato: il suo indirizzo", Indirizzi.Candidato("192.168.1.17", "x", "http://192.168.1.17/").url == "http://192.168.1.17/")
+    prova("e' KlippEye: JSON con enabled", Indirizzi.eKlippEye("application/json", "{\"ok\": true, \"enabled\": false, \"logged_in\": true}") && Indirizzi.eKlippEye("application/json; charset=utf-8", "{\"enabled\":true}"))
+    prova("non e' KlippEye: la pagina di un'altra interfaccia, o un JSON diverso", !Indirizzi.eKlippEye("text/html", "<html>enabled</html>") && !Indirizzi.eKlippEye("application/json", "{\"result\": {}}") && !Indirizzi.eKlippEye(null, null))
     prova("comeJson", Indirizzi.comeJson(Indirizzi.Coppia("192.168.1.17", "")) == "{\"local\":\"192.168.1.17\",\"external\":\"\"}")
 
     println(if (errori == 0) "ALL PASS" else "FAILS: $errori")

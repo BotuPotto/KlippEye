@@ -8,6 +8,7 @@ import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.net.Uri
+import android.net.http.SslError
 import android.os.Build
 import android.os.Bundle
 import android.os.Environment
@@ -18,6 +19,7 @@ import android.view.View
 import android.webkit.CookieManager
 import android.webkit.JavascriptInterface
 import android.webkit.MimeTypeMap
+import android.webkit.SslErrorHandler
 import android.webkit.URLUtil
 import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
@@ -45,6 +47,8 @@ import java.io.IOException
 import java.io.InputStream
 import java.net.HttpURLConnection
 import java.net.URL
+import java.security.cert.CertificateFactory
+import java.security.cert.X509Certificate
 
 class MainActivity : AppCompatActivity() {
 
@@ -176,6 +180,17 @@ class MainActivity : AppCompatActivity() {
                 webView.visibility = View.VISIBLE
                 passAddressesToPage()
             }
+            /**
+             * App 1.7.0: il certificato del Raspberry non e' firmato da un'autorita'. Si va avanti solo se e' proprio quello
+             * di cui la dashboard ha dato l'impronta (vedi Certificati.kt); qualunque altro errore o certificato: fermo.
+             */
+            override fun onReceivedSslError(view: WebView?, handler: SslErrorHandler?, error: SslError?) {
+                val host = try { Uri.parse(error?.url ?: "").host } catch (e: Exception) { null }
+                val attesa = if (host != null) Certificati.leggi(this@MainActivity, host) else null
+                val ricevuta = error?.certificate?.let { impronta(it) }
+                if (attesa != null && ricevuta == attesa) handler?.proceed() else handler?.cancel()
+            }
+
             override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
                 if (request?.isForMainFrame == true) {
                     // Un errore vecchio, di un indirizzo che non e' piu' quello in prova, non conta
@@ -210,6 +225,58 @@ class MainActivity : AppCompatActivity() {
         webView.evaluateJavascript("window.klippeyeNotifyState && window.klippeyeNotifyState(${Ascolto.stato(this, altra)})", null)
     }
 
+    /** L'impronta SHA-256 del certificato che il WebView ha ricevuto (Android 10+ lo da' gia' pronto, prima va riletto). */
+    private fun impronta(certificato: android.net.http.SslCertificate): String? = try {
+        val x509: X509Certificate? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            certificato.x509Certificate
+        } else {
+            val der = android.net.http.SslCertificate.saveState(certificato).getByteArray("x509-certificate")
+            der?.let { CertificateFactory.getInstance("X.509").generateCertificate(it.inputStream()) as X509Certificate }
+        }
+        x509?.let { Certificati.impronta(it) }
+    } catch (e: Exception) {
+        null
+    }
+
+    /**
+     * Dove risponde KlippEye su quel Raspberry (app 1.7.0): https senza porta se l'app ne conosce il certificato, poi http
+     * senza porta, poi la porta del servizio. Ogni indirizzo deve rispondere come KlippEye: all'indirizzo senza porta
+     * potrebbe esserci un'altra pagina. Null se nessuno risponde.
+     */
+    private fun trova(host: String): String? {
+        for (indirizzo in Indirizzi.varianti(host, Certificati.leggi(this, host) != null)) {
+            if (eKlippEye(indirizzo)) return indirizzo
+        }
+        return null
+    }
+
+    private fun eKlippEye(baseUrl: String): Boolean {
+        return try {
+            val conn = Certificati.apri(this, URL(URL(baseUrl), Indirizzi.PERCORSO_PROVA))
+            conn.connectTimeout = 2500 // ZeroTier e le VPN a volte impiegano un paio di secondi a rispondere la prima volta
+            conn.readTimeout = 2500
+            conn.instanceFollowRedirects = false
+            try {
+                if (conn.responseCode != 200) return false
+                val corpo = conn.inputStream.use { dentro -> // i primi 4 KB bastano (readNBytes c'e' solo da Android 13)
+                    val blocco = ByteArray(4096)
+                    var letti = 0
+                    while (letti < blocco.size) {
+                        val n = dentro.read(blocco, letti, blocco.size - letti)
+                        if (n < 0) break
+                        letti += n
+                    }
+                    String(blocco, 0, letti, Charsets.UTF_8)
+                }
+                Indirizzi.eKlippEye(conn.contentType, corpo)
+            } finally {
+                conn.disconnect()
+            }
+        } catch (e: Exception) {
+            false
+        }
+    }
+
     private fun hostOf(url: String?): String? = try {
         Uri.parse(url ?: "").host
     } catch (e: Exception) {
@@ -232,9 +299,12 @@ class MainActivity : AppCompatActivity() {
         errorHost = null
         candidates = emptyList()
         cascade = false
-        val indirizzo = Stampanti.url(stampante)
         scope.launch {
-            if (withContext(Dispatchers.IO) { isReachable(indirizzo) }) {
+            // con la porta scritta si va li'; senza, come per la principale: senza porta, poi la porta del servizio
+            val indirizzo = withContext(Dispatchers.IO) {
+                if (stampante.contains(':')) Stampanti.url(stampante).takeIf { eKlippEye(it) } else trova(stampante)
+            }
+            if (indirizzo != null) {
                 currentUrl = indirizzo
                 webView.loadUrl(indirizzo)
             } else {
@@ -278,8 +348,10 @@ class MainActivity : AppCompatActivity() {
                     statusText.text = "Tentativo ${index + 1} di ${attempts.size}: ${candidate.etichetta} ${candidate.host}..."
                     if (index % candidates.size == 0) delay(800) // tra un giro e l'altro la rete ha un attimo per svegliarsi
                 }
-                if (withContext(Dispatchers.IO) { isReachable(candidate.url) }) {
+                val indirizzo = withContext(Dispatchers.IO) { trova(candidate.host) }
+                if (indirizzo != null) {
                     found = candidates.indexOfFirst { it.host == candidate.host }
+                    candidates = candidates.mapIndexed { i, c -> if (i == found) c.copy(url = indirizzo) else c }
                     break
                 }
             }
@@ -293,22 +365,6 @@ class MainActivity : AppCompatActivity() {
                 candidateIndex = candidates.size - 1
                 handleLoadError()
             }
-        }
-    }
-
-    private fun isReachable(baseUrl: String): Boolean {
-        return try {
-            val url = URL(baseUrl)
-            val conn = url.openConnection() as HttpURLConnection
-            conn.connectTimeout = 2500 // ZeroTier e le VPN a volte impiegano un paio di secondi a rispondere la prima volta
-            conn.readTimeout = 2500
-            conn.requestMethod = "GET"
-            conn.connect()
-            val code = conn.responseCode
-            conn.disconnect()
-            code in 200..399
-        } catch (e: Exception) {
-            false
         }
     }
 
@@ -423,6 +479,17 @@ class MainActivity : AppCompatActivity() {
         fun setAddresses(local: String?, external: String?): String =
             // gli indirizzi sono quelli della stampante principale: la dashboard di un'altra stampante non li cambia (app 1.6.0)
             if (altra.isNotEmpty()) "ok" else Indirizzi.salva(applicationContext, local, external)
+
+        /**
+         * App 1.7.0: l'impronta SHA-256 del certificato HTTPS del Raspberry di questa pagina (KlippEye 1.93), "" se l'HTTPS e'
+         * spento. L'app la ricorda e alla prossima apertura usa https accettando solo quel certificato.
+         */
+        @JavascriptInterface
+        fun setCertificate(fingerprint: String?): String {
+            val host = hostOf(currentUrl) ?: return "nessuna pagina"
+            if (!Indirizzi.privato(host)) return "solo reti private"
+            return Certificati.salva(applicationContext, host, fingerprint)
+        }
 
         /** Gli indirizzi che l'app usa ora, come {"local":"...","external":"..."}: la dashboard li confronta con i suoi. */
         @JavascriptInterface
@@ -585,7 +652,7 @@ class MainActivity : AppCompatActivity() {
             var ultimoPercento = -1L
             val esito = withContext(Dispatchers.IO) {
                 runCatching {
-                    Aggiornamento.scarica(richiesta, AggiornamentoAndroid.cartella(this@MainActivity)) { scaricati ->
+                    Aggiornamento.scarica(richiesta, AggiornamentoAndroid.cartella(this@MainActivity), { Certificati.apri(this@MainActivity, it) }) { scaricati ->
                         // alla pagina basta un messaggio per ogni punto percentuale
                         val percento = scaricati * 100 / richiesta.grandezza
                         if (percento != ultimoPercento) {
@@ -660,7 +727,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun saveToDownloads(url: URL, fileName: String): String {
-        val connection = url.openConnection() as HttpURLConnection
+        val connection = Certificati.apri(this, url)
         connection.connectTimeout = 5000
         connection.readTimeout = 30000
         // Con la password attiva (KlippEye 1.2.0) il Raspberry vuole il gettone di accesso: e' il cookie della WebView
