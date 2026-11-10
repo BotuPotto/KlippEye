@@ -134,6 +134,10 @@ PY
       exec python3 "$REPO/scripts/diagnose.py" --repo "$REPO" --data "$DATA" --backend "$BACKEND_URL"
     fi
     ;;
+  benchmark)
+    # how much of the Raspberry KlippEye, Moonraker, Klipper and the camera use (1.84); --seconds N, --json
+    exec python3 "$REPO/scripts/benchmark.py" --repo "$REPO" "${@:2}"
+    ;;
   replay)
     # measures the AI monitor on the recorded prints (Settings > Recordings); options: see the top of scripts/replay.py
     exec nice -n 10 python3 "$REPO/scripts/replay.py" --data "$DATA" "${@:2}"
@@ -154,6 +158,7 @@ klippeye password [set|remove|status|logout-all]   optional dashboard password (
 klippeye password guest-set|guest-remove          a second password for guests, who can look but not command
 klippeye access host-add NAME   allow one more host name (e.g. printer.example.com)   (also: host-remove NAME, network-checks on|off, status)
 klippeye diagnose [--save]   a report to share when asking for help (nothing secret in it; --save writes it to a file)
+klippeye benchmark [--seconds 30]   how much processor and memory KlippEye and the printer's services use (best while printing)
 klippeye replay [--current] [--set KEY=VALUE]   measure the AI monitor on the recorded prints: alarms per hour, how many false
 klippeye undo-install        take KlippEye off (services, commands, update manager entry)
 The Italian names of older releases still work (stato, riavvia, aggiorna...).
