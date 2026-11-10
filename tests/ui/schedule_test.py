@@ -104,8 +104,10 @@ with sync_playwright() as p:
     dialog.locator(".schedule-add__confirm").click()
     ok("«Programma»: kept by the service for tomorrow 07:00", wait_until(lambda: len(entries()) == 1 and entries()[0]["filename"] == B and entries()[0]["status"] == "waiting"), entries())
     at = entries()[0]["at"]
-    lt = time.localtime(at)
-    ok("... at 07:00 local time, tomorrow", lt.tm_hour == 7 and lt.tm_min == 0 and at - time.time() > 0 and at - time.time() < 32 * 3600, time.ctime(at))
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+    lt = datetime.fromtimestamp(at, ZoneInfo("Europe/Rome"))  # the browser's time zone (lib.Page), whatever the machine's
+    ok("... at 07:00 local time, tomorrow", lt.hour == 7 and lt.minute == 0 and at - time.time() > 0 and at - time.time() < 32 * 3600, time.ctime(at))
     ok("the «Stampe programmate» card appears with it", wait_until(lambda: card_rows(P) == ["waiting|" + B]) and "Domani alle 07:00" in pg.locator(".schedule-card").inner_text(), pg.locator(".schedule-card").inner_text() if pg.locator(".schedule-card").count() else "")
     pg.locator('.schedule-row[data-status="waiting"]').get_by_role("button", name="Annulla la stampa programmata").click()
     ok("cancelling it: gone from the service and from the page", wait_until(lambda: entries() == []) and wait_until(lambda: pg.locator(".schedule-card").count() == 0))
