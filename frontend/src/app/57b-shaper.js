@@ -2,12 +2,14 @@
    57b · INPUT SHAPER GRAPHS (1.80, redrawn in 1.89)
    What Klipper's resonance measurement (SHAPER_CALIBRATE, with an accelerometer)
    found, drawn as an axis frequency profile: the vibrations at each frequency
-   (all axes together and each one), what is left with the two recommended
-   shapers, the two bands (below the green one the vibrations do not matter,
-   above the orange one they show in the prints), the peaks, and each shaper's
-   response (dotted, 0 to 100 % on the right). Under it the recommendations and
-   a table with each shaper's frequency, vibrations, smoothing and highest
-   acceleration (backend/shaper_data.py computes them as Klipper does).
+   (all axes together and each one), what is left with the shaper Klipper
+   recommends (and with the one chosen), the two bands (below the green one the
+   vibrations do not matter, above the orange one they show in the prints), the
+   peaks, and each shaper's response (dotted, 0 to 100 % on the right).
+   Under it Klipper's recommendation and a table with each shaper's frequency,
+   vibrations, smoothing and highest acceleration: the figures SHAPER_CALIBRATE
+   wrote in the console (backend/shaper_data.py finds them there or in
+   klippy.log; without them it works them out from the file as Klipper does).
    «Measure X/Y» each have their settings (empty: Klipper's own); «Save» writes
    the chosen shaper in the printer's config and applies it at once.
    The files are the ones Klipper leaves in /tmp: they go away when the
@@ -234,29 +236,35 @@ function psdTicks(top) {
   const scaled = top / Math.pow(10, exponent);
   const step = scaled > 5 ? 2 : scaled > 2.5 ? 1 : scaled > 1.2 ? 0.5 : 0.25;
   const ticks = [];
-  for (let value = 0; value <= scaled + 1e-9; value += step) ticks.push(value);
+  const count = Math.max(1, Math.ceil(scaled / step - 1e-9)); // the last tick at or above the top: nothing goes past it
+  for (let index = 0; index <= count; index += 1) ticks.push(index * step);
   return { ticks, exponent, digits: step === 0.25 ? 2 : step === 0.5 ? 1 : 0 };
 }
 
 /** The series the legend can hide or show. */
-function shaperSeries(data, recommended) {
+function shaperSeries(data, applied) {
   const series = [];
   if (data.psd.sum) series.push({ id: "sum", label: "X+Y+Z", color: SHAPER_PSD_COLORS.sum, kind: "psd", values: data.psd.sum });
   ["x", "y", "z"].forEach((name) => data.psd[name] && series.push({ id: name, label: name.toUpperCase(), color: SHAPER_PSD_COLORS[name], kind: "psd-axis", values: data.psd[name] }));
   const total = data.psd.sum || data.psd[data.axis] || [];
-  recommended.forEach((shaper, index) =>
+  applied.forEach((shaper, index) =>
     series.push({ id: "after-" + shaper.name, label: tx("With {shaper} applied", { shaper: shaperName(shaper.name) }), color: SHAPER_AFTER_COLORS[index], kind: "after", values: total.map((value, i) => value * (shaper.response[i] || 0)) }),
   );
   data.shapers.forEach((shaper) => series.push({ id: "shaper-" + shaper.name, label: shaperName(shaper.name), color: shaperColor(shaper.name), kind: "response", values: shaper.response, shaper: shaper.name }));
   return series;
 }
 
-function ShaperChart({ data, selected, recommended, onSelect }) {
+function ShaperChart({ data, selected, onSelect }) {
   const [boxRef, width] = useWidth();
+  const clipId = useMemo(() => "shaper-clip-" + Math.random().toString(36).slice(2), []);
   const [pointer, setPointer] = useState(null); // index of the frequency under the pointer
   const [hidden, setHidden] = useState(() => new Set(["z"]));
   const freq = data.freq;
-  const series = shaperSeries(data, recommended);
+  const applied = [data.recommended, selected]
+    .filter((name, index, all) => name && all.indexOf(name) === index)
+    .map((name) => data.shapers.find((one) => one.name === name))
+    .filter(Boolean);
+  const series = shaperSeries(data, applied);
   const psdSeries = series.filter((one) => one.kind !== "response");
   const top = Math.max(1e-9, ...psdSeries.filter((one) => !hidden.has(one.id)).flatMap((one) => one.values), data.bands ? data.bands.warning : 0);
   const { ticks, exponent, digits } = psdTicks(top * 1.12);
@@ -317,6 +325,7 @@ function ShaperChart({ data, selected, recommended, onSelect }) {
             onPointerDown: move,
             onPointerLeave: () => setPointer(null),
           },
+          h("defs", null, h("clipPath", { id: clipId }, h("rect", { x: SHAPER_PAD.left, y: SHAPER_PAD.top - 1, width: plotW, height: plotH + 2 }))),
           bands && h("rect", { className: "shaper-chart__band is-relax", x: SHAPER_PAD.left, width: plotW, y: yPsd(bands.relax), height: Math.max(0, bottom - yPsd(bands.relax)) }),
           bands && h("rect", { className: "shaper-chart__band is-warning", x: SHAPER_PAD.left, width: plotW, y: yPsd(bands.warning), height: Math.max(0, yPsd(bands.relax) - yPsd(bands.warning)) }),
           ticks.map((value) =>
@@ -333,6 +342,9 @@ function ShaperChart({ data, selected, recommended, onSelect }) {
           freqTicks.map((f) => h("text", { key: "f" + f, className: "shaper-chart__tick", x: x(f), y: SHAPER_CHART_HEIGHT - 6, textAnchor: f === 0 ? "start" : f === fMax ? "end" : "middle" }, f + (f === fMax ? " Hz" : ""))),
           bands && h("line", { className: "shaper-chart__band-line is-relax", x1: SHAPER_PAD.left, x2: width - SHAPER_PAD.right, y1: yPsd(bands.relax), y2: yPsd(bands.relax), "data-shaper-band": "relax" }),
           bands && h("line", { className: "shaper-chart__band-line is-warning", x1: SHAPER_PAD.left, x2: width - SHAPER_PAD.right, y1: yPsd(bands.warning), y2: yPsd(bands.warning), "data-shaper-band": "warning" }),
+          h(
+            "g",
+            { clipPath: "url(#" + clipId + ")", "data-shaper-clip": "1" },
           series
             .filter((one) => one.kind === "response" && shown(one))
             .map((one) =>
@@ -348,13 +360,14 @@ function ShaperChart({ data, selected, recommended, onSelect }) {
           series
             .filter((one) => one.kind !== "response" && shown(one))
             .map((one) => h("path", { key: one.id, className: cx("shaper-chart__line", "is-" + one.kind), d: line(one.values, yPsd), stroke: one.color, "data-series": one.id })),
+          ),
           shown(series[0] || {}) &&
             (data.peaks || []).map((one, index) =>
               h(
                 "g",
                 { key: "k" + index, className: "shaper-chart__peak", "data-shaper-peak": index + 1 },
-                h("path", { d: "M" + (x(one.freq) - 4) + " " + (yPsd(one.value) - 4) + "l8 8m0 -8l-8 8" }),
-                h("text", { x: x(one.freq) + 7, y: yPsd(one.value) - 5, textAnchor: "start" }, index + 1),
+                h("path", { d: "M" + (x(one.freq) - 4) + " " + (Math.max(SHAPER_PAD.top, yPsd(one.value)) - 4) + "l8 8m0 -8l-8 8" }),
+                h("text", { x: x(one.freq) + 7, y: Math.max(SHAPER_PAD.top + 6, yPsd(one.value) - 5), textAnchor: "start" }, index + 1),
               ),
             ),
           pointer !== null && h("line", { className: "shaper-chart__cursor", x1: cursorX, x2: cursorX, y1: SHAPER_PAD.top, y2: bottom }),
@@ -445,12 +458,10 @@ function ShaperCard({ capabilities, lockReason, homedAxes, onGcode }) {
   const shaper = (capabilities && capabilities.shaper) || { canMeasure: true, current: null };
   const defaults = shaper.defaults || { freq_start: 5, freq_end: 133.33, hz_per_sec: 1, accel_per_hz: 60, max_smoothing: null };
   const scv = (capabilities && capabilities.tune && capabilities.tune.scv) || 5;
-  const damping = shownAxis && shaper.damping ? shaper.damping[shownAxis] : null;
-  const { data, error } = useShaperData(file && file.name, "&scv=" + scv + (damping ? "&damping=" + damping : ""));
+  const { data, error } = useShaperData(file && file.name, "&scv=" + scv);
   const current = shownAxis ? saved[shownAxis] || (shaper.current ? shaper.current[shownAxis] : null) : null;
-  const recommendedNames = data && data.recommended ? [data.recommended.performance, data.recommended.low_vibrations] : [];
-  const recommended = data ? recommendedNames.filter((name, index) => name && recommendedNames.indexOf(name) === index).map((name) => data.shapers.find((one) => one.name === name)).filter(Boolean) : [];
-  const chosenName = selected || (data && data.recommended && data.recommended.performance) || (data && data.shapers[0] && data.shapers[0].name) || null;
+  const recommended = data && data.recommended ? data.shapers.find((one) => one.name === data.recommended) || null : null;
+  const chosenName = selected || (recommended && recommended.name) || (data && data.shapers[0] && data.shapers[0].name) || null;
   const chosen = data && data.shapers.find((one) => one.name === chosenName);
   const homed = ["x", "y", "z"].every((name) => (homedAxes || "").includes(name));
   const inUse = (one) => current && current.type === one.name && Math.abs(current.freq - one.freq) < 0.05 + one.freq * 0.02;
@@ -531,20 +542,27 @@ function ShaperCard({ capabilities, lockReason, homedAxes, onGcode }) {
         listError ? listError : shaper.canMeasure ? tx("No measurement yet: measure an axis below. Klipper keeps the results until the Raspberry restarts.") : tx("No measurement: it needs an accelerometer and the [resonance_tester] section in printer.cfg."),
       ),
     error && h("div", { className: "oui-well shaper-empty" }, error),
-    data && h(ShaperChart, { data, selected: chosenName, recommended, onSelect: setSelected }),
+    data && h(ShaperChart, { data, selected: chosenName, onSelect: setSelected }),
     data &&
-      data.recommended &&
       h(
         "div",
-        { className: "shaper-advice", "data-shaper-advice": "1" },
-        h("div", { className: "shaper-advice__title" }, tx("Recommended shapers")),
-        recommended[0] && h("div", { "data-shaper-advice-for": "performance" }, tx("For performance: {shaper} at {freq}", { shaper: shaperName(recommended[0].name), freq: formatHz(recommended[0].freq) })),
-        data.recommended.low_vibrations &&
-          (() => {
-            const calm = data.shapers.find((one) => one.name === data.recommended.low_vibrations);
-            return calm && h("div", { "data-shaper-advice-for": "low_vibrations" }, tx("For low vibrations: {shaper} at {freq}", { shaper: shaperName(calm.name), freq: formatHz(calm.freq) }));
-          })(),
+        { className: "shaper-advice", "data-shaper-advice": data.source || "estimate" },
+        recommended &&
+          h(
+            "div",
+            { className: "shaper-advice__title", "data-shaper-advice-for": "recommended" },
+            data.source === "klipper"
+              ? tx("Klipper recommends {shaper} at {freq}", { shaper: shaperName(recommended.name), freq: formatHz(recommended.freq) })
+              : tx("Recommended: {shaper} at {freq}", { shaper: shaperName(recommended.name), freq: formatHz(recommended.freq) }),
+          ),
         data.resonance && data.resonance.damping && h("div", { "data-shaper-advice-for": "damping" }, tx("Estimated damping ratio ζ = {value}", { value: shaperNumber(data.resonance.damping, 3) })),
+        h(
+          "div",
+          { className: "oui-caption", "data-shaper-source": data.source || "estimate" },
+          data.source === "klipper"
+            ? tx("The figures and the recommendation are the ones SHAPER_CALIBRATE gave in the console.")
+            : tx("Klipper's messages about this measurement are no longer in the console or in klippy.log: the figures are worked out from the file the way Klipper does, and may differ slightly."),
+        ),
       ),
     data &&
       h(

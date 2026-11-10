@@ -1,5 +1,19 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.89.1
+
+**Input shaper: Klipper's own figures.**
+
+* The card now shows what SHAPER_CALIBRATE said in the console for that measurement: each shaper's vibrations,
+  smoothing and suggested max acceleration, and the shaper Klipper recommends (read from Moonraker, or from
+  klippy.log after a Moonraker restart). When those messages are gone, the figures are worked out from the file the
+  way Klipper does, and the card says so.
+* The «low vibrations» recommendation is gone: the card shows Klipper's choice, already selected for «Save», and what
+  the chosen shaper leaves.
+* With a high peak the chart could spill over the rest of the card: its scale now always reaches above the highest
+  value and the lines stay inside it.
+* The shaper table fits narrow phones.
+
 ## 1.89.0
 
 **Input shaper: a clearer chart, the shapers' figures, saving in printer.cfg.**
