@@ -16,9 +16,9 @@ Security: [SECURITY.md](SECURITY.md) · Contributing: [CONTRIBUTING.md](CONTRIBU
   editor, bed mesh, calibrations, endstops, service and host restarts, software updates.
 * AI print monitor: a local OpenCV filter on the Raspberry; an online AI (Groq or OpenAI, with your own key) only judges
   the pictures that look suspicious. Alerts are kept with their images.
-* Push notifications received by the KlippEye Android app itself (guided set-up, no account, no key) or by the free ntfy app (QR code, also iPhone), in English, Italian, Spanish, German, French or Portuguese (Brazil), with optional automatic pause/cancel.
+* Push notifications received by the KlippEye Android app itself (guided set-up, no account, no key) or by the free ntfy app (QR code, also iPhone), in English, Italian, Spanish, German, French, Portuguese (Brazil) or Polish, with optional automatic pause/cancel.
 * Self-repair after a power loss: damaged program files are restored from git at every start.
-* English, Italian, Spanish, German, French and Portuguese (Brazil) dashboard (it follows the device's language; *Settings → Language* to choose).
+* English, Italian, Spanish, German, French, Portuguese (Brazil) and Polish dashboard (it follows the device's language; *Settings → Language* to choose).
 * Optional password, network checks (host name and origin of requests) and restricted permissions of the secrets.
 
 ## Install
