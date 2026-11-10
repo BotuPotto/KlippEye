@@ -91,7 +91,19 @@ da installare a mano, una volta sola.
 Dalla 1.4.0 non ci sono indirizzi «di fabbrica»: al primo avvio l'app chiede l'IP locale del Raspberry (lo stesso di Mainsail) e, facoltativo, quello esterno
 (ZeroTier, VPN). Poi prova due giri, locale ed esterno alternati (2,5 s a tentativo); il primo che risponde vince, altrimenti mostra «Riprova» e «Indirizzi». Gli indirizzi si
 scelgono anche dal menu Impostazioni → *Indirizzi* della dashboard (che li comunica all'app con `setAddresses`). `setAddresses` accetta solo reti private (10.x, 172.16-31.x, 192.168.x, 100.64-127.x, nomi `.local`/`.lan`...): una pagina qualsiasi in un riquadro della dashboard
-(la camera «Pagina web») non deve poter dirottare l'app su un sito esterno. La porta è sempre 8085.
+(la camera «Pagina web») non deve poter dirottare l'app su un sito esterno.
+
+Dalla 1.7.0, per ogni indirizzo l'app cerca KlippEye in quest'ordine: `https://indirizzo/` (solo se conosce il certificato del
+Raspberry), `http://indirizzo/` (senza porta: KlippEye 1.94 con nginx) e `http://indirizzo:8085/`, che c'è sempre. Un indirizzo vale solo
+se `api/auth/status` risponde come KlippEye (un JSON con `enabled`): all'indirizzo senza porta potrebbe esserci un'altra pagina.
+Le altre stampanti senza porta scritta si cercano allo stesso modo.
+
+## HTTPS (app 1.7.0, `Certificati.kt`)
+
+Il certificato HTTPS di KlippEye (1.93) lo crea il Raspberry e nessuna autorità lo firma. La dashboard, appena aperta nell'app,
+passa l'impronta SHA-256 del certificato con `setCertificate` ("" se l'HTTPS è spento); l'app la ricorda per quell'indirizzo e
+da lì in poi apre la dashboard in https accettando **solo** quel certificato: nel WebView (`onReceivedSslError`), per i file
+scaricati e per l'aggiornamento dell'app. Un certificato diverso viene rifiutato e l'app ripiega su http.
 
 ## Collegamenti esterni e tasto indietro (app 7)
 

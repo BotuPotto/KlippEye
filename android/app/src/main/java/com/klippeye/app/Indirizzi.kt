@@ -13,7 +13,10 @@ import android.content.Context
  * Qui non c'e' niente di Android a parte le preferenze: la pulizia e i controlli si provano da soli (IndirizziTest.kt).
  */
 object Indirizzi {
+    /** La porta del servizio KlippEye: c'e' sempre. Dalla 1.94 KlippEye risponde anche all'indirizzo senza porta (nginx). */
     const val PORTA = 8085
+    /** Dove l'app chiede "sei KlippEye?": risponde anche con la password attiva, e un'altra pagina non lo ha. */
+    const val PERCORSO_PROVA = "api/auth/status"
     /** Quanti giri di tentativi (locale, esterno) prima di mostrare "Riprova / Indirizzi". */
     const val GIRI = 2
 
@@ -21,10 +24,22 @@ object Indirizzi {
     private const val CHIAVE_LOCALE = "ip_locale"
     private const val CHIAVE_ESTERNO = "ip_esterno"
 
-    /** Un indirizzo da provare: `etichetta` dice di che rete si tratta ("rete locale", "ZeroTier"...). */
-    data class Candidato(val host: String, val etichetta: String) {
-        val url: String get() = "http://$host:$PORTA/"
-    }
+    /**
+     * Un indirizzo da provare: `etichetta` dice di che rete si tratta ("rete locale", "ZeroTier"...); `url` e' quello
+     * trovato (all'inizio quello con la porta del servizio).
+     */
+    data class Candidato(val host: String, val etichetta: String, val url: String = "http://$host:$PORTA/")
+
+    /**
+     * Gli indirizzi di un Raspberry, dal migliore (app 1.7.0): https senza porta se l'app ne conosce il certificato, poi http
+     * senza porta (KlippEye 1.94), poi la porta del servizio, che c'e' sempre.
+     */
+    fun varianti(host: String, conCertificato: Boolean): List<String> =
+        (if (conCertificato) listOf("https://$host/") else emptyList()) + listOf("http://$host/", "http://$host:$PORTA/")
+
+    /** La risposta di [PERCORSO_PROVA] e' quella di KlippEye: un JSON con "enabled" (la password accesa o spenta). */
+    fun eKlippEye(tipo: String?, corpo: String?): Boolean =
+        (tipo ?: "").contains("json", ignoreCase = true) && Regex("\"enabled\"\\s*:\\s*(true|false)").containsMatchIn(corpo ?: "")
 
     /** I due indirizzi; "" = non impostato (l'esterno puo' mancare; il locale manca solo prima del primo avvio). */
     data class Coppia(val locale: String, val esterno: String) {

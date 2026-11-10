@@ -13,7 +13,11 @@
 * With HTTPS on, nginx serves it at https://<raspberry>, also without a port.
 * Through the address without a port, Moonraker's WebSocket and the uploads of files go straight to Moonraker; slicers
   that send to "OctoPrint" (OrcaSlicer, PrusaSlicer...) keep working, also at port 8085.
-* Port 8085 keeps working, for the Android app and the services on the Raspberry.
+* Port 8085 keeps working, for the services on the Raspberry and the Android app before 1.7.0.
+* **Android app 1.7.0**: it looks for KlippEye at the address without a port first (and only uses it when KlippEye answers
+  there), then at port 8085. With HTTPS on, the dashboard gives the app the certificate's fingerprint: the app then opens
+  the dashboard with https and accepts that certificate only, also for downloaded files and its own updates. The other
+  printers without a written port are looked for the same way.
 
 ## 1.93.0
 

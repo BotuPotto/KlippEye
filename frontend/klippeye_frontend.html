@@ -9127,7 +9127,27 @@ function appPair(settings) {
   return [local, external];
 }
 
+/**
+ * App 1.7.0: the fingerprint of the Raspberry's HTTPS certificate ("" when HTTPS is off), told once per page: the app then
+ * opens the dashboard with https and accepts that certificate only (KlippEye 1.93).
+ */
+let toldCertificate = false;
+async function tellAppCertificate() {
+  const bridge = nativeBridge();
+  if (toldCertificate || !bridge || typeof bridge.setCertificate !== "function") return;
+  toldCertificate = true;
+  try {
+    const response = await fetchFresh("/api/https", { timeout: 5000 });
+    if (!response.ok) return;
+    const info = await response.json();
+    bridge.setCertificate(info.running && info.fingerprint ? String(info.fingerprint) : "");
+  } catch (e) {
+    toldCertificate = false; // the service did not answer: next time
+  }
+}
+
 function tellApp(settings) {
+  tellAppCertificate();
   const bridge = nativeBridge();
   if (!APP_KNOWS_ADDRESSES || !bridge || typeof bridge.setAddresses !== "function") return;
   const [local, external] = appPair(settings);

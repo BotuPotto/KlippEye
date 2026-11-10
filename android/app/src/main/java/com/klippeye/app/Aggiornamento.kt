@@ -95,7 +95,7 @@ object Aggiornamento {
      * Se un file identico e' gia' stato scaricato (per esempio mentre si concedeva il permesso) lo riusa. In caso di errore
      * non lascia niente a meta'.
      */
-    fun scarica(richiesta: Richiesta, cartella: File, avanzamento: (Long) -> Unit): File {
+    fun scarica(richiesta: Richiesta, cartella: File, apri: (URL) -> HttpURLConnection = { it.openConnection() as HttpURLConnection }, avanzamento: (Long) -> Unit): File {
         if (!cartella.isDirectory && !cartella.mkdirs()) throw IOException("la memoria del telefono non è disponibile")
         val finale = File(cartella, "KlippEye-${richiesta.versione}.apk")
         if (finale.isFile && finale.length() == richiesta.grandezza && sha256(finale) == richiesta.sha256) {
@@ -104,7 +104,7 @@ object Aggiornamento {
         }
         pulisci(cartella)
         val parziale = File(cartella, finale.name + ".parte")
-        val collegamento = richiesta.url.openConnection() as HttpURLConnection
+        val collegamento = apri(richiesta.url) // in https: solo il certificato del Raspberry (app 1.7.0, Certificati.kt)
         collegamento.connectTimeout = ATTESA_COLLEGAMENTO_MS
         collegamento.readTimeout = ATTESA_DATI_MS
         try {
