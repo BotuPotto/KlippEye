@@ -1882,6 +1882,7 @@ def api_shaper_data():
         args = request.args
         shaper_data.KLIPPER_FOUND.clear()  # the mock's console changes between tests
         return jsonify(shaper_data.read(args.get("name", ""), shaper_dirs(), scv=shaper_data.number_arg(args.get("scv"), 5.0, 0.1, 100.0),
+                                        mode="measured" if args.get("mode") == "measured" else "klipper",
                                         sources=[lambda: [entry["message"] for entry in S["console_extra"]]]))
     except shaper_data.ShaperError as error:
         return jsonify(error=str(error)), 404 if str(error) == "file not found" else 400

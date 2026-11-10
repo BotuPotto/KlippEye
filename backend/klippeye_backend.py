@@ -1518,6 +1518,7 @@ def api_shaper_data():
     try:
         args = request.args  # 1.89: the printer's square_corner_velocity, for smoothing and max accel
         return jsonify(shaper_data.read(args.get("name", ""), scv=shaper_data.number_arg(args.get("scv"), 5.0, 0.1, 100.0),
+                                        mode="measured" if args.get("mode") == "measured" else "klipper",
                                         sources=[_shaper_console_lines, _shaper_log_lines]))
     except shaper_data.ShaperError as error:
         return jsonify({"error": str(error)}), 404 if str(error) == "file not found" else 400
