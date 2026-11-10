@@ -35,7 +35,7 @@ AI monitor (Groq is free), a **phone** for notifications (Android with the Klipp
 | Package | What for |
 |---|---|
 | `git` | updates and self-repair after a power cut |
-| `python3-flask`, `python3-requests` | the KlippEye service and the dashboard |
+| `python3-flask`, `python3-waitress`, `python3-requests` | the KlippEye service and the dashboard |
 | `python3-numpy` | the camera calibration (and the AI monitor) |
 | `python3-opencv` | the AI monitor: looking at the camera's photos (left out with `--no-ai`) |
 

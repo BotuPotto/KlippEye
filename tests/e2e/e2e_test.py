@@ -520,6 +520,8 @@ if scenario("deps"):
     ok("[deps] numpy and OpenCV missing: the installer says so and installs them with apt (update, then install -y)",
        r.returncode == 0 and "KlippEye needs: python3-numpy python3-opencv" in out and "apt-get update" in apt and "apt-get install -y python3-numpy python3-opencv" in apt and "Installed: python3-numpy python3-opencv" in out, out + apt)
     ok("[deps] ... then finds them and goes on: the backend answers", "Backend modules: flask" in out and "OpenCV" in out and backend_release() == "1.0.0", out)
+    st, ver = http("GET", BACKEND + "/api/version", timeout=3)
+    ok("[deps] 1.74: the backend runs on waitress, the production server", st == 200 and ver.get("server") == "waitress", ver)
     r = w.install()
     ok("[deps] run again: nothing to install, apt is not called again", r.returncode == 0 and "KlippEye needs" not in r.stdout and open(os.path.join(w.state, "apt.log")).read() == apt, r.stdout)
     w.teardown()
@@ -544,6 +546,17 @@ if scenario("deps"):
     out = r.stdout + r.stderr
     ok("[deps] --no-packages: apt is never called, the command to type is shown, the backend still starts without OpenCV",
        r.returncode == 0 and not os.path.exists(os.path.join(w.state, "apt.log")) and "sudo apt install -y python3-opencv" in out and backend_release() == "1.0.0", out)
+    w.teardown()
+
+    # 1.74: without waitress (an installation from before 1.74): the installer names python3-waitress and goes on (the
+    # backend's own fallback to Flask's server is tested in tests/backend/test_backend.py: the service here runs without the hide)
+    w = World("deps", {"PYTHONPATH": HIDE, "KLIPPEYE_TEST_HIDE": "waitress", "KLIPPEYE_APT_ANY_PYTHON": "1"})
+    w.build(notifier=False)
+    r = w.install("--no-packages")
+    out = r.stdout + r.stderr
+    st, ver = http("GET", BACKEND + "/api/version", timeout=3) if wait(lambda: backend_release() == "1.0.0", 30) else (0, {})
+    ok("[deps] 1.74: waitress missing: «sudo apt install -y python3-waitress» shown, the installation goes on, the backend answers",
+       r.returncode == 0 and "sudo apt install -y python3-waitress" in out and st == 200, out + str(ver))
     w.teardown()
 
 # ----------------------------------------------------------------------------------- printing: Moonraker is not restarted

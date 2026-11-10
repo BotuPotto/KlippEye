@@ -1,5 +1,15 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.74.0
+
+**A production web server for the KlippEye service.**
+
+* The service now runs on **waitress** (`python3-waitress`), a web server made to run for months: a fixed number of
+  threads, requests that time out. Until now it used Flask's own server, meant for development.
+* The installer adds `python3-waitress` with the other packages. An installation from before 1.74 keeps working on
+  Flask's server: Settings → Software says so and gives the command
+  (`sudo apt install -y python3-waitress && klippeye restart`); `klippeye diagnose` shows which server runs.
+
 ## 1.73.0
 
 **Maintenance reminders.**

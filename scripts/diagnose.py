@@ -152,7 +152,7 @@ def system(data):
     if temp and temp.strip().isdigit():
         line("cpu temperature: %.1f C" % (int(temp) / 1000))
     line("python:         %s (%s)" % (platform.python_version(), sys.executable))
-    for module in ("flask", "flask_cors", "requests", "numpy", "cv2"):
+    for module in ("flask", "waitress", "flask_cors", "requests", "numpy", "cv2"):
         found = run([sys.executable, "-W", "ignore", "-c", "import %s as m; print(getattr(m, '__version__', 'installed'))" % module]).strip()
         line("  %-13s %s" % (module, found if "Error" not in found else "missing"))
 
@@ -172,7 +172,7 @@ def backend(url, token):
     if error:
         line("does NOT answer: %s" % error)
         return
-    for key in ("release", "api", "uptime", "data_dir", "repair"):
+    for key in ("release", "api", "server", "uptime", "data_dir", "repair"):
         if key in version:
             line("%-15s %s" % (key + ":", json.dumps(version[key], ensure_ascii=False)))
     auth, _ = get_json(url + "/api/auth/status", headers)

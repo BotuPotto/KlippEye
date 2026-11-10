@@ -29,7 +29,7 @@ jobs:
       - name: Install the system and Python packages
         run: |
           sudo apt-get install -y --no-install-recommends libsodium23
-          pip install flask requests werkzeug numpy opencv-python-headless cryptography pillow playwright==1.56.0
+          pip install flask waitress requests werkzeug numpy opencv-python-headless cryptography pillow playwright==1.56.0
           python -m playwright install --with-deps chromium
       - name: Prepare Moonraker
         run: python tests/e2e/setup.py

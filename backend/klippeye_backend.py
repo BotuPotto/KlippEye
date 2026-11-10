@@ -2626,6 +2626,7 @@ def api_version():
         "uptime": int(time.time() - START_TS),
         "python": sys.version.split()[0],
         "has_cv2": HAS_CV2,
+        "server": SERVER_NAME,
         "data_dir": DATA_DIR,
         "frontend": find_frontend(),
         "repair": read_repair_mark(),  # the last self-repair of the files (after a power loss), if any
@@ -3919,9 +3920,32 @@ try:
 except Exception as e:
     print(f"[OPENCV] Auto-start fail: {e}")
 
+# === THE WEB SERVER (1.74) ===========================================================================================
+# Waitress (python3-waitress, installed with KlippEye since 1.74) is a server made to run for months: a fixed number of
+# threads, requests that time out, no development warnings. Without it (an installation older than 1.74 not repaired
+# yet) Flask's own server is used, as before: it works, and `klippeye diagnose` says which one runs.
+SERVER_THREADS = 12  # the dashboards of a few devices, the camera photos, the AI monitor's calls
+SERVER_NAME = "flask"
+
+
+def serve_forever():
+    global SERVER_NAME
+    try:
+        from waitress import serve
+    except ImportError:
+        serve = None
+    if serve is not None:
+        SERVER_NAME = "waitress"
+        print(f"KlippEye backend running on 0.0.0.0:{PORT} (waitress, {SERVER_THREADS} threads)")
+        serve(app, host="0.0.0.0", port=PORT, threads=SERVER_THREADS, channel_timeout=120, ident="KlippEye", clear_untrusted_proxy_headers=True)
+        return
+    SERVER_NAME = "flask"
+    print(f"KlippEye backend running on 0.0.0.0:{PORT} (Flask's own server: install python3-waitress for the production one)")
+    app.run(host="0.0.0.0", port=PORT, debug=False, threaded=True)
+
+
 if __name__ == "__main__":
     threading.Thread(target=_repair_at_startup, name="repair", daemon=True).start()
     threading.Thread(target=_schedule_loop, name="schedule", daemon=True).start()
     print(f"KlippEye backend {RELEASE} (api {API_LEVEL}) - data in {DATA_DIR} - settings {'read from ' + BRAIN_CONFIG_PATH if brain_config.saved else 'default (no saved file)'}")
-    print(f"KlippEye backend running on 0.0.0.0:{PORT}")
-    app.run(host="0.0.0.0", port=PORT, debug=False)
+    serve_forever()
