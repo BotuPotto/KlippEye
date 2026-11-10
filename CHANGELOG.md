@@ -6,6 +6,7 @@
 
 * The dashboard, the login page, the notifications and the AI monitor's texts are now also in Polish (Settings →
   Language → Polski, or «Automatic» on a Polish device).
+* Bed mesh card: the «Probed / Interpolated» switch shrinks and wraps its words in a narrow card instead of leaving it.
 
 ## 1.95.0
 
