@@ -2094,12 +2094,12 @@ _tampered = _tg.split(".")[0][:-2] + "xx." + _tg.split(".")[1]
 check("1.82: a changed token is not valid", _acc.token_role(_st, _tampered) is None)
 _may = _acc.guest_may
 check("1.82: a guest may look", all(_may("GET", p, a) for p, a in (("/", {}), ("/printer/objects/query", {"print_stats": ""}), ("/server/files/list", {}), ("/server/files/list", {"root": "gcodes"}),
-      ("/server/files/gcodes/a.gcode", {}), ("/webcam/?action=snapshot", {}), ("/api/shaper/files", {}), ("/server/files/directory", {"path": "gcodes/sub"}), ("/server/history/list", {}))) and _may("POST", "/api/auth/logout"))
+      ("/server/files/gcodes/a.gcode", {}), ("/webcam/?action=snapshot", {}), ("/api/shaper/files", {}), ("/server/files/directory", {"path": "gcodes/sub"}), ("/server/history/list", {}), ("/server/database/item", {"namespace": "klippeye"}))) and _may("POST", "/api/auth/logout"))
 check("1.82: a guest may not command, nor read the configuration, logs or settings",
       not any(_may(m, p, a) for m, p, a in (("POST", "/printer/gcode/script", {}), ("GET", "/printer/gcode/script", {"script": "G28"}), ("POST", "/api/gcode", {}), ("DELETE", "/server/files/gcodes/a.gcode", {}),
               ("GET", "/server/files/config/printer.cfg", {}), ("GET", "/server/files/list", {"root": "config"}), ("GET", "/server/files/directory", {"path": "config"}), ("GET", "/server/files/content", {"root": "config", "path": "printer.cfg"}),
               ("GET", "/api/logs/list", {}), ("GET", "/api/notifications/channels", {}), ("GET", "/api/ai/config", {}), ("GET", "/machine/update/status", {"refresh": "true"}),
-              ("GET", "/printer/restart", {}), ("POST", "/api/auth/password", {}), ("GET", "/server/files/gcodes/../config/printer.cfg", {}))))
+              ("GET", "/printer/restart", {}), ("GET", "/server/database/item", {"namespace": "moonraker"}), ("GET", "/server/database/item", {}), ("POST", "/api/auth/password", {}), ("GET", "/server/files/gcodes/../config/printer.cfg", {}))))
 
 # 1.84: klippeye benchmark (scripts/benchmark.py): a busy process named like the KlippEye service is measured
 _busy = subprocess.Popen([sys.executable, "-c", "import time\nt = time.time() + 6\nwhile time.time() < t: pass", "klippeye_backend.py"])
