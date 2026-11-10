@@ -5,7 +5,7 @@ KlippEye is a dashboard, a service and an AI print monitor for 3D printers runni
 installation to everyday use. *Una versione in italiano è in [GUIDA.md](GUIDA.md).*
 
 **Quick start (about 15 minutes):** install with the two lines of [chapter 2](#2-install), open
-`http://<address of the Raspberry>:8085` and follow the **guided set-up** that opens by itself ([chapter 3](#3-first-settings)).
+`http://<address of the Raspberry>` (no port; `:8085` when nginx is not installed) and follow the **guided set-up** that opens by itself ([chapter 3](#3-first-settings)).
 Everything else in this guide is there when you need it; every page of the dashboard also has its own **?**.
 
 **Contents:** 1. [What you need](#1-what-you-need) · 2. [Install](#2-install) · 3. [First settings](#3-first-settings) ·
@@ -81,7 +81,7 @@ It can be run again at any time: it repairs without breaking anything. Options:
 * `--undo`: removes the services, the commands and the Moonraker entry (your folders and the packages stay);
 * `--help`.
 
-Open the dashboard: **`http://<address of the Raspberry>:8085`** (the address you open in the browser for the printer, with port 8085). The **guided set-up**
+Open the dashboard: **`http://<address of the Raspberry>`**, with no port: the installer puts KlippEye at the Raspberry's own address and moves the page that was there to port 81 (or the next free one; `klippeye web restore` gives the address back). Port 8085 keeps working too, and it is the address when nginx is not installed. The **guided set-up**
 opens (chapter 3).
 
 **The camera and the AI monitor.** The AI monitor and the calibration take one photo at a time from the camera (the *snapshot*).
@@ -607,7 +607,7 @@ own texts in `notifier.json` (`"messages": {"complete": "Done!"}`).
   name (`.local`, `.lan`…), and refuses commands coming from pages of other sites. To use a name of your own:
   `klippeye access host-add printer.example.com`. `klippeye access network-checks off` turns the checks off.
 * The password does not protect Moonraker (port 7125) or the printer's other web interfaces, and the traffic is plain http on your home network.
-  **Never open port 8085 to the internet**: from outside use a VPN (ZeroTier, Tailscale, WireGuard).
+  **Never open ports 80, 443 or 8085 to the internet**: from outside use a VPN (ZeroTier, Tailscale, WireGuard).
 
 ## 8. After a power cut
 

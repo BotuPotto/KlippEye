@@ -368,3 +368,6 @@
 .https-port .oui-field { width: 120px; flex: none; }
 .https-fingerprint { margin-top: 10px; }
 .https-fingerprint code { display: block; margin-top: 4px; font-size: 12px; overflow-wrap: anywhere; color: var(--oui-text-2); }
+/* 1.94 · the Raspberry's own address (59d-access-settings.js) */
+.web-moved { margin-top: 6px; overflow-wrap: anywhere; }
+.web-command { display: block; margin-top: 8px; padding: 8px 10px; border-radius: var(--oui-r-tile); background: var(--oui-surface-2); font-size: 13px; overflow-wrap: anywhere; }

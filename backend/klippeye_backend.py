@@ -424,7 +424,7 @@ def _access_guard():
             navigation = request.method == "GET" and request.headers.get("Sec-Fetch-Mode") == "navigate"
             if not navigation:
                 return _refuse(403, "origin", _text("origin_read"))
-    if not settings.get("enabled") or internal or request.path in ACCESS_PUBLIC:
+    if not settings.get("enabled") or internal or request.path in ACCESS_PUBLIC or (request.path == "/api/version" and request.method == "GET" and octoprint_client()):
         return None
     role = access.token_role(settings, request.cookies.get(access.COOKIE_NAME))
     if role == "admin":
@@ -1007,7 +1007,7 @@ def proxy_moonraker(path):
         if request.query_string:
             url += "?" + request.query_string.decode()
         # forward headers except host
-        headers = {k:v for k,v in request.headers if k.lower() not in ['host','content-length','connection']}
+        headers = {k:v for k,v in request.headers if k.lower() not in ['host','content-length','connection','x-api-key']}
         wait = (5, 600) if path.startswith(LONG_MOONRAKER_PATHS) else 10
         r = requests.request(request.method, url, data=request.get_data(), headers=headers, timeout=wait, stream=True)
         # copy content type
@@ -1078,6 +1078,8 @@ def health():
 @app.route("/api/printer")
 @app.route("/api/status")
 def api_printer():
+    if request.path == "/api/printer" and octoprint_client():  # 1.94: OctoPrint's /api/printer, from Moonraker
+        return proxy_moonraker("api/printer")
     try:
         objects = {name: None for name in ("heater_bed", "extruder", "print_stats", "heater_fan", "toolhead", "gcode_move", "virtual_sdcard", "display_status", "webhooks")}
         status = live_query(objects)
@@ -1127,6 +1129,29 @@ def api_gcode():
         return jsonify({"result": j.get("result", "ok"), "moonraker_status": r.status_code, "sent": script})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+# 1.94: the slicers that send to "OctoPrint" (OrcaSlicer, PrusaSlicer...) reach Moonraker's OctoPrint-style API through
+# here too: its own paths go to Moonraker; /api/version and /api/printer, which KlippEye has as well, go there when the
+# question comes from such a program (it sends X-Api-Key, or says so in its User-Agent).
+_OCTOPRINT_AGENT = re.compile(r"slicer|octoprint|cura", re.IGNORECASE)
+
+
+def octoprint_client():
+    return "X-Api-Key" in request.headers or bool(_OCTOPRINT_AGENT.search(request.headers.get("User-Agent", "")))
+
+
+@app.route("/api/files", methods=["GET", "POST"])
+@app.route("/api/files/<path:path>", methods=["GET", "POST", "DELETE"])
+@app.route("/api/job", methods=["GET", "POST"])
+@app.route("/api/connection", methods=["GET", "POST"])
+@app.route("/api/settings", methods=["GET"])
+@app.route("/api/login", methods=["POST"])
+@app.route("/api/printerprofiles", methods=["GET"])
+@app.route("/api/server", methods=["GET"])
+@app.route("/api/printer/command", methods=["POST"])
+def octoprint_compat(path=""):
+    return proxy_moonraker(request.path.lstrip("/"))
+
 
 # Proxy Moonraker standard
 @app.route("/printer/<path:path>", methods=["GET","POST","PUT","DELETE"])
@@ -2830,6 +2855,8 @@ def api_diagnose():
 @app.route("/api/version", methods=["GET"])
 def api_version():
     """Who am I: release (VERSION file), interface level, repository commit, how long I have been up."""
+    if octoprint_client():  # 1.94: a slicer checking its "OctoPrint" connection: Moonraker answers it
+        return proxy_moonraker("api/version")
     return jsonify({
         "ok": True,
         "release": RELEASE,
@@ -4152,7 +4179,13 @@ def _https_settings():
 
 
 def _https_apply(settings):
-    """Starts or stops the relay as `settings` say; the error (a port taken, no openssl...) is kept for the page."""
+    """Starts or stops the relay as `settings` say; the error (a port taken, no openssl...) is kept for the page.
+    1.94: with KlippEye at the Raspberry's own address nginx serves HTTPS on port 443 instead (the relay stays off)."""
+    if settings["enabled"] and web_status().get("main"):
+        if _HTTPS["relay"]:
+            _HTTPS["relay"].stop()
+            _HTTPS["relay"] = None
+        return
     relay = _HTTPS["relay"]
     if relay and (not settings["enabled"] or relay.port != settings["port"]):
         relay.stop()
@@ -4177,8 +4210,11 @@ def _https_status():
     except Exception:  # noqa: BLE001
         print_ = None
     relay = _HTTPS["relay"]
-    return {"ok": True, **settings, "running": bool(relay and relay.running()), "fingerprint": print_, "error": _HTTPS["error"],
-            "addresses": https_relay.local_addresses(), "secure": request.headers.get("X-Forwarded-Proto") == "https" or request.is_secure}
+    web = web_status()
+    nginx = bool(web.get("main"))  # 1.94: nginx serves it on 443, the address without a port
+    return {"ok": True, **settings, "running": bool(web.get("https")) if nginx else bool(relay and relay.running()), "fingerprint": print_,
+            "error": _HTTPS["error"], "addresses": https_relay.local_addresses(), "nginx": nginx,
+            "secure": request.headers.get("X-Forwarded-Proto") == "https" or request.is_secure}
 
 
 @app.route("/api/https", methods=["GET"])
@@ -4215,9 +4251,77 @@ def api_https_set():
     with open(HTTPS_FILE + ".tmp", "w", encoding="utf-8") as handle:
         json.dump(settings, handle)
     os.replace(HTTPS_FILE + ".tmp", HTTPS_FILE)
+    _HTTPS["error"] = None
+    if web_status().get("main"):  # 1.94: nginx on 443 with the certificate, or without it
+        if settings["enabled"]:
+            try:
+                https_relay.ensure_certificate(os.path.join(DATA_DIR, "https"))
+            except Exception as error:  # noqa: BLE001
+                _HTTPS["error"] = str(error)[:300]
+        done, text = web_run(["main"] + web_https_arguments(settings))
+        if not done:
+            _HTTPS["error"] = bt("This needs the administrator's rights: on the Raspberry run  {command}", _lang(), command="klippeye web main") if text == "sudo" else text
     _https_apply(settings)
     print("[HTTPS] %s from %s" % ("on, port %d" % settings["port"] if settings["enabled"] else "off", request.remote_addr))
     return jsonify(_https_status())
+
+
+# === THE RASPBERRY'S OWN ADDRESS (1.94) ==============================================================================
+# KlippEye on port 80 of nginx (scripts/web_front.py): http://<raspberry> without a port. The script needs root: the
+# dashboard runs it with `sudo -n` (the Raspberry's usual user may), otherwise it says which command to run.
+WEB_FRONT = os.path.join(REPO_DIR, "scripts", "web_front.py")
+
+
+def web_status():
+    try:
+        out = subprocess.run([sys.executable, WEB_FRONT, "status"], capture_output=True, text=True, timeout=10).stdout
+        return json.loads(out)
+    except Exception:  # noqa: BLE001
+        return {"nginx": False, "main": False, "https": False, "moved": [], "sites": {}}
+
+
+def web_run(arguments):
+    """(ok, message): web_front.py with root rights, without asking a password (sudo -n)."""
+    try:
+        done = subprocess.run(["sudo", "-n", sys.executable, WEB_FRONT] + arguments, capture_output=True, text=True, timeout=90)
+    except Exception as error:  # noqa: BLE001
+        return False, str(error)
+    text = (done.stdout or done.stderr or "").strip()
+    if done.returncode != 0 and ("password is required" in text or "a terminal is required" in text or "sudo:" in text):
+        return False, "sudo"
+    return done.returncode == 0, text[-400:]
+
+
+def web_https_arguments(settings=None):
+    settings = settings or _https_settings()
+    cert, key = os.path.join(DATA_DIR, "https", "https-cert.pem"), os.path.join(DATA_DIR, "https", "https-key.pem")
+    return ["--https", cert, key] if settings["enabled"] and os.path.exists(cert) else []
+
+
+@app.route("/api/web", methods=["GET"])
+def api_web():
+    return jsonify({"ok": True, **web_status(), "port": PORT})
+
+
+@app.route("/api/web", methods=["POST"])
+def api_web_set():
+    """{main: true} puts KlippEye at the Raspberry's own address; {main: false} gives it back to the previous page."""
+    body = request.get_json(silent=True) or {}
+    want = bool(body.get("main"))
+    if want and _https_settings()["enabled"]:
+        try:
+            https_relay.ensure_certificate(os.path.join(DATA_DIR, "https"))
+        except Exception:  # noqa: BLE001 - nginx then starts without HTTPS
+            pass
+    done, text = web_run(["main"] + web_https_arguments() if want else ["restore"])
+    if not done:
+        command = "klippeye web main" if want else "klippeye web restore"
+        message = bt("This needs the administrator's rights: on the Raspberry run  {command}", _lang(), command=command) if text == "sudo" else text
+        return jsonify({"ok": False, "error": message, "command": command, **web_status()}), 409
+    print("[WEB] %s from %s: %s" % ("main" if want else "restore", request.remote_addr, text))
+    if want and _HTTPS["relay"]:  # nginx serves HTTPS on 443 now: the relay on its own port is not needed
+        _https_apply(dict(_https_settings(), enabled=False))
+    return jsonify({"ok": True, "message": text, **web_status(), "port": PORT})
 
 
 # === THE WEB SERVER (1.74) ===========================================================================================

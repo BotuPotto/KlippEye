@@ -142,6 +142,21 @@ PY
     # measures the AI monitor on the recorded prints (Settings > Recordings); options: see the top of scripts/replay.py
     exec nice -n 10 python3 "$REPO/scripts/replay.py" --data "$DATA" "${@:2}"
     ;;
+  web)
+    # 1.94: KlippEye at the Raspberry's own address (port 80 of nginx; the previous page moves to the next free port)
+    case "${2:-status}" in
+      main)
+        https=()
+        if python3 -c 'import json,sys; sys.exit(0 if json.load(open(sys.argv[1])).get("enabled") else 1)' "$DATA/https.json" 2>/dev/null \
+           && [ -f "$DATA/https/https-cert.pem" ]; then
+          https=(--https "$DATA/https/https-cert.pem" "$DATA/https/https-key.pem")
+        fi
+        $SUDO python3 "$REPO/scripts/web_front.py" main "${https[@]}" ;;
+      restore) $SUDO python3 "$REPO/scripts/web_front.py" restore ;;
+      status) python3 "$REPO/scripts/web_front.py" status ;;
+      *) echo "Usage: klippeye web [main|restore|status]"; exit 2 ;;
+    esac
+    ;;
   undo-install)
     exec bash "$REPO/scripts/install.sh" --undo
     ;;
@@ -160,6 +175,8 @@ klippeye access host-add NAME   allow one more host name (e.g. printer.example.c
 klippeye diagnose [--save]   a report to share when asking for help (nothing secret in it; --save writes it to a file)
 klippeye benchmark [--seconds 30]   how much processor and memory KlippEye and the printer's services use (best while printing)
 klippeye replay [--current] [--set KEY=VALUE]   measure the AI monitor on the recorded prints: alarms per hour, how many false
+klippeye web main            KlippEye at the Raspberry's own address (http://IP, no port); the previous page moves to port 81
+klippeye web restore         give the Raspberry's own address back to the previous page   (also: status)
 klippeye undo-install        take KlippEye off (services, commands, update manager entry)
 The Italian names of older releases still work (stato, riavvia, aggiorna...).
 HELP

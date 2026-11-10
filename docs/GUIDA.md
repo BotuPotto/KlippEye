@@ -5,7 +5,7 @@ KlippEye è una dashboard, un servizio e un monitor IA della stampa per stampant
 all'uso di tutti i giorni. *English version: [GUIDE.md](GUIDE.md) (è quella di riferimento: questa ne è la traduzione).*
 
 **Avvio rapido (circa 15 minuti):** installa con le due righe del [capitolo 2](#2-installazione), apri
-`http://<indirizzo del Raspberry>:8085` e segui la **configurazione guidata** che si apre da sola ([capitolo 3](#3-prime-impostazioni)).
+`http://<indirizzo del Raspberry>` (senza porta; `:8085` se nginx non è installato) e segui la **configurazione guidata** che si apre da sola ([capitolo 3](#3-prime-impostazioni)).
 Il resto di questa guida c'è quando ti serve; ogni pagina della dashboard ha anche il suo **?**.
 
 **Indice:** 1. [Cosa serve](#1-cosa-serve) · 2. [Installazione](#2-installazione) · 3. [Prime impostazioni](#3-prime-impostazioni) ·
@@ -82,7 +82,7 @@ Si può rilanciare quando si vuole: ripara senza rompere niente. Opzioni:
 * `--undo`: toglie servizi, comandi e voce di Moonraker (le cartelle e i pacchetti restano);
 * `--help`.
 
-Apri la dashboard: **`http://<indirizzo del Raspberry>:8085`** (lo stesso indirizzo che apri nel browser per la stampante, con la porta 8085). Si apre la
+Apri la dashboard: **`http://<indirizzo del Raspberry>`**, senza porta: l'installazione mette KlippEye all'indirizzo del Raspberry e sposta la pagina che c'era sulla porta 81 (o la prima libera; `klippeye web restore` le ridà l'indirizzo). Anche la porta 8085 continua a funzionare, ed è l'indirizzo quando nginx non è installato. Si apre la
 **configurazione guidata** (capitolo 3).
 
 **La telecamera e il monitor IA.** Il monitor IA e la calibrazione prendono una foto alla volta dalla telecamera (lo *snapshot*). Di solito
@@ -624,7 +624,7 @@ anche scrivere testi tuoi (`"messages": {"complete": "Fatto!"}`).
   della rete di casa (`.local`, `.lan`…), e rifiuta i comandi che arrivano da pagine di altri siti. Per usare un nome tuo:
   `klippeye access host-add stampante.esempio.it`. `klippeye access network-checks off` li spegne.
 * La password non protegge Moonraker (porta 7125) né le altre interfacce web della stampante, e il traffico resta in chiaro (http) sulla rete di casa.
-  **Non aprire mai la porta 8085 su internet**: da fuori usa una VPN (ZeroTier, Tailscale, WireGuard).
+  **Non aprire mai le porte 80, 443 o 8085 su internet**: da fuori usa una VPN (ZeroTier, Tailscale, WireGuard).
 
 ## 8. Dopo un blackout
 

@@ -2249,6 +2249,92 @@ check("1.93: switched on: running at once, with its certificate; kept for the ne
 _off = _hc.post("/api/https", json={"enabled": False}).get_json()
 check("1.93: switched off: stopped", _off["running"] is False and _off["enabled"] is False, _off)
 
+# 1.94: KlippEye at the Raspberry's own address (scripts/web_front.py on an nginx configuration like the usual ones)
+_ng = tmp()
+for _sub in ("sites-available", "sites-enabled", "conf.d"):
+    os.makedirs(os.path.join(_ng, _sub))
+open(os.path.join(_ng, "conf.d", "upstreams.conf"), "w").write("upstream apiserver {\n    server 127.0.0.1:7125;\n}\nupstream mjpgstreamer1 {\n    server 127.0.0.1:8080;\n}\n")
+open(os.path.join(_ng, "sites-available", "mainsail"), "w").write("""server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
+    root %s;
+    server_name _;
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+    location ~ ^/(printer|api|access|machine|server)/ {
+        proxy_pass http://apiserver$request_uri;
+    }
+    location /webcam/ {
+        postpone_output 0;
+        proxy_buffering off;
+        proxy_pass http://mjpgstreamer1/;
+    }
+}
+""" % _ng)
+open(os.path.join(_ng, "sites-available", "fluidd"), "w").write("server {\n    listen 81;\n    root %s;\n}\n" % _ng)
+for _site in ("mainsail", "fluidd"):
+    os.symlink(os.path.join(_ng, "sites-available", _site), os.path.join(_ng, "sites-enabled", _site))
+_nginx = shutil.which("nginx")
+_conf = os.path.join(_ng, "nginx.conf")
+open(_conf, "w").write("pid %s/nginx.pid;\nerror_log %s/error.log;\nevents {}\nhttp {\n    access_log off;\n" % (_ng, _ng)
+                       + "".join("    %s_temp_path %s/%s;\n" % (kind, _ng, kind) for kind in ("client_body", "proxy", "fastcgi", "uwsgi", "scgi"))
+                       + "    include %s/conf.d/*.conf;\n    include %s/sites-enabled/*;\n}\n" % (_ng, _ng))
+# nginx -t also opens the ports it would listen on: below 1024 that needs root (sudo without a password, as on CI)
+_root = "" if os.geteuid() == 0 else ("sudo -n " if subprocess.run(["sudo", "-n", "true"], capture_output=True).returncode == 0 else None)
+if _root is None:
+    _nginx = None
+_wenv = dict(os.environ, KLIPPEYE_NGINX_DIR=_ng, KLIPPEYE_NGINX_RELOAD="true",
+             KLIPPEYE_NGINX_TEST=("%s%s -t -q -p %s -c %s -e %s/error.log" % (_root, _nginx, _ng, _conf, _ng)) if _nginx else "true")
+_wf = os.path.join(ROOT, "scripts", "web_front.py")
+_web = lambda *args: subprocess.run([sys.executable, _wf] + list(args), capture_output=True, text=True, env=_wenv, timeout=60)
+_r = _web("main")
+_st = json.loads(_web("status").stdout)
+_ms = open(os.path.join(_ng, "sites-available", "mainsail")).read()
+_kpath = os.path.join(_ng, "sites-available", "klippeye")
+_ks = open(_kpath).read() if os.path.exists(_kpath) else ""
+check("1.94: «main»: the page on port 80 moved to the next free port (81 is taken), KlippEye on 80, a copy kept%s" % ("" if _nginx else " (nginx not installed here: its check skipped)"),
+      _r.returncode == 0 and "listen 82 default_server;" in _ms and "listen [::]:82 default_server;" in _ms and "listen 81;" in open(os.path.join(_ng, "sites-available", "fluidd")).read()
+      and _st["main"] is True and _st["moved"] == ["mainsail"] and os.path.islink(os.path.join(_ng, "sites-enabled", "klippeye")), _r.stdout + _r.stderr)
+check("1.94: KlippEye's site: the camera as the previous page had it, Moonraker's WebSocket and uploads straight to Moonraker, the rest to the service",
+      "proxy_pass http://mjpgstreamer1/;" in _ks and "location /websocket" in _ks and "location = /server/files/upload" in _ks and "location /api/files/" in _ks
+      and "proxy_pass http://127.0.0.1:8085;" in _ks and "X-Forwarded-Proto $scheme" in _ks and "listen 443" not in _ks)
+_r2 = _web("main", "--https", os.path.join(_ng, "c.pem"), os.path.join(_ng, "k.pem")) if not _nginx else None
+if _nginx:  # the real nginx checks the certificate files: a real one
+    _hc_cert, _hc_key = _hr.ensure_certificate(os.path.join(_ng, "cert"), names=["printer"], addresses=[])
+    _r2 = _web("main", "--https", _hc_cert, _hc_key)
+_ks = open(_kpath).read() if os.path.exists(_kpath) else ""
+check("1.94: with HTTPS: KlippEye also on 443 with the certificate; run again, nothing moves twice", _r2.returncode == 0 and "listen 443 ssl default_server;" in _ks and "listen 82 default_server;" in open(os.path.join(_ng, "sites-available", "mainsail")).read(), _r2.stdout + _r2.stderr)
+_r3 = _web("restore")
+check("1.94: «restore»: the previous page back on port 80, KlippEye's site and the copies gone",
+      _r3.returncode == 0 and "listen 80 default_server;" in open(os.path.join(_ng, "sites-available", "mainsail")).read() and not os.path.exists(os.path.join(_ng, "sites-available", "klippeye"))
+      and not os.path.lexists(os.path.join(_ng, "sites-enabled", "klippeye")) and not os.path.exists(os.path.join(_ng, "klippeye-backup")), _r3.stdout + _r3.stderr)
+_bad = dict(_wenv, KLIPPEYE_NGINX_TEST="false")
+_r4 = subprocess.run([sys.executable, _wf, "main"], capture_output=True, text=True, env=_bad, timeout=60)
+check("1.94: nginx refusing the new configuration: everything put back as it was",
+      _r4.returncode == 1 and "put back" in _r4.stdout and "listen 80 default_server;" in open(os.path.join(_ng, "sites-available", "mainsail")).read() and not os.path.exists(os.path.join(_ng, "sites-available", "klippeye")), _r4.stdout)
+# the service's side: /api/web (the script run with sudo -n: replaced here) and the slicers' OctoPrint-style questions
+_wb = load_brain(NEW_BRAIN, tmp(), fake=fake, brain_json={"formato": 1, "values": {"enabled": False}})
+_wc = _wb.app.test_client()
+_calls = []
+_wb.web_run = lambda arguments: (_calls.append(arguments), (False, "sudo"))[1]
+_wr = _wc.post("/api/web", json={"main": True})
+check("1.94: /api/web without the administrator's rights: refused with the command to run", _wr.status_code == 409 and _wr.get_json()["command"] == "klippeye web main" and _calls == [["main"]], _wr.get_json())
+_wb.web_run = lambda arguments: (_calls.append(arguments), (True, "done"))[1]
+_wr = _wc.post("/api/web", json={"main": False})
+check("1.94: /api/web give back: restore", _wr.status_code == 200 and _calls[-1] == ["restore"], _wr.get_json())
+_v = _wc.get("/api/version", headers={"X-Api-Key": "", "User-Agent": "OrcaSlicer/2.3.0"})
+_mine = _wc.get("/api/version").get_json()
+check("1.94: /api/version: a slicer's question goes to Moonraker, the dashboard's stays KlippEye's", "release" in _mine and (_v.status_code != 200 or "release" not in (_v.get_json(silent=True) or {})), [_v.status_code, _v.data[:120]])
+_seen = []
+_orig_proxy = _wb.proxy_moonraker
+_wb.proxy_moonraker = lambda path: (_seen.append(path), ("proxied", 200))[1]
+_wc.post("/api/files/local", data=b"x")
+_wc.get("/api/job")
+_wc.get("/api/printer", headers={"X-Api-Key": "abc"})
+check("1.94: OctoPrint's upload, job and printer questions go to Moonraker", _seen == ["api/files/local", "api/job", "api/printer"], _seen)
+_wb.proxy_moonraker = _orig_proxy
+
 stop_all()
 fake.close()
 print("\n%d PASS, %d FAIL" % (passed, failed))

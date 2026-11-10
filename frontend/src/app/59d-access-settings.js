@@ -151,6 +151,7 @@ function AccessPage({ active }) {
   const [second, setSecond] = useState("");
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState(null);
+  const [webVersion, setWebVersion] = useState(0); // 1.94: the address changed: HTTPS reads its state again
   const info = status.info || {};
   const min = Number(info.min_length) || 6;
 
@@ -225,7 +226,8 @@ function AccessPage({ active }) {
         { title: tx("Remove the password"), note: tx("It needs the current password (field at the top). The dashboard will open again without logging in.") },
         h("button", { type: "button", className: "oui-btn oui-btn--danger-soft oui-btn--block", disabled: busy || !current, onClick: () => run("/api/auth/disable", { current }, tx("Password removed.")) }, tx("Remove the password")),
       ),
-    h(HttpsGroup, null),
+    h(WebAddressGroup, { onChanged: () => setWebVersion((was) => was + 1) }),
+    h(HttpsGroup, { refresh: webVersion }),
     h(
       SettingsGroup,
       { title: tx("Network"), note: hostsNote },
@@ -290,7 +292,7 @@ const accessSummary = (status) => (status.phase !== "ok" ? tx("Optional password
 /* ---- HTTPS (1.93) ---------------------------------------------------------------------------------------------- */
 
 /** An encrypted entrance next to the usual one (backend/https_relay.py): on, off, its port, its certificate. */
-function HttpsGroup() {
+function HttpsGroup({ refresh }) {
   const [info, setInfo] = useState(null);
   const [port, setPort] = useState("");
   const [busy, setBusy] = useState(false);
@@ -308,7 +310,7 @@ function HttpsGroup() {
   }, []);
   useEffect(() => {
     load();
-  }, [load]);
+  }, [load, refresh]);
   if (!info || info.missing) return null;
   const send = async (body, okMessage) => {
     setBusy(true);
@@ -329,7 +331,8 @@ function HttpsGroup() {
     }
     setBusy(false);
   };
-  const addresses = (info.addresses && info.addresses.length ? info.addresses : [window.location.hostname]).map((host) => "https://" + host + ":" + info.port);
+  // 1.94: with KlippEye at the Raspberry's own address nginx serves it on 443: the address without a port
+  const addresses = (info.addresses && info.addresses.length ? info.addresses : [window.location.hostname]).map((host) => "https://" + host + (info.nginx ? "" : ":" + info.port));
   const portChanged = port.trim() !== String(info.port);
   return h(
     SettingsGroup,
@@ -345,13 +348,14 @@ function HttpsGroup() {
       h("span", { className: "set-status__dot" }),
       info.running ? tx("On") + (info.secure ? " · " + tx("this page came encrypted") : "") : info.enabled ? tx("On, but not running") : tx("Off"),
     ),
-    h("div", { className: "oui-list" }, h(SwitchRow, { title: tx("Encrypted entrance (HTTPS)"), detail: info.running ? addresses.join(" · ") : tx("Port {port}", { port: info.port }), checked: info.enabled, disabled: busy, onChange: (value) => send({ enabled: value }, value ? tx("HTTPS on.") : tx("HTTPS off.")) })),
+    h("div", { className: "oui-list" }, h(SwitchRow, { title: tx("Encrypted entrance (HTTPS)"), detail: info.running ? addresses.join(" · ") : info.nginx ? tx("At the Raspberry's own address") : tx("Port {port}", { port: info.port }), checked: info.enabled, disabled: busy, onChange: (value) => send({ enabled: value }, value ? tx("HTTPS on.") : tx("HTTPS off.")) })),
     info.running &&
       h(
         "div",
         { className: "https-links", "data-https-links": "1" },
         addresses.map((address) => h("a", { key: address, className: "oui-btn oui-btn--quiet oui-btn--sm", href: address + "/", target: "_blank", rel: "noopener" }, address)),
       ),
+    !info.nginx &&
     h(
       "label",
       { className: "set-field" },
@@ -373,5 +377,76 @@ function HttpsGroup() {
       ),
     info.error && !result && h("div", { className: "set-status set-status--warn", role: "alert" }, h("span", { className: "set-status__dot" }), tx("HTTPS could not start: {error}", { error: info.error })),
     h(AccessMessage, { result }),
+  );
+}
+
+/* ---- the Raspberry's own address (1.94) ------------------------------------------------------------------------ */
+
+/** KlippEye at http://<raspberry> without a port (nginx's port 80): on or given back to the previous page. */
+function WebAddressGroup({ onChanged }) {
+  const [info, setInfo] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState(null);
+  const [command, setCommand] = useState("");
+  const load = React.useCallback(async () => {
+    try {
+      const response = await fetchFresh("/api/web", { timeout: BRAIN_READ_TIMEOUT_MS });
+      setInfo(response.ok ? await response.json() : { missing: true });
+    } catch (error) {
+      setInfo((old) => old || { missing: true });
+    }
+  }, []);
+  useEffect(() => {
+    load();
+  }, [load]);
+  if (!info || info.missing || !info.nginx) return null;
+  const host = window.location.hostname;
+  const plain = "http://" + host;
+  const moved = (info.moved || [])
+    .map((name) => ({ name, port: ((info.sites || {})[name] || []).find((port) => port !== 443 && port < 8444) }))
+    .filter((one) => one.port);
+  const send = async (main) => {
+    setBusy(true);
+    setResult(null);
+    setCommand("");
+    try {
+      const response = await fetch("/api/web", { method: "POST", headers: JSON_HEADERS, body: JSON.stringify({ main }) });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok || json.ok === false) {
+        setResult({ ok: false, message: json.error || tx("Error {status}", { status: response.status }) });
+        setCommand(json.command || "");
+      } else {
+        setInfo(json);
+        if (onChanged) onChanged();
+        setResult({ ok: true, message: main ? tx("Done: KlippEye opens at {address}.", { address: plain }) : tx("Done: the previous page is back at {address}.", { address: plain }) });
+        // given back from the address without a port: this page goes to KlippEye's own port
+        if (!main && !window.location.port) window.location.replace("http://" + host + ":" + KLIPPEYE_PORT + "/");
+      }
+    } catch (error) {
+      setResult({ ok: false, message: tx("The KlippEye service does not answer") });
+    }
+    setBusy(false);
+  };
+  return h(
+    SettingsGroup,
+    {
+      title: tx("Address"),
+      note: tx("KlippEye can open at the Raspberry's own address, without a port (also from a slicer's printer page). The page that was there keeps working at another port. Port {port} keeps working for the Android app.", { port: info.port || KLIPPEYE_PORT }),
+    },
+    h(
+      "div",
+      { className: cx("set-status", info.main ? "set-status--ok" : "set-status--warn"), "data-web-status": info.main ? "main" : "port" },
+      h("span", { className: "set-status__dot" }),
+      info.main ? tx("KlippEye opens at {address}", { address: plain }) : tx("KlippEye opens at {address}", { address: plain + ":" + (info.port || KLIPPEYE_PORT) }),
+    ),
+    info.main &&
+      moved.map((one) =>
+        h("div", { key: one.name, className: "oui-caption web-moved", "data-web-moved": one.name }, tx("The previous page ({name}): ", { name: one.name }), h("a", { href: plain + ":" + one.port + "/", target: "_blank", rel: "noopener" }, plain + ":" + one.port)),
+      ),
+    info.main
+      ? h("button", { type: "button", className: "oui-btn oui-btn--quiet oui-btn--block", disabled: busy, "data-web-restore": "1", onClick: () => send(false) }, tx("Give the address back to the previous page"))
+      : h("button", { type: "button", className: "oui-btn oui-btn--primary oui-btn--block", disabled: busy, "data-web-main": "1", onClick: () => send(true) }, tx("Open KlippEye at {address}", { address: plain })),
+    h(AccessMessage, { result }),
+    command && h("code", { className: "web-command", "data-web-command": "1" }, command),
   );
 }

@@ -421,7 +421,7 @@ def mock_reset():
     S.clear(); S.update(default_state()); return jsonify(ok=True)
 @app.route("/__mock/state")
 def mock_state():
-    return jsonify({k: v for k, v in S.items() if k in ("light", "light_cmds", "light_reads", "actions", "webhooks", "webhooks_msg", "disconnected", "moonraker_down", "host_off", "services", "update_log", "brain_cfg_log", "brain_release", "brain_started", "klippeye_info", "pending_release", "logos", "app_apk_hits", "app_apk_downloads", "update_channel", "channel_posts", "rec_posts", "measure_starts", "measure_bodies", "ai_cfg", "ai_posts", "ai_model_reads", "excluded", "strip", "caselight", "mesh_profiles", "mesh_active", "mp", "mp_points", "tune", "speed_factor", "extrude_factor", "bs", "level_applied", "recordings", "alerts", "pm_macros", "pm_wraps", "pm_posts", "gcode_log", "ntfy", "ntfy_posts", "ntfy_tests", "ntfy_app_reads", "ai_answers", "ai_answer", "history_log", "queue", "queue_state", "queue_log", "power_devices", "power_log", "pins", "sensors", "timelapse_settings", "timelapse_log", "timelapse_conf_reads", "cfg", "timelapse_files", "spool_id", "spool_log", "webcams", "webcam_log", "peek_log", "schedule", "schedule_log", "metascan_log", "versions_log")})
+    return jsonify({k: v for k, v in S.items() if k in ("light", "light_cmds", "light_reads", "actions", "webhooks", "webhooks_msg", "disconnected", "moonraker_down", "host_off", "services", "update_log", "brain_cfg_log", "brain_release", "brain_started", "klippeye_info", "pending_release", "logos", "app_apk_hits", "app_apk_downloads", "update_channel", "channel_posts", "rec_posts", "measure_starts", "measure_bodies", "ai_cfg", "ai_posts", "ai_model_reads", "excluded", "strip", "caselight", "mesh_profiles", "mesh_active", "mp", "mp_points", "tune", "speed_factor", "extrude_factor", "bs", "level_applied", "recordings", "alerts", "pm_macros", "pm_wraps", "pm_posts", "gcode_log", "ntfy", "ntfy_posts", "ntfy_tests", "ntfy_app_reads", "ai_answers", "ai_answer", "history_log", "queue", "queue_state", "queue_log", "power_devices", "power_log", "pins", "sensors", "timelapse_settings", "timelapse_log", "timelapse_conf_reads", "cfg", "timelapse_files", "spool_id", "spool_log", "webcams", "webcam_log", "peek_log", "schedule", "schedule_log", "metascan_log", "versions_log", "web", "web_log")})
 @app.route("/__mock/print_actions")
 def mock_print_actions():
     return jsonify(S.get("print_actions", []))
@@ -1271,7 +1271,25 @@ def api_version():
 @app.route("/api/https", methods=["GET", "POST"])
 def mock_https():
     """1.93: the encrypted entrance, off (its real behaviour is tested by access_test.py with the real backend)."""
-    return jsonify(ok=True, enabled=False, port=8443, running=False, fingerprint=None, error=None, addresses=["192.168.1.50"], secure=False)
+    web = S.get("web") or {}
+    return jsonify(ok=True, enabled=bool(web.get("https")), port=8443, running=bool(web.get("https")), fingerprint="AB:" * 31 + "CD" if web.get("https") else None, error=None,
+                   addresses=["192.168.1.50"], secure=False, nginx=bool(web.get("main")))
+
+
+@app.route("/api/web", methods=["GET", "POST"])
+def mock_web():
+    """1.94: KlippEye at the Raspberry's own address (scripts/web_front.py is tested by the backend tests)."""
+    web = S.setdefault("web", {"nginx": True, "main": False, "https": False, "moved": [], "sites": {"mainsail": [80], "fluidd": [81]}})
+    if request.method == "POST":
+        body = request.get_json(force=True) or {}
+        S.setdefault("web_log", []).append(bool(body.get("main")))
+        if S.get("web_sudo") is False:
+            return jsonify(ok=False, error="Servono i permessi di amministratore: sul Raspberry esegui  klippeye web main", command="klippeye web main", **web), 409
+        if body.get("main"):
+            web.update(main=True, moved=["mainsail"], sites={"mainsail": [82], "fluidd": [81]})
+        else:
+            web.update(main=False, moved=[], sites={"mainsail": [80], "fluidd": [81]})
+    return jsonify(ok=True, port=8085, **web)
 
 
 @app.route("/api/auth/status")
