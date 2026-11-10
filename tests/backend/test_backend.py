@@ -2287,7 +2287,8 @@ _web = lambda *args: subprocess.run([sys.executable, _wf] + list(args), capture_
 _r = _web("main")
 _st = json.loads(_web("status").stdout)
 _ms = open(os.path.join(_ng, "sites-available", "mainsail")).read()
-_ks = open(os.path.join(_ng, "sites-available", "klippeye")).read()
+_kpath = os.path.join(_ng, "sites-available", "klippeye")
+_ks = open(_kpath).read() if os.path.exists(_kpath) else ""
 check("1.94: «main»: the page on port 80 moved to the next free port (81 is taken), KlippEye on 80, a copy kept%s" % ("" if _nginx else " (nginx not installed here: its check skipped)"),
       _r.returncode == 0 and "listen 82 default_server;" in _ms and "listen [::]:82 default_server;" in _ms and "listen 81;" in open(os.path.join(_ng, "sites-available", "fluidd")).read()
       and _st["main"] is True and _st["moved"] == ["mainsail"] and os.path.islink(os.path.join(_ng, "sites-enabled", "klippeye")), _r.stdout + _r.stderr)
@@ -2298,7 +2299,7 @@ _r2 = _web("main", "--https", os.path.join(_ng, "c.pem"), os.path.join(_ng, "k.p
 if _nginx:  # the real nginx checks the certificate files: a real one
     _hc_cert, _hc_key = _hr.ensure_certificate(os.path.join(_ng, "cert"), names=["printer"], addresses=[])
     _r2 = _web("main", "--https", _hc_cert, _hc_key)
-_ks = open(os.path.join(_ng, "sites-available", "klippeye")).read()
+_ks = open(_kpath).read() if os.path.exists(_kpath) else ""
 check("1.94: with HTTPS: KlippEye also on 443 with the certificate; run again, nothing moves twice", _r2.returncode == 0 and "listen 443 ssl default_server;" in _ks and "listen 82 default_server;" in open(os.path.join(_ng, "sites-available", "mainsail")).read(), _r2.stdout + _r2.stderr)
 _r3 = _web("restore")
 check("1.94: «restore»: the previous page back on port 80, KlippEye's site and the copies gone",
