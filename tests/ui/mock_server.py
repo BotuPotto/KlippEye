@@ -252,7 +252,7 @@ def settings_now():
     out["stepper_z"] = {"endstop_pin": S["z_pin"], "position_max": 300}
     out["stepper_x"] = {"position_min": -5, "position_max": 350}
     out["stepper_y"] = {"position_max": 350}
-    out["extruder"] = dict(out.get("extruder") or {}, max_temp=285)
+    out["extruder"] = dict(out.get("extruder") or {}, max_temp=285, nozzle_diameter=0.4)
     out["heater_bed"] = dict(out.get("heater_bed") or {}, max_temp=110)
     if S.get("extra_temps"):
         out["heater_generic chamber_heater"] = {"max_temp": 70}
@@ -923,10 +923,12 @@ def files_meta():
              "filament_type": "PLA", "filament_name": "Generic PLA", "first_layer_extr_temp": 215.0, "first_layer_bed_temp": 60.0}
     if "Benchy" in fn:
         extra["print_start_time"] = NOW - 7200
-    return jsonify(result=dict(extra, **{"filename": fn, "estimated_time": 7260 if "Benchy" in fn else 600 + size // 1000, "filament_weight_total": 12.4 if "Benchy" in fn else 0,
+    result = dict(extra, **{"filename": fn, "estimated_time": 7260 if "Benchy" in fn else 600 + size // 1000, "filament_weight_total": 12.4 if "Benchy" in fn else 0,
                            "filament_total": 4200 if "Benchy" in fn else size // 10, "layer_count": 100, "object_height": 48.0, "thumbnails": [] if any(k in fn for k in S.get("no_thumbs", [])) else [
                                {"width": 32, "height": 32, "size": 100, "relative_path": ".thumbs/thumb-32x32.png"},
-                               {"width": 300, "height": 300, "size": 900, "relative_path": ".thumbs/thumb-300x300.png"}]}))
+                               {"width": 300, "height": 300, "size": 900, "relative_path": ".thumbs/thumb-300x300.png"}]})
+    result.update(S.get("meta_extra") or {})   # 1.83: a file sliced differently (the checks before a print)
+    return jsonify(result=result)
 def png(w=64, h=64, color=(200, 90, 40)):
     im = Image.new("RGB", (w, h), color)
     for x in range(w):
