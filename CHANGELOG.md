@@ -1,5 +1,14 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.91.0
+
+**AFC in the multi-material card.**
+
+* Printers with AFC (Box Turtle, Night Owl and the other AFC units) now have the multi-material card too: the lane in
+  the toolhead with its tool and material, each unit with its lanes (colour, tool, material, weight, state), AFC's
+  message, and its commands: load a lane into the toolhead, eject a lane, unload the toolhead, clear an error (and
+  resume the print after one). The commands wait while the unit is busy or printing.
+
 ## 1.90.0
 
 **Input shaper: Klipper's own fitting, two recommendations, the measured damping.**

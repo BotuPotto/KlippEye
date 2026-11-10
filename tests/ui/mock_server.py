@@ -372,6 +372,13 @@ def status_for(keys, fields=None):
         elif k == "mmu":   # 1.85: a multi-material unit (Happy Hare), when a test sets one
             if S.get("mmu"):
                 st[k] = S["mmu"]
+        elif k == "AFC":   # 1.91: an AFC unit, when a test sets one (its lanes below)
+            if S.get("afc"):
+                st[k] = S["afc"]
+        elif (k.startswith("AFC_stepper ") or k.startswith("AFC_lane ")) and S.get("afc"):
+            lane = (S.get("afc_lanes") or {}).get(k.split(" ", 1)[1])
+            if lane is not None:
+                st[k] = lane
         elif k == "configfile":
             if S["caps_down"]:
                 continue
@@ -524,7 +531,8 @@ def notify_test():
 def obj_list():
     return jsonify(result={"objects": OBJECTS + (["neopixel STRIP", "output_pin caselight", "output_pin beeper"] if S.get("extra_lights") else []) + (EXTRA_TEMPS if S.get("extra_temps") else [])
                            + (["output_pin relay", "output_pin _secret", "filament_switch_sensor runout", "filament_motion_sensor encoder"] if S.get("extra_devices") else [])
-                           + (["gcode_macro TIMELAPSE_TAKE_FRAME"] if S.get("timelapse_on") and S.get("timelapse_macro") else [])})
+                           + (["gcode_macro TIMELAPSE_TAKE_FRAME"] if S.get("timelapse_on") and S.get("timelapse_macro") else [])
+                           + (["AFC", "AFC_BoxTurtle Turtle_1", "AFC_hub Turtle_1"] + [("AFC_lane " if n == "lane4" else "AFC_stepper ") + n for n in (S.get("afc_lanes") or {})] if S.get("afc") else [])})
 @app.route("/machine/device_power/devices")
 def power_devices():
     if not S["power_on"]: return jsonify(error={"code": 404, "message": "Not Found"}), 404
