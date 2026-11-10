@@ -464,7 +464,7 @@ function PrintProgressCard({ status, controls, monitor }) {
         h("img", {
           className: cx("w-full h-full", !showThumb && "hidden"),
           src: showThumb ? status.thumbnail : undefined,
-          alt: "thumb",
+          alt: "",
           onError: () => setThumbBroken(true),
         }),
         !showThumb && h(PrintPlaceholder),

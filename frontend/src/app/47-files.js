@@ -243,7 +243,7 @@ function FileCard({ file, meta, thumbnail, onPrint, onMenu, selected, onSelect }
   return h(
     "div",
     { className: cx("file-card", selected && "is-selected"), title: fileName, onClick: onSelect, ...press },
-    h("div", { className: "file-card__preview" }, thumbnail ? h("img", { src: thumbnail, className: "file-thumb", draggable: false }) : h(PrintPlaceholder)),
+    h("div", { className: "file-card__preview" }, thumbnail ? h("img", { src: thumbnail, className: "file-thumb", alt: "", draggable: false }) : h(PrintPlaceholder)),
     h(
       "button",
       {
@@ -351,7 +351,7 @@ function PrintConfirmDialog({ job, onConfirm, onCancel }) {
       h(
         "div",
         { className: "print-preview oui-well" },
-        job.thumbnail ? h("img", { src: job.thumbnail, className: "file-thumb file-thumb--large" }) : h(PrintPlaceholder),
+        job.thumbnail ? h("img", { src: job.thumbnail, className: "file-thumb file-thumb--large", alt: "" }) : h(PrintPlaceholder),
       ),
       h(
         "div",

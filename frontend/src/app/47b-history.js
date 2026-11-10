@@ -528,7 +528,7 @@ function HistoryJobSheet({ job, history, onClose, onPrint }) {
       h(
         "div",
         { className: "file-details__body" },
-        h("div", { className: "file-details__thumb oui-well" }, thumbnail ? h("img", { src: thumbnail, className: "file-thumb", draggable: false }) : h(PrintPlaceholder)),
+        h("div", { className: "file-details__thumb oui-well" }, thumbnail ? h("img", { src: thumbnail, className: "file-thumb", alt: "", draggable: false }) : h(PrintPlaceholder)),
         h(
           "dl",
           { className: "file-details__list" },

@@ -214,7 +214,7 @@ function FileActionSheet({ item, controller }) {
       h(
         "div",
         { className: "file-sheet__head" },
-        h("div", { className: "file-sheet__thumb oui-well" }, thumbnail ? h("img", { src: thumbnail, className: "file-thumb", draggable: false }) : h(PrintPlaceholder)),
+        h("div", { className: "file-sheet__thumb oui-well" }, thumbnail ? h("img", { src: thumbnail, className: "file-thumb", alt: "", draggable: false }) : h(PrintPlaceholder)),
         h("div", { className: "file-sheet__info" }, h("div", { className: "file-sheet__name" }, fileName), details && h("div", { className: "oui-caption oui-num" }, details)),
       ),
       h(
@@ -294,7 +294,7 @@ function FileDetailsSheet({ item, controller, onPrint }) {
       h(
         "div",
         { className: "file-details__body" },
-        h("div", { className: "file-details__thumb oui-well" }, thumbnail ? h("img", { src: thumbnail, className: "file-thumb", draggable: false }) : h(PrintPlaceholder)),
+        h("div", { className: "file-details__thumb oui-well" }, thumbnail ? h("img", { src: thumbnail, className: "file-thumb", alt: "", draggable: false }) : h(PrintPlaceholder)),
         !meta && h("div", { className: "oui-caption" }, tx("Loading...")),
         h(
           "dl",
