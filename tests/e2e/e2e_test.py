@@ -548,14 +548,15 @@ if scenario("deps"):
        r.returncode == 0 and not os.path.exists(os.path.join(w.state, "apt.log")) and "sudo apt install -y python3-opencv" in out and backend_release() == "1.0.0", out)
     w.teardown()
 
-    # 1.74: without waitress (an installation from before 1.74): the installer names python3-waitress, the backend still starts on Flask's server
+    # 1.74: without waitress (an installation from before 1.74): the installer names python3-waitress and goes on (the
+    # backend's own fallback to Flask's server is tested in tests/backend/test_backend.py: the service here runs without the hide)
     w = World("deps", {"PYTHONPATH": HIDE, "KLIPPEYE_TEST_HIDE": "waitress", "KLIPPEYE_APT_ANY_PYTHON": "1"})
     w.build(notifier=False)
     r = w.install("--no-packages")
     out = r.stdout + r.stderr
     st, ver = http("GET", BACKEND + "/api/version", timeout=3) if wait(lambda: backend_release() == "1.0.0", 30) else (0, {})
-    ok("[deps] 1.74: waitress missing: «sudo apt install -y python3-waitress» shown, the backend answers on Flask's own server",
-       r.returncode == 0 and "python3-waitress" in out and st == 200 and ver.get("server") == "flask", out + str(ver))
+    ok("[deps] 1.74: waitress missing: «sudo apt install -y python3-waitress» shown, the installation goes on, the backend answers",
+       r.returncode == 0 and "sudo apt install -y python3-waitress" in out and st == 200, out + str(ver))
     w.teardown()
 
 # ----------------------------------------------------------------------------------- printing: Moonraker is not restarted

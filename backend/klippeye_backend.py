@@ -3939,6 +3939,7 @@ def serve_forever():
         print(f"KlippEye backend running on 0.0.0.0:{PORT} (waitress, {SERVER_THREADS} threads)")
         serve(app, host="0.0.0.0", port=PORT, threads=SERVER_THREADS, channel_timeout=120, ident="KlippEye", clear_untrusted_proxy_headers=True)
         return
+    SERVER_NAME = "flask"
     print(f"KlippEye backend running on 0.0.0.0:{PORT} (Flask's own server: install python3-waitress for the production one)")
     app.run(host="0.0.0.0", port=PORT, debug=False, threaded=True)
 

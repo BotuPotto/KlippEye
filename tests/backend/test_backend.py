@@ -2016,6 +2016,25 @@ check("peek: something that is not a KlippEye of 1.61 (404) says so", j == {"ok"
 j = _ca.get("/api/printers/peek?host=127.0.0.1:1").get_json()
 check("peek: nobody answers -> unreachable", j == {"ok": False, "error": "unreachable"}, j)
 
+# 1.74: the web server: waitress when it is there, Flask's own server otherwise
+import types as _types
+_served = []
+_bk = load_brain(NEW_BRAIN, tmp(), fake)
+_orig_run = _bk.app.run
+_bk.app.run = lambda **kw: _served.append(("flask", kw))
+_saved_waitress = sys.modules.get("waitress")
+sys.modules["waitress"] = _types.SimpleNamespace(serve=lambda app, **kw: _served.append(("waitress", kw)))
+_bk.serve_forever()
+check("1.74: with waitress the service runs on it, with a fixed number of threads", _served and _served[-1][0] == "waitress" and _served[-1][1].get("threads") == _bk.SERVER_THREADS and _bk.SERVER_NAME == "waitress", _served)
+sys.modules["waitress"] = None  # an import that fails, as without the package
+_bk.serve_forever()
+check("1.74: without waitress: Flask's own server, threaded, and /api/version says so", _served[-1][0] == "flask" and _served[-1][1].get("threaded") is True and _bk.SERVER_NAME == "flask" and _bk.app.test_client().get("/api/version").get_json().get("server") == "flask", _served)
+if _saved_waitress is None:
+    sys.modules.pop("waitress", None)
+else:
+    sys.modules["waitress"] = _saved_waitress
+_bk.app.run = _orig_run
+
 stop_all()
 fake.close()
 print("\n%d PASS, %d FAIL" % (passed, failed))
