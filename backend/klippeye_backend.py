@@ -1494,6 +1494,20 @@ def api_calibration_selected_post():
 import shaper_data  # noqa: E402
 
 
+def _shaper_console_lines():
+    """1.89: Klipper's console as Moonraker keeps it (what SHAPER_CALIBRATE said: its figures and its choice)."""
+    answer = requests.get(MOONRAKER_URL + "/server/gcode_store?count=5000", timeout=3).json()
+    return [entry.get("message", "") for entry in answer.get("result", {}).get("gcode_store", [])]
+
+
+def _shaper_log_lines():
+    """1.89: the same lines in klippy.log (its last 4 MB), when Moonraker restarted since the measurement."""
+    path = os.path.join(_logs_dir(), "klippy.log")
+    with open(path, "rb") as handle:
+        handle.seek(max(0, os.path.getsize(path) - 4 * 1024 * 1024))
+        return handle.read().decode("utf-8", "ignore").splitlines()
+
+
 @app.route("/api/shaper/files", methods=["GET"])
 def api_shaper_files():
     return jsonify({"files": shaper_data.list_files()})
@@ -1502,9 +1516,9 @@ def api_shaper_files():
 @app.route("/api/shaper/data", methods=["GET"])
 def api_shaper_data():
     try:
-        args = request.args  # 1.89: the printer's square_corner_velocity and damping ratio, for smoothing and max accel
+        args = request.args  # 1.89: the printer's square_corner_velocity, for smoothing and max accel
         return jsonify(shaper_data.read(args.get("name", ""), scv=shaper_data.number_arg(args.get("scv"), 5.0, 0.1, 100.0),
-                                        damping=shaper_data.number_arg(args.get("damping"), 0.1, 0.01, 0.5)))
+                                        sources=[_shaper_console_lines, _shaper_log_lines]))
     except shaper_data.ShaperError as error:
         return jsonify({"error": str(error)}), 404 if str(error) == "file not found" else 400
     except OSError as error:
