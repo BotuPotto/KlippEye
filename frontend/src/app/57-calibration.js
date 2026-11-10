@@ -1,6 +1,6 @@
 /* ============================================================================
    57 · MACROS
-   Quick-launch buttons for the Klipper macros (1.33, like Mainsail): every macro
+   Quick-launch buttons for the Klipper macros (1.33): every macro
    in one card ("simple", hiding the ones not used) or cards of the person's own
    ("groups": a name, a colour, the macros in their order, and when each card
    shows: standby, printing, paused). The choice is in the shared settings
@@ -350,7 +350,7 @@ function MacroPicker({ state, onClose, title }) {
 }
 
 /* ---------------------------------------------------------------------------
-   Cards (1.33): like Mainsail's macros
+   Cards (1.33): the macros
    "simple": one card with every macro of the printer but the hidden ones;
    "groups": a card for each group of the person's, shown while the printer is in
    one of the group's states (standby, printing, paused), in the group's colour.

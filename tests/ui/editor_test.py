@@ -1,4 +1,4 @@
-"""Release 1.41.0 (roadmap 6c part 3): the text editor on CodeMirror 6, like Mainsail. Line numbers and colours, the
+"""Release 1.41.0 (roadmap 6c part 3): the text editor on CodeMirror 6. Line numbers and colours, the
 [sections] folded / unfolded and listed (tap one to go there), the reference page of the section under the caret, search
 and replace in CodeMirror's panel (in Italian), Annulla / Ripristina, and the comment bar of the earlier editor
 (# in a config file, ; in G-code), Ctrl+S, Ctrl+/. Against the mock.

@@ -1,6 +1,6 @@
 /* ============================================================================
    47c · TIMELAPSE (1.46, roadmap 6d part 5)
-   moonraker-timelapse, as Mainsail shows it, as the third part of the Files
+   moonraker-timelapse, as the third part of the Files
    page (only when Moonraker has the component):
      · the videos: preview, date, size; play here, download, delete; the frames
        of the last print and "Make the video" when they are not one yet;

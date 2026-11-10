@@ -1,4 +1,4 @@
-"""Release 1.34.0 (roadmap 6b part 5): the console's tools, like Mainsail's: clear, autoscroll on / off, newest on top or at
+"""Release 1.34.0 (roadmap 6b part 5): the console's tools: clear, autoscroll on / off, newest on top or at
 the bottom, temperatures shown or hidden (kept on this device), full screen. On the phone (Control page) and on a computer
 (the console bar's panel). Against the mock.
 Usage: console_test.py <html> <outdir> <port>"""
@@ -93,7 +93,7 @@ with sync_playwright() as p:
     option(P, "newestOnTop")
     option(P, "showTemps")
 
-    # 1.69: the HTML in Klipper's messages is drawn, as in Mainsail; a command link fills the input field
+    # 1.69: the HTML in Klipper's messages is drawn; a command link fills the input field
     mock.set(console_extra=[
         {"message": '// Use <a class="command">SAVE_CONFIG</a> to <b>save</b><script>window.__hit=1</script><img src="x" onerror="window.__hit=2">', "time": NOW + 150, "type": "response"},
         {"message": '!! Probe <span style="color: red" onclick="window.__hit=3">failed</span>', "time": NOW + 151, "type": "response"},

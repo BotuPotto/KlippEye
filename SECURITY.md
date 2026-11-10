@@ -9,7 +9,7 @@ fixes are released as a new version and mentioned in `CHANGELOG.md`.
 
 ## Supported versions
 
-Only the latest release receives security fixes. Update from Mainsail/Fluidd (*Update manager → klippeye*) or with `klippeye aggiorna`.
+Only the latest release receives security fixes. Update from Moonraker's update manager (the *klippeye* entry) or with `klippeye aggiorna`.
 
 ## How KlippEye is meant to be used
 

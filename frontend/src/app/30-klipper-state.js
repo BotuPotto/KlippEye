@@ -1,7 +1,7 @@
 /* ============================================================================
    30 · KLIPPER STATE
-   The panel Mainsail shows when Klipper is not "ready" ("Klipper reports: SHUTDOWN"), and the restarts that
-   lead into and out of it. What it does, after Mainsail's own behaviour:
+   The panel shown when Klipper is not "ready" ("Klipper reports: SHUTDOWN"), and the restarts that
+   lead into and out of it. What it does:
 
      · it asks Klipper how it is (/printer/info: state + state_message), now and then when all is well, every
        2 s when it is not; a shutdown line in the console, or the emergency stop, asks at once;
@@ -19,7 +19,7 @@
 /** How often Klipper is asked how it is, by situation (ms). */
 const KLIPPER_WATCH_MS = {
   ready: 4000, // all is well: now and then (a shutdown line in the console and the emergency stop ask at once)
-  fault: 2000, // Klipper is not ready: Mainsail's rhythm
+  fault: 2000, // Klipper is not ready: a quicker rhythm
   restarting: 1000, // a restart is under way
   alert: 500, // just after something that may shut Klipper down
 };
@@ -333,7 +333,7 @@ function useKlipperState() {
    The panel
    ------------------------------------------------------------------------- */
 
-/** Mainsail's colours and symbols by state: startup blue, shutdown orange, error red, disconnected grey. */
+/** The colours and symbols by state: startup blue, shutdown orange, error red, disconnected grey. */
 const KLIPPER_STATE_STYLE = {
   startup: { tone: "info", icon: () => h(Icons.Rocket) },
   shutdown: { tone: "warn", icon: () => h(Icons.Warning) },
@@ -341,7 +341,7 @@ const KLIPPER_STATE_STYLE = {
   disconnected: { tone: "neutral", icon: () => h(Icons.Plug) },
 };
 
-/** The indeterminate ring (Mainsail's v-progress-circular): a dash that chases its tail. */
+/** The indeterminate ring : a dash that chases its tail. */
 function LoadingRing({ size = 30 }) {
   return h("svg", { className: "klipper-state__ring", width: size, height: size, viewBox: "0 0 36 36", "aria-hidden": "true" }, h("circle", { cx: "18", cy: "18", r: "14" }));
 }
@@ -381,7 +381,7 @@ function KlipperStateBanner({ state }) {
     icon = style.icon();
     const disconnected = view.phase === "disconnected";
     title = (disconnected ? "Moonraker" : "Klipper") + tx(" reports: ") + view.phase.toUpperCase();
-    // Mainsail: the ring stands in for a message that has not arrived yet
+    // the ring stands in for a message that has not arrived yet
     loading = view.waiting || view.phase === "startup" || (!disconnected && view.message === null);
     if (view.waiting) body = h("div", { className: "klipper-state__text" }, tx("Klipper is restarting or reconnecting to Moonraker..."));
     else if (disconnected) body = h("div", { className: "klipper-state__text" }, DISCONNECTED_HELP);

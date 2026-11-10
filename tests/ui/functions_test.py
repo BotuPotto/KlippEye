@@ -88,7 +88,7 @@ with sync_playwright() as p:
     mock.set(light=0); P.settle(2500)
     ok("the light button reads the strip and its effect: off when the effect stops (whoever stopped it)", "is-on" not in (P.pg.locator(".light-btn").get_attribute("class") or ""))
     mock.set(light=1); P.settle(2500)
-    ok("... on as soon as the effect runs again (switched from Mainsail, KlipperScreen, the console...)", "is-on" in (P.pg.locator(".light-btn").get_attribute("class") or ""))
+    ok("... on as soon as the effect runs again (switched from another interface, a screen on the printer, the console...)", "is-on" in (P.pg.locator(".light-btn").get_attribute("class") or ""))
 
     # ------------------------------------------------------------------ the page
     P.pg.click('button[aria-label="Impostazioni"]'); P.pg.wait_for_selector(".drawer"); P.settle(450)

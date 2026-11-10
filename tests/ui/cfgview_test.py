@@ -1,5 +1,5 @@
 """Release 1.39.0 (roadmap 6c part 1): the configuration files in the chosen order (name A→Z / Z→A, last change, size),
-with Klipper's backups and the hidden files shown on request (like Mainsail), the choice kept on this device. Against the mock.
+with Klipper's backups and the hidden files shown on request, the choice kept on this device. Against the mock.
 Usage: cfgview_test.py <html> <outdir> <port>"""
 import os
 import sys

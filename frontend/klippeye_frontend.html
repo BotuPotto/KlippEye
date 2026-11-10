@@ -1345,7 +1345,7 @@ body.is-pulling { overscroll-behavior-y: none; }
 .printer-tile__temps, .printer-tile__host { color: var(--oui-text-3); font-size: 12px; font-variant-numeric: tabular-nums; }
 
 /* ============================================================================
-   Klipper state panel (app/30-klipper-state.js): Mainsail's "Klipper reports: ..." box in glass.
+   Klipper state panel (app/30-klipper-state.js): the "Klipper reports: ..." box in glass.
    The colour follows the state: startup violet, shutdown orange, error red, disconnected / switched off grey.
    ========================================================================== */
 
@@ -1848,13 +1848,13 @@ body.is-pulling { overscroll-behavior-y: none; }
    ========================================================================= */
 
 /* ---- jog pad: ring segments (SVG), glass fills that turn violet under the finger ---- */
-.bambu-outer { fill: rgba(255, 255, 255, 0.075); transition: fill var(--oui-dur-fast) var(--oui-ease); }
-.bambu-outer:hover { fill: rgba(255, 255, 255, 0.12); }
-.bambu-outer:active { fill: rgba(var(--oui-accent-rgb), 0.35); }
-.bambu-inner { fill: rgba(255, 255, 255, 0.115); transition: fill var(--oui-dur-fast) var(--oui-ease); }
-.bambu-inner:hover { fill: rgba(255, 255, 255, 0.17); }
-.bambu-inner:active { fill: rgba(var(--oui-accent-rgb), 0.45); }
-.bambu-num { font-weight: 600; fill: var(--oui-text-3); pointer-events: none; user-select: none; font-variant-numeric: tabular-nums; }
+.jog-ring-outer { fill: rgba(255, 255, 255, 0.075); transition: fill var(--oui-dur-fast) var(--oui-ease); }
+.jog-ring-outer:hover { fill: rgba(255, 255, 255, 0.12); }
+.jog-ring-outer:active { fill: rgba(var(--oui-accent-rgb), 0.35); }
+.jog-ring-inner { fill: rgba(255, 255, 255, 0.115); transition: fill var(--oui-dur-fast) var(--oui-ease); }
+.jog-ring-inner:hover { fill: rgba(255, 255, 255, 0.17); }
+.jog-ring-inner:active { fill: rgba(var(--oui-accent-rgb), 0.45); }
+.jog-ring-num { font-weight: 600; fill: var(--oui-text-3); pointer-events: none; user-select: none; font-variant-numeric: tabular-nums; }
 /* the hairline gaps between segments are darker slices of whatever lies behind */
 .pad-gap { stroke: rgba(4, 5, 8, 0.78); fill: none; }
 .pad-axis { font-size: 19px; font-weight: 600; line-height: 1; color: var(--oui-text); }
@@ -3734,7 +3734,7 @@ button.ai-header-badge { cursor: pointer; font: inherit; color: inherit; }
 .mesh-grid__foot { min-height: 20px; margin-top: 10px; font-size: 13px; color: var(--oui-text-2); text-align: center; font-variant-numeric: tabular-nums; }
 .mesh-pick b { color: var(--oui-text); }
 
-/* colour scale: Mainsail's, blue (low) → yellow → red (high) */
+/* colour scale: blue (low) → yellow → red (high) */
 .mesh-legend { display: flex; align-items: center; gap: 10px; margin-top: 12px; font-size: 12px; color: var(--oui-text-2); font-variant-numeric: tabular-nums; }
 .mesh-legend__scale {
   flex: 1 1 auto;
@@ -7666,8 +7666,7 @@ const brain = {
    sections exist ([screws_tilt_adjust], [axis_twist_compensation], ...), which
    G-code commands are registered (CARTOGRAPHER_AXIS_TWIST_COMPENSATION,
    Z_OFFSET_APPLY_PROBE, QUERY_PROBE, ...) and what drives the Z endstop.
-   Features use it to offer only what the machine understands, the way Mainsail
-   and Fluidd do.
+   Features use it to offer only what the machine understands.
    ========================================================================== */
 
 const CAPABILITIES_RETRY_MS = 5000;
@@ -8187,7 +8186,7 @@ const SETTINGS_SAVE_DELAY_MS = 700; // changes closer than this are written as o
 const SETTINGS_DB_TIMEOUT_MS = 8000;
 const SETTINGS_RETRY_MS = 5000; // 1.61: a save that did not get through is tried again after this
 
-/** How the camera is shown (the "service" of Mainsail's webcam page). */
+/** How the camera is shown (the "service" of a webcam kept by Moonraker). */
 const CAMERA_METHODS = [
   { id: "webrtc", label: "WebRTC", detail: tx("camera-streamer's WebRTC page: smooth and light"), field: tx("Address of the WebRTC page") },
   { id: "mjpeg", label: "MJPEG", detail: tx("Continuous video stream, works with almost every camera"), field: tx("Address of the stream") },
@@ -8260,7 +8259,7 @@ const LIGHT_HEX = /^#[0-9a-f]{6}$/;
 const FUNCTION_GCODE_MAX = 4000;
 const MACRO_NAME = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/;
 
-/** 1.33: the macro cards (57-calibration.js), like Mainsail's: every macro in one card, or groups of the person's own. */
+/** 1.33: the macro cards (57-calibration.js): every macro in one card, or groups of the person's own. */
 const MACRO_MODES = ["simple", "groups"];
 const MACRO_COLORS = ["none", "accent", "ok", "warn", "danger", "cool"];
 const MACRO_HEX_COLOR = /^#[0-9a-f]{6}$/; // 1.33.1: any colour, chosen on the wheel
@@ -9131,7 +9130,7 @@ function usePrinterFunctions() {
    ========================================================================== */
 
 /** Written by build.py from the VERSION file of the release; stays as it is when the page is built by hand. */
-const DASHBOARD_RELEASE = "1.72.0";
+const DASHBOARD_RELEASE = "1.72.1";
 const dashboardRelease = () => (DASHBOARD_RELEASE.startsWith("__") ? "sviluppo" : DASHBOARD_RELEASE);
 
 /** The interface level this page needs from the backend (the backend says its own in /api/version). */
@@ -9535,7 +9534,7 @@ function usePrinterIdentity() {
 
 const LAYOUT_KEY = "ke_layout";
 /**
- * 1.66: a layout for each kind of device (Mainsail does the same): a phone, a tablet (two columns of cards) and a
+ * 1.66: a layout for each kind of device: a phone, a tablet (two columns of cards) and a
  * computer (the wide layout, 70-desktop-shell.js) each keep their own order and hidden cards. A page is made of columns:
  * one on a phone and a tablet; on a computer the main column and the side one (Dispositivo), the left and the right one
  * (Calibrazione). The defaults are the usual layout; a card missing from a saved layout (a card of a later release)
@@ -10382,8 +10381,8 @@ function Collapse({ open, children }) {
 
 /* ============================================================================
    30 · KLIPPER STATE
-   The panel Mainsail shows when Klipper is not "ready" ("Klipper reports: SHUTDOWN"), and the restarts that
-   lead into and out of it. What it does, after Mainsail's own behaviour:
+   The panel shown when Klipper is not "ready" ("Klipper reports: SHUTDOWN"), and the restarts that
+   lead into and out of it. What it does:
 
      · it asks Klipper how it is (/printer/info: state + state_message), now and then when all is well, every
        2 s when it is not; a shutdown line in the console, or the emergency stop, asks at once;
@@ -10401,7 +10400,7 @@ function Collapse({ open, children }) {
 /** How often Klipper is asked how it is, by situation (ms). */
 const KLIPPER_WATCH_MS = {
   ready: 4000, // all is well: now and then (a shutdown line in the console and the emergency stop ask at once)
-  fault: 2000, // Klipper is not ready: Mainsail's rhythm
+  fault: 2000, // Klipper is not ready: a quicker rhythm
   restarting: 1000, // a restart is under way
   alert: 500, // just after something that may shut Klipper down
 };
@@ -10715,7 +10714,7 @@ function useKlipperState() {
    The panel
    ------------------------------------------------------------------------- */
 
-/** Mainsail's colours and symbols by state: startup blue, shutdown orange, error red, disconnected grey. */
+/** The colours and symbols by state: startup blue, shutdown orange, error red, disconnected grey. */
 const KLIPPER_STATE_STYLE = {
   startup: { tone: "info", icon: () => h(Icons.Rocket) },
   shutdown: { tone: "warn", icon: () => h(Icons.Warning) },
@@ -10723,7 +10722,7 @@ const KLIPPER_STATE_STYLE = {
   disconnected: { tone: "neutral", icon: () => h(Icons.Plug) },
 };
 
-/** The indeterminate ring (Mainsail's v-progress-circular): a dash that chases its tail. */
+/** The indeterminate ring : a dash that chases its tail. */
 function LoadingRing({ size = 30 }) {
   return h("svg", { className: "klipper-state__ring", width: size, height: size, viewBox: "0 0 36 36", "aria-hidden": "true" }, h("circle", { cx: "18", cy: "18", r: "14" }));
 }
@@ -10763,7 +10762,7 @@ function KlipperStateBanner({ state }) {
     icon = style.icon();
     const disconnected = view.phase === "disconnected";
     title = (disconnected ? "Moonraker" : "Klipper") + tx(" reports: ") + view.phase.toUpperCase();
-    // Mainsail: the ring stands in for a message that has not arrived yet
+    // the ring stands in for a message that has not arrived yet
     loading = view.waiting || view.phase === "startup" || (!disconnected && view.message === null);
     if (view.waiting) body = h("div", { className: "klipper-state__text" }, tx("Klipper is restarting or reconnecting to Moonraker..."));
     else if (disconnected) body = h("div", { className: "klipper-state__text" }, DISCONNECTED_HELP);
@@ -10869,12 +10868,12 @@ function HeaderTabs({ tabs, active, onSelect }) {
 
 /* ============================================================================
    31a · POWER MENU
-   The header's power button, after Mainsail's: a sheet with
+   The header's power button: a sheet with
      · Klipper        restart / firmware restart (hidden while Moonraker has no Klipper);
      · Servizi        every service Moonraker manages (klipper, moonraker, crowsnest, ...), with its state;
                       restart (or start, when it is stopped) and stop;
      · Raspberry      restart and shut down the whole machine.
-   Like Mainsail it asks first only while a job is printing (a restart would ruin it); the machine itself is
+   It asks first only while a job is printing (a restart would ruin it); the machine itself is
    always asked about, because a shutdown cannot be undone from the couch.
    The restarts of Klipper, Moonraker and the Raspberry run through the state panel (app/30-klipper-state.js),
    which shows the loading ring until everything is back.
@@ -10891,7 +10890,7 @@ const serviceLabel = (name) => SERVICE_LABELS[name] || capitalize(name);
 const isCameraService = (name) => /crowsnest|webcam|camera|streamer|mjpg/i.test(name);
 const SERVICE_STATE_TEXT = { active: txc("service", "running"), inactive: txc("service", "stopped"), failed: txc("service", "failed"), activating: txc("service", "starting"), deactivating: txc("service", "stopping") };
 
-/** The services Moonraker manages, as [{ name, state, sub }] sorted by name (klipper_mcu is Klipper's own helper: not offered, as in Mainsail). */
+/** The services Moonraker manages, as [{ name, state, sub }] sorted by name (klipper_mcu is Klipper's own helper: not offered). */
 async function loadServices() {
   const info = await moonraker.systemInfo({ timeout: SERVICES_READ_TIMEOUT_MS });
   const states = info.service_state || {};
@@ -11732,11 +11731,11 @@ function usePrinterStatus() {
 /* ============================================================================
    41 · CAMERA & CASE LIGHT
    The camera is shown the way the settings say (app/16-settings.js, "Camera" in the settings menu), like the service
-   of Mainsail's webcam page: the WebRTC page served by the printer's nginx (the default), an MJPEG stream, MJPEG
+   of a webcam kept by Moonraker: the WebRTC page served by the printer's nginx (the default), an MJPEG stream, MJPEG
    "adaptive" (one photo after the other) or any web page. Which of the two addresses of the Raspberry (home network
    or ZeroTier) is used depends on how the dashboard itself was reached. The light switch mirrors the real LED, which
    Klipper exposes: the output that drives it (and the klipper-led_effect effects drawn on it), as chosen in
-   Settings → Printer functions (16a-printer-functions.js). Whoever switches the light (this page, Mainsail, KlipperScreen,
+   Settings → Printer functions (16a-printer-functions.js). Whoever switches the light (this page, another interface, a screen on the printer,
    a macro, the console), the switch shows what the output really does. Without an output to read (a light switched only
    by macros or G-code) the switch shows what was last asked.
    ========================================================================== */
@@ -12470,7 +12469,7 @@ function CameraCard() {
 /* ============================================================================
    41a · MORE CAMERAS (1.48, roadmap 6d part 7)
    Besides the camera of the settings (the one the AI monitor watches), the
-   webcams set up in Mainsail or Fluidd (Moonraker keeps them: /server/webcams/
+   webcams set up on the printer (Moonraker keeps them: /server/webcams/
    list) that this dashboard can show: when there is more than one, the camera
    card (and the computer's camera panel, and the full screen) has a menu to
    pick which one to watch. The choice is kept on this device; the settings'
@@ -12505,7 +12504,7 @@ let webcamsAskedAt = 0;
 function sharedWebcams() {
   if (!webcamsAsk || Date.now() - webcamsAskedAt > CAMERAS_REFRESH_MS) {
     webcamsAskedAt = Date.now();
-    webcamsAsk = loadMainsailWebcams().catch(() => []);
+    webcamsAsk = loadPrinterWebcams().catch(() => []);
   }
   return webcamsAsk;
 }
@@ -13012,13 +13011,13 @@ function FanList() {
 
 /* ============================================================================
    42a · DEVICES: POWER, OUTPUTS, FILAMENT SENSORS (1.45, roadmap 6d part 4)
-   What Mainsail shows as "Power control" and "Miscellaneous":
+   Power devices, outputs and sensors:
      · Moonraker's [power] devices (smart plugs, relays, GPIO…): on / off, the
        off asked first (it may be the printer's own power);
      · Klipper's [output_pin]s: a switch, or a slider for a PWM pin (0 – scale);
      · the filament sensors: filament there or not, and the switch that turns
        the sensor on or off (SET_FILAMENT_SENSOR).
-   A name starting with _ stays hidden, as in Mainsail. Nothing to show: no card.
+   A name starting with _ stays hidden. Nothing to show: no card.
    ========================================================================== */
 
 const DEVICES_POLL_MS = 3000;
@@ -13378,7 +13377,7 @@ function TemperatureDialog({ dialog, onChange, onClose, onConfirm, maxTemp }) {
 
 /* ============================================================================
    43a · TEMPERATURES: EVERY SENSOR AND THE CHART (1.43, roadmap 6d part 2)
-   Like Mainsail's temperature panel: every heater and sensor Klipper has
+   Every heater and sensor Klipper has
    (nozzles, bed, heater_generic, temperature_sensor, temperature_fan; a name
    starting with _ stays hidden), each with its temperature, target and power,
    and a chart of the last minutes: the temperature as a line, the target as a
@@ -13956,7 +13955,7 @@ function padRings(steps) {
     from: PAD_RING_FROM + index * width,
     to: PAD_RING_FROM + (index + 1) * width - PAD_RING_GAP,
     step,
-    className: (index % 2 === 0 ? "bambu-inner" : "bambu-outer") + " cursor-pointer",
+    className: (index % 2 === 0 ? "jog-ring-inner" : "jog-ring-outer") + " cursor-pointer",
   }));
 }
 /** Quadrants of each ring: which axis and direction a tap on it moves. */
@@ -14086,7 +14085,7 @@ function JogPad({ onJog, onHomeAll, onPark, steps = MOTION_BASE_STEPS }) {
             y: String(label.y),
             textAnchor: "middle",
             dominantBaseline: "central",
-            className: "bambu-num",
+            className: "jog-ring-num",
             style: { fontSize: label.size + "px" },
             transform: `rotate(-45 ${label.x} ${label.y})`,
           },
@@ -14915,8 +14914,7 @@ function BedToolsDialogs({ controller }) {
    during a print would be an accident), and the way to keep the result: at the
    end of the print the card stays until the offset is applied, which writes it
    into printer.cfg (Z_OFFSET_APPLY_PROBE or _ENDSTOP, then SAVE_CONFIG, which
-   restarts Klipper and so is never offered mid-print). Same approach as
-   Mainsail's and Fluidd's Z-offset controls.
+   restarts Klipper and so is never offered mid-print).
    ========================================================================== */
 
 // The step sizes (mm per tap) are a setting (app/16-settings.js): the card offers the ones listed in the settings menu.
@@ -15105,7 +15103,7 @@ function ZOffsetDialogs({ controller }) {
    Polls Klipper for the running job and shows file, progress, elapsed and
    remaining time, layer, thumbnail and the PAUSA / CANCELLA STAMPA buttons.
    The card only appears while a job is running or paused.
-   1.30 (roadmap 6b part 1), like Mainsail: when it ends (clock time), live speed
+   1.30 (roadmap 6b part 1): when it ends (clock time), live speed
    and volumetric flow, and under «More details» the estimates one by one (file,
    filament, slicer), filament used, height, speed and flow factors; «Exclude an
    object» (Klipper's exclude_object) with a map of the objects on the bed.
@@ -15424,7 +15422,7 @@ function PrintLiveStats({ status, className }) {
   );
 }
 
-/** 1.30: everything else Mainsail shows, folded: the estimates one by one, filament, height, the factors. */
+/** 1.30: everything else, folded: the estimates one by one, filament, height, the factors. */
 function PrintDetails({ status, open }) {
   const row = (label, value, key) => value !== null && value !== undefined && h("div", { key: key || label, className: "print-details__row" }, h("span", { className: "print-details__label" }, label), h("span", { className: "print-details__value" }, value));
   const e = status.estimates || {};
@@ -15785,7 +15783,7 @@ function sendFromConsole(script, echo) {
 }
 
 /* ---------------------------------------------------------------------------
-   How the console is shown (1.34, like Mainsail's): kept on this device
+   How the console is shown (1.34): kept on this device
      autoscroll   follow the newest line (off: the log stays where it is);
      newestOnTop  the newest line first;
      showTemps    the temperature reports too (hidden by default: noise);
@@ -15874,7 +15872,7 @@ function ConsoleTools({ entries, fullscreen, onFullscreen }) {
 const FOLLOW_TAIL_PX = 80;
 
 /* ---------------------------------------------------------------------------
-   What a line says, shown as Mainsail shows it (1.69): the "!! " and "// " marks Klipper puts in front are
+   What a line says (1.69): the "!! " and "// " marks Klipper puts in front are
    dropped (the colour already says it), and the little HTML that Klipper, its modules and many macros write
    is drawn instead of printed: <a class="command">SAVE_CONFIG</a> becomes a link that puts SAVE_CONFIG in the
    input field, <b>, <i>, <br>, a coloured <span>… Everything else (scripts, images, frames, events) is left out:
@@ -15884,7 +15882,7 @@ const CONSOLE_TAGS = new Set(["a", "b", "strong", "i", "em", "u", "s", "small", 
 const CONSOLE_DROPPED_TAGS = new Set(["script", "style", "iframe", "object", "embed", "template", "noscript", "svg", "math", "img", "video", "audio"]);
 const CONSOLE_SAFE_COLOR = /^(#[0-9a-f]{3,8}|[a-z]{3,20}|rgba?\([\d\s.,%]+\)|hsla?\([\d\s.,%deg]+\))$/i;
 
-/** The text to show: the marks Klipper puts in front of its answers dropped, as Mainsail does. */
+/** The text to show: the marks Klipper puts in front of its answers dropped. */
 function consoleDisplayText(message) {
   return String(message || "")
     .replace(/^!! /, "")
@@ -16306,7 +16304,7 @@ function ConsoleCard({ entries }) {
 /* ============================================================================
    46b · WINDOWS OPENED BY MACROS (1.71)
    Klipper's macros can open a window with a title, some text and buttons
-   (Klipper's "prompt" actions, as Mainsail and Fluidd show them): many macro
+   (Klipper's "prompt" actions): many macro
    packs ask this way (Happy Hare, RatOS, Klippain, filament changes…).
      RESPOND TYPE=command MSG="action:prompt_begin Filament change"
      RESPOND TYPE=command MSG="action:prompt_text Load the new filament, then:"
@@ -16580,7 +16578,7 @@ function useFileList(active, metadataLimit = FILES_METADATA_LIMIT) {
 }
 
 /* ---------------------------------------------------------------------------
-   Order and search (1.40, like Mainsail): kept on this device (the search is not)
+   Order and search (1.40): kept on this device (the search is not)
    ------------------------------------------------------------------------- */
 const GCODE_VIEW_KEY = "ke_gcode_view";
 const GCODE_SORTS = [
@@ -16811,7 +16809,7 @@ function PrintConfirmDialog({ job, onConfirm, onCancel }) {
 
 /* ============================================================================
    47b · PRINT HISTORY AND STATISTICS (1.42, roadmap 6d part 1)
-   What Moonraker's [history] keeps of every print, as Mainsail shows it:
+   What Moonraker's [history] keeps of every print:
      · the statistics: prints, print time, filament, longest and average print,
        how many finished; how they ended (a bar), and the last 14 days (print
        time or filament a day);
@@ -17435,7 +17433,7 @@ function FilesPage({ desktop, files }) {
 
 /* ============================================================================
    47c · TIMELAPSE (1.46, roadmap 6d part 5)
-   moonraker-timelapse, as Mainsail shows it, as the third part of the Files
+   moonraker-timelapse, as the third part of the Files
    page (only when Moonraker has the component):
      · the videos: preview, date, size; play here, download, delete; the frames
        of the last print and "Make the video" when they are not one yet;
@@ -18149,7 +18147,7 @@ function ExtruderCard({ hotend, onGcode, onEditTemperature }) {
 
 /* ============================================================================
    48a · TUNE CARD (roadmap 6b part 3, release 1.32.0)
-   What Mainsail and Fluidd call "Tune" / "Machine limits": the values Klipper
+   «Tune» / «Machine limits»: the values Klipper
    lets you change while it runs, during a print too:
      · speed and flow factors (M220 / M221);
      · pressure advance and its smooth time (SET_PRESSURE_ADVANCE);
@@ -19286,7 +19284,7 @@ function FileActionSheet({ item, controller }) {
 }
 
 /* ---------------------------------------------------------------------------
-   Details (1.40): what Mainsail shows of a file, read from Moonraker's metadata
+   Details (1.40): what is known of a file, read from Moonraker's metadata
    ------------------------------------------------------------------------- */
 const metaNumber = (value) => (typeof value === "number" && isFinite(value) && value > 0 ? value : null);
 const mm = (value, digits = 2) => (metaNumber(value) !== null ? Number(value.toFixed(digits)) + " mm" : null);
@@ -19402,8 +19400,7 @@ function FileActionDialogs({ controller, onPrint }) {
 
 /* ============================================================================
    49a · G-CODE VIEWER (1.49, roadmap 6d part 8)
-   A file seen layer by layer, from above, like the 2D view of Mainsail's
-   G-code viewer:
+   A file seen layer by layer, from above, in 2D:
      · the file is read in pieces (a bar says how far), every move parsed:
        absolute / relative moves and extrusion, G92, arcs (G2 / G3) as short
        lines, the slicer's ;TYPE: comments for what each line is;
@@ -19950,7 +19947,7 @@ function GcodeViewButton({ status }) {
    upload, rename, move, delete) are in 50a, the card itself in 50b.
    A file opens in the full-screen editor (51), an image in the image viewer (52).
    Klipper's backups (printer-YYYYMMDD_HHMMSS.cfg, *.bak...) and hidden files
-   (.name) are left out unless the person shows them (1.39, like Mainsail); the
+   (.name) are left out unless the person shows them (1.39); the
    order is chosen too (name, last change, size). Both are kept on this device.
    ========================================================================== */
 
@@ -20079,7 +20076,7 @@ const configFilesApi = {
     await ensureOk(await fetch("/server/files/upload", { method: "POST", body: form }));
   },
 
-  /** An empty file: Moonraker has no "create", Mainsail and Fluidd upload nothing under the new name. */
+  /** An empty file: Moonraker has no "create": nothing is uploaded under the new name. */
   createFile: (folder, name) => configFilesApi.upload(new Blob([""], { type: "text/plain" }), folder, name),
 
   createFolder: async (path) => void (await postJson("/server/files/directory", { path: configPath(path) })),
@@ -20233,7 +20230,7 @@ function useConfigFolder() {
      · a menu for every row (the ⋯ button, a long press or a right click):
        open, download (files), rename, move to another folder, delete;
      · on a computer, a row can be dragged onto a folder (or onto "/" and "..").
-   It makes the same calls as Mainsail and Fluidd: uploading an empty file
+   It uses Moonraker's own calls: uploading an empty file
    creates a file, Moonraker's "move" renames and moves files and folders alike,
    and a folder is deleted with everything inside it.
    ========================================================================== */
@@ -20918,7 +20915,7 @@ function ConfigFilesCard({ onEditFile, onViewImage }) {
 }
 
 /* ============================================================================
-   51 · TEXT EDITOR (1.41: CodeMirror 6, like Mainsail)
+   51 · TEXT EDITOR (1.41: CodeMirror 6)
    Full-screen editor for Klipper/Moonraker config files and G-code files (also
    used to read the system logs), built on CodeMirror 6 (vendor/codemirror-6.js,
    the global CM): line numbers, colours, the [sections] folded and unfolded,
@@ -21106,7 +21103,7 @@ function sectionEndLine(doc, number) {
   return last;
 }
 
-/** A [section] folds down to its last line (like Mainsail). */
+/** A [section] folds down to its last line . */
 const sectionFolding = () =>
   CM.foldService.of((state, lineStart) => {
     const line = state.doc.lineAt(lineStart);
@@ -21252,7 +21249,7 @@ function restartTargetOf(path) {
 
 /**
  * Restarts what the file belongs to: a service through Moonraker; Klipper with SAVE_CONFIG when it holds changes to save
- * (they would be lost), otherwise FIRMWARE_RESTART (as Mainsail). While a print runs, Klipper restarts only if confirmed.
+ * (they would be lost), otherwise FIRMWARE_RESTART. While a print runs, Klipper restarts only if confirmed.
  */
 async function restartForFile(target) {
   if (target.kind === "service") {
@@ -22519,7 +22516,7 @@ function AnalysisResult({ logs }) {
     case "busy":
       return result.scope === "single"
         ? h(Spinner, { title: tx("Analysing: ") + result.name, detail: tx("one file • ~8 s") })
-        : h(Spinner, { title: tx("Analysing all the logs with AI"), detail: "klippy • moonraker • crowsnest • mainsail • " + result.fileCount + tx(" files • ~15 s") });
+        : h(Spinner, { title: tx("Analysing all the logs with AI"), detail: "klippy • moonraker • crowsnest • " + result.fileCount + tx(" files • ~15 s") });
     case "done":
       return h(AnalysisDone, { scope: result.scope, name: result.name, json: result.json });
     case "error":
@@ -23967,7 +23964,7 @@ function UpdateTabBadge({ className }) {
 
 /* ============================================================================
    57 · MACROS
-   Quick-launch buttons for the Klipper macros (1.33, like Mainsail): every macro
+   Quick-launch buttons for the Klipper macros (1.33): every macro
    in one card ("simple", hiding the ones not used) or cards of the person's own
    ("groups": a name, a colour, the macros in their order, and when each card
    shows: standby, printing, paused). The choice is in the shared settings
@@ -24317,7 +24314,7 @@ function MacroPicker({ state, onClose, title }) {
 }
 
 /* ---------------------------------------------------------------------------
-   Cards (1.33): like Mainsail's macros
+   Cards (1.33): the macros
    "simple": one card with every macro of the printer but the hidden ones;
    "groups": a card for each group of the person's, shown while the printer is in
    one of the group's states (standby, printing, paused), in the group's colour.
@@ -24387,8 +24384,7 @@ function EndstopsCard({ capabilities, lockReason }) {
 /* ============================================================================
    57a · ENDSTOPS & PROBE
    Collapsible section at the foot of the Calibrazioni card: the state of every
-   endstop (Klipper's QUERY_ENDSTOPS) and of the Z probe (QUERY_PROBE), the way
-   Mainsail's "Endstops" panel shows them. Nothing is read when the page or the
+   endstop (Klipper's QUERY_ENDSTOPS) and of the Z probe (QUERY_PROBE). Nothing is read when the page or the
    section opens: the sensors are queried only when the Aggiorna button is pressed.
    Querying moves the MCU's attention away from the printing queue, so it is off
    while a job runs.
@@ -24479,7 +24475,7 @@ function EndstopsSection({ capabilities, lockReason }) {
 }
 
 /* ============================================================================
-   58 · BED MESH (redone like Mainsail's height map in 1.36, roadmap 6b part 7)
+   58 · BED MESH (height map redone in 1.36, roadmap 6b part 7)
    Klipper's bed-leveling map (`bed_mesh` object) as a coloured 2D grid (the
    values, a tap on a point says where it is) or a 3D surface on a canvas that
    can be rotated (drag) and zoomed (wheel or pinch); the probed points or the
@@ -24557,7 +24553,7 @@ function profileRange(profile) {
   return values.length ? Math.max(...values) - Math.min(...values) : null;
 }
 
-/** Mainsail's colours (blue low → yellow → red high), the scale running over the mesh's own range (1.36.1). */
+/** The colours (blue low → yellow → red high), the scale running over the mesh's own range (1.36.1). */
 const MESH_COLORS = ["#313695", "#4575b4", "#74add1", "#abd9e9", "#e0f3f8", "#ffffbf", "#fee090", "#fdae61", "#f46d43", "#d73027", "#a50026"];
 const MESH_RGB = MESH_COLORS.map((hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)));
 /** White writing on the dark ends of the scale, black in the light middle. */
@@ -24575,7 +24571,7 @@ function heightColor(value, { min, range }) {
 }
 
 /* ---------------------------------------------------------------------------
-   3D drawing (1.36.1: like Mainsail's) — a smooth surface (each cell split in
+   3D drawing (1.36.1) — a smooth surface (each cell split in
    small pieces, each coloured by its own height: the colour runs across the
    cell instead of one colour a square), the mesh lines on it, and a box with a
    grid and the X / Y / Z values on its edges. Seen from the front, above.
@@ -25129,7 +25125,7 @@ function BedMeshCard({ onGcode, lockReason, homedAxes }) {
    The side menu behind the menu button of the top bar (like Mobileraker's): it slides in from the left and lists the
    groups of settings, each one a page of its own inside the menu.
      Stampante        the name and the logo of the top bar and of the browser tab: KlippEye, VzBot, Voron, RatRig (see 18-printer-brand.js)
-     Camera           how the picture is shown (like the webcam page of Mainsail) and flipped
+     Camera           how the picture is shown and flipped
      Indirizzi        the addresses of the Raspberry at home and through ZeroTier, and which one the camera uses
      Z-offset         the step sizes of the Z-offset card
      Notifiche        which notifications the phone gets (done by the service on the Raspberry, see notifier/)
@@ -25455,27 +25451,27 @@ function PrinterPage() {
 }
 
 /* ---- Camera ---- */
-const MAINSAIL_SERVICES = { mjpegstreamer: "mjpeg", "uv4l-mjpeg": "mjpeg", ipstream: "mjpeg", "mjpegstreamer-adaptive": "adaptive", "webrtc-camerastreamer": "webrtc", iframe: "iframe" };
+const WEBCAM_SERVICE_METHODS = { mjpegstreamer: "mjpeg", "uv4l-mjpeg": "mjpeg", ipstream: "mjpeg", "mjpegstreamer-adaptive": "adaptive", "webrtc-camerastreamer": "webrtc", iframe: "iframe" };
 
-/** The webcams configured in Mainsail (Moonraker keeps them), as [{ name, service, method, address, flipH, flipV, fps }]; `method` is "" when this dashboard cannot show that kind. */
-async function loadMainsailWebcams() {
+/** The webcams configured on the printer (Moonraker keeps them), as [{ name, service, method, address, flipH, flipV, fps }]; `method` is "" when this dashboard cannot show that kind. */
+async function loadPrinterWebcams() {
   const json = await fetchJson("/server/webcams/list", { timeout: SETTINGS_DB_TIMEOUT_MS });
   const list = json && json.result && Array.isArray(json.result.webcams) ? json.result.webcams : [];
   return list
     .filter((cam) => isPlainObject(cam) && cam.enabled !== false)
     .map((cam) => {
-      const method = MAINSAIL_SERVICES[String(cam.service || "").toLowerCase()] || "";
+      const method = WEBCAM_SERVICE_METHODS[String(cam.service || "").toLowerCase()] || "";
       const address = cleanCameraAddress(method === "adaptive" ? cam.snapshot_url || cam.stream_url : cam.stream_url);
       return { name: String(cam.name || tx("Camera")), service: String(cam.service || ""), method: address ? method : "", address, snapshot: cleanCameraAddress(cam.snapshot_url) || "", flipH: cam.flip_horizontal === true, flipV: cam.flip_vertical === true, rotation: [90, 180, 270].includes(Number(cam.rotation)) ? Number(cam.rotation) : 0, fps: Number(cam.target_fps) || 0, ratio: cameraRatio(cam.aspect_ratio) };
     });
 }
 
-function MainsailImport({ onPick }) {
+function PrinterWebcamImport({ onPick }) {
   const [state, setState] = useState({ phase: "idle", cams: [], message: "" });
   const load = async () => {
     setState({ phase: "loading", cams: [], message: "" });
     try {
-      const cams = await loadMainsailWebcams();
+      const cams = await loadPrinterWebcams();
       setState(cams.length ? { phase: "list", cams, message: "" } : { phase: "none", cams: [], message: tx("The printer has no cameras set up.") });
     } catch (error) {
       setState({ phase: "none", cams: [], message: tx("Cannot read the printer's cameras.") });
@@ -25503,7 +25499,7 @@ function MainsailImport({ onPick }) {
 
 /**
  * The camera's single photo (1.23): the AI monitor, the camera calibration and the recordings take it (later the timelapse
- * too). Automatic from the camera's address, or chosen like in Mainsail; "Try" shows the photo exactly as the Raspberry gets it.
+ * too). Automatic from the camera's address, or chosen by hand; "Try" shows the photo exactly as the Raspberry gets it.
  */
 function SnapshotSetting({ camera, update }) {
   const automatic = defaultSnapshot(camera);
@@ -25561,7 +25557,7 @@ function CameraPage() {
     update((draft) => {
       draft.camera.method = cam.method;
       draft.camera.urls[cam.method] = cam.address;
-      draft.camera.snapshot = cam.snapshot; // Mainsail's own snapshot address ("" = automatic)
+      draft.camera.snapshot = cam.snapshot; // the webcam's own snapshot address ("" = automatic)
       draft.camera.flipH = cam.flipH;
       draft.camera.flipV = cam.flipV;
       if (cam.method === "adaptive" && cam.fps) draft.camera.fps = cam.fps;
@@ -25608,7 +25604,7 @@ function CameraPage() {
       ),
     ),
     h(SnapshotSetting, { camera, update }),
-    h(MainsailImport, { onPick: pick }),
+    h(PrinterWebcamImport, { onPick: pick }),
   );
 }
 
@@ -26064,7 +26060,7 @@ function SettingsDrawer({ menu, updates, printing, actions }) {
   else if (page === "software") body = h(SoftwarePage, { active: true, menu, updates, printing, actions });
   else body = h(SettingsHome, { menu });
   const title = page ? PAGE_TITLES[page] || webcamPageTitle(page) : tx("Settings");
-  // 1.65: a computer gets one panel in the middle of the screen, as Mainsail's settings: the list on the left, the page
+  // 1.65: a computer gets one panel in the middle of the screen: the list on the left, the page
   // on the right
   if (wide) {
     const inside = page && pageRoot(page) !== page; // a page inside another one: the arrow goes back to it
@@ -30223,7 +30219,7 @@ const HELP = {
   camera: {
     title: tx("Camera"),
     sections: [
-      { id: "mainsail", title: tx("The quickest way"), text: [tx("If the camera is already set up on the printer, press «Import from the printer» at the bottom and pick it: method and address are taken from there.")] },
+      { id: "import", title: tx("The quickest way"), text: [tx("If the camera is already set up on the printer, press «Import from the printer» at the bottom and pick it: method and address are taken from there.")] },
       {
         id: "method",
         title: tx("Which method"),
@@ -30982,7 +30978,7 @@ function AiServicesPanel({ use, ai }) {
 
 /* ============================================================================
    59m · SETTINGS → MACROS (1.33, roadmap 6b part 4)
-   How the macro cards (57-calibration.js) look, like Mainsail's macro settings:
+   How the macro cards (57-calibration.js) look:
      · "All the macros": one card with every macro of the printer; each can be
        hidden from it;
      · "Groups": cards of the person's own, each with a name, a colour, the
@@ -31507,7 +31503,7 @@ const LAYOUT_PAGE_LABELS = (device) => (device === "computer" ? { home: tx("Devi
 const LAYOUT_COLUMN_LABELS = () => ({ main: tx("Main column"), side: tx("Side column"), left: tx("Left"), right: tx("Right") });
 
 /**
- * 1.66: the cards of a page, as a small drawing of it (Mainsail's way): one column on a phone and a tablet, two on a
+ * 1.66: the cards of a page, as a small drawing of it: one column on a phone and a tablet, two on a
  * computer. A card is dragged by its handle (finger or mouse) to its new place, also into the other column; the arrows
  * do the same one step at a time, the switch shows or hides it. Each kind of device keeps its own layout: the one of
  * this screen is chosen at first and marked.
@@ -31705,9 +31701,9 @@ function appearanceSummary() {
    59p · SETTINGS → CAMERA: EVERY CAMERA, ONE PAGE EACH (1.59)
    The Camera page lists:
      · the main camera (KlippEye's own setting: the one the AI monitor watches),
-       on its page "camera-main" (method, address, image, snapshot, Mainsail);
-     · the webcams kept by Moonraker, the same ones Mainsail and Fluidd show and
-       edit (/server/webcams/*): each on its page, as in Mainsail's Webcam
+       on its page "camera-main" (method, address, image, snapshot, import);
+     · the webcams kept by Moonraker, the same ones every interface of the printer
+       shows and edits (/server/webcams/*): each on its page, as in a Webcam
        settings (name, kind, addresses, frames a second, image, on / off),
        saved to Moonraker at once; "Add a camera" makes a new one; a webcam
        written in moonraker.conf can only be read;
@@ -31715,7 +31711,7 @@ function appearanceSummary() {
    ========================================================================== */
 
 const WEBCAM_PAGE_PREFIX = "webcam:";
-/** The kinds of webcam this dashboard can show, as Moonraker / Mainsail name them. */
+/** The kinds of webcam this dashboard can show, as Moonraker names them. */
 const WEBCAM_SERVICES = [
   { id: "webrtc-camerastreamer", label: "WebRTC (camera-streamer)" },
   { id: "mjpegstreamer", label: "MJPEG" },
@@ -31842,7 +31838,7 @@ function CamerasPage({ menu }) {
   );
 }
 
-/** One webcam of Moonraker, as in Mainsail's settings: every change is saved at once. */
+/** One webcam of Moonraker: every change is saved at once. */
 function WebcamPage({ uid, menu }) {
   const webcams = useWebcams();
   const [deleting, setDeleting] = useState(false);
@@ -32063,7 +32059,7 @@ function printersSummary(settings) {
 /* ============================================================================
    70 · DESKTOP SHELL
    On a wide screen (a computer, a tablet held sideways) the dashboard uses a
-   second layout, closer to the Device page of Bambu Studio: page tabs in the
+   second layout: page tabs in the
    top bar instead of the floating bar at the bottom, a camera that fills the
    page, and the console as a bar that is always at hand. A phone keeps the
    layout it always had: nothing below 1100 px wide changes.

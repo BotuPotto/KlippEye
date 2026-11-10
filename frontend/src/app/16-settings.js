@@ -19,7 +19,7 @@ const SETTINGS_SAVE_DELAY_MS = 700; // changes closer than this are written as o
 const SETTINGS_DB_TIMEOUT_MS = 8000;
 const SETTINGS_RETRY_MS = 5000; // 1.61: a save that did not get through is tried again after this
 
-/** How the camera is shown (the "service" of Mainsail's webcam page). */
+/** How the camera is shown (the "service" of a webcam kept by Moonraker). */
 const CAMERA_METHODS = [
   { id: "webrtc", label: "WebRTC", detail: tx("camera-streamer's WebRTC page: smooth and light"), field: tx("Address of the WebRTC page") },
   { id: "mjpeg", label: "MJPEG", detail: tx("Continuous video stream, works with almost every camera"), field: tx("Address of the stream") },
@@ -92,7 +92,7 @@ const LIGHT_HEX = /^#[0-9a-f]{6}$/;
 const FUNCTION_GCODE_MAX = 4000;
 const MACRO_NAME = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/;
 
-/** 1.33: the macro cards (57-calibration.js), like Mainsail's: every macro in one card, or groups of the person's own. */
+/** 1.33: the macro cards (57-calibration.js): every macro in one card, or groups of the person's own. */
 const MACRO_MODES = ["simple", "groups"];
 const MACRO_COLORS = ["none", "accent", "ok", "warn", "danger", "cool"];
 const MACRO_HEX_COLOR = /^#[0-9a-f]{6}$/; // 1.33.1: any colour, chosen on the wheel

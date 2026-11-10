@@ -175,7 +175,7 @@ const HELP = {
   camera: {
     title: tx("Camera"),
     sections: [
-      { id: "mainsail", title: tx("The quickest way"), text: [tx("If the camera is already set up on the printer, press «Import from the printer» at the bottom and pick it: method and address are taken from there.")] },
+      { id: "import", title: tx("The quickest way"), text: [tx("If the camera is already set up on the printer, press «Import from the printer» at the bottom and pick it: method and address are taken from there.")] },
       {
         id: "method",
         title: tx("Which method"),

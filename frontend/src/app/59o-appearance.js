@@ -15,7 +15,7 @@ const LAYOUT_PAGE_LABELS = (device) => (device === "computer" ? { home: tx("Devi
 const LAYOUT_COLUMN_LABELS = () => ({ main: tx("Main column"), side: tx("Side column"), left: tx("Left"), right: tx("Right") });
 
 /**
- * 1.66: the cards of a page, as a small drawing of it (Mainsail's way): one column on a phone and a tablet, two on a
+ * 1.66: the cards of a page, as a small drawing of it: one column on a phone and a tablet, two on a
  * computer. A card is dragged by its handle (finger or mouse) to its new place, also into the other column; the arrows
  * do the same one step at a time, the switch shows or hides it. Each kind of device keeps its own layout: the one of
  * this screen is chosen at first and marked.

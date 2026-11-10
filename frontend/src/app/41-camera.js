@@ -1,11 +1,11 @@
 /* ============================================================================
    41 · CAMERA & CASE LIGHT
    The camera is shown the way the settings say (app/16-settings.js, "Camera" in the settings menu), like the service
-   of Mainsail's webcam page: the WebRTC page served by the printer's nginx (the default), an MJPEG stream, MJPEG
+   of a webcam kept by Moonraker: the WebRTC page served by the printer's nginx (the default), an MJPEG stream, MJPEG
    "adaptive" (one photo after the other) or any web page. Which of the two addresses of the Raspberry (home network
    or ZeroTier) is used depends on how the dashboard itself was reached. The light switch mirrors the real LED, which
    Klipper exposes: the output that drives it (and the klipper-led_effect effects drawn on it), as chosen in
-   Settings → Printer functions (16a-printer-functions.js). Whoever switches the light (this page, Mainsail, KlipperScreen,
+   Settings → Printer functions (16a-printer-functions.js). Whoever switches the light (this page, another interface, a screen on the printer,
    a macro, the console), the switch shows what the output really does. Without an output to read (a light switched only
    by macros or G-code) the switch shows what was last asked.
    ========================================================================== */

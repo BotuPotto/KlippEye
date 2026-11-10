@@ -1,4 +1,4 @@
-"""The Klipper state panel (Mainsail's 'Klipper reports: ...') and the header's power menu.
+"""The Klipper state panel ('Klipper reports: ...') and the header's power menu.
 Usage: klipper_state_test.py <html> <outdir> <port> [--repro]   (--repro: only print, never fail)"""
 import sys, os, re, json, time, urllib.request
 from playwright.sync_api import sync_playwright
@@ -80,7 +80,7 @@ with sync_playwright() as p:
     # ------------------------------------------------------------ 2. shutdown / error at start-up
     P = fresh(webhooks="shutdown", webhooks_msg=SHUT_MSG)
     bn = banner(P)
-    ok("[shutdown] panel shown with the orange tone and Mainsail's title", bn and bn["tone"] == "warn" and bn["title"] == "Klipper segnala: SHUTDOWN" and not bn["loading"], bn)
+    ok("[shutdown] panel shown with the orange tone and its title", bn and bn["tone"] == "warn" and bn["title"] == "Klipper segnala: SHUTDOWN" and not bn["loading"], bn)
     ok("[shutdown] Klipper's own message, line breaks included", bn and bn["message"] == SHUT_MSG, bn and bn["message"])
     ok("[shutdown] restart and log buttons", bn and bn["buttons"] == ["Riavvia firmware", "Riavvia Klipper", "Log di Klipper", "Log di Moonraker"], bn and bn["buttons"])
     ok("[shutdown] announced as an alert", bn and bn["role"] == "alert")
@@ -188,7 +188,7 @@ with sync_playwright() as p:
     sheet = P.pg.locator(".sheet-overlay--power")
     ok("[menu] opens", sheet.count() == 1)
     names = P.pg.locator(".svc-row__name").all_inner_texts()
-    ok("[menu] services as Mainsail lists them (klipper_mcu left out, sorted)", names == ["KlipperScreen", "Crowsnest", "Klipper", "Moonraker", "Sonar"], names)
+    ok("[menu] services listed (klipper_mcu left out, sorted)", names == ["KlipperScreen", "Crowsnest", "Klipper", "Moonraker", "Sonar"], names)
     states = P.pg.locator(".svc-row__state").all_inner_texts()
     ok("[menu] states in Italian", states[0].startswith("in errore") and states[1].startswith("attivo") and states[4].startswith("fermo"), states)
     ok("[menu] Moonraker has no stop button, a stopped service offers start", P.pg.locator("button[aria-label='Ferma Moonraker']").count() == 0 and P.pg.locator("button[aria-label='Avvia Sonar']").count() == 1 and P.pg.locator("button[aria-label='Ferma Sonar']").is_disabled())

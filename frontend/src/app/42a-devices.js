@@ -1,12 +1,12 @@
 /* ============================================================================
    42a · DEVICES: POWER, OUTPUTS, FILAMENT SENSORS (1.45, roadmap 6d part 4)
-   What Mainsail shows as "Power control" and "Miscellaneous":
+   Power devices, outputs and sensors:
      · Moonraker's [power] devices (smart plugs, relays, GPIO…): on / off, the
        off asked first (it may be the printer's own power);
      · Klipper's [output_pin]s: a switch, or a slider for a PWM pin (0 – scale);
      · the filament sensors: filament there or not, and the switch that turns
        the sensor on or off (SET_FILAMENT_SENSOR).
-   A name starting with _ stays hidden, as in Mainsail. Nothing to show: no card.
+   A name starting with _ stays hidden. Nothing to show: no card.
    ========================================================================== */
 
 const DEVICES_POLL_MS = 3000;

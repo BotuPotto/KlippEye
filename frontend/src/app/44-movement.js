@@ -110,7 +110,7 @@ function padRings(steps) {
     from: PAD_RING_FROM + index * width,
     to: PAD_RING_FROM + (index + 1) * width - PAD_RING_GAP,
     step,
-    className: (index % 2 === 0 ? "bambu-inner" : "bambu-outer") + " cursor-pointer",
+    className: (index % 2 === 0 ? "jog-ring-inner" : "jog-ring-outer") + " cursor-pointer",
   }));
 }
 /** Quadrants of each ring: which axis and direction a tap on it moves. */
@@ -240,7 +240,7 @@ function JogPad({ onJog, onHomeAll, onPark, steps = MOTION_BASE_STEPS }) {
             y: String(label.y),
             textAnchor: "middle",
             dominantBaseline: "central",
-            className: "bambu-num",
+            className: "jog-ring-num",
             style: { fontSize: label.size + "px" },
             transform: `rotate(-45 ${label.x} ${label.y})`,
           },

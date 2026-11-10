@@ -1,6 +1,6 @@
 """Release 1.59: Settings → Telecamera lists every camera, each with its page. The main camera (KlippEye's own, the one the AI
-monitor watches) keeps its page; the webcams kept by Moonraker (the same ones Mainsail and Fluidd show) are changed,
-added and removed from here, as in Mainsail; one written in moonraker.conf can only be read. Timelapse: its settings
+monitor watches) keeps its page; the webcams kept by Moonraker (the same ones every interface of the printer shows) are changed,
+added and removed from here; one written in moonraker.conf can only be read. Timelapse: its settings
 (and which camera it uses) or how to install it. Against the mock.
 Usage: camera_settings_test.py <html> <outdir> <port>"""
 import json
@@ -79,7 +79,7 @@ with sync_playwright() as p:
     ok("the main camera's page: method, address, snapshot (as before)", title(P) == "Telecamera principale" and pg.locator(".set-choice", has_text="WebRTC").count() >= 1 and pg.locator("[data-snapshot-now]").count() == 1)
     back(P)
 
-    # ------------------------------------------------------------------ a webcam of Moonraker, changed as in Mainsail
+    # ------------------------------------------------------------------ a webcam of Moonraker, changed
     pg.locator('[data-page="webcam:u-piatto"]').click(); P.settle(700)
     ok("a webcam's page, titled with its name: name, on, kind, addresses, fps, image", title(P) == "Piatto" and pg.locator(".set-choice.is-selected", has_text="MJPEG").count() == 1 and "Indirizzo del video" in pg.locator(".drawer__body").inner_text())
     P.shot(out + "/webcam.png")

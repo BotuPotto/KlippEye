@@ -414,7 +414,7 @@ if scenario("install") or scenario("update") or scenario("undo"):
         st, body = http("POST", BACKEND + "/machine/update/upgrade?name=klippeye", timeout=240)
         ok("[update] after recovering the update works (1.0.2)", wait(lambda: backend_release() == "1.0.2", 90), (st, body, backend_release()))
 
-        # a broken release: the backend does not start; rollback from Moonraker (as from Mainsail)
+        # a broken release: the backend does not start; rollback from Moonraker 
         def break_backend(dev):
             open(os.path.join(dev, "backend", "klippeye_backend.py"), "a").write("\nthis is not python (\n")
         w.publish("1.0.3", "KlippEye 1.0.3 broken", break_backend)

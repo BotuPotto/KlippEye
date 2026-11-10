@@ -1,4 +1,4 @@
-"""Release 1.36.0 (roadmap 6b part 7): the height map redone like Mainsail's. 2D (back of the bed at the top, the values, a
+"""Release 1.36.0 (roadmap 6b part 7): the height map redone. 2D (back of the bed at the top, the values, a
 tap tells where a point is) and 3D; probed or interpolated; minimum / maximum / range / points; the profiles (load, rename,
 remove, save as), clear, calibrate with a profile name and adaptive. Against the mock.
 Usage: bedmesh_test.py <html> <outdir> <port>"""

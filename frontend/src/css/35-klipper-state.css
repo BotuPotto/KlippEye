@@ -1,5 +1,5 @@
 /* ============================================================================
-   Klipper state panel (app/30-klipper-state.js): Mainsail's "Klipper reports: ..." box in glass.
+   Klipper state panel (app/30-klipper-state.js): the "Klipper reports: ..." box in glass.
    The colour follows the state: startup violet, shutdown orange, error red, disconnected / switched off grey.
    ========================================================================== */
 

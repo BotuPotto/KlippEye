@@ -4,8 +4,7 @@
    during a print would be an accident), and the way to keep the result: at the
    end of the print the card stays until the offset is applied, which writes it
    into printer.cfg (Z_OFFSET_APPLY_PROBE or _ENDSTOP, then SAVE_CONFIG, which
-   restarts Klipper and so is never offered mid-print). Same approach as
-   Mainsail's and Fluidd's Z-offset controls.
+   restarts Klipper and so is never offered mid-print).
    ========================================================================== */
 
 // The step sizes (mm per tap) are a setting (app/16-settings.js): the card offers the ones listed in the settings menu.

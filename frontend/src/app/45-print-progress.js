@@ -3,7 +3,7 @@
    Polls Klipper for the running job and shows file, progress, elapsed and
    remaining time, layer, thumbnail and the PAUSA / CANCELLA STAMPA buttons.
    The card only appears while a job is running or paused.
-   1.30 (roadmap 6b part 1), like Mainsail: when it ends (clock time), live speed
+   1.30 (roadmap 6b part 1): when it ends (clock time), live speed
    and volumetric flow, and under «More details» the estimates one by one (file,
    filament, slicer), filament used, height, speed and flow factors; «Exclude an
    object» (Klipper's exclude_object) with a map of the objects on the bed.
@@ -322,7 +322,7 @@ function PrintLiveStats({ status, className }) {
   );
 }
 
-/** 1.30: everything else Mainsail shows, folded: the estimates one by one, filament, height, the factors. */
+/** 1.30: everything else, folded: the estimates one by one, filament, height, the factors. */
 function PrintDetails({ status, open }) {
   const row = (label, value, key) => value !== null && value !== undefined && h("div", { key: key || label, className: "print-details__row" }, h("span", { className: "print-details__label" }, label), h("span", { className: "print-details__value" }, value));
   const e = status.estimates || {};

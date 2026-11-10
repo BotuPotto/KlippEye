@@ -1,11 +1,11 @@
 /* ============================================================================
    31a · POWER MENU
-   The header's power button, after Mainsail's: a sheet with
+   The header's power button: a sheet with
      · Klipper        restart / firmware restart (hidden while Moonraker has no Klipper);
      · Servizi        every service Moonraker manages (klipper, moonraker, crowsnest, ...), with its state;
                       restart (or start, when it is stopped) and stop;
      · Raspberry      restart and shut down the whole machine.
-   Like Mainsail it asks first only while a job is printing (a restart would ruin it); the machine itself is
+   It asks first only while a job is printing (a restart would ruin it); the machine itself is
    always asked about, because a shutdown cannot be undone from the couch.
    The restarts of Klipper, Moonraker and the Raspberry run through the state panel (app/30-klipper-state.js),
    which shows the loading ring until everything is back.
@@ -22,7 +22,7 @@ const serviceLabel = (name) => SERVICE_LABELS[name] || capitalize(name);
 const isCameraService = (name) => /crowsnest|webcam|camera|streamer|mjpg/i.test(name);
 const SERVICE_STATE_TEXT = { active: txc("service", "running"), inactive: txc("service", "stopped"), failed: txc("service", "failed"), activating: txc("service", "starting"), deactivating: txc("service", "stopping") };
 
-/** The services Moonraker manages, as [{ name, state, sub }] sorted by name (klipper_mcu is Klipper's own helper: not offered, as in Mainsail). */
+/** The services Moonraker manages, as [{ name, state, sub }] sorted by name (klipper_mcu is Klipper's own helper: not offered). */
 async function loadServices() {
   const info = await moonraker.systemInfo({ timeout: SERVICES_READ_TIMEOUT_MS });
   const states = info.service_state || {};

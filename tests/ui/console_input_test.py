@@ -1,4 +1,4 @@
-"""Release 1.72: the console's input field, as in Mainsail: ↑ / ↓ go through the commands sent before (kept on this
+"""Release 1.72: the console's input field: ↑ / ↓ go through the commands sent before (kept on this
 device, the line being typed comes back), Tab completes a command's name from Klipper's commands (one match: written
 out; several: listed with their help, a tap writes one), Escape closes the list. On the phone card, the full screen and
 the computer's bar.

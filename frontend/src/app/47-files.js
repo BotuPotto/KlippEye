@@ -141,7 +141,7 @@ function useFileList(active, metadataLimit = FILES_METADATA_LIMIT) {
 }
 
 /* ---------------------------------------------------------------------------
-   Order and search (1.40, like Mainsail): kept on this device (the search is not)
+   Order and search (1.40): kept on this device (the search is not)
    ------------------------------------------------------------------------- */
 const GCODE_VIEW_KEY = "ke_gcode_view";
 const GCODE_SORTS = [

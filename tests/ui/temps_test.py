@@ -1,4 +1,4 @@
-"""Release 1.43.0 (roadmap 6d part 2): every heater and sensor and the temperature chart, like Mainsail. The chart starts
+"""Release 1.43.0 (roadmap 6d part 2): every heater and sensor and the temperature chart. The chart starts
 from Moonraker's temperature_store and goes on with fresh readings; names hide / show their lines (kept on this device);
 5 / 10 / 20 minutes; a pointer (or a finger) on the chart says the values at that moment; the target of a heater that is
 not the nozzle or the bed changes with SET_HEATER_TEMPERATURE (SET_TEMPERATURE_FAN_TARGET for a fan). Against the mock.

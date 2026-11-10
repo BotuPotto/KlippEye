@@ -1,8 +1,17 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.72.1
+
+**No other interface named.**
+
+* The texts, the comments of the code, the scripts' messages, the app's first-start help, this changelog and the
+  security notes no longer name other web interfaces: the update steps point to Moonraker's update manager or to the
+  `klippeye` commands. The ready-made Raspberry images are still named where the installation needs them, and file
+  names that exist on the printer (log files, configuration files) are kept as they are.
+
 ## 1.72.0
 
-**The console's input field, as in Mainsail.**
+**The console's input field: history and completion.**
 
 * ↑ / ↓ go through the commands sent before (the last 100, kept on this device); going past the newest brings back
   the line being typed.
@@ -18,7 +27,7 @@
 
 * Klipper's macros can open a window with a title, some text and buttons (`RESPOND TYPE=command
   MSG="action:prompt_begin …"`, `prompt_text`, `prompt_button`, `prompt_button_group_start/_end`,
-  `prompt_footer_button`, `prompt_show`, `prompt_end`), as Mainsail and Fluidd show them: many macro packs ask this way
+  `prompt_footer_button`, `prompt_show`, `prompt_end`): many macro packs ask this way
   (Happy Hare, RatOS, Klippain, filament changes). KlippEye now shows them.
 * A button sends its command (`name|command|colour`; colours primary, secondary, info, warning, error); the window
   stays until the macro ends it. ✕ closes it and sends `action:prompt_end`.
@@ -95,9 +104,9 @@
 
 ## 1.69.0
 
-**Console like Mainsail's, the temperature chart with the clock, the light menus fixed.**
+**Console with formatted messages, the temperature chart with the clock, the light menus fixed.**
 
-* Console: the HTML that Klipper and many macros write in their messages is drawn, as in Mainsail: `<a class="command">
+* Console: the HTML that Klipper and many macros write in their messages is drawn: `<a class="command">
   SAVE_CONFIG</a>` is a link that puts the command in the input field, bold, italics, line breaks and colours are shown.
   Only a short list of harmless tags gets through (no scripts, images or frames). The «!! » and «// » in front of
   Klipper's answers are no longer printed (the colour says it).
@@ -118,7 +127,7 @@
 
 * The same words as the dashboard (in Italian: telecamera, Annulla stampa, Rimuovi, probe, inattiva, versione…; in both:
   the KlippEye service instead of «the backend») and no other web interface named: the commands to run on the Raspberry
-  instead of Mainsail's Update Manager, «Import from the printer». The ready-made images (MainsailOS, FluiddPi) are still
+  instead of another interface's update manager, «Import from the printer». The ready-made Raspberry images are still
   named where the installation needs them.
 * Brought up to date: the settings menu as it is now, the cards dragged per kind of device, the timelapse with «Advanced»
   and «Save and restart Moonraker», more printers, the daily look for new versions.
@@ -135,7 +144,7 @@
   «predefinito», «versione», «pulsante», «chiave».
 * Waiting messages without «I» («Lettura…», «In attesa…»), errors as «Impossibile…», the notifications with «tu»
   («Filamento esaurito: cambia la bobina!»), a space before the units and the decimal comma.
-* The texts no longer name other programs: «Import from the printer» instead of «Import from Mainsail», and when the
+* The texts no longer name other programs: «Import from the printer» for the webcams Moonraker keeps, and when the
   KlippEye service does not answer the page gives the command to run on the Raspberry.
 * What was still in English in Italian: the extruder's Retract / Extrude / Wipe / Load / Unload, the fans' names, the
   restart buttons, the emergency stop, the rollback of the updates, the monitor's figures.
@@ -185,7 +194,7 @@
 **Settings in full pages (phone) and one panel (computer); the cards' layout dragged, one per kind of device.**
 
 * On a **phone** a page of the settings fills the screen (the side menu is the list of pages).
-* On a **computer** the settings are one panel in the middle of the screen, as Mainsail's: the list on the left (the
+* On a **computer** the settings are one panel in the middle of the screen: the list on the left (the
   page open marked), the page on the right.
 * **Settings → Appearance → Cards**: a small drawing of the page. A card is **dragged by its handle** (finger or mouse)
   to its new place, also into the other column; the arrows do the same, the switch shows or hides it.
@@ -268,10 +277,10 @@
 **Settings → Camera: every camera, one page each; the timelapse settings there too** (requests of 4 November).
 
 * **Camera** lists every camera: the **main camera** (KlippEye's own, the one the AI monitor watches) on its page as
-  before, and the **cameras of the printer** that Moonraker keeps, the same ones Mainsail and Fluidd show.
-* Each camera of the printer has **its own page**, as in Mainsail's settings: name, on / off, kind (WebRTC, MJPEG,
+  before, and the **cameras of the printer** that Moonraker keeps, the same ones every interface of the printer shows.
+* Each camera of the printer has **its own page**: name, on / off, kind (WebRTC, MJPEG,
   MJPEG adaptive, web page), the video and snapshot addresses, frames a second, mirror, flip and rotation. Every change
-  is saved to Moonraker at once (Mainsail sees it too). **Add a camera** makes a new one and opens its page; **Remove**
+  is saved to Moonraker at once (the printer's other interfaces see it too). **Add a camera** makes a new one and opens its page; **Remove**
   deletes it. A camera written in moonraker.conf can only be read there, and says so.
 * The camera card shows a camera's rotation too.
 * **Camera → Timelapse**: the settings of moonraker-timelapse, with **which camera** takes the photos; without it, how
@@ -403,8 +412,7 @@
 
 ## 1.49.0
 
-**G-code viewer** (roadmap phase 6d, eighth and last part): a file seen layer by layer from above, like the 2D view of
-Mainsail's viewer.
+**G-code viewer** (roadmap phase 6d, eighth and last part): a file seen layer by layer from above, in 2D.
 
 * **See the layers** in a file's long-press menu, *Layers* on the computer's file panel, and **See the layers** on the
   print card.
@@ -420,7 +428,7 @@ Mainsail's viewer.
 
 **More cameras** (roadmap phase 6d, seventh part).
 
-* Besides the camera of the settings (the one the AI monitor watches), the webcams set up in Mainsail or Fluidd
+* Besides the camera of the settings (the one the AI monitor watches), the webcams set up on the printer
   (Moonraker keeps them) that the dashboard can show: with more than one, a **camera menu** on the camera card (and on
   the computer's camera panel) picks which one to watch, and the full screen follows it. Each webcam keeps its own way of
   being shown (WebRTC, MJPEG, MJPEG adaptive, web page) and its flips.
@@ -452,8 +460,7 @@ Mainsail's viewer.
 
 ## 1.45.0
 
-**Devices: power, outputs and filament sensors** (roadmap phase 6d, fourth part), like Mainsail's *Power control* and
-*Miscellaneous*.
+**Devices: power, outputs and filament sensors** (roadmap phase 6d, fourth part).
 
 * A **Devices** card (Control page on the phone, under the fans on the computer's device page), shown only when there is
   something in it:
@@ -462,7 +469,7 @@ Mainsail's viewer.
   * **Outputs**: Klipper's `[output_pin]`s, a switch or, for a PWM pin, a slider (up to its `scale`).
   * **Filament sensors**: filament detected or not, and the switch that turns the sensor on or off
     (`SET_FILAMENT_SENSOR`).
-* A name starting with `_` stays hidden, as in Mainsail.
+* A name starting with `_` stays hidden.
 
 ## 1.44.0
 
@@ -480,7 +487,7 @@ Mainsail's viewer.
 
 **Temperatures: every sensor and the chart** (roadmap phase 6d, second part).
 
-* A **Temperatures** card (Home on the phone, under the camera and the print on the computer), like Mainsail's: every
+* A **Temperatures** card (Home on the phone, under the camera and the print on the computer): every
   heater and sensor Klipper has — nozzles, bed, `heater_generic`, `temperature_fan`, `temperature_sensor` (a name starting
   with `_` stays hidden) — with its temperature, target and power.
 * The **chart**: each one a line in its own colour, the target dashed in the same colour; 5 / 10 / 20 minutes. It starts
@@ -510,9 +517,9 @@ Mainsail's viewer.
 
 ## 1.41.0
 
-**The text editor on CodeMirror 6, like Mainsail** (roadmap phase 6c, third part).
+**The text editor on CodeMirror 6** (roadmap phase 6c, third part).
 
-* The editor of the configuration and G-code files is now **CodeMirror 6** (the engine of Mainsail's editor), bundled in
+* The editor of the configuration and G-code files is now **CodeMirror 6**, bundled in
   the dashboard (`frontend/vendor/codemirror-6.js`, MIT, built by `frontend/tools/codemirror/build.sh`): line numbers,
   colours for Klipper's files (sections, keys, pins, values, comments, G-code and Jinja2 in macros) and for G-code, the
   active line, matching brackets, multiple selections, smooth on long files and on phones.
@@ -532,7 +539,7 @@ Mainsail's viewer.
 * **Search** the print files by name (and folder); the count says how many match.
 * **Order** (kept on this device): newest / oldest first, name A→Z / Z→A, shortest / longest print, most filament,
   largest, last printed. Sorting by print time, filament or last print reads every file's metadata (a few at a time).
-* **Details** in the long-press menu (and on the computer's file panel), like Mainsail: folder, size, last change, last
+* **Details** in the long-press menu (and on the computer's file panel): folder, size, last change, last
   printed, slicer and version, estimated time, layer / first layer / object height, layers, filament type and name, length,
   weight, nozzle, first layer nozzle / bed temperature, chamber; *Start print* from there.
 
@@ -581,14 +588,14 @@ Mainsail's viewer.
 
 ## 1.36.1
 
-* **The 3D height map looks like Mainsail's**: Mainsail's colours (blue low → yellow → red high) as a smooth gradient
+* **The 3D height map's new colours**: blue low → yellow → red high, as a smooth gradient
   across the surface instead of one colour a square, the mesh lines faint on it, a box with a grid on the floor and the
   back walls, and the values on its edges (X and Y in mm, Z minimum and maximum). Seen from the front, above; drag to
   turn, pinch or wheel to zoom, ↻ to go back. The 2D grid and the scale use the same colours.
 
 ## 1.36.0
 
-**The height map redone, like Mainsail's** (roadmap phase 6b, seventh part).
+**The height map redone** (roadmap phase 6b, seventh part).
 
 * **2D and 3D kept**, with the **probed** points or the **interpolated** mesh; **minimum, maximum, range** (in orange above
   0.3 mm) and **points**. The 2D grid shows the value of each point and, with a tap, where it is (X, Y in mm); the 3D view
@@ -616,7 +623,7 @@ Mainsail's viewer.
 
 ## 1.34.0
 
-**The console, like Mainsail's** (roadmap phase 6b, fifth part). In the title bar of the console (the Control page on the
+**The console's options** (roadmap phase 6b, fifth part). In the title bar of the console (the Control page on the
 phone, the panel of the console bar on a computer):
 
 * **Clear**: empties the view (Klipper keeps its lines); then only what comes after is shown, the bar's preview too.
@@ -640,7 +647,7 @@ phone, the panel of the console bar on a computer):
 
 ## 1.33.0
 
-**Macros like Mainsail** (roadmap phase 6b, fourth part). The *Calibrations* card is replaced by macro cards set in the new
+**Macro cards** (roadmap phase 6b, fourth part). The *Calibrations* card is replaced by macro cards set in the new
 **Settings → Macros** (also from the gear of each card), kept in the shared settings:
 
 * **All the macros**: one card with every macro of the printer, each can be hidden (search, show all / hide all);
@@ -686,7 +693,7 @@ phone, the panel of the console bar on a computer):
 
 **More in the print card, and «Exclude an object»** (roadmap phase 6b, first part).
 
-* **Like Mainsail**: under time, remaining and layer a second row with **when it ends** (clock time; "tomorrow" when it
+* Under time, remaining and layer a second row with **when it ends** (clock time; "tomorrow" when it
   ends another day), the **speed** now and the **volumetric flow** now (the extruder's speed and the filament's diameter
   from `[extruder]`). **More details** (folded) has the remaining time by the file, the filament and the slicer, the
   slicer's whole estimate, the total time with pauses, the filament used of the total (m and g), the height now of the
@@ -851,10 +858,10 @@ off, so the calibration homes again with six 10 mm pyramids on the bed).
   start without it. Now the backend starts anyway (the calibration says what to install), and the installer installs it.
 * **Debian 11 "Bullseye"** (Raspberry Pi OS before 2023, MainsailOS 1.x): with its Flask 1.1 the downloads (configuration files,
   the Android app, logos, recording pictures) failed; now they work there too.
-* **Snapshot address** (Settings → Camera → Snapshot), like Mainsail's "Snapshot URL": the single photo the AI monitor, the
+* **Snapshot address** (Settings → Camera → Snapshot), the single photo the AI monitor, the
   camera calibration and the recordings take (later also the timelapse). Empty = automatic from the camera's address
   (`/webcam/?action=snapshot`, which every crowsnest streamer answers; `/webcam2/webrtc` → `/webcam2/?action=snapshot`; the
-  adaptive method's own address). **Import from Mainsail** takes Mainsail's snapshot too. **Try: take a photo** shows the photo
+  adaptive method's own address). **Import from the printer** takes the webcam's snapshot address too. **Try: take a photo** shows the photo
   exactly as the Raspberry gets it, or why there is none. Before, the backend always asked `/webcam/snapshot`, which mjpg-streamer
   does not have.
 * Guides: what is needed and what KlippEye installs by itself, the install lines (also for a Raspberry without git), the options.
@@ -965,7 +972,7 @@ FILAMENT_UNLOAD, luci_on / luci_off with the VAR_LUCI variable) now work on any 
   `klippeye_macros.cfg` (`backend/printer_macros.py`), included at the end of `printer.cfg` (with a backup); the page offers to
   restart Klipper (not while printing). Names that already exist in the configuration are refused.
 * **The light switch reads the real output**: an `[output_pin]` value, a `[led]`/`[neopixel]` colour, or a *klipper-led_effect*
-  effect running on it. The switch is right whoever changes the light (Mainsail, KlipperScreen, the console, a macro). The light
+  effect running on it. The switch is right whoever changes the light (another interface, a screen on the printer, the console, a macro). The light
   can also be switched directly on its output (SET_PIN, SET_LED, STOP_LED_EFFECTS), without macros.
 * **Filament change notification on any printer**: from Klipper's filament sensors, from macros announced by a small wrapper in
   `klippeye_macros.cfg` (rename_existing: it writes "KlippEye: filament change" and runs the original), or from a console line
@@ -1222,7 +1229,7 @@ English names on the Raspberry (first step of the move to English; the dashboard
 Almost only the repository; on the Raspberry the only change is a minimum space between the printer name and the round
 buttons of the top bar (on 360-pixel phones they could touch).
 
-* **License: GNU GPL v3.0** (`LICENSE`), the same as Klipper, Moonraker, Mainsail and Fluidd; third-party components in `THIRD_PARTY_NOTICES.md`.
+* **License: GNU GPL v3.0** (`LICENSE`), the same as Klipper and Moonraker; third-party components in `THIRD_PARTY_NOTICES.md`.
 * **Dashboard sources** are now in the repository (`frontend/src`, `frontend/build.py`): the published `frontend/klippeye_frontend.html`
   is rebuilt from them and the tests check it is identical.
 * **Automatic tests** in `tests/` (backend, notifier, app build steps, dashboard in the browser) and a GitHub workflow that runs
@@ -1313,7 +1320,7 @@ Prima release "a contenitore": programma e dati separati, aggiornamento dalla da
 
 * **Aggiornamenti dalla dashboard** (Impostazioni → Aggiornamenti): release installata, controllo di GitHub, "Aggiorna VzBot",
   "Torna alla versione precedente", "Ripristina i file del programma" e riavvio del Brain e delle notifiche. Usa l'update manager
-  di Moonraker, quindi funziona anche da Mainsail e Fluidd.
+  di Moonraker, quindi funziona anche dalle altre interfacce della stampante.
 * **Soglie del monitor IA** (Impostazioni → Soglie del monitor): sensibilità, area controllata (con anteprima sulla foto della
   camera), pause, attese e modello dell'IA si cambiano dalla dashboard, valgono subito e restano sul Raspberry. Il Brain descrive
   da sé le proprie impostazioni: una nuova soglia compare nel menu senza aggiornare la dashboard.

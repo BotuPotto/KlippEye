@@ -5,7 +5,7 @@
    upload, rename, move, delete) are in 50a, the card itself in 50b.
    A file opens in the full-screen editor (51), an image in the image viewer (52).
    Klipper's backups (printer-YYYYMMDD_HHMMSS.cfg, *.bak...) and hidden files
-   (.name) are left out unless the person shows them (1.39, like Mainsail); the
+   (.name) are left out unless the person shows them (1.39); the
    order is chosen too (name, last change, size). Both are kept on this device.
    ========================================================================== */
 
@@ -134,7 +134,7 @@ const configFilesApi = {
     await ensureOk(await fetch("/server/files/upload", { method: "POST", body: form }));
   },
 
-  /** An empty file: Moonraker has no "create", Mainsail and Fluidd upload nothing under the new name. */
+  /** An empty file: Moonraker has no "create": nothing is uploaded under the new name. */
   createFile: (folder, name) => configFilesApi.upload(new Blob([""], { type: "text/plain" }), folder, name),
 
   createFolder: async (path) => void (await postJson("/server/files/directory", { path: configPath(path) })),

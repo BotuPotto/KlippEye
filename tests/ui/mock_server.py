@@ -177,7 +177,7 @@ def default_state():
         "update_delay": 0.0,        # seconds before an update / rollback / recover answers
         "service_error": "",        # non-empty: service actions fail with this message (HTTP 400)
         "actions": [],              # (path, query) of every /machine/services|reboot|shutdown + restart request
-        # --- Moonraker database (dashboard settings, notification service status) and Mainsail's webcams
+        # --- Moonraker database (dashboard settings, notification service status) and the printer's webcams
         "db": {},                   # {"namespace/key": value}
         "db_mode": "ok",            # ok | no_route (the backend does not pass /server/database on: Flask 404 page) | refuse (403) | down (502)
         "db_log": [],               # (method, namespace, key) of every request
@@ -1507,7 +1507,7 @@ ALL_MD = """## 1. Errori / warning / stack-trace rilevanti
 ## 2. Cause probabili
 
 - **Telegram**: il token del bot è stato rigenerato da BotFather oppure è stato copiato male in `telegram.conf`.
-- **Moonraker 404**: un client (Mainsail o un'app) chiede `printer.cfg` con un percorso che non esiste nella root `config`.
+- **Moonraker 404**: un client (un'interfaccia o un'app) chiede `printer.cfg` con un percorso che non esiste nella root `config`.
 - **Git warnings**: aggiornamenti manuali dei repo o branch diverso da quello atteso da Moonraker.
   - Per Klipper: file locali modificati senza commit.
   - Per crowsnest: branch `main` al posto di `master`.

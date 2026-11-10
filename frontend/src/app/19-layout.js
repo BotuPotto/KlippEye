@@ -13,7 +13,7 @@
 
 const LAYOUT_KEY = "ke_layout";
 /**
- * 1.66: a layout for each kind of device (Mainsail does the same): a phone, a tablet (two columns of cards) and a
+ * 1.66: a layout for each kind of device: a phone, a tablet (two columns of cards) and a
  * computer (the wide layout, 70-desktop-shell.js) each keep their own order and hidden cards. A page is made of columns:
  * one on a phone and a tablet; on a computer the main column and the side one (Dispositivo), the left and the right one
  * (Calibrazione). The defaults are the usual layout; a card missing from a saved layout (a card of a later release)

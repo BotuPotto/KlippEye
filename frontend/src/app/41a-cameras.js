@@ -1,7 +1,7 @@
 /* ============================================================================
    41a · MORE CAMERAS (1.48, roadmap 6d part 7)
    Besides the camera of the settings (the one the AI monitor watches), the
-   webcams set up in Mainsail or Fluidd (Moonraker keeps them: /server/webcams/
+   webcams set up on the printer (Moonraker keeps them: /server/webcams/
    list) that this dashboard can show: when there is more than one, the camera
    card (and the computer's camera panel, and the full screen) has a menu to
    pick which one to watch. The choice is kept on this device; the settings'
@@ -36,7 +36,7 @@ let webcamsAskedAt = 0;
 function sharedWebcams() {
   if (!webcamsAsk || Date.now() - webcamsAskedAt > CAMERAS_REFRESH_MS) {
     webcamsAskedAt = Date.now();
-    webcamsAsk = loadMainsailWebcams().catch(() => []);
+    webcamsAsk = loadPrinterWebcams().catch(() => []);
   }
   return webcamsAsk;
 }

@@ -1,11 +1,11 @@
 """
 Where the camera's single photo (the "snapshot") is taken from (1.23.0). The AI monitor, the camera calibration and the
-recordings use it, and later the timelapse. It is chosen in the dashboard (Settings -> Camera -> Snapshot) like in Mainsail:
+recordings use it, and later the timelapse. It is chosen in the dashboard (Settings -> Camera -> Snapshot):
 empty = automatic, worked out from the camera's address; a path on the Raspberry ("/webcam/?action=snapshot") or a full
 address ("http://192.168.1.20:8080/?action=snapshot").
 
 "/webcam/?action=snapshot" is the address every streamer of crowsnest answers (ustreamer, camera-streamer, mjpg-streamer)
-behind the nginx of Mainsail / Fluidd; before 1.23.0 the backend always asked "/webcam/snapshot", which mjpg-streamer does
+behind the printer's nginx; before 1.23.0 the backend always asked "/webcam/snapshot", which mjpg-streamer does
 not have. The same rules are in the dashboard (16-settings.js, defaultSnapshot): keep the two the same.
 """
 import re

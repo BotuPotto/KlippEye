@@ -1,8 +1,7 @@
 /* ============================================================================
    57a · ENDSTOPS & PROBE
    Collapsible section at the foot of the Calibrazioni card: the state of every
-   endstop (Klipper's QUERY_ENDSTOPS) and of the Z probe (QUERY_PROBE), the way
-   Mainsail's "Endstops" panel shows them. Nothing is read when the page or the
+   endstop (Klipper's QUERY_ENDSTOPS) and of the Z probe (QUERY_PROBE). Nothing is read when the page or the
    section opens: the sensors are queried only when the Aggiorna button is pressed.
    Querying moves the MCU's attention away from the printing queue, so it is off
    while a job runs.

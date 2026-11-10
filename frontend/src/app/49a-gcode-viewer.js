@@ -1,7 +1,6 @@
 /* ============================================================================
    49a · G-CODE VIEWER (1.49, roadmap 6d part 8)
-   A file seen layer by layer, from above, like the 2D view of Mainsail's
-   G-code viewer:
+   A file seen layer by layer, from above, in 2D:
      · the file is read in pieces (a bar says how far), every move parsed:
        absolute / relative moves and extrusion, G92, arcs (G2 / G3) as short
        lines, the slicer's ;TYPE: comments for what each line is;
