@@ -162,6 +162,25 @@ MESSAGES = {
         "rule_line": "{line}",
         "rule_temp": "{heater} auf Temperatur: {temp}°C",
     },
+    "fr": {
+        "error": "Imprimante en erreur ! Redémarrez-la.",
+        "complete": "Impression terminée !",
+        "cancelled": "Impression annulée !",
+        "paused": "Imprimante en pause !",
+        "runout": "Fin de filament, changez la bobine !",
+        "ai_pause": "Défauts d'impression détectés, vérifiez et mettez l'impression en pause !",
+        "ai_cancel": "Défauts d'impression graves détectés, vérifiez et annulez l'impression",
+        "ai_pause_auto": "Défauts d'impression détectés : impression mise en pause automatiquement.",
+        "ai_cancel_auto": "Défauts d'impression graves détectés : impression annulée automatiquement.",
+        "test": "Notification de test : tout fonctionne !",
+        "error_detail": "Imprimante en erreur : {message}",
+        "rule_started": "Impression lancée : {file}",
+        "rule_progress": "{file} : {progress}% fait",
+        "rule_remaining": "{file} : environ {remaining} restant",
+        "rule_layer": "{file} : couche {layer} sur {total_layers}",
+        "rule_line": "{line}",
+        "rule_temp": "{heater} à température : {temp}°C",
+    },
 }
 LANGUAGES = tuple(MESSAGES)
 DEFAULT_MESSAGES = MESSAGES["en"]
@@ -171,7 +190,8 @@ DEFAULT_MESSAGES = MESSAGES["en"]
 PLACEHOLDERS = ("file", "progress", "layer", "total_layers", "elapsed", "remaining", "message", "line", "heater", "temp", "target", "printer")
 PLACEHOLDER = re.compile(r"\{(\w+)\}")
 HEATER_NAMES = {"en": {"extruder": "Nozzle", "heater_bed": "Bed"}, "it": {"extruder": "Ugello", "heater_bed": "Piatto"},
-                "es": {"extruder": "Boquilla", "heater_bed": "Cama"}, "de": {"extruder": "Düse", "heater_bed": "Bett"}}
+                "es": {"extruder": "Boquilla", "heater_bed": "Cama"}, "de": {"extruder": "Düse", "heater_bed": "Bett"},
+                "fr": {"extruder": "Buse", "heater_bed": "Plateau"}}
 
 
 def fill(text: str, values: Dict[str, Any]) -> str:
@@ -215,7 +235,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     # which notifications are on
     "events": {key: True for key in ("error", "complete", "cancelled", "paused", "runout", "ai_pause", "ai_cancel")},
     "messages": {},  # your own texts, e.g. {"complete": "Done!"}: they win over the language's
-    "language": "",  # "en", "it", "es", "de": used until the dashboard's choice is known
+    "language": "",  # "en", "it", "es", "de", "fr": used until the dashboard's choice is known
     # timing (seconds)
     "poll_seconds": 2,
     "ai_poll_seconds": 5,

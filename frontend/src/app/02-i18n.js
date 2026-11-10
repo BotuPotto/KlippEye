@@ -25,6 +25,7 @@ const I18N_LANGUAGES = [
   { code: "it", name: "Italiano" },
   { code: "es", name: "Español" }, // 1.86
   { code: "de", name: "Deutsch" }, // 1.87
+  { code: "fr", name: "Français" }, // 1.88
 ];
 const I18N_STORAGE_KEY = "ke_lang";
 
@@ -56,7 +57,7 @@ const LANG = (() => {
 const LOCALE = (() => {
   const device = String(navigator.language || "");
   if (device.toLowerCase().split("-")[0] === LANG) return device;
-  return { it: "it-IT", es: "es-ES", de: "de-DE" }[LANG] || LANG;
+  return { it: "it-IT", es: "es-ES", de: "de-DE", fr: "fr-FR" }[LANG] || LANG;
 })();
 try {
   document.documentElement.lang = LANG;

@@ -61,6 +61,9 @@ ok("1.86: ... and Spanish", all(_es.get(v) == vn.MESSAGES["es"][k] for k, v in _
 _de = json.load(open(os.path.join(_root, "frontend", "src", "i18n", "de.json"), encoding="utf-8"))
 ok("1.87: ... and German", all(_de.get(v) == vn.MESSAGES["de"][k] for k, v in _dash.items()) and all(_de.get(v) == vn.MESSAGES["de"]["rule_" + k] for k, v in _rules.items()),
    {k: (_de.get(v), vn.MESSAGES["de"][k]) for k, v in _dash.items() if _de.get(v) != vn.MESSAGES["de"][k]})
+_fr = json.load(open(os.path.join(_root, "frontend", "src", "i18n", "fr.json"), encoding="utf-8"))
+ok("1.88: ... and French", all(_fr.get(v) == vn.MESSAGES["fr"][k] for k, v in _dash.items()) and all(_fr.get(v) == vn.MESSAGES["fr"]["rule_" + k] for k, v in _rules.items()),
+   {k: (_fr.get(v), vn.MESSAGES["fr"][k]) for k, v in _dash.items() if _fr.get(v) != vn.MESSAGES["fr"][k]})
 ok("every language has every text", all(set(texts) == set(vn.MESSAGES["en"]) and all(texts.values()) for texts in vn.MESSAGES.values()), {k: set(vn.MESSAGES["en"]) ^ set(t) for k, t in vn.MESSAGES.items()})
 
 # --------------------------------------------------------------------------------------------------- starting up says nothing
@@ -267,7 +270,7 @@ ok("settings: confirmations only 1-3, an old minConfidence is ignored (1.19: one
 ok("settings: a notification switch must be a real boolean", vn.dash_settings({"notifications": {"error": False, "paused": "no", "complete": 0, "bogus": False}})["events"] == {"error": False})
 
 # ---- the language of the notifications chosen in the dashboard (1.3)
-ok("settings: the language is one the service has, else not chosen", vn.dash_settings({"language": "it"})["language"] == "it" and vn.dash_settings({"language": "fr"})["language"] is None and vn.dash_settings({"language": 1})["language"] is None)
+ok("settings: the language is one the service has, else not chosen", vn.dash_settings({"language": "it"})["language"] == "it" and vn.dash_settings({"language": "fr"})["language"] == "fr" and vn.dash_settings({"language": "pt"})["language"] is None and vn.dash_settings({"language": 1})["language"] is None)
 s = Sim2(); s.step(); s.step(state="printing"); s.settings = doc(language="it")
 ok("language: Italian chosen in the dashboard -> Italian push", s.step(state="complete") == ["complete"] and s.log[-1][2] == "Stampa completata!", s.log)
 s = Sim2(language="it"); s.step(); s.step(state="printing"); s.settings = doc(language="en")
