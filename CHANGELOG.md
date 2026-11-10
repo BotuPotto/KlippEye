@@ -1,5 +1,27 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.90.0
+
+**Input shaper: Klipper's own fitting, two recommendations, the measured damping.**
+
+* KlippEye now runs Klipper's own input shaper fitting (ported from Klipper, identical results) on the file
+  SHAPER_CALIBRATE leaves: when Klipper's messages about a measurement are gone from the console and klippy.log, the
+  card still shows exactly what SHAPER_CALIBRATE found.
+* «Recommended filters», as in Klipper's result: «for low vibrations» is the shaper Klipper recommends; «for
+  performance» is the one allowing the highest acceleration among those leaving less than 5 % of the vibrations, when
+  it allows more than Klipper's choice. When they are the same, a single «best shaper». The chart draws what both
+  leave.
+* The analysis now follows the usual input shaper chart: the shapers are fitted with the damping ratio measured on
+  the curve, the printer's square corner velocity and the allowed smoothing (shown above the chart). A switch shows
+  SHAPER_CALIBRATE's own result instead (its damping ratio, 0.1: the same as the console).
+* The chart draws X+Y+Z, X, Y and Z, what the two recommended shapers leave, each shaper's response, the relax region
+  (below 5 % of the highest vibration: noise, not a peak) and the warning region (5 to 12 %: small peaks); the peaks
+  above it, the ones that show in prints, have their number in red. The scale is fixed on the highest value.
+* The damping ratio is measured as it should be (half-power bandwidth at peak/√2); the peaks are found on a smoothed
+  curve, and those above the warning band are marked in red; the bands are drawn as filled areas.
+* The shapers' impulses now follow current Klipper (EI, 2HUMP_EI and 3HUMP_EI depend on the damping ratio), so
+  smoothing and max acceleration match its figures.
+
 ## 1.89.1
 
 **Input shaper: Klipper's own figures.**
