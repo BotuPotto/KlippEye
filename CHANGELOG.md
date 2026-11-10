@@ -1,5 +1,12 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.88.0
+
+**French.**
+
+* The dashboard, the login page, the notifications and the AI monitor's texts are now also in French (Settings →
+  Language → Français, or «Automatic» on a French device).
+
 ## 1.87.0
 
 **German.**
