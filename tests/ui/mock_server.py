@@ -411,7 +411,7 @@ def mock_reset():
     S.clear(); S.update(default_state()); return jsonify(ok=True)
 @app.route("/__mock/state")
 def mock_state():
-    return jsonify({k: v for k, v in S.items() if k in ("light", "light_cmds", "light_reads", "actions", "webhooks", "webhooks_msg", "disconnected", "moonraker_down", "host_off", "services", "update_log", "brain_cfg_log", "brain_release", "brain_started", "klippeye_info", "pending_release", "logos", "app_apk_hits", "app_apk_downloads", "update_channel", "channel_posts", "rec_posts", "measure_starts", "measure_bodies", "ai_cfg", "ai_posts", "ai_model_reads", "excluded", "strip", "caselight", "mesh_profiles", "mesh_active", "mp", "mp_points", "tune", "speed_factor", "extrude_factor", "bs", "level_applied", "recordings", "alerts", "pm_macros", "pm_wraps", "pm_posts", "gcode_log", "ntfy", "ntfy_posts", "ntfy_tests", "ntfy_app_reads", "ai_answers", "ai_answer", "history_log", "queue", "queue_state", "queue_log", "power_devices", "power_log", "pins", "sensors", "timelapse_settings", "timelapse_log", "timelapse_conf_reads", "cfg", "timelapse_files", "spool_id", "spool_log", "webcams", "webcam_log", "peek_log", "schedule", "schedule_log", "metascan_log")})
+    return jsonify({k: v for k, v in S.items() if k in ("light", "light_cmds", "light_reads", "actions", "webhooks", "webhooks_msg", "disconnected", "moonraker_down", "host_off", "services", "update_log", "brain_cfg_log", "brain_release", "brain_started", "klippeye_info", "pending_release", "logos", "app_apk_hits", "app_apk_downloads", "update_channel", "channel_posts", "rec_posts", "measure_starts", "measure_bodies", "ai_cfg", "ai_posts", "ai_model_reads", "excluded", "strip", "caselight", "mesh_profiles", "mesh_active", "mp", "mp_points", "tune", "speed_factor", "extrude_factor", "bs", "level_applied", "recordings", "alerts", "pm_macros", "pm_wraps", "pm_posts", "gcode_log", "ntfy", "ntfy_posts", "ntfy_tests", "ntfy_app_reads", "ai_answers", "ai_answer", "history_log", "queue", "queue_state", "queue_log", "power_devices", "power_log", "pins", "sensors", "timelapse_settings", "timelapse_log", "timelapse_conf_reads", "cfg", "timelapse_files", "spool_id", "spool_log", "webcams", "webcam_log", "peek_log", "schedule", "schedule_log", "metascan_log", "versions_log")})
 @app.route("/__mock/print_actions")
 def mock_print_actions():
     return jsonify(S.get("print_actions", []))
@@ -1877,6 +1877,33 @@ def api_shaper_data():
         return jsonify(shaper_data.read(request.args.get("name", ""), shaper_dirs()))
     except shaper_data.ShaperError as error:
         return jsonify(error=str(error)), 404 if str(error) == "file not found" else 400
+
+# 1.81: the earlier versions of the config files, kept by the real backend/config_versions.py (a fresh folder at each reset)
+import config_versions  # noqa: E402
+VERSION_STORES = {}
+
+def versions_store():
+    if EPOCH[0] not in VERSION_STORES:
+        VERSION_STORES[EPOCH[0]] = config_versions.ConfigVersions(os.path.join("/tmp", "klippeye-mock-versions-%d-%d-%d" % (PORT, os.getpid(), EPOCH[0])))
+    return VERSION_STORES[EPOCH[0]]
+
+@app.route("/api/config/versions", methods=["GET", "POST"])
+def api_config_versions():
+    try:
+        if request.method == "POST":
+            body = request.get_json(silent=True) or {}
+            S.setdefault("versions_log", []).append(body.get("path"))
+            return jsonify(ok=True, version=versions_store().add(body.get("path"), body.get("content"), body.get("reason") or "save"))
+        return jsonify(ok=True, versions=versions_store().list(request.args.get("path")))
+    except config_versions.VersionError as error:
+        return jsonify(ok=False, error=str(error)), 400
+
+@app.route("/api/config/versions/<version_id>")
+def api_config_version(version_id):
+    try:
+        return jsonify(ok=True, content=versions_store().read(request.args.get("path"), version_id))
+    except config_versions.VersionError as error:
+        return jsonify(ok=False, error=str(error)), 404
 
 @app.route("/machine/peripherals/serial")
 def periph_serial():

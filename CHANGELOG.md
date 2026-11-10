@@ -1,5 +1,15 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.81.0
+
+**Earlier versions of the config files.**
+
+* Before the editor writes a file of the config folder over, the KlippEye service keeps the text it had (the last 30
+  of each file, in its data folder).
+* The clock button of the editor lists them, and for printer.cfg also Klipper's own backups (printer-….cfg, written by
+  SAVE_CONFIG): choose one to see what putting it back changes (the lines that go and those that come back), then «Put
+  back in the editor». Nothing is written until Save; Undo takes it back.
+
 ## 1.80.0
 
 **Input shaper graphs.**
