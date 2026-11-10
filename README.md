@@ -32,7 +32,7 @@ bash ~/klippeye/scripts/install.sh
 ```
 
 The installer adds what is missing by itself (`python3-flask`, `python3-waitress`, `python3-requests`, `python3-numpy`, `python3-opencv`), then open
-`http://<address of the Raspberry>:8085` and follow the guided set-up. Step by step: [docs/GUIDE.md](docs/GUIDE.md)
+`http://<address of the Raspberry>` (the address without a port; `:8085` when nginx is not installed) and follow the guided set-up. Step by step: [docs/GUIDE.md](docs/GUIDE.md)
 (Italian: [docs/GUIDA.md](docs/GUIDA.md)).
 
 ## How updates work

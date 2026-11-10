@@ -7,6 +7,7 @@
 #   bash ~/klippeye/scripts/install.sh --channel=dev    updates: every change (dev) instead of the tested releases (stable, default)
 #   bash ~/klippeye/scripts/install.sh --no-ai          do not install OpenCV (the AI monitor stays off, less to download)
 #   bash ~/klippeye/scripts/install.sh --no-packages    install nothing with apt (only say what is missing)
+#   bash ~/klippeye/scripts/install.sh --no-web         leave the Raspberry's own address (port 80 of nginx) as it is
 #   (the Italian options of older releases still work: --senza-moonraker, --annulla, --aiuto)
 #
 # What it does, in this order:
@@ -19,6 +20,8 @@
 #   4. puts the commands "klippeye" and "klippeye-notifiche" in /usr/local/bin
 #   5. connects the program to Moonraker's UPDATE MANAGER (moonraker.conf and moonraker.asvc): that is what makes the
 #      "Update" button of the dashboard and Moonraker's update manager work
+#   6. puts KlippEye at the Raspberry's own address, http://<raspberry> without a port (nginx, scripts/web_front.py):
+#      the page that was there moves to port 81 (or the next free one); `klippeye web restore` puts it back
 #
 # The code lives in one folder (this one), your things in another: updates only touch the first one.
 
@@ -71,6 +74,7 @@ MODE=install
 WITH_MOONRAKER=1
 WITH_AI=1        # 0: OpenCV is not installed (--no-ai)
 WITH_PACKAGES=1  # 0: nothing is installed with apt (--no-packages)
+WITH_WEB="${KLIPPEYE_WEB:-1}"  # 0: the Raspberry's own address is left as it is (--no-web)
 CHANNEL=stable   # update channel of a new [update_manager klippeye] entry: tagged releases only
 CHANNEL_GIVEN=0
 for arg in "$@"; do
@@ -80,6 +84,7 @@ for arg in "$@"; do
     --no-moonraker|--senza-moonraker) WITH_MOONRAKER=0 ;;
     --no-ai) WITH_AI=0 ;;
     --no-packages) WITH_PACKAGES=0 ;;
+    --no-web) WITH_WEB=0 ;;
     -h|--help|--aiuto) usage; exit 0 ;;
     *) stop "Unknown option: $arg   (try:  bash $0 --help)" ;;
   esac
@@ -94,7 +99,7 @@ WORK_EARLY="$(mktemp "${TMPDIR:-/tmp}/klippeye-apt.XXXXXX")" || WORK_EARLY=/dev/
 trap 'rm -f "$WORK_EARLY"' EXIT
 
 # --- 1. checks --------------------------------------------------------------------------------------------------------
-step "1/6  Checking the Raspberry"
+step "1/7  Checking the Raspberry"
 if [ "$(id -u)" = "0" ] && [ -z "${KLIPPEYE_ALLOW_ROOT:-}" ]; then
   stop "Do not run me with sudo or as root: I must run as the normal user (usually 'pi').
           Try again like this:   bash $REPO/scripts/install.sh
@@ -250,6 +255,9 @@ if [ "$MODE" = "undo" ]; then
     if [ -f "$BIN_DIR/$name" ] && grep -q "$REPO/scripts" "$BIN_DIR/$name" 2>/dev/null; then sudo_run rm -f "$BIN_DIR/$name"; fi
   done
   good "Commands $BIN_DIR/klippeye and klippeye-notifiche removed"
+  if [ -f "${KLIPPEYE_NGINX_DIR:-/etc/nginx}/sites-available/klippeye" ] || [ -f "${KLIPPEYE_NGINX_DIR:-/etc/nginx}/conf.d/klippeye.conf" ]; then
+    if out="$(sudo_run "$PYTHON" "$REPO/scripts/web_front.py" restore 2>&1)"; then good "The Raspberry's own address: $out"; else warn "$out"; fi
+  fi
   if [ "$WITH_MOONRAKER" = 1 ]; then
     conf="$PRINTER_DATA/config/moonraker.conf"; asvc="$PRINTER_DATA/moonraker.asvc"
     if [ -f "$conf" ] && grep -Eq '^\[update_manager[[:space:]]+klippeye\]' "$conf"; then
@@ -292,7 +300,7 @@ fi
 # ====================================================================================================================
 
 # --- 2. data and settings ----------------------------------------------------------------------------------------------
-step "2/6  Data folder: $DATA"
+step "2/7  Data folder: $DATA"
 mkdir -p "$DATA" || stop "Cannot create $DATA"
 chmod 700 "$DATA"
 good "Settings, AI key and notifications stay here. Updates do not touch this folder."
@@ -317,7 +325,7 @@ else
 fi
 
 # --- 3. services -------------------------------------------------------------------------------------------------------
-step "3/6  Services (started by themselves at every boot)"
+step "3/7  Services (started by themselves at every boot)"
 for need in "$REPO/systemd/klippeye.service" "$REPO/systemd/klippeye-notifier.service"; do
   [ -f "$need" ] || stop "The template $need is missing"
 done
@@ -371,13 +379,13 @@ if [ "$NOTIFIER_ON" = 1 ]; then
 fi
 
 # --- 4. commands -------------------------------------------------------------------------------------------------------
-step "4/6  Terminal commands"
+step "4/7  Terminal commands"
 if install_command klippeye && install_command klippeye-notifiche; then
   good "Written $BIN_DIR/klippeye and $BIN_DIR/klippeye-notifiche   (try:  klippeye status)"
 fi
 
 # --- 5. Moonraker --------------------------------------------------------------------------------------------------------
-step "5/6  Updates from the dashboard (Moonraker's update manager)"
+step "5/7  Updates from the dashboard (Moonraker's update manager)"
 MR_RESTART=0
 if [ "$WITH_MOONRAKER" = 0 ]; then
   note "Skipped (--no-moonraker)."
@@ -493,11 +501,37 @@ else:
 PY
 fi
 
-# --- 6. end --------------------------------------------------------------------------------------------------------------
-step "6/6  Done"
+# --- 6. the Raspberry's own address (1.94) ------------------------------------------------------------------------------
+step "6/7  KlippEye at the Raspberry's own address (no port)"
+WEB_MAIN=0
+NGINX_DIR="${KLIPPEYE_NGINX_DIR:-/etc/nginx}"
+if [ "$WITH_WEB" = 0 ]; then
+  note "Skipped (--no-web): the dashboard stays at port 8085."
+elif [ ! -d "$NGINX_DIR" ] || ! sudo_run "$SYSTEMCTL" is-active nginx >/dev/null 2>&1; then
+  note "nginx is not running on this Raspberry: the dashboard stays at port 8085."
+else
+  web_args=()
+  if "$PYTHON" -c 'import json,sys; sys.exit(0 if json.load(open(sys.argv[1])).get("enabled") else 1)' "$DATA/https.json" 2>/dev/null && [ -f "$DATA/https/https-cert.pem" ]; then
+    web_args=(--https "$DATA/https/https-cert.pem" "$DATA/https/https-key.pem")
+  fi
+  if out="$(sudo_run "$PYTHON" "$REPO/scripts/web_front.py" main "${web_args[@]}" 2>&1)"; then
+    good "$out"; WEB_MAIN=1
+    note "To give the address back to the previous page:  klippeye web restore"
+  else
+    warn "$out"
+    note "The dashboard stays at port 8085."
+  fi
+fi
+
+# --- 7. end --------------------------------------------------------------------------------------------------------------
+step "7/7  Done"
 IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
 say "   KlippEye $RELEASE is installed."
-say "   Dashboard:   http://${IP:-<address of the Raspberry>}:8085"
+if [ "$WEB_MAIN" = 1 ]; then
+  say "   Dashboard:   http://${IP:-<address of the Raspberry>}   (also at port 8085)"
+else
+  say "   Dashboard:   http://${IP:-<address of the Raspberry>}:8085"
+fi
 say "   Updates: in the dashboard open Settings -> Updates -> Check -> Update KlippEye."
 say "   From the terminal:  klippeye status"
 [ -n "$BK" ] && say "   Backup copies of what was changed: $BK"

@@ -1,5 +1,20 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.94.0
+
+**KlippEye at the Raspberry's own address, without a port.**
+
+* KlippEye now opens at http://<raspberry>, the address with no port (port 80 of the Raspberry's web server, nginx),
+  also from a slicer's printer page. The page that was there moves to the next free port (81, or the next one) and
+  keeps working; a copy of its configuration is kept, and nginx checks everything before using it.
+* New installations do it by themselves; on an existing one: Settings › Access › Address › «Open KlippEye at …», or
+  `klippeye web main` on the Raspberry. «Give the address back to the previous page» (or `klippeye web restore`)
+  undoes it. `install.sh --no-web` leaves the address as it is.
+* With HTTPS on, nginx serves it at https://<raspberry>, also without a port.
+* Through the address without a port, Moonraker's WebSocket and the uploads of files go straight to Moonraker; slicers
+  that send to "OctoPrint" (OrcaSlicer, PrusaSlicer...) keep working, also at port 8085.
+* Port 8085 keeps working, for the Android app and the services on the Raspberry.
+
 ## 1.93.0
 
 **HTTPS.**
