@@ -279,8 +279,15 @@ function TemperatureChart({ history, view, colors }) {
   };
   const ticks = [];
   for (let value = 0; value <= yMax; value += step) ticks.push(value);
-  const minutes = [];
-  for (let m = view.range; m >= 0; m -= view.range / 5) minutes.push(m);
+  // 1.75: the marks sit on round clock times (every 1, 2 or 4 minutes) and slide to the left with the lines; on a narrow
+  // chart one mark in two. A time too close to an edge to be read whole is left out.
+  let tickStep = (view.range / 5) * 60000;
+  if ((plotW / (end - start)) * tickStep < TEMP_TICK_MIN_PX) tickStep *= 2;
+  const tickTimes = [];
+  for (let time = Math.ceil(start / tickStep) * tickStep; time <= end; time += tickStep) {
+    const px = x(time);
+    if (px - TEMP_PAD.left >= TEMP_TICK_MIN_PX / 2 - 4 && width - TEMP_PAD.right - px >= TEMP_TICK_MIN_PX / 2 - 4) tickTimes.push(time);
+  }
   const at = pointer !== null ? indexAt(times, pointer) : -1;
   const move = (event) => {
     const rect = event.currentTarget.getBoundingClientRect();
@@ -313,8 +320,14 @@ function TemperatureChart({ history, view, colors }) {
             h("text", { className: "temp-chart__tick", x: TEMP_PAD.left - 6, y: y(value) + 4, textAnchor: "end" }, value + "°"),
           ),
         ),
-        // 1.70: on a narrow chart every other time only (the newest kept), so they never run into each other
-        minutes.map((m, index) => (plotW / (minutes.length - 1) >= TEMP_TICK_MIN_PX || (minutes.length - 1 - index) % 2 === 0) && h("text", { key: "x" + m, className: "temp-chart__tick", x: x(end - m * 60000), y: TEMP_CHART_HEIGHT - 6, textAnchor: m === view.range ? "start" : m === 0 ? "end" : "middle" }, new Date(end - m * 60000).toLocaleTimeString(LOCALE, { hour: "2-digit", minute: "2-digit" }))),
+        tickTimes.map((time) =>
+          h(
+            "g",
+            { key: "x" + time },
+            h("line", { className: "temp-chart__grid temp-chart__grid--time", x1: x(time), x2: x(time), y1: TEMP_PAD.top, y2: TEMP_PAD.top + plotH }),
+            h("text", { className: "temp-chart__tick", "data-time": time, x: x(time), y: TEMP_CHART_HEIGHT - 6, textAnchor: "middle" }, new Date(time).toLocaleTimeString(LOCALE, { hour: "2-digit", minute: "2-digit" })),
+          ),
+        ),
         shown.map((name) =>
           data[name] && hasTarget(name)
             ? h("path", { key: "t" + name, className: "temp-chart__target", d: path(data[name].target), stroke: colors[name], "data-series-target": name })
@@ -411,10 +424,26 @@ function TemperatureRow({ name, reading, color, hidden, onToggle, onEdit }) {
   );
 }
 
+/**
+ * 1.75: the snowflake in the card's title: every heater off at once (Klipper's TURN_OFF_HEATERS). While a print runs it
+ * asks first (the print would go on with cold heaters).
+ */
+async function coolDown(ask) {
+  const status = await moonraker.queryObjects("print_stats").catch(() => ({}));
+  const state = (status.print_stats || {}).state;
+  if (state === "printing" || state === "paused") return ask();
+  sendCoolDown();
+}
+function sendCoolDown() {
+  fireGcode("TURN_OFF_HEATERS");
+  toast.action(tx("Heaters off"));
+}
+
 function TemperatureCard({ onEditTemperature }) {
   const history = useTempHistory();
   const view = useTempView();
   const [editing, setEditing] = useState(null);
+  const [askingCool, setAskingCool] = useState(false);
   const colors = {};
   history.names.forEach((name, index) => (colors[name] = TEMP_COLORS[index % TEMP_COLORS.length]));
   const latest = (name) => {
@@ -441,8 +470,13 @@ function TemperatureCard({ onEditTemperature }) {
       { title: tx("Temperatures") },
       h(
         "div",
-        { className: "oui-segmented oui-segmented--sm temp-ranges", role: "group", "aria-label": tx("Minutes shown") },
-        TEMP_RANGES.map((minutes) => h("button", { key: minutes, type: "button", className: cx(view.range === minutes && "is-selected"), "aria-pressed": view.range === minutes, "data-range": minutes, onClick: () => view.setRange(minutes) }, minutes + " min")),
+        { className: "temp-tools" },
+        h(
+          "div",
+          { className: "oui-segmented oui-segmented--sm temp-ranges", role: "group", "aria-label": tx("Minutes shown") },
+          TEMP_RANGES.map((minutes) => h("button", { key: minutes, type: "button", className: cx(view.range === minutes && "is-selected"), "aria-pressed": view.range === minutes, "data-range": minutes, onClick: () => view.setRange(minutes) }, minutes + " min")),
+        ),
+        h("button", { type: "button", className: "oui-btn oui-btn--icon oui-btn--sm temp-cool", "aria-label": tx("Turn every heater off"), title: tx("Turn every heater off"), "data-cool-down": "1", onClick: () => coolDown(() => setAskingCool(true)) }, h(Icons.Snowflake, { size: 18 })),
       ),
     ),
     history.error && !history.ready
@@ -463,5 +497,19 @@ function TemperatureCard({ onEditTemperature }) {
           ),
     ),
     h(Presence, null, editing && h(TempTargetDialog, { name: editing, value: latest(editing).target, max: history.maxTemp[editing], onClose: () => setEditing(null) })),
+    h(ConfirmDialog, {
+      open: askingCool,
+      tone: "danger",
+      icon: h(Icons.Snowflake),
+      title: tx("Turn every heater off?"),
+      subtitle: tx("A print is running"),
+      message: tx("The nozzle and the bed cool down while the print goes on: it will most likely fail."),
+      confirmLabel: tx("Turn off"),
+      onConfirm: () => {
+        setAskingCool(false);
+        sendCoolDown();
+      },
+      onCancel: () => setAskingCool(false),
+    }),
   );
 }

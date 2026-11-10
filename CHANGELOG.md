@@ -1,5 +1,14 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.75.0
+
+**Temperature chart: the clock slides with the lines; a button to turn every heater off.**
+
+* The times under the chart now sit on round minutes (every 1, 2 or 4 minutes, as many as fit) and slide to the left
+  with the lines, each with a faint vertical line; before they stood still under a moving chart.
+* A snowflake next to the minutes turns every heater off at once (Klipper's `TURN_OFF_HEATERS`). While a print runs it
+  asks first.
+
 ## 1.74.0
 
 **A production web server for the KlippEye service.**

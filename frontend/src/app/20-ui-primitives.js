@@ -234,6 +234,8 @@ const Icons = {
   Lock: ({ size = 20 }) => h(Svg, { size, strokeWidth: "1.9" }, h("rect", { x: "5", y: "10.5", width: "14", height: "10", rx: "2.2" }), h("path", { d: "M8.5 10.5V7.5a3.5 3.5 0 0 1 7 0v3" }), h("path", { d: "M12 14.5v2.5" })),
   Sparkle: ({ size = 20 }) => h(Svg, { size, strokeWidth: "1.9" }, h("path", { d: "M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3z" }), h("path", { d: "M19 16.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7.7-1.8z" })),
   Info: ({ size = 20 }) => h(Svg, { size, strokeWidth: "1.9" }, h("circle", { cx: "12", cy: "12", r: "9" }), h("path", { d: "M12 11v5" }), h("circle", { cx: "12", cy: "7.8", r: "0.6", fill: "currentColor" })),
+  Snowflake: ({ size = 20 }) =>
+    h(Svg, { size, strokeWidth: "1.9" }, h("path", { d: "M12 2v20M4.2 6.5l15.6 9M4.2 17.5l15.6-9" }), h("path", { d: "M9.5 3.5 12 6l2.5-2.5M9.5 20.5 12 18l2.5 2.5M3.3 9.7l3.4.8-1 3.4M20.7 14.3l-3.4-.8 1-3.4M3.3 14.3l3.4-.8-1-3.4M20.7 9.7l-3.4.8 1 3.4" })),
   Layers: ({ size = 20 }) => h(Svg, { size, strokeWidth: "1.9" }, h("path", { d: "M12 3 3 8l9 5 9-5-9-5z" }), h("path", { d: "M3 12.5l9 5 9-5" }), h("path", { d: "M3 17l9 5 9-5" })),
 };
 
