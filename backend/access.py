@@ -266,7 +266,7 @@ GUEST_GET_EXACT = {
     "/server/info", "/server/files/list", "/server/files/metadata", "/server/files/directory", "/server/files/content",
     "/server/history/list", "/server/history/totals", "/server/history/job", "/server/job_queue/status",
     "/server/temperature_store", "/server/gcode_store", "/server/webcams/list", "/server/spoolman/status",
-    "/server/spoolman/spool_id", "/server/database/item",
+    "/server/spoolman/spool_id",
     "/machine/system_info", "/machine/proc_stats", "/machine/update/status", "/machine/device_power/devices",
     "/machine/timelapse/lastframeinfo",
 }
@@ -290,6 +290,8 @@ def guest_may(method, path, args=None):
         return str(args.get("root") or "gcodes") in GUEST_FILE_ROOTS
     if path == "/server/files/directory":
         return str(args.get("path") or "gcodes").strip("/").split("/")[0] in GUEST_FILE_ROOTS
+    if path == "/server/database/item":  # the dashboard's own settings only, never another program's namespace
+        return str(args.get("namespace") or "") == "klippeye"
     if path == "/machine/update/status":
         return str(args.get("refresh") or "false").lower() in ("false", "0", "")
     if path in GUEST_GET_EXACT:
