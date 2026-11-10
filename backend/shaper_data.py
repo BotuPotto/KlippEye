@@ -23,6 +23,16 @@ PEAKS_DETECTION = 0.05   # a peak counts above this part of the highest one (the
 PEAKS_EFFECT = 0.12      # above this part it shakes the prints (the «warning» band below it)
 TARGET_SMOOTHING = 0.12  # Klipper's choice for the suggested max acceleration
 SHAPER_ORDER = ("zv", "mzv", "zvd", "ei", "2hump_ei", "3hump_ei")
+TEST_DAMPING_RATIOS = (0.075, 0.1, 0.15)  # Klipper keeps the worst of the three when it counts the vibrations left
+DEFAULT_DAMPING = 0.1  # the damping ratio Klipper fits the shapers with in SHAPER_CALIBRATE
+
+# 1.89: what SHAPER_CALIBRATE says in the console (and in klippy.log), so the card shows Klipper's own figures
+KLIPPER_START_RE = re.compile(r"Calculating the best input shaper parameters for (\w+) axis")
+KLIPPER_FIT_RE = re.compile(r"Fitted shaper '(\w+)' frequency = ([\d.]+) Hz \(vibrations = ([\d.]+)%, smoothing ~= ([\d.]+)\)")
+KLIPPER_ACCEL_RE = re.compile(r"To avoid too much smoothing with '(\w+)', suggested max_accel <= ([\d.]+) mm/sec")
+KLIPPER_BEST_RE = re.compile(r"Recommended shaper_type_(\w+) = (\w+), shaper_freq_\w+ = ([\d.]+) Hz")
+KLIPPER_FILE_RE = re.compile(r"(?:Shaper calibration data|Calibration data) written to (\S+?) file", re.IGNORECASE)
+KLIPPER_FOUND = {}  # file name -> Klipper's results (the names carry the date: they never change)
 
 
 class ShaperError(Exception):
@@ -243,32 +253,122 @@ def find_peaks(freq, psd, min_gap=5.0):
     return found[:12]
 
 
-def analyse(data, scv=5.0, damping=0.1):
-    """Adds to a parsed file: each shaper's smoothing, max_accel and score, the two recommendations, ω0 and ζ, the
-    peaks and the two bands."""
+def shaper_response(pulses, freq, damping):
+    """How much of a vibration at `freq` (of that damping ratio) the shaper lets through (Klipper's _estimate_shaper)."""
+    amps, times = pulses
+    omega = 2.0 * math.pi * freq
+    decay = damping * omega
+    omega_d = omega * math.sqrt(1.0 - damping ** 2)
+    s = c = 0.0
+    for a, t in zip(amps, times):
+        w = a * math.exp(-decay * (times[-1] - t))
+        s += w * math.sin(omega_d * t)
+        c += w * math.cos(omega_d * t)
+    return math.sqrt(s * s + c * c) / sum(amps)
+
+
+def klipper_vibrations(freq, psd, pulses):
+    """The part of the vibrations the shaper leaves (0..1) as SHAPER_CALIBRATE counts it: above a twentieth of the
+    highest vibration, the worst of three damping ratios."""
+    if not psd or max(psd) <= 0:
+        return 0.0
+    threshold = max(psd) / VIBRATION_REDUCTION
+    total = sum(max(p - threshold, 0.0) for p in psd)
+    worst = 0.0
+    for damping in TEST_DAMPING_RATIOS:
+        worst = max(worst, sum(max(shaper_response(pulses, f, damping) * p - threshold, 0.0) for f, p in zip(freq, psd)))
+    return worst / total if total > 0 else 0.0
+
+
+def klipper_results(lines):
+    """Klipper's console lines → {file name: {axis, shapers: {name: {freq, vibrations, smoothing, max_accel}},
+    recommended: {name, freq}}}, for each measurement whose file it says it wrote."""
+    found, block = {}, None
+    for entry in lines:
+        for line in str(entry or "").split("\n"):
+            line = re.sub(r"^(//|!!)\s?", "", line.strip())
+            match = KLIPPER_START_RE.search(line)
+            if match:
+                block = {"axis": match.group(1).lower(), "shapers": {}, "recommended": None}
+                continue
+            if block is None:
+                continue
+            match = KLIPPER_FIT_RE.search(line)
+            if match:
+                block["shapers"][match.group(1).lower()] = {"freq": float(match.group(2)), "vibrations": float(match.group(3)), "smoothing": float(match.group(4)), "max_accel": None}
+                continue
+            match = KLIPPER_ACCEL_RE.search(line)
+            if match and match.group(1).lower() in block["shapers"]:
+                block["shapers"][match.group(1).lower()]["max_accel"] = int(float(match.group(2)))
+                continue
+            match = KLIPPER_BEST_RE.search(line)
+            if match:
+                block["recommended"] = {"name": match.group(2).lower(), "freq": float(match.group(3))}
+                continue
+            match = KLIPPER_FILE_RE.search(line)
+            if match:
+                found[os.path.basename(match.group(1))] = block
+                block = None
+    return found
+
+
+def find_klipper_results(name, sources):
+    """Klipper's results for the file `name`, from the first source (a function giving console lines) that has them."""
+    if name in KLIPPER_FOUND:
+        return KLIPPER_FOUND[name]
+    for source in sources or []:
+        try:
+            block = klipper_results(source()).get(name)
+        except Exception:
+            block = None
+        if block and block["shapers"]:
+            KLIPPER_FOUND[name] = block
+            return block
+    return None
+
+
+def analyse(data, scv=5.0, damping=DEFAULT_DAMPING, klipper=None):
+    """Adds to a parsed file each shaper's vibrations, smoothing and max_accel, the recommended shaper, ω0 and ζ, the
+    peaks and the two bands. With `klipper` (what SHAPER_CALIBRATE said for this file) its figures and its choice are
+    used as they are; without, they are worked out as Klipper does (source "estimate")."""
     total = data["psd"].get("sum") or []
+    own = {}
     for shaper in data["shapers"]:
         pulses = shaper_pulses(shaper["name"], shaper["freq"], damping)
         if not pulses:
             shaper["smoothing"] = shaper["max_accel"] = None
             continue
-        shaper["smoothing"] = round(shaper_smoothing(pulses, scv=scv), 3)
-        shaper["max_accel"] = int(round(shaper_max_accel(pulses, scv) / 10.0) * 10)
+        if total:
+            shaper["vibrations"] = round(klipper_vibrations(data["freq"], total, pulses) * 100, 1)
+        smoothing = shaper_smoothing(pulses, scv=scv)
+        shaper["smoothing"] = round(smoothing, 3)
+        shaper["max_accel"] = int(round(shaper_max_accel(pulses, scv) / 100.0) * 100)  # Klipper rounds it to 100
         vib = shaper["vibrations"] / 100.0
-        shaper["score"] = shaper_smoothing(pulses, scv=scv) * (vib ** 1.5 + vib * 0.2 + 0.01)
-    known = [sh for sh in data["shapers"] if sh.get("smoothing") is not None]
-    known.sort(key=lambda sh: SHAPER_ORDER.index(sh["name"]) if sh["name"] in SHAPER_ORDER else 99)
-    best = None
-    for sh in known:  # Klipper's own choice (find_best_shaper)
-        if best is None or sh["score"] * 1.2 < best["score"] or (sh["score"] * 1.05 < best["score"] and sh["smoothing"] * 1.1 < best["smoothing"]):
-            best = sh
-    calm = min(known, key=lambda sh: (sh["vibrations"], sh["smoothing"])) if known else None
-    for sh in data["shapers"]:
-        sh.pop("score", None)
+        own[shaper["name"]] = smoothing * (vib ** 1.5 + vib * 0.2 + 0.01)
+    recommended = None
+    if klipper:
+        for shaper in data["shapers"]:
+            said = klipper["shapers"].get(shaper["name"])
+            if said and abs(said["freq"] - shaper["freq"]) < 0.25:
+                shaper["vibrations"], shaper["smoothing"] = said["vibrations"], said["smoothing"]
+                if said["max_accel"]:
+                    shaper["max_accel"] = said["max_accel"]
+        if klipper.get("recommended"):
+            recommended = klipper["recommended"]["name"]
+    else:
+        known = [sh for sh in data["shapers"] if sh["name"] in own]
+        known.sort(key=lambda sh: SHAPER_ORDER.index(sh["name"]) if sh["name"] in SHAPER_ORDER else 99)
+        best = None
+        for sh in known:  # Klipper's own choice (find_best_shaper)
+            if best is None or own[sh["name"]] * 1.2 < own[best["name"]] or (own[sh["name"]] * 1.05 < own[best["name"]] and sh["smoothing"] * 1.1 < best["smoothing"]):
+                best = sh
+        recommended = best["name"] if best else None
     omega, zeta = damping_estimate(data["freq"], total)
     top = max(total) if total else 0.0
     data.update({
-        "recommended": {"performance": best["name"] if best else None, "low_vibrations": calm["name"] if calm else None},
+        "source": "klipper" if klipper else "estimate",
+        "recommended": recommended,
+        "recommended_freq": klipper["recommended"]["freq"] if klipper and klipper.get("recommended") else None,
         "resonance": {"freq": omega, "damping": zeta},
         "peaks": find_peaks(data["freq"], total),
         "bands": {"relax": top * PEAKS_DETECTION, "warning": top * PEAKS_EFFECT},
@@ -286,7 +386,7 @@ def number_arg(text, default, low, high):
     return value if low <= value <= high and value == value else default
 
 
-def read(name, dirs=None, scv=5.0, damping=0.1):
+def read(name, dirs=None, scv=5.0, damping=DEFAULT_DAMPING, sources=None):
     full = find_file(name, dirs)
     if os.path.getsize(full) > 4 * 1024 * 1024:
         raise ShaperError("file too large")
@@ -294,4 +394,4 @@ def read(name, dirs=None, scv=5.0, damping=0.1):
         data = parse(handle.read())
     match = FILE_RE.match(name)
     data.update({"name": name, "axis": match.group(1).lower(), "modified": int(os.path.getmtime(full))})
-    return analyse(data, scv, damping)
+    return analyse(data, scv, damping, find_klipper_results(name, sources))

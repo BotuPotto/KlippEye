@@ -201,7 +201,6 @@ function deriveCapabilities(configfile, commands) {
       canMeasure: hasSection("resonance_tester") && registered("SHAPER_CALIBRATE"),
       current: shaperInUse(settings.input_shaper),
       defaults: shaperMeasureDefaults(settings.resonance_tester), // 1.89: what a measurement uses without settings
-      damping: { x: shaperDamping(settings.input_shaper, "x"), y: shaperDamping(settings.input_shaper, "y") },
     },
   };
 }
@@ -224,12 +223,6 @@ function shaperMeasureDefaults(section) {
     return (section || {})[option] !== undefined && Number.isFinite(value) && value > 0 ? Math.round(value * 100) / 100 : fallback;
   };
   return { freq_start: read("min_freq", 5), freq_end: read("max_freq", 133.33), hz_per_sec: read("hz_per_sec", 1), accel_per_hz: read("accel_per_hz", 60), max_smoothing: read("max_smoothing", null) };
-}
-
-/** 1.89: the damping ratio [input_shaper] sets for an axis (damping_ratio_x), or null (Klipper's 0.1). */
-function shaperDamping(section, axis) {
-  const value = Number((section || {})["damping_ratio_" + axis]);
-  return value > 0 && value < 1 ? value : null;
 }
 
 /** Loads the capabilities; resolves null when Klipper does not answer (not ready yet). */
