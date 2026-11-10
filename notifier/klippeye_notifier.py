@@ -143,6 +143,25 @@ MESSAGES = {
         "rule_line": "{line}",
         "rule_temp": "{heater} a temperatura: {temp}°C",
     },
+    "de": {
+        "error": "Druckerfehler! Starte ihn neu.",
+        "complete": "Druck abgeschlossen!",
+        "cancelled": "Druck abgebrochen!",
+        "paused": "Drucker pausiert!",
+        "runout": "Filament zu Ende, Spule wechseln!",
+        "ai_pause": "Druckfehler gefunden, prüfen und den Druck pausieren!",
+        "ai_cancel": "Schwere Druckfehler gefunden, prüfen und den Druck abbrechen",
+        "ai_pause_auto": "Druckfehler gefunden: Druck automatisch pausiert.",
+        "ai_cancel_auto": "Schwere Druckfehler gefunden: Druck automatisch abgebrochen.",
+        "test": "Testbenachrichtigung: alles funktioniert!",
+        "error_detail": "Druckerfehler: {message}",
+        "rule_started": "Druck gestartet: {file}",
+        "rule_progress": "{file}: {progress}% fertig",
+        "rule_remaining": "{file}: noch etwa {remaining}",
+        "rule_layer": "{file}: Schicht {layer} von {total_layers}",
+        "rule_line": "{line}",
+        "rule_temp": "{heater} auf Temperatur: {temp}°C",
+    },
 }
 LANGUAGES = tuple(MESSAGES)
 DEFAULT_MESSAGES = MESSAGES["en"]
@@ -152,7 +171,7 @@ DEFAULT_MESSAGES = MESSAGES["en"]
 PLACEHOLDERS = ("file", "progress", "layer", "total_layers", "elapsed", "remaining", "message", "line", "heater", "temp", "target", "printer")
 PLACEHOLDER = re.compile(r"\{(\w+)\}")
 HEATER_NAMES = {"en": {"extruder": "Nozzle", "heater_bed": "Bed"}, "it": {"extruder": "Ugello", "heater_bed": "Piatto"},
-                "es": {"extruder": "Boquilla", "heater_bed": "Cama"}}
+                "es": {"extruder": "Boquilla", "heater_bed": "Cama"}, "de": {"extruder": "Düse", "heater_bed": "Bett"}}
 
 
 def fill(text: str, values: Dict[str, Any]) -> str:
@@ -196,7 +215,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     # which notifications are on
     "events": {key: True for key in ("error", "complete", "cancelled", "paused", "runout", "ai_pause", "ai_cancel")},
     "messages": {},  # your own texts, e.g. {"complete": "Done!"}: they win over the language's
-    "language": "",  # "en", "it", "es": used until the dashboard's choice is known
+    "language": "",  # "en", "it", "es", "de": used until the dashboard's choice is known
     # timing (seconds)
     "poll_seconds": 2,
     "ai_poll_seconds": 5,

@@ -39,7 +39,7 @@ JS = """() => { const out = []; const vw = document.documentElement.clientWidth;
 with sync_playwright() as p:
     b = p.chromium.launch()
     # 1.86: in Spanish too (longer words than Italian)
-    for lang, w in (("it-IT", 320), ("it-IT", 390), ("es-ES", 320), ("es-ES", 390)):
+    for lang, w in (("it-IT", 320), ("it-IT", 390), ("es-ES", 320), ("es-ES", 390), ("de-DE", 320), ("de-DE", 390)):
         mock.reset()
         mock.set(extra_temps=True, power_on=True, extra_devices=True, spoolman_on=True, queue_on=True, timelapse_on=True, printing=True,
                  queue=[{"filename": "Benchy_0.2mm_PLA.gcode", "job_id": "1", "time_added": 1}])
@@ -47,7 +47,10 @@ with sync_playwright() as p:
         if lang == "es-ES":
             P.goto("home", 2600)
             ok("[%d] es: the page is in Spanish" % w, P.pg.evaluate("document.documentElement.lang") == "es" and P.pg.locator('.app-header button[aria-label="Ajustes"]').count() == 1 and "Calentadores" in P.pg.locator("body").inner_text())
-        tag = "" if lang == "it-IT" else " es"
+        if lang == "de-DE":
+            P.goto("home", 2600)
+            ok("[%d] de: the page is in German" % w, P.pg.evaluate("document.documentElement.lang") == "de" and P.pg.locator('.app-header button[aria-label="Einstellungen"]').count() == 1 and "Heizungen" in P.pg.locator("body").inner_text())
+        tag = "" if lang == "it-IT" else " " + lang[:2]
         for tab in ("home", "controllo", "files", "config", "sistema"):
             P.goto(tab, 2600)
             r = P.pg.evaluate(JS)
