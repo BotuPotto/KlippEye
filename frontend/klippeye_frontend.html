@@ -9309,7 +9309,7 @@ function usePrinterFunctions() {
    ========================================================================== */
 
 /** Written by build.py from the VERSION file of the release; stays as it is when the page is built by hand. */
-const DASHBOARD_RELEASE = "1.85.0";
+const DASHBOARD_RELEASE = "1.85.1";
 const dashboardRelease = () => (DASHBOARD_RELEASE.startsWith("__") ? "sviluppo" : DASHBOARD_RELEASE);
 
 /** The interface level this page needs from the backend (the backend says its own in /api/version). */
@@ -15798,7 +15798,7 @@ function PrintProgressCard({ status, controls, monitor }) {
         h("img", {
           className: cx("w-full h-full", !showThumb && "hidden"),
           src: showThumb ? status.thumbnail : undefined,
-          alt: "thumb",
+          alt: "",
           onError: () => setThumbBroken(true),
         }),
         !showThumb && h(PrintPlaceholder),
@@ -17004,7 +17004,7 @@ function FileCard({ file, meta, thumbnail, onPrint, onMenu, selected, onSelect }
   return h(
     "div",
     { className: cx("file-card", selected && "is-selected"), title: fileName, onClick: onSelect, ...press },
-    h("div", { className: "file-card__preview" }, thumbnail ? h("img", { src: thumbnail, className: "file-thumb", draggable: false }) : h(PrintPlaceholder)),
+    h("div", { className: "file-card__preview" }, thumbnail ? h("img", { src: thumbnail, className: "file-thumb", alt: "", draggable: false }) : h(PrintPlaceholder)),
     h(
       "button",
       {
@@ -17112,7 +17112,7 @@ function PrintConfirmDialog({ job, onConfirm, onCancel }) {
       h(
         "div",
         { className: "print-preview oui-well" },
-        job.thumbnail ? h("img", { src: job.thumbnail, className: "file-thumb file-thumb--large" }) : h(PrintPlaceholder),
+        job.thumbnail ? h("img", { src: job.thumbnail, className: "file-thumb file-thumb--large", alt: "" }) : h(PrintPlaceholder),
       ),
       h(
         "div",
@@ -17663,7 +17663,7 @@ function HistoryJobSheet({ job, history, onClose, onPrint }) {
       h(
         "div",
         { className: "file-details__body" },
-        h("div", { className: "file-details__thumb oui-well" }, thumbnail ? h("img", { src: thumbnail, className: "file-thumb", draggable: false }) : h(PrintPlaceholder)),
+        h("div", { className: "file-details__thumb oui-well" }, thumbnail ? h("img", { src: thumbnail, className: "file-thumb", alt: "", draggable: false }) : h(PrintPlaceholder)),
         h(
           "dl",
           { className: "file-details__list" },
@@ -20100,7 +20100,7 @@ function FileActionSheet({ item, controller }) {
       h(
         "div",
         { className: "file-sheet__head" },
-        h("div", { className: "file-sheet__thumb oui-well" }, thumbnail ? h("img", { src: thumbnail, className: "file-thumb", draggable: false }) : h(PrintPlaceholder)),
+        h("div", { className: "file-sheet__thumb oui-well" }, thumbnail ? h("img", { src: thumbnail, className: "file-thumb", alt: "", draggable: false }) : h(PrintPlaceholder)),
         h("div", { className: "file-sheet__info" }, h("div", { className: "file-sheet__name" }, fileName), details && h("div", { className: "oui-caption oui-num" }, details)),
       ),
       h(
@@ -20180,7 +20180,7 @@ function FileDetailsSheet({ item, controller, onPrint }) {
       h(
         "div",
         { className: "file-details__body" },
-        h("div", { className: "file-details__thumb oui-well" }, thumbnail ? h("img", { src: thumbnail, className: "file-thumb", draggable: false }) : h(PrintPlaceholder)),
+        h("div", { className: "file-details__thumb oui-well" }, thumbnail ? h("img", { src: thumbnail, className: "file-thumb", alt: "", draggable: false }) : h(PrintPlaceholder)),
         !meta && h("div", { className: "oui-caption" }, tx("Loading...")),
         h(
           "dl",
@@ -22686,7 +22686,7 @@ function ImageViewer({ path, onClose }) {
       { className: "viewer-stage", onClick: (e) => e.target === e.currentTarget && onClose() },
       h("img", {
         src: url,
-        alt: "preview",
+        alt: path,
         onLoad: (e) => setInfo(path + " • " + e.currentTarget.naturalWidth + "x" + e.currentTarget.naturalHeight),
         onError: () => setInfo(path + tx(" • loading error")),
       }),

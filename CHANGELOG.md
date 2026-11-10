@@ -1,5 +1,15 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.85.1
+
+**Accessibility checks.**
+
+* A new automatic test visits every page, the pages of the menu and the print's confirmation, on a phone and on a
+  computer, and checks that every button, link, switch and field has a name a screen reader can say, every picture an
+  alternative text, and no id is used twice.
+* The file previews and the print's picture are now marked as decoration (the file name is next to them); the image
+  viewer names the picture with its file.
+
 ## 1.85.0
 
 **Multi-material units (Happy Hare).**

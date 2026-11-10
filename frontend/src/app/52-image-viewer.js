@@ -38,7 +38,7 @@ function ImageViewer({ path, onClose }) {
       { className: "viewer-stage", onClick: (e) => e.target === e.currentTarget && onClose() },
       h("img", {
         src: url,
-        alt: "preview",
+        alt: path,
         onLoad: (e) => setInfo(path + " • " + e.currentTarget.naturalWidth + "x" + e.currentTarget.naturalHeight),
         onError: () => setInfo(path + tx(" • loading error")),
       }),
