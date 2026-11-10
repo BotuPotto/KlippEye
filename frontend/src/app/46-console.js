@@ -169,15 +169,18 @@ function sendFromConsole(script, echo) {
      autoscroll   follow the newest line (off: the log stays where it is);
      newestOnTop  the newest line first;
      showTemps    the temperature reports too (hidden by default: noise);
+     filters      (1.78) lines to hide: a piece of text, or a /regular expression/;
    and "clear", which empties the view (Klipper keeps its lines; the view shows
    only what comes after).
    ------------------------------------------------------------------------- */
 const CONSOLE_PREFS_KEY = "ke_console_prefs";
+const CONSOLE_FILTERS_MAX = 20;
 let consoleEchoSeq = 0; // the lines KlippEye adds itself (echo) have no Klipper time: they are told apart by this
 
 const consoleViewStore = (() => {
   const saved = storage.getJson(CONSOLE_PREFS_KEY) || {};
-  let view = { autoscroll: saved.autoscroll !== false, newestOnTop: saved.newestOnTop === true, showTemps: saved.showTemps === true, clearedAt: 0, clearedSeq: 0 };
+  const filters = Array.isArray(saved.filters) ? saved.filters.filter((one) => typeof one === "string" && one.trim()).slice(0, CONSOLE_FILTERS_MAX) : [];
+  let view = { autoscroll: saved.autoscroll !== false, newestOnTop: saved.newestOnTop === true, showTemps: saved.showTemps === true, filters, clearedAt: 0, clearedSeq: 0 };
   const listeners = new Set();
   const emit = () => listeners.forEach((listener) => listener());
   return {
@@ -188,7 +191,7 @@ const consoleViewStore = (() => {
     },
     set(change) {
       view = { ...view, ...change };
-      storage.set(CONSOLE_PREFS_KEY, JSON.stringify({ autoscroll: view.autoscroll, newestOnTop: view.newestOnTop, showTemps: view.showTemps }));
+      storage.set(CONSOLE_PREFS_KEY, JSON.stringify({ autoscroll: view.autoscroll, newestOnTop: view.newestOnTop, showTemps: view.showTemps, filters: view.filters }));
       emit();
     },
     clear(entries) {
@@ -210,16 +213,96 @@ function useConsoleView() {
  */
 const isAddonSetupLine = (message) => /^_SET_TIMELAPSE_SETUP\b/i.test(message);
 
+/** 1.78: a filter as a test: "/…/flags" is a regular expression, anything else a piece of text (any case). */
+const consoleFilterTests = new Map();
+function consoleFilterTest(filter) {
+  if (consoleFilterTests.has(filter)) return consoleFilterTests.get(filter);
+  let test;
+  const regex = filter.match(/^\/(.+)\/([imsu]*)$/);
+  if (regex) {
+    try {
+      const expression = new RegExp(regex[1], regex[2]);
+      test = (message) => expression.test(message);
+    } catch (e) {
+      test = () => false; // a broken expression hides nothing
+    }
+  } else {
+    const needle = filter.toLowerCase();
+    test = (message) => message.toLowerCase().includes(needle);
+  }
+  consoleFilterTests.set(filter, test);
+  return test;
+}
+/** Tested on the line as it is shown (without Klipper's "// " and "!! "). */
+const isFilteredLine = (message, filters) => filters.length > 0 && filters.some((filter) => consoleFilterTest(filter)(consoleDisplayText(message)));
+
 /** The lines to show, in the order to show them. */
 function visibleConsoleEntries(entries, view, order = true) {
-  const shown = entries.filter((entry) => !isAddonSetupLine(String(entry.msg || "")) && !isMacroPromptLine(entry.msg) && (view.showTemps || !isTemperatureReport(String(entry.msg || ""))) && (entry.time ? entry.time > view.clearedAt : (entry.seq || 0) > view.clearedSeq));
+  const filters = view.filters || [];
+  const shown = entries.filter((entry) => !isAddonSetupLine(String(entry.msg || "")) && !isMacroPromptLine(entry.msg) && !isFilteredLine(String(entry.msg || ""), filters) && (view.showTemps || !isTemperatureReport(String(entry.msg || ""))) && (entry.time ? entry.time > view.clearedAt : (entry.seq || 0) > view.clearedSeq));
   return order && view.newestOnTop ? shown.reverse() : shown;
 }
 
 /** Clear, the options (autoscroll, newest on top, temperatures) and full screen: the buttons of a console's title bar. */
+/** 1.78: the lines to hide, kept on this device. */
+function ConsoleFiltersDialog({ onClose }) {
+  useBackHandler(onClose, true);
+  const view = useConsoleView();
+  const [text, setText] = useState("");
+  const filters = view.filters || [];
+  const regex = text.trim().match(/^\/(.+)\/([imsu]*)$/);
+  let broken = false;
+  if (regex) {
+    try {
+      new RegExp(regex[1], regex[2]);
+    } catch (e) {
+      broken = true;
+    }
+  }
+  const add = () => {
+    const value = text.trim();
+    if (!value || broken || filters.includes(value) || filters.length >= CONSOLE_FILTERS_MAX) return;
+    consoleViewStore.set({ filters: filters.concat(value) });
+    setText("");
+  };
+  return h(
+    "div",
+    { className: "confirm-overlay", onClick: (event) => event.target === event.currentTarget && onClose() },
+    h(
+      "div",
+      { className: "confirm-card console-filters", role: "dialog", "aria-label": tx("Hidden lines") },
+      h("div", { className: "dialog-head" }, h("div", { className: "dialog-head__icon" }, h(Icons.Sliders, { size: 22 })), h("div", null, h("div", { className: "dialog-title" }, tx("Hidden lines")), h("div", { className: "dialog-sub" }, "Console"))),
+      h("div", { className: "dialog-text" }, tx("Lines with this text are not shown (Klipper still gets and keeps them). Between slashes, a regular expression: /^B:.*T0:/")),
+      h(
+        "div",
+        { className: "console-filters__add" },
+        h("input", { className: "oui-field oui-mono", "data-console-filter-input": "1", value: text, placeholder: tx("e.g. Unknown command"), onChange: (event) => setText(event.target.value), onKeyDown: (event) => event.key === "Enter" && add() }),
+        h("button", { type: "button", className: "oui-btn oui-btn--primary", disabled: !text.trim() || broken, onClick: add }, tx("Add")),
+      ),
+      broken && h("div", { className: "set-field__hint set-field__hint--warn" }, tx("This regular expression is not valid.")),
+      filters.length === 0
+        ? h("div", { className: "oui-caption" }, tx("No line is hidden."))
+        : h(
+            "div",
+            { className: "console-filters__list" },
+            filters.map((filter) =>
+              h(
+                "div",
+                { key: filter, className: "console-filters__row", "data-console-filter": filter },
+                h("code", null, filter),
+                h("button", { type: "button", className: "icon-btn", "aria-label": tx("Show these lines again"), title: tx("Show these lines again"), onClick: () => consoleViewStore.set({ filters: filters.filter((one) => one !== filter) }) }, h(Icons.Close, { size: 16 })),
+              ),
+            ),
+          ),
+      h("div", { className: "oui-btn-row" }, h("button", { type: "button", className: "oui-btn", onClick: onClose }, tx("Close"))),
+    ),
+  );
+}
+
 function ConsoleTools({ entries, fullscreen, onFullscreen }) {
   const view = useConsoleView();
   const menu = useDropdown();
+  const [filtering, setFiltering] = useState(false);
   const option = (key, title, subtitle) =>
     h(
       "button",
@@ -238,7 +321,14 @@ function ConsoleTools({ entries, fullscreen, onFullscreen }) {
       option("autoscroll", tx("Autoscroll"), tx("Follow the newest line")),
       option("newestOnTop", tx("Newest on top"), tx("The latest line first")),
       option("showTemps", tx("Show temperatures"), tx("The temperature reports too")),
+      h(
+        "button",
+        { key: "filters", type: "button", className: "oui-menu__item console-option", "data-option": "filters", onClick: () => (menu.close(), setFiltering(true)) },
+        h("span", { className: "oui-menu__icon" }, h(Icons.Sliders, { size: 18 })),
+        h("span", { className: "oui-menu__text" }, h("span", { className: "oui-menu__title" }, tx("Hidden lines")), h("span", { className: "oui-menu__sub" }, (view.filters || []).length ? tx("{count} rules", { count: view.filters.length }) : tx("Hide lines by their text"))),
+      ),
     ),
+    createPortal(h(Presence, null, filtering && h(ConsoleFiltersDialog, { onClose: () => setFiltering(false) })), document.body),
     onFullscreen &&
       h(
         "button",

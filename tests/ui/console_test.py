@@ -77,7 +77,7 @@ with sync_playwright() as p:
     ok("by default: oldest first, temperatures hidden", wait_until(lambda: lines(P)[:1] == ["G28"] and lines(P)[-1] == "plain info line" and not any(l.startswith("B:60.1") for l in lines(P))), lines(P))
     pg.locator('button[aria-label="Opzioni della console"]').first.click()
     pg.wait_for_selector(".oui-menu")
-    states = {o.get_attribute("data-option"): o.get_attribute("aria-checked") for o in pg.locator(".console-option").all()}
+    states = {o.get_attribute("data-option"): o.get_attribute("aria-checked") for o in pg.locator(".console-option[aria-checked]").all()}
     ok("the options menu: autoscroll on, newest on top off, temperatures off", states == {"autoscroll": "true", "newestOnTop": "false", "showTemps": "false"}, states)
     pg.screenshot(path=out + "/options_390.png")
     pg.keyboard.press("Escape")
@@ -92,6 +92,33 @@ with sync_playwright() as p:
     ok("the choices stay on this device after a reload", wait_until(lambda: lines(P)[:1] == ["plain info line"] and any(l.startswith("B:60.1") for l in lines(P))), lines(P))
     option(P, "newestOnTop")
     option(P, "showTemps")
+
+    # 1.78: hidden lines (a piece of text, a /regular expression/), kept on this device
+    pg.locator('button[aria-label="Opzioni della console"]').first.click()
+    pg.wait_for_selector(".oui-menu")
+    pg.locator('.console-option[data-option="filters"]').click()
+    dlg = pg.locator(".console-filters")
+    ok("1.78: «Righe nascoste» opens its dialog, empty", wait_until(lambda: dlg.count() == 1) and "Nessuna riga nascosta" in dlg.inner_text())
+    dlg.locator("[data-console-filter-input]").fill("plain info")
+    dlg.locator("[data-console-filter-input]").press("Enter")
+    dlg.locator("[data-console-filter-input]").fill("/^Homed/")
+    dlg.locator("[data-console-filter-input]").press("Enter")
+    dlg.locator("[data-console-filter-input]").fill("/[oops/")
+    ok("1.78: a broken expression cannot be added", dlg.locator(".console-filters__add .oui-btn--primary").is_disabled() and "non è valida" in dlg.inner_text())
+    ok("1.78: two rules listed", dlg.locator("[data-console-filter]").count() == 2)
+    dlg.locator(".oui-btn-row .oui-btn").click()
+    ok("1.78: the lines with that text (any case) and the expression's are hidden", wait_until(lambda: "plain info line" not in lines(P) and not any(l.startswith("Homed") for l in lines(P)) and "G28" in lines(P)), lines(P))
+    P.pg.reload(); P.pg.wait_for_timeout(2400)
+    ok("1.78: ... still hidden after a reload (this device)", wait_until(lambda: "G28" in lines(P)) and "plain info line" not in lines(P), lines(P))
+    pg.locator('button[aria-label="Opzioni della console"]').first.click()
+    pg.wait_for_selector(".oui-menu")
+    ok("1.78: the menu says how many rules", "2 regole" in pg.locator('.console-option[data-option="filters"]').inner_text())
+    pg.locator('.console-option[data-option="filters"]').click()
+    for _ in range(2):
+        dlg.locator("[data-console-filter] .icon-btn").first.click()
+        P.settle(150)
+    dlg.locator(".oui-btn-row .oui-btn").click()
+    ok("1.78: rules removed: the lines are back", wait_until(lambda: "plain info line" in lines(P) and any(l.startswith("Homed") for l in lines(P))), lines(P))
 
     # 1.69: the HTML in Klipper's messages is drawn; a command link fills the input field
     mock.set(console_extra=[
