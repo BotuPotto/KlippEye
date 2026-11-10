@@ -18,3 +18,7 @@
 .mmu-gate__material, .mmu-gate__status { max-width: 100%; overflow: hidden; color: var(--oui-text-2); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
 .mmu-chosen, .mmu-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 .mmu-note { margin-top: 10px; }
+.afc-unit + .afc-unit { margin-top: 12px; }
+.afc-unit__name { margin-bottom: 6px; font-weight: 600; font-size: 13px; }
+.afc-message { margin-bottom: 12px; padding: 10px 12px; font-size: 13px; }
+.afc-message.is-error { background: var(--oui-danger-soft, rgba(229, 72, 77, 0.12)); color: var(--oui-danger); }
