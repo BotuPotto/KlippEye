@@ -39,6 +39,7 @@ function ControlPage({ entries, status, capabilities, lockReason, printState, on
       tune: h(TuneCard, { capabilities, onGcode }),
       endstops: h(EndstopsCard, { capabilities, lockReason }),
       bedmesh: h(BedMeshCard, { onGcode, lockReason, homedAxes: status.homedAxes }),
+      shaper: h(ShaperCard, { capabilities, lockReason, homedAxes: status.homedAxes, onGcode }),
     }),
   );
 }

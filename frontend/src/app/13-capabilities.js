@@ -45,6 +45,7 @@ const UNKNOWN_CAPABILITIES = {
   commands: {},
   lights: [],
   sensors: [],
+  shaper: { canMeasure: true, current: null },
 };
 
 /** Klipper objects that can be a light, and the command that switches each kind. */
@@ -193,7 +194,20 @@ function deriveCapabilities(configfile, commands) {
     bedScrews: hasSection("bed_screws") && registered("BED_SCREWS_ADJUST"),
     bedScrewLayout: screwLayoutOf(settings.bed_screws),
     tune: tuneDefaultsFrom(settings),
+    // 1.80: the input shaper graphs: a measurement needs [resonance_tester] (an accelerometer); the shaper printer.cfg sets
+    shaper: { canMeasure: hasSection("resonance_tester") && registered("SHAPER_CALIBRATE"), current: shaperInUse(settings.input_shaper) },
   };
+}
+
+/** The shaper of each axis printer.cfg sets ([input_shaper] shaper_type_x / shaper_freq_x…), or null without one. */
+function shaperInUse(section) {
+  if (!section) return null;
+  const axis = (name) => {
+    const freq = Number(section["shaper_freq_" + name]);
+    if (!(freq > 0)) return null;
+    return { type: String(section["shaper_type_" + name] || section.shaper_type || "mzv").toLowerCase(), freq };
+  };
+  return { x: axis("x"), y: axis("y") };
 }
 
 /** Loads the capabilities; resolves null when Klipper does not answer (not ready yet). */

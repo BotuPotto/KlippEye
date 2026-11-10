@@ -1,5 +1,16 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.80.0
+
+**Input shaper graphs.**
+
+* A new «Input shaper» card (Control on the phone, Calibration on the computer) draws what Klipper's resonance
+  measurement found: how much the axis shakes at each frequency, with its peak, and how much each shaper lets through,
+  with the vibrations it leaves. The shaper printer.cfg sets is marked, and the one that leaves the fewest vibrations.
+* «Measure X» / «Measure Y» run SHAPER_CALIBRATE (after homing, if needed, and a confirmation); «Try …» sets the shaper
+  chosen in the list until Klipper restarts.
+* The service reads the files Klipper leaves in /tmp (`GET /api/shaper/files`, `GET /api/shaper/data?name=`).
+
 ## 1.79.0
 
 **Read a file again.**

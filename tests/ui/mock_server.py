@@ -84,6 +84,7 @@ def default_state():
         # 1.32: the Tune card and the leveling tools
         "speed_factor": 1.1, "extrude_factor": 0.95,
         "tune": {"pa": 0.04, "smooth": 0.04, "vel": 300.0, "accel": 3000.0, "scv": 5.0, "mcr": 0.5, "rl": 0.8, "rs": 35.0, "ue": 0.0, "us": 30.0},
+        "shaper_files": True,   # 1.80: SHAPER_CALIBRATE left its files in /tmp (x and y)
         "has_retraction": True, "old_limits": False,    # old_limits: Klipper before 2024 (max_accel_to_decel, no minimum cruise ratio)
         "has_bed_screws": False, "has_level": False,    # [bed_screws]; [z_tilt] / [quad_gantry_level] (by z_kind)
         "level_delay": 1.2, "level_busy_until": 0.0, "level_applied": False,
@@ -263,6 +264,9 @@ def settings_now():
     else:
         out["printer"]["minimum_cruise_ratio"] = 0.5
     out["extruder"] = dict(out["extruder"], pressure_advance=0.05, pressure_advance_smooth_time=0.04)
+    if S.get("shaper_files"):
+        out["input_shaper"] = {"shaper_type_x": "mzv", "shaper_freq_x": 52.4, "shaper_type_y": "ei", "shaper_freq_y": 55.0}
+    out["resonance_tester"] = {"accel_chip": "adxl345", "probe_points": "150, 150, 20"}
     if S["has_retraction"]:
         out["firmware_retraction"] = {"retract_length": 0.8, "retract_speed": 35.0, "unretract_extra_length": 0.0, "unretract_speed": 30.0}
     if S.get("extra_devices"):
@@ -1801,6 +1805,79 @@ def metascan():
     return jsonify(result={"filename": request.args.get("filename", ""), "estimated_time": 7260})
 
 # 1.76: what is plugged into the Raspberry (Moonraker's /machine/peripherals/*)
+# 1.80: the files of SHAPER_CALIBRATE, made up (a resonance at 52 Hz on X, at 44 Hz on Y) and read by the real
+# backend/shaper_data.py, so the page draws what the service would give.
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "backend"))
+import shaper_data  # noqa: E402
+
+def shaper_pulses(name, freq, z=0.1):
+    df = math.sqrt(1 - z * z)
+    t_d = 1.0 / (freq * df)
+    K = math.exp(-z * math.pi / df)
+    if name == "zv":
+        return [1, K], [0, 0.5 * t_d]
+    if name == "mzv":
+        K = math.exp(-0.75 * z * math.pi / df)
+        a1 = 1 - 1 / math.sqrt(2)
+        return [a1, (math.sqrt(2) - 1) * K, a1 * K * K], [0, 0.375 * t_d, 0.75 * t_d]
+    if name == "ei":
+        a1 = 0.25 * 1.05
+        return [a1, 0.5 * 0.95 * K, a1 * K * K], [0, 0.5 * t_d, t_d]
+    V2 = 0.05 ** 2
+    X = (V2 * (math.sqrt(1 - V2) + 1)) ** (1 / 3)
+    a1 = (3 * X * X + 2 * X + 3 * V2) / (16 * X)
+    a2 = (0.5 - a1) * K
+    return [a1, a2, a2 * K, a1 * K ** 3], [0, 0.5 * t_d, t_d, 1.5 * t_d]
+
+def shaper_response(pulses, freq, z=0.1):
+    A, T = pulses
+    omega = 2 * math.pi * freq
+    omega_d = omega * math.sqrt(1 - z * z)
+    s = c = 0.0
+    for a, t in zip(A, T):
+        w = a * math.exp(-z * omega * (T[-1] - t))
+        s += w * math.sin(omega_d * t)
+        c += w * math.cos(omega_d * t)
+    return math.sqrt(s * s + c * c) / sum(A)
+
+def shaper_csv(peak):
+    shapers = [("zv", peak * 1.12), ("mzv", peak), ("ei", peak * 1.25), ("2hump_ei", peak * 1.6)]
+    pulses = [shaper_pulses(n, f) for n, f in shapers]
+    rows = ["freq,psd_x,psd_y,psd_z,psd_xyz," + ",".join("%s(%.1f)" % (n, f) for n, f in shapers)]
+    freq = 5.0
+    while freq <= 200:
+        main = 4.0e3 / (1 + ((freq - peak) / 4.0) ** 2) + 3.0e2 / (1 + ((freq - peak * 1.8) / 6.0) ** 2) + 20.0
+        rows.append("%.1f,%.3e,%.3e,%.3e,%.3e," % (freq, main, main * 0.1, main * 0.05, main * 1.15) + ",".join("%.3f" % shaper_response(p, freq) for p in pulses))
+        freq += 0.78
+    return "\n".join(rows) + "\n"
+
+SHAPER_DIR = os.path.join("/tmp", "klippeye-mock-shaper-%d" % PORT)
+
+def shaper_dirs():
+    os.makedirs(SHAPER_DIR, exist_ok=True)
+    wanted = {"calibration_data_x_20261109_221500.csv": 52.0, "calibration_data_y_20261109_222300.csv": 44.0} if S.get("shaper_files") else {}
+    for name in os.listdir(SHAPER_DIR):
+        if name not in wanted:
+            os.remove(os.path.join(SHAPER_DIR, name))
+    for index, (name, peak) in enumerate(wanted.items()):
+        full = os.path.join(SHAPER_DIR, name)
+        if not os.path.exists(full):
+            with open(full, "w") as handle:
+                handle.write(shaper_csv(peak))
+            os.utime(full, (NOW - 600 + index * 480, NOW - 600 + index * 480))
+    return [SHAPER_DIR]
+
+@app.route("/api/shaper/files")
+def api_shaper_files():
+    return jsonify(files=shaper_data.list_files(shaper_dirs()))
+
+@app.route("/api/shaper/data")
+def api_shaper_data():
+    try:
+        return jsonify(shaper_data.read(request.args.get("name", ""), shaper_dirs()))
+    except shaper_data.ShaperError as error:
+        return jsonify(error=str(error)), 404 if str(error) == "file not found" else 400
+
 @app.route("/machine/peripherals/serial")
 def periph_serial():
     return jsonify(result={"serial_devices": [{"device_type": "usb", "device_path": "/dev/ttyACM0", "device_name": "ttyACM0", "driver_name": "cdc_acm", "manufacturer": "Klipper", "product": "stm32h723xx",
