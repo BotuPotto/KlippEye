@@ -77,7 +77,18 @@ with sync_playwright() as p:
     ok("... and goes on with fresh readings (the newest sample moves on)", wait_until(lambda: float(pg.locator(".temp-chart").get_attribute("data-end")) >= end0 + 3500, 8))
     xs = pg.evaluate("() => [...document.querySelectorAll('.temp-chart__tick')].filter(t => t.textContent.includes(':')).map(t => [t.textContent, Number(t.getAttribute('x'))])")
     import re as _re
-    ok("1.69: the time axis shows clock times (hh:mm), oldest on the left, newest on the right", len(xs) == 6 and all(_re.fullmatch(r"\d\d:\d\d", t) for t, _ in xs) and xs[0][1] < xs[-1][1], xs)
+    ok("1.69: the time axis shows clock times (hh:mm), oldest on the left, newest on the right", len(xs) >= 3 and all(_re.fullmatch(r"\d\d:\d\d", t) for t, _ in xs) and xs[0][1] < xs[-1][1], xs)
+    # 1.75: the marks sit on round minutes and slide to the left with the lines
+    tk = lambda: pg.evaluate("() => Object.fromEntries([...document.querySelectorAll('.temp-chart__tick[data-time]')].map(t => [t.dataset.time, Number(t.getAttribute('x'))]))")
+    first = tk()
+    ok("1.75: the marks are on round clock minutes (multiples of 2 min with 10 min shown)", first and all(int(t) % 120000 == 0 for t in first), first)
+    wait_until(lambda: any(k in tk() and tk()[k] < first[k] - 1 for k in first), 10)
+    later = tk()
+    common = [k for k in first if k in later]
+    ok("1.75: ... and slide to the left as time goes on (the same clock time, further left)", common and all(later[k] < first[k] for k in common), (first, later))
+    # 1.75: the snowflake turns every heater off
+    pg.locator("[data-cool-down]").click()
+    ok("1.75: the snowflake sends TURN_OFF_HEATERS (no print running: no question)", wait_until(lambda: "TURN_OFF_HEATERS" in json.loads(urllib.request.urlopen(mock.base + "/__mock/state").read())["gcode_log"]) and pg.locator(".confirm-card").count() == 0)
     pg.screenshot(path=out + "/phone.png", full_page=True)
 
     # ranges

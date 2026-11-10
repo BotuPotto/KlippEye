@@ -3,7 +3,8 @@
    ========================================================================== */
 
 .temp-card .oui-card__head:not(.has-fold) { flex-wrap: wrap; gap: 8px; }
-.temp-ranges > button { padding: 0 10px; }
+.temp-ranges { flex: none; }
+.temp-ranges > button { padding: 0 10px; white-space: nowrap; }
 
 /* the chart: hairline grid, 2 px lines, the target dashed in the same colour */
 .temp-chart { position: relative; width: 100%; min-height: 210px; touch-action: pan-y; -webkit-user-select: none; user-select: none; }
@@ -56,3 +57,9 @@
 .temp-target__unit { font-size: 16px; color: var(--oui-text-2); }
 .temp-target__error { color: var(--oui-danger); }
 .temp-target .oui-btn-row { margin-top: 12px; }
+
+/* 1.75: the marks of the clock slide with the lines; the snowflake turns every heater off */
+.temp-chart__grid--time { stroke-dasharray: 2 4; opacity: 0.6; }
+.temp-tools { display: flex; align-items: center; gap: 8px; margin-left: auto; max-width: 100%; }
+.temp-cool { flex: none; color: #7cc4ff; }
+.temp-cool:hover { background: rgba(124, 196, 255, 0.14); }
