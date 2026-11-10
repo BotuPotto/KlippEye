@@ -3967,6 +3967,9 @@ button.ai-header-badge { cursor: pointer; font: inherit; color: inherit; }
 .shaper-legend__swatch { flex: none; width: 14px; height: 10px; border-radius: 3px; }
 .shaper-legend__swatch.is-relax { background: rgba(47, 158, 68, 0.35); }
 .shaper-legend__swatch.is-warning { background: rgba(245, 159, 0, 0.4); }
+/* the switch fits a 320 px phone in every language: the two halves share the width and their text wraps */
+.shaper-mode .oui-segmented { display: flex; max-width: 100%; }
+.shaper-mode .oui-segmented > button { flex: 1 1 auto; min-width: 0; white-space: normal; line-height: 1.2; padding-top: 4px; padding-bottom: 4px; }
 
 /* ============================================================================
    Settings menu: the side panel behind the menu button of the top bar (markup: app/59-settings.js)
