@@ -21,7 +21,9 @@ import threading
 import time
 
 ACTIVE_STATES = ("printing", "paused")
-PROBLEMS = ("spaghetti", "detached", "layer_shift", "warping", "nozzle_blob", "under_extrusion", "other")
+# the ones that ruin a print (what the AI monitor must catch), then the defects of quality; the order the dashboard shows
+PROBLEMS = ("spaghetti", "detached", "layer_shift", "nozzle_blob", "clog", "warping",
+            "stringing", "under_extrusion", "over_extrusion", "elephant_foot", "ghosting", "overhangs", "supports", "rough_surface", "other")
 OUTCOMES = ("ok", "failed", "skipped")
 THUMB_WIDTH, THUMB_HEIGHT, THUMB_QUALITY = 320, 214, 70
 THUMB_EVERY_S = 60       # the first pause between two pictures (doubles every time the print fills its pictures)

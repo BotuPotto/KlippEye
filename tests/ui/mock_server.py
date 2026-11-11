@@ -1405,7 +1405,7 @@ def mock_camera_calibration():
 @app.route("/api/print/review")
 def mock_print_review():
     """1.103: the last print that ended and is not answered yet (S["review"]; the real one: print_review.py)."""
-    return jsonify(ok=True, enabled=S.get("review_enabled", True), review=S.get("review"), problems=["spaghetti", "detached", "layer_shift", "warping", "nozzle_blob", "under_extrusion", "other"])
+    return jsonify(ok=True, enabled=S.get("review_enabled", True), review=S.get("review"), problems=["spaghetti", "detached", "layer_shift", "nozzle_blob", "clog", "warping", "stringing", "under_extrusion", "over_extrusion", "elephant_foot", "ghosting", "overhangs", "supports", "rough_surface", "other"])
 
 
 @app.route("/api/print/review/<rid>/<int:n>.jpg")

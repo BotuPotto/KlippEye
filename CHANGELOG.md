@@ -6,8 +6,10 @@
 together).
 
 * When a print ends (finished, cancelled or stopped by an error), a card at the top of the home page asks how it went:
-  **Went fine**, or **There was a problem**, with its kinds (spaghetti, part detached, layer shift, warping, blob on
-  the nozzle, under-extrusion, something else) and, with a slider over the print's pictures, from when it can be seen.
+  **Went fine**, or **There was a problem**: then a choice of problems, each a tile with a small drawing, in two groups,
+  *the print failed* (spaghetti, part detached, layer shift, blob on the nozzle, clog, warping) and *defects of quality*
+  (stringing, under- and over-extrusion, elephant foot, ringing, drooping overhangs, supports, rough surface, something
+  else), and, with a slider over the print's pictures, from when it can be seen.
   **Skip** passes this print; **Don't ask again** switches the question off (Settings → Recordings → «Ask how each print
   went» switches it back on).
 * The answer judges the print's alarms not judged yet: a print that went fine makes them false alarms; a failed one with

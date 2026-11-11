@@ -9,9 +9,23 @@
 .print-review .print-review__choice .rec-labels__good { background: var(--oui-ok-soft, rgba(52, 199, 89, 0.16)); color: var(--oui-ok, #34c759); }
 .print-review .print-review__choice .rec-labels__bad { background: var(--oui-danger-soft); color: var(--oui-danger); }
 .print-review .print-review__choice .rec-labels__detail { color: inherit; opacity: 0.75; }
-.print-review__problems { display: flex; flex-wrap: wrap; gap: 8px; }
-.print-review__problems .oui-chip { min-height: 36px; }
-.print-review__problems .oui-chip.is-selected { background: var(--oui-danger-soft); color: var(--oui-danger); box-shadow: inset 0 0 0 1px var(--oui-danger); }
+/* the problems: tiles with a drawing, two or three in a row */
+.print-review__group { display: flex; flex-direction: column; gap: 8px; }
+.print-review__group-title { margin: 2px 0 0; }
+.print-review__problems { display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 8px; }
+.print-review__problem {
+  position: relative; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 6px;
+  min-width: 0; min-height: 96px; padding: 12px 8px 10px; border-radius: var(--oui-r-row); background: var(--oui-surface-2);
+  color: var(--oui-text); font: inherit; font-size: 12.5px; font-weight: 600; line-height: 1.25; text-align: center;
+  transition: background var(--oui-dur-fast) var(--oui-ease);
+}
+.print-review__problem:hover { background: var(--oui-surface-3); }
+.print-review__problem-icon { display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; border-radius: 50%; background: var(--oui-inset); color: var(--oui-text-2); }
+.print-review__problem-label { overflow-wrap: break-word; hyphens: auto; }
+.print-review__problem.is-selected { background: var(--oui-danger-soft); color: var(--oui-danger); box-shadow: inset 0 0 0 1.5px var(--oui-danger); }
+.print-review__problem.is-selected .print-review__problem-icon { background: var(--oui-danger); color: #fff; }
+.print-review__problem-check { position: absolute; top: 6px; right: 6px; display: flex; color: var(--oui-danger); }
+@media (max-width: 359px) { .print-review__problems { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .print-review__when { display: flex; flex-direction: column; gap: 6px; }
 .print-review__slider { width: 100%; accent-color: var(--oui-accent); }
 .print-review__actions { display: flex; gap: 8px; }

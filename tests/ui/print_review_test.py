@@ -78,7 +78,7 @@ with sync_playwright() as p:
     card.locator('[data-review="failed"]').click()
     P.settle(200)
     save = card.locator("[data-review-save]")
-    ok("«There was a problem»: the kinds to choose, Save off until one is chosen", card.locator("[data-review-problem]").count() == 7 and save.is_disabled())
+    ok("«There was a problem»: the kinds to choose, Save off until one is chosen", card.locator("[data-review-problem]").count() == 15 and card.locator(".print-review__group").count() == 2 and save.is_disabled())
     card.locator('[data-review-problem="spaghetti"]').click()
     card.locator('[data-review-problem="detached"]').click()
     slider = card.locator("[data-review-when]")

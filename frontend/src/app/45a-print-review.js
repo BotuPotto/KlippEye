@@ -6,15 +6,30 @@
    ========================================================================== */
 
 const REVIEW_POLL_MS = 20000;
+/** The problems to choose from, each with a small drawing of it, in two groups: the ones that ruin a print (what the AI
+ * monitor must catch) and the defects of quality. The order and the ids are backend/print_review.py's PROBLEMS. */
+const reviewPaths = (...paths) => ({ size = 30 }) => h(Svg, { size, strokeWidth: "1.7" }, paths.map((d, i) => h("path", { key: i, d })));
 const REVIEW_PROBLEMS = {
-  spaghetti: () => tx("Spaghetti / tangled filament"),
-  detached: () => tx("Part detached from the bed"),
-  layer_shift: () => tx("Layer shift"),
-  warping: () => tx("Warping (corners lifted)"),
-  nozzle_blob: () => tx("Blob on the nozzle"),
-  under_extrusion: () => tx("Under-extrusion / gaps"),
-  other: () => tx("Something else"),
+  spaghetti: { group: "failed", label: () => tx("Spaghetti / tangled filament"), icon: reviewPaths("M3 21h18", "M4 17c2-5 4 3 6-2s3 4 5-1 3 3 5 0", "M5 13c2-3 3 2 5-1s4 2 6-1 2 2 3 0", "M10 3h4v3l-2 2-2-2z") },
+  detached: { group: "failed", label: () => tx("Part detached from the bed"), icon: reviewPaths("M3 21h18", "M6 17l2-8 8 2-2 8z", "M9 3h4v3l-2 2-2-2z") },
+  layer_shift: { group: "failed", label: () => tx("Layer shift"), icon: reviewPaths("M3 21h18", "M5 21v-5h8v5", "M9 16v-5h8v5", "M9 11V6h8v5") },
+  nozzle_blob: { group: "failed", label: () => tx("Blob on the nozzle"), icon: reviewPaths("M9 3h6v4l-3 3-3-3z", "M12 10c4 0 6 2 6 4.5S15.5 19 12 19s-6-2-6-4.5S8 10 12 10z", "M3 21h18") },
+  clog: { group: "failed", label: () => tx("No filament coming out (clog)"), icon: reviewPaths("M9 3h6v4l-3 3-3-3z", "M12 13v1.5M12 17v1.5", "M3 21h18", "M6 12l12 6") },
+  warping: { group: "failed", label: () => tx("Warping (corners lifted)"), icon: reviewPaths("M3 21h18", "M4 17c1-3 2-3 4-3h8c2 0 3 0 4 3", "M8 14V7h8v7") },
+  stringing: { group: "quality", label: () => tx("Stringing (thin hairs)"), icon: reviewPaths("M3 21h18", "M4 21V9h4v12", "M16 21V9h4v12", "M8 11c3 2 5 2 8 0", "M8 14c3 1.5 5 1.5 8 0", "M8 17c3 1 5 1 8 0") },
+  under_extrusion: { group: "quality", label: () => tx("Under-extrusion / gaps"), icon: reviewPaths("M3 21h18", "M4 17h3m3 0h4m3 0h3", "M4 13h5m4 0h7", "M4 9h2m3 0h6m3 0h2", "M4 5h4m4 0h2m3 0h3") },
+  over_extrusion: { group: "quality", label: () => tx("Over-extrusion / blobs on the surface"), icon: reviewPaths("M3 21h18", "M5 18h14", "M5 14h14", "M5 10h14", "M8 6h0M14 8h0M17 13h0M9 16h0") },
+  elephant_foot: { group: "quality", label: () => tx("Elephant foot (wider bottom)"), icon: reviewPaths("M3 21h18", "M7 4h10v12l3 5H4l3-5z") },
+  ghosting: { group: "quality", label: () => tx("Ringing / ghosting (echoes on the walls)"), icon: reviewPaths("M3 21h18", "M6 19V5", "M10 19V5", "M13 8v8M15.5 9v6M18 10v4") },
+  overhangs: { group: "quality", label: () => tx("Drooping overhangs or bridges"), icon: reviewPaths("M3 21h18", "M4 21V8h16v13", "M8 21v-6c0 3 8 3 8 0v6", "M4 8c2 2 4 1 5 3") },
+  supports: { group: "quality", label: () => tx("Supports failed"), icon: reviewPaths("M3 21h18", "M5 9h14V5H5z", "M7 21v-4M7 14v-2M12 21v-12M17 21v-5") },
+  rough_surface: { group: "quality", label: () => tx("Rough or bumpy surface"), icon: reviewPaths("M3 21h18", "M4 21V9l2-2 2 2 2-2 2 2 2-2 2 2 2-2 2 2v12") },
+  other: { group: "quality", label: () => tx("Something else"), icon: reviewPaths("M3 21h18", "M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.7.3-1 .9-1 1.7v1", "M12 17.5v.5") },
 };
+const REVIEW_GROUPS = [
+  { id: "failed", title: () => tx("The print failed") },
+  { id: "quality", title: () => tx("Defects of quality") },
+];
 const REVIEW_END = { complete: () => tx("Finished"), cancelled: () => tx("Cancelled"), error: () => tx("Stopped by an error") };
 
 function usePrintReview(printing) {
@@ -121,13 +136,30 @@ function PrintReviewCard({ printing }) {
         React.Fragment,
         null,
         h("div", { className: "rec-labels__question" }, tx("What went wrong? (one or more)")),
-        h(
-          "div",
-          { className: "print-review__problems", role: "group" },
-          problems.map((problemId) =>
-            h("button", { key: problemId, type: "button", className: cx("oui-chip", chosen.includes(problemId) && "is-selected"), "aria-pressed": chosen.includes(problemId), "data-review-problem": problemId, onClick: () => toggle(problemId) }, REVIEW_PROBLEMS[problemId]()),
-          ),
-        ),
+        REVIEW_GROUPS.map((group) => {
+          const ids = problems.filter((problemId) => REVIEW_PROBLEMS[problemId].group === group.id);
+          return (
+            ids.length > 0 &&
+            h(
+              "div",
+              { key: group.id, className: "print-review__group" },
+              h("div", { className: "oui-label print-review__group-title" }, group.title()),
+              h(
+                "div",
+                { className: "print-review__problems", role: "group", "aria-label": group.title() },
+                ids.map((problemId) =>
+                  h(
+                    "button",
+                    { key: problemId, type: "button", className: cx("print-review__problem", chosen.includes(problemId) && "is-selected"), "aria-pressed": chosen.includes(problemId), "data-review-problem": problemId, onClick: () => toggle(problemId) },
+                    h("span", { className: "print-review__problem-icon", "aria-hidden": "true" }, h(REVIEW_PROBLEMS[problemId].icon)),
+                    h("span", { className: "print-review__problem-label" }, REVIEW_PROBLEMS[problemId].label()),
+                    chosen.includes(problemId) && h("span", { className: "print-review__problem-check", "aria-hidden": "true" }, h(Icons.Check, { size: 14 })),
+                  ),
+                ),
+              ),
+            )
+          );
+        }),
         thumbs.length > 1 &&
           h(
             "div",
