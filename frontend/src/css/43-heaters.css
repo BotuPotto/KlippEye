@@ -41,3 +41,8 @@
 
 /* gap between the two tiles and the fan list below them */
 .heater-tiles { margin-bottom: 20px; }
+
+/* 1.101: the narrowest phones (320 px): the big reading fits its half of the card */
+@media (max-width: 359px) {
+  .heater-tile .oui-value { font-size: 28px; }
+}

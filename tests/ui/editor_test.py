@@ -137,7 +137,7 @@ with sync_playwright() as p:
         ok(f"[{w}] CodeMirror with line numbers and the fold arrows", pg.locator(".cm-lineNumbers").count() == 1 and pg.locator(".cm-foldGutter").count() == 1)
         row = [x for x in (e.bounding_box() for e in pg.locator(".editor-tools > *").all()) if x]
         ok(f"[{w}] the tools in one row, inside the screen, none over another, >= 40 px tall",
-           len(row) >= 6 and len({round(x["y"]) for x in row}) == 1 and all(x["x"] >= 0 and x["x"] + x["width"] <= w + 0.5 and x["height"] >= 40 for x in row)
+           len(row) >= 5 and len({round(x["y"]) for x in row}) == 1 and all(x["x"] >= 0 and x["x"] + x["width"] <= w + 0.5 and x["height"] >= 40 for x in row)
            and all(row[i]["x"] + row[i]["width"] <= row[i + 1]["x"] + 0.5 for i in range(len(row) - 1)), row)
         body = pg.locator(".editor-body").bounding_box()
         ok(f"[{w}] the text keeps room (>= 250 px)", body["height"] >= 250, body)
@@ -169,12 +169,14 @@ with sync_playwright() as p:
     pg.wait_for_timeout(300)
     caret_line = pg.evaluate("() => { const v = %s; return v.state.doc.lineAt(v.state.selection.main.head).number; }" % VIEW)
     ok("tapping one puts the caret on it (and it is on view)", caret_line == line and pg.locator(".cm-activeLine", has_text=names[-1]).count() == 1, (caret_line, line))
+    pg.locator(".editor-sections-btn").click(); pg.wait_for_timeout(250)  # 1.101: the reference is in the ⋯ menu
     href = pg.locator(".editor-docs").get_attribute("href") or ""
+    pg.keyboard.press("Escape"); pg.wait_for_timeout(200)
     ok("the reference button opens Klipper's page of the section under the caret", href.startswith("https://www.klipper3d.org/Config_Reference.html#"), href)
     select(P, offset(original, 4, 0), offset(original, 4, 0))
     pg.wait_for_timeout(200)
+    pg.locator(".editor-sections-btn").click(); pg.wait_for_timeout(250)
     ok("... [stepper_x] is [stepper] there", pg.locator(".editor-docs").get_attribute("href").endswith("#stepper"), pg.locator(".editor-docs").get_attribute("href"))
-    pg.locator(".editor-sections-btn").click()
     pg.locator(".oui-menu .editor-section-item", has_text="Chiudi tutte le sezioni").click()
     pg.wait_for_timeout(300)
     ok("'Chiudi tutte le sezioni': each section folds to its first line", pg.locator(".cm-foldPlaceholder").count() == 2 and pg.locator(".cm-line", has_text="step_pin").count() == 0, pg.locator(".cm-foldPlaceholder").count())
@@ -328,7 +330,9 @@ with sync_playwright() as p:
 
     # ------------------------------------------------------------------ moonraker.conf: Moonraker's reference
     P = open_cfg(b, "moonraker.conf")
+    P.pg.locator(".editor-sections-btn").click(); P.pg.wait_for_timeout(250)
     href = P.pg.locator(".editor-docs").get_attribute("href") if P.pg.locator(".editor-docs").count() else ""
+    P.pg.keyboard.press("Escape"); P.pg.wait_for_timeout(200)
     ok("moonraker.conf: the reference is Moonraker's configuration page", href.startswith("https://moonraker.readthedocs.io/en/latest/configuration/"), href)
     # 1.63: «Salva e riavvia» restarts what the file belongs to
     btn = P.pg.locator('.editor-save[data-restarts]')

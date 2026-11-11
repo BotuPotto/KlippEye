@@ -66,7 +66,15 @@ def open_cfg(b, name="printer.cfg", w=390, h=844, reset=True):
     return P
 
 
+def open_more(P):
+    """1.101: «Versions» and the reference sit in the editor's ⋯ menu."""
+    if P.pg.locator(".oui-menu [data-editor-versions], .oui-menu .editor-docs").count() == 0:
+        P.pg.locator(".editor-sections-btn").click()
+        P.pg.wait_for_timeout(250)
+
+
 def open_versions(P):
+    open_more(P)
     P.pg.locator("[data-editor-versions]").click()
     dialog = P.pg.locator(".cfg-versions")
     wait_until(lambda: dialog.count() == 1 and "Caricamento" not in dialog.inner_text())
@@ -79,7 +87,8 @@ with sync_playwright() as p:
     P = open_cfg(b)
     pg = P.pg
     original = value(P)
-    ok("the editor of a config file has «Versions»", pg.locator("[data-editor-versions]").count() == 1)
+    open_more(P)
+    ok("the editor of a config file has «Versions» (in its ⋯ menu)", pg.locator("[data-editor-versions]").count() == 1)
     dialog = open_versions(P)
     ok("no version yet: said in words", wait_until(lambda: dialog.locator("[data-versions-empty]").count() == 1), dialog.inner_text())
     ok("the dialog is above the editor", pg.evaluate("() => { const r = document.querySelector('.cfg-versions').getBoundingClientRect(); const e = document.elementFromPoint(r.left + r.width / 2, r.top + 20); return !!(e && e.closest('.cfg-versions')); }"))

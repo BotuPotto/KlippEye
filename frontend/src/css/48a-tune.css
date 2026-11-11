@@ -38,7 +38,7 @@
   align-items: baseline;
   justify-content: flex-end;
   gap: 3px;
-  min-width: 92px;
+  min-width: 104px; /* 1.101: «3000 mm/s²» fits, so every row's buttons stand in the same column */
   height: 36px;
   padding: 0 8px;
   border-radius: var(--oui-r-field);
@@ -77,7 +77,7 @@
 @media (max-width: 480px) {
   .tune-row { gap: 8px; }
   .tune-row__controls { gap: 4px; }
-  .tune-value { min-width: 78px; padding: 0 6px; }
+  .tune-value { min-width: 90px; padding: 0 6px; }
   .tune-step { width: 34px; }
   .tune-reset { width: 28px; height: 28px; }
   .tune-row__label { font-size: 14px; }
@@ -90,3 +90,12 @@
 .bed-screws__how { margin: 14px 0 10px; padding-left: 20px; font-size: 14px; line-height: 1.5; color: var(--oui-text-2); list-style: decimal; }
 .bed-screws__done { display: flex; align-items: center; gap: 10px; color: var(--oui-ok); font-weight: 600; }
 .bed-screws .sheet-footer { gap: 8px; }
+
+/* 1.101: a narrow card (a 320 px phone, a long language): the name goes above its controls instead of being squeezed
+   into a column a word wide */
+.tune-card { container-type: inline-size; }
+@container (max-width: 300px) {
+  .tune-row { flex-wrap: wrap; row-gap: 6px; }
+  .tune-row__text { flex: 1 1 100%; }
+  .tune-row__controls { margin-left: auto; }
+}

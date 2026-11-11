@@ -361,14 +361,15 @@ async function sendSaveConfig() {
 /* ---------------------------------------------------------------------------
    Component
    ------------------------------------------------------------------------- */
-/** The sections of the file: tap one to go there; fold or unfold them all. */
-function EditorSectionsButton({ sections, current, onJump, onFoldAll, onUnfoldAll }) {
+/** The «⋯» menu of the editor (1.101: one button instead of three, so that Comment / Uncomment keep their room on a
+ * phone): the earlier versions of the file, the reference page of the section, fold or unfold, the sections. */
+function EditorMoreButton({ sections, current, onJump, onFoldAll, onUnfoldAll, onVersions, docsUrl }) {
   const menu = useDropdown();
-  const item = (key, title, subtitle, onClick, checked) =>
+  const item = (key, title, subtitle, onClick, checked, extra = {}) =>
     h(
       "button",
-      { key, type: "button", className: "oui-menu__item console-option editor-section-item", role: "menuitem", "data-section-line": typeof key === "number" ? key : undefined, onClick: () => (menu.close(), onClick()) },
-      h("span", { className: "oui-menu__icon" }, checked ? h(Icons.Check, { size: 18 }) : null),
+      { key, type: "button", className: "oui-menu__item console-option editor-section-item", role: "menuitem", "data-section-line": typeof key === "number" ? key : undefined, onClick: () => (menu.close(), onClick()), ...extra },
+      h("span", { className: "oui-menu__icon" }, checked ? h(Icons.Check, { size: 18 }) : extra.icon || null),
       h("span", { className: "oui-menu__text" }, h("span", { className: "oui-menu__title" }, title), subtitle && h("span", { className: "oui-menu__sub" }, subtitle)),
     );
   return h(
@@ -376,19 +377,51 @@ function EditorSectionsButton({ sections, current, onJump, onFoldAll, onUnfoldAl
     null,
     h(
       "button",
-      { type: "button", ref: menu.anchorRef, className: cx("oui-btn oui-btn--sm editor-history editor-sections-btn", menu.open && "oui-btn--accent-soft"), title: tx("Sections of the file"), "aria-label": tx("Sections of the file"), "aria-haspopup": "menu", "aria-expanded": menu.open, onMouseDown: (event) => event.preventDefault(), onClick: menu.toggle },
-      h(Icons.Layers, { size: 20 }),
+      { type: "button", ref: menu.anchorRef, className: cx("oui-btn oui-btn--sm editor-history editor-sections-btn", menu.open && "oui-btn--accent-soft"), title: tx("More"), "aria-label": tx("More"), "aria-haspopup": "menu", "aria-expanded": menu.open, onMouseDown: (event) => event.preventDefault(), onClick: menu.toggle },
+      h(Icons.Dots, { size: 20 }),
     ),
     h(
       DropdownMenu,
       { menu },
-      h(MenuLabel, null, tx("Fold")),
-      item("fold", tx("Fold every section"), null, onFoldAll),
-      item("unfold", tx("Unfold every section"), null, onUnfoldAll),
-      h(MenuLabel, null, tx("Go to the section")),
+      onVersions && h("button", { type: "button", className: "oui-menu__item console-option editor-more-item", role: "menuitem", "data-editor-versions": "1", onClick: () => (menu.close(), onVersions()) },
+        h("span", { className: "oui-menu__icon" }, h(Icons.Clock, { size: 18 })), h("span", { className: "oui-menu__text" }, h("span", { className: "oui-menu__title" }, tx("Earlier versions")))),
+      docsUrl && h("a", { className: "oui-menu__item console-option editor-more-item editor-docs", role: "menuitem", href: docsUrl, target: "_blank", rel: "noopener noreferrer", onClick: () => menu.close() },
+        h("span", { className: "oui-menu__icon" }, h(Icons.Doc, { size: 18 })), h("span", { className: "oui-menu__text" }, h("span", { className: "oui-menu__title" }, tx("What this section does (the reference)")))),
+      sections.length > 0 && h(MenuLabel, null, tx("Fold")),
+      sections.length > 0 && item("fold", tx("Fold every section"), null, onFoldAll),
+      sections.length > 0 && item("unfold", tx("Unfold every section"), null, onUnfoldAll),
+      sections.length > 0 && h(MenuLabel, null, tx("Go to the section")),
       sections.map((section) => item(section.line, "[" + section.name + "]", tx("line {line}", { line: section.line }), () => onJump(section.line), current && current.line === section.line)),
     ),
   );
+}
+
+/** True when the comment buttons' words do not fit in the tools row (a narrow phone, a long language such as German
+ * or Russian): they then show only their icons (1.101). Measured from the words, so it changes back as soon as they fit. */
+function useTightTools(rowRef, labels) {
+  const [tight, setTight] = useState(false);
+  useLayoutEffect(() => {
+    const row = rowRef.current;
+    if (!row || typeof ResizeObserver === "undefined") return undefined;
+    const canvas = document.createElement("canvas").getContext("2d");
+    const check = () => {
+      const buttons = [...row.querySelectorAll(".editor-comment")];
+      if (!buttons.length) return;
+      const style = getComputedStyle(buttons[0]);
+      canvas.font = style.fontWeight + " " + style.fontSize + " " + style.fontFamily;
+      const gap = parseFloat(getComputedStyle(row).columnGap) || 0;
+      const others = [...row.children].filter((child) => !child.classList.contains("editor-comment")).reduce((sum, child) => sum + child.getBoundingClientRect().width, 0);
+      const available = row.clientWidth - others - gap * (row.children.length - 1);
+      const padding = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight) + 2;
+      const needed = labels.reduce((sum, label) => sum + Math.ceil(canvas.measureText(label).width) + padding, 0);
+      setTight(needed > available);
+    };
+    check();
+    const observer = new ResizeObserver(check);
+    observer.observe(row);
+    return () => observer.disconnect();
+  }, [rowRef, labels.join("|")]);
+  return tight;
 }
 
 function EditorScreen({ session, onClose, inline, onDirtyChange }) {
@@ -406,6 +439,8 @@ function EditorScreen({ session, onClose, inline, onDirtyChange }) {
   const [confirmingDiscard, setConfirmingDiscard] = useState(false);
   const [versionsOpen, setVersionsOpen] = useState(false); // 1.81: the earlier versions of the file
   const hostRef = useRef(null);
+  const toolsRef = useRef(null);
+  const toolsTight = useTightTools(toolsRef, [tx("Comment"), tx("Uncomment")]);
   const viewRef = useRef(null);
   const statusTimer = useRef(0);
   const textTimer = useRef(0);
@@ -629,20 +664,21 @@ function EditorScreen({ session, onClose, inline, onDirtyChange }) {
     (!readOnly || sections.length > 0) &&
       h(
         "div",
-        { className: "editor-tools" },
+        { className: cx("editor-tools", toolsTight && "editor-tools--tight"), ref: toolsRef },
         !readOnly && h("button", { type: "button", className: "oui-btn oui-btn--sm editor-history", title: tx("Undo (Ctrl+Z)"), "aria-label": txc("edit", "Undo"), disabled: historyDepth.undo === 0, onMouseDown: keepFocus, onClick: () => runHistory(CM.undo) }, h(Icons.Undo, { size: 20 })),
         !readOnly && h("button", { type: "button", className: "oui-btn oui-btn--sm editor-history", title: tx("Redo (Ctrl+Y)"), "aria-label": txc("edit", "Redo"), disabled: historyDepth.redo === 0, onMouseDown: keepFocus, onClick: () => runHistory(CM.redo) }, h(Icons.Redo, { size: 20 })),
-        !readOnly && h("button", { type: "button", className: "oui-btn oui-btn--sm editor-comment", title: tx("Puts {mark} in front of the selected lines (Ctrl+/)", { mark: commentMark }), onMouseDown: keepFocus, onClick: () => markComments("comment") }, h(Icons.Hash, { size: 18 }), tx("Comment")),
-        !readOnly && h("button", { type: "button", className: "oui-btn oui-btn--sm editor-comment", title: tx("Removes one {mark} from the selected lines that have it (Ctrl+/)", { mark: commentMark }), onMouseDown: keepFocus, onClick: () => markComments("uncomment") }, h(Icons.HashOff, { size: 18 }), tx("Uncomment")),
-        keepsVersions && h("button", { type: "button", className: "oui-btn oui-btn--sm editor-history editor-versions", title: tx("Earlier versions"), "aria-label": tx("Earlier versions"), "data-editor-versions": "1", onMouseDown: keepFocus, onClick: () => setVersionsOpen(true) }, h(Icons.Clock, { size: 19 })),
-        sections.length > 0 && h(EditorSectionsButton, { sections, current: sectionAtLine(sections, caretLine), onJump: jumpToLine, onFoldAll: () => foldEverything(true), onUnfoldAll: () => foldEverything(false) }),
-        docsUrl &&
-          canOpenLinks &&
-          h(
-            "a",
-            { className: "oui-btn oui-btn--sm editor-history editor-docs", href: docsUrl, target: "_blank", rel: "noopener noreferrer", title: tx("What this section does (the reference)"), "aria-label": tx("What this section does (the reference)"), onMouseDown: keepFocus },
-            h(Icons.Doc, { size: 19 }),
-          ),
+        !readOnly && h("button", { type: "button", className: "oui-btn oui-btn--sm editor-comment", title: tx("Puts {mark} in front of the selected lines (Ctrl+/)", { mark: commentMark }), onMouseDown: keepFocus, "aria-label": tx("Comment"), onClick: () => markComments("comment") }, h(Icons.Hash, { size: 18 }), h("span", { className: "editor-comment__label" }, tx("Comment"))),
+        !readOnly && h("button", { type: "button", className: "oui-btn oui-btn--sm editor-comment", title: tx("Removes one {mark} from the selected lines that have it (Ctrl+/)", { mark: commentMark }), onMouseDown: keepFocus, "aria-label": tx("Uncomment"), onClick: () => markComments("uncomment") }, h(Icons.HashOff, { size: 18 }), h("span", { className: "editor-comment__label" }, tx("Uncomment"))),
+        (keepsVersions || sections.length > 0 || (docsUrl && canOpenLinks)) &&
+          h(EditorMoreButton, {
+            sections,
+            current: sectionAtLine(sections, caretLine),
+            onJump: jumpToLine,
+            onFoldAll: () => foldEverything(true),
+            onUnfoldAll: () => foldEverything(false),
+            onVersions: keepsVersions ? () => setVersionsOpen(true) : null,
+            docsUrl: docsUrl && canOpenLinks ? docsUrl : null,
+          }),
       ),
     h("div", { className: "editor-body", ref: hostRef }),
     versionsOpen && createPortal(h(ConfigVersionsDialog, { path, current: viewRef.current ? viewRef.current.state.doc.toString() : text, onRestore: restoreVersion, onClose: () => setVersionsOpen(false) }), document.body),

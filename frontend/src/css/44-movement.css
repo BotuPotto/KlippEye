@@ -15,7 +15,8 @@
 .pad-axis { font-size: 19px; font-weight: 600; line-height: 1; color: var(--oui-text); }
 
 /* ---- jog pad: wheel container, home button, Z buttons ---- */
-.jog-pad { transform: scale(0.85); transform-origin: center center; margin: -21px; } /* 1.31: the margin gives back the room the scale takes off (280 × 0.15 / 2), so the Z column fits on a phone */
+.jog-pad { transform: scale(0.85); transform-origin: center center; margin: -21px; }
+@media (max-width: 359px) { .jog-pad { transform: scale(0.72); margin: -39px; } } /* 1.101: 320 px: the pad and the Z column inside the card (280 × 0.28 / 2) */ /* 1.31: the margin gives back the room the scale takes off (280 × 0.15 / 2), so the Z column fits on a phone */
 .jog-home {
   width: 64px;
   height: 64px;

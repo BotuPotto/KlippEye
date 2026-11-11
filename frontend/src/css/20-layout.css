@@ -137,3 +137,10 @@ body:has(.modal, .confirm-overlay, .sheet-overlay, .screen) .bottom-nav { opacit
 
 /* 1.82: a guest's badge in the top bar, instead of the power, save and stop buttons */
 .header-guest { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px; font-weight: 600; white-space: nowrap; }
+
+/* 1.101: the narrowest phones: five tabs in 320 px, the longer names («Sterowanie», «Управление») whole */
+@media (max-width: 359px) {
+  .bottom-nav { width: calc(100% - 16px); gap: 0; padding: 6px 4px; }
+  .bottom-nav__tab { padding: 0 1px; }
+  .bottom-nav__label { font-size: 10px; letter-spacing: 0; }
+}

@@ -18,3 +18,7 @@
 .manual-probe__z { font-variant-numeric: tabular-nums; }
 .manual-probe__steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 4px; }
 .manual-probe__step { min-width: 0; padding: 0 4px; font-variant-numeric: tabular-nums; }
+/* 1.101: a long language on a narrow phone («Моторы выключены», «Калибровать»): each button on its own line instead of
+   being cut */
+.movement-actions { flex-wrap: wrap; row-gap: 8px; }
+.movement-actions > .oui-btn, .movement-actions > :not(.oui-btn) { flex: 1 1 auto; }

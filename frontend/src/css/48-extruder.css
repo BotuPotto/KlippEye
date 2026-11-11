@@ -29,3 +29,6 @@
 }
 .macro-btn:hover { background: var(--oui-surface-3); }
 .macro-btn:active { transform: scale(0.96); background: var(--oui-accent-soft); color: var(--oui-accent-text); }
+
+/* 1.101: one long word («Extrusionsvorschub») is split at a syllable instead of running out of its half */
+.extruder-fields .oui-label { hyphens: auto; overflow-wrap: break-word; }

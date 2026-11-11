@@ -48,3 +48,8 @@
 .exclude-list__name { min-width: 0; overflow-wrap: anywhere; font-size: 14px; }
 .exclude-warn { color: var(--oui-danger); }
 .print-live .print-stat__value { white-space: nowrap; font-size: 17px; }
+
+/* 1.101: the narrowest phones: the six figures of the print card stay inside it («6,3 mm³/s») */
+@media (max-width: 359px) {
+  .print-stat__value, .print-live .print-stat__value { font-size: 15px; }
+}

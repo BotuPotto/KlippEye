@@ -35,12 +35,13 @@
 .editor-title-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .editor-title { min-width: 0; overflow: hidden; font-size: 16px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
 .editor-status { min-height: 16px; font-size: 12px; line-height: 16px; color: var(--oui-text-3); }
+.editor-status:empty { display: none; } /* 1.101: no status: the name centred beside ✕ (the bar keeps its height) */
 .editor-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 .editor-save { min-height: 44px; padding: 0 18px; font-size: 14px; white-space: nowrap; }
 /* phones: the actions drop to their own row and share its width */
 @media (max-width: 640px) {
   .editor-actions { flex-basis: 100%; }
-  .editor-actions .editor-save { flex: 1; padding: 0 10px; }
+  .editor-actions .editor-save { flex: 1 1 0; min-width: 0; padding: 4px 10px; white-space: normal; line-height: 1.15; } /* a long language wraps instead of leaving the screen */
 }
 
 /* the tools bar: Annulla / Ripristina (icons) and the comment buttons, which share what is left of the row on a phone */
@@ -53,16 +54,23 @@
 .editor-tools .editor-comment { white-space: nowrap; }
 /* the sections of the file and the reference page: at the end of the row */
 .editor-tools .editor-sections-btn { margin-left: auto; }
-.editor-tools .editor-docs { display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }
+.editor-more-item { color: inherit; text-decoration: none; }
 .editor-search-btn[aria-pressed="true"] { color: var(--oui-accent); }
 .editor-section-item .oui-menu__title { font-family: var(--oui-font-mono); font-size: 13px; }
 /* a menu opened from the editor goes over it (the editor covers the page) */
 /* the narrowest phones (320 px): the comment buttons keep their words and give up their icons */
-@media (max-width: 359px) {
-  .editor-tools { gap: 6px; }
-  .editor-tools .oui-btn:not(.editor-history) { padding: 0 6px; }
-  .editor-tools .oui-btn:not(.editor-history) svg { display: none; }
+@media (max-width: 400px) {
+  .editor-tools .editor-comment svg { display: none; }
+  .editor-tools .editor-comment { padding: 0 8px; }
 }
+@media (max-width: 359px) {
+  .editor-tools { gap: 4px; margin: 0 10px 8px; }
+  .editor-tools .editor-history { width: 36px; }
+  .editor-tools .editor-comment { padding: 0 4px; font-size: 13px; }
+}
+/* 1.101: words that do not fit (a narrow phone, a long language): the two buttons show their icons, # and #̸ */
+.editor-tools--tight .editor-comment__label { display: none; }
+.editor-tools--tight .editor-comment svg { display: block !important; }
 
 /* the code well: CodeMirror (51-config-editor.js), coloured by its own highlight style */
 .editor-body {

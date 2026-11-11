@@ -86,3 +86,10 @@
 .cfg-row__tag { color: var(--oui-warn); font-weight: 600; }
 .cfg-left { display: block; width: 100%; margin-top: 10px; padding: 8px 4px; border: 0; background: transparent; color: var(--oui-text-3); font-size: 12.5px; text-align: center; }
 .cfg-left:hover { color: var(--oui-accent-text); }
+
+/* 1.101: the narrowest phones: the search field takes its own line, the three buttons the next one */
+@media (max-width: 359px) {
+  .cfg-toolbar { flex-wrap: wrap; }
+  .cfg-toolbar__search { flex: 1 1 100%; }
+  .cfg-toolbar .oui-chip { flex: 1 1 0; }
+}
