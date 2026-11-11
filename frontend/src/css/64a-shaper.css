@@ -98,6 +98,6 @@
   .shaper-table th, .shaper-table td { padding-left: 2px; padding-right: 2px; }
   .shaper-table thead th { font-size: 10px; }
   .shaper-table tbody th, .shaper-table td { font-size: 11.5px; }
-  .shaper-row__tag { display: table; margin: 0 0 4px 13px; font-size: 9.5px; }
+  .shaper-row__tag { display: flex; width: fit-content; min-height: 20px; margin: 0 0 4px 13px; padding: 0 8px; font-size: 10px; }
   .shaper-row__pick { min-height: 28px; gap: 4px; }
 }
