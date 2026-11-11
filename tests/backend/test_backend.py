@@ -2335,6 +2335,88 @@ _wc.get("/api/printer", headers={"X-Api-Key": "abc"})
 check("1.94: OctoPrint's upload, job and printer questions go to Moonraker", _seen == ["api/files/local", "api/job", "api/printer"], _seen)
 _wb.proxy_moonraker = _orig_proxy
 
+# 1.100: Home Assistant / MQTT (backend/mqtt_client.py, mqtt_bridge.py, printer_lights.py) against a small broker
+import printer_lights as _pl  # noqa: E402
+import mqtt_bridge as _mb  # noqa: E402
+import mqtt_client as _mq  # noqa: E402
+from fake_mqtt_broker import FakeBroker  # noqa: E402
+
+_objs = ["neopixel LUCI", "output_pin case_light", "output_pin buzzer", "led_effect idle", "extruder"]
+_cf = {"settings": {"gcode_macro luci_on": {}, "gcode_macro luci_off": {}, "gcode_macro _hidden": {}, "gcode_macro park": {}},
+       "config": {"led_effect idle": {"leds": "neopixel:LUCI (1-10)"}}}
+_outs = _pl.outputs_from(_objs, _cf)
+check("1.100: the outputs that may be lights, with the effects drawn on them", [o["object"] for o in _outs] == ["neopixel LUCI", "output_pin case_light", "output_pin buzzer"]
+      and _outs[0]["effects"] == ["led_effect idle"], _outs)
+_found = _pl.resolve({"configured": False}, _outs, _pl.macros_from(_cf), {"STOP_LED_EFFECTS": ""})
+check("1.100: as the dashboard: the LUCI macros (read on the LED of the same name), the pin named as a light; not the buzzer",
+      [(l["id"], l["on"], l["object"]["object"] if l["object"] else None) for l in _found] == [("m-luci-on", "LUCI_ON", "neopixel LUCI"), ("o-output-pin-case-light", "SET_PIN PIN=case_light VALUE=1", "output_pin case_light")], _found)
+_mine = _pl.resolve({"configured": True, "items": [{"id": "x", "name": "Strip", "mode": "object", "object": "neopixel LUCI"}, {"id": "y", "mode": "gcode", "onGcode": "", "offGcode": "M5"}]}, _outs, [], {"STOP_LED_EFFECTS": ""})
+check("1.100: the person's list: a LED switched with SET_LED (its effects stopped first); a light without both commands left out",
+      len(_mine) == 1 and _mine[0]["off"].startswith('STOP_LED_EFFECTS LEDS="neopixel:LUCI"') and "SET_LED LED=LUCI RED=0" in _mine[0]["off"], _mine)
+check("1.100: a light's state from its output or its effect", _pl.is_on({"neopixel LUCI": {"color_data": [[0, 0, 0, 0]]}, "led_effect idle": {"enabled": True}}, _mine[0]) is True
+      and _pl.is_on({"neopixel LUCI": {"color_data": [[0, 0, 0, 0]]}, "led_effect idle": {"enabled": False}}, _mine[0]) is False and _pl.is_on({}, _mine[0]) is None)
+check("1.100: settings checked: no address with it on, a topic with + refused, the scheme taken off the address",
+      _raises(lambda: _mb.clean({"enabled": True})) is not None and _raises(lambda: _mb.clean({"base_topic": "a/+/b"})) is not None
+      and _mb.clean({"host": "mqtt://ha.local:1883/".replace(":1883", ""), "port": "1884"})["host"] == "ha.local" and _mb.clean({"port": "1884"})["port"] == 1884)
+_st = _mb.build_state({"print_stats": {"state": "printing", "filename": "Benchy.gcode", "print_duration": 600, "info": {"current_layer": 12, "total_layer": 100}},
+                       "display_status": {"progress": 0.25}, "extruder": {"temperature": 215.04, "target": 215}, "webhooks": {"state": "ready"}}, {"state": "watching"}, now=1000)
+check("1.100: the state published: progress, time left from the file, layer, temperatures", _st["progress"] == 25.0 and _st["remaining"] == 1800 and _st["layer"] == 12
+      and _st["nozzle"] == 215.0 and _st["bed"] is None and _st["ai"] == "watching" and _st["ai_alarm"] is False and _st["eta"], _st)
+check("1.100: Klipper in shutdown: state error", _mb.build_state({"print_stats": {"state": "printing"}, "webhooks": {"state": "shutdown"}})["state"] == "error")
+
+_broker = FakeBroker("ha", "secret")
+check("1.100: test of the connection: a wrong password said, the right one accepted",
+      _mq.test_connection("127.0.0.1", _broker.port, "ha", "nope") == (False, "wrong user name or password") and _mq.test_connection("127.0.0.1", _broker.port, "ha", "secret") == (True, ""))
+_sent = []
+_status = {"print_stats": {"state": "printing", "filename": "Benchy.gcode", "print_duration": 600}, "display_status": {"progress": 0.5},
+           "webhooks": {"state": "ready"}, "neopixel LUCI": {"color_data": [[1, 1, 1, 0]]}}
+_mset = _mb.clean({"enabled": True, "host": "127.0.0.1", "port": _broker.port, "username": "ha", "password": "secret"})
+_br = _mb.Bridge(_mset, lambda objects: _status, lambda: {"state": "watching", "alarm": False}, lambda: _found, lambda word: _sent.append(word) or True,
+                 lambda script: _sent.append(script) or True, lambda: {"identifiers": ["klippeye_test"], "name": "Voron"}, node="voron", say=lambda t: {"State": "Stato"}.get(t, t))
+_br.INTERVAL = 0.2
+_br.start()
+wait_for(lambda: "klippeye/voron/status/state" in _broker.retained, 10)
+_cfg = {t: json.loads(v) for t, v in _broker.retained.items() if t.endswith("/config")}
+check("1.100: connected: online, the values on their topics, the JSON state", _br.status()["connected"] and _broker.retained.get("klippeye/voron/availability") == b"online"
+      and _broker.retained["klippeye/voron/status/progress"] == b"50.0" and _broker.retained["klippeye/voron/status/remaining"] == b"600"
+      and json.loads(_broker.retained["klippeye/voron/state"])["file"] == "Benchy.gcode" and _broker.retained.get("klippeye/voron/status/layer") == b"None", sorted(_broker.retained))
+check("1.100: Home Assistant's discovery: one device, names in the language of the notifications, pause / resume buttons, a light per light; no cancel button",
+      _cfg["homeassistant/sensor/klippeye_voron/state/config"]["name"] == "Stato" and all(c["device"]["name"] == "Voron" for c in _cfg.values())
+      and "homeassistant/button/klippeye_voron/pause/config" in _cfg and "homeassistant/button/klippeye_voron/cancel/config" not in _cfg
+      and _cfg["homeassistant/light/klippeye_voron/light_m_luci_on/config"]["command_topic"] == "klippeye/voron/light/m-luci-on/set", sorted(_cfg))
+check("1.100: the light's state from its LED", _broker.retained.get("klippeye/voron/light/m-luci-on/state") == b"ON")
+_broker.publish("klippeye/voron/command", "resume")
+_broker.publish("klippeye/voron/command", "cancel")
+_broker.publish("klippeye/voron/command", "pause")
+_broker.publish("klippeye/voron/light/m-luci-on/set", "OFF")
+wait_for(lambda: len(_sent) >= 2, 5)
+check("1.100: commands: pause while printing, the light's off macro; resume (not paused) and cancel (not allowed) ignored", _sent == ["pause", "LUCI_OFF"], _sent)
+_broker.drop_clients()
+wait_for(lambda: _broker.retained.get("klippeye/voron/availability") == b"offline", 5)
+_was_offline = _broker.retained.get("klippeye/voron/availability") == b"offline"
+wait_for(lambda: _br.status()["connected"] and _broker.retained.get("klippeye/voron/availability") == b"online", 15)
+check("1.100: the broker drops the connection: the last will says offline, then KlippEye connects again by itself", _was_offline and _broker.retained.get("klippeye/voron/availability") == b"online")
+_br.stop(remove_discovery=True)
+time.sleep(0.3)
+check("1.100: switched off: offline, and the entities removed from Home Assistant", _broker.retained.get("klippeye/voron/availability") == b"offline"
+      and not [t for t in _broker.retained if t.endswith("/config")], sorted(_broker.retained))
+# the service's routes: the password is never sent back, a test with the saved one, saving applies at once
+_mbk = load_brain(NEW_BRAIN, tmp(), fake=fake, brain_json={"formato": 1, "values": {"enabled": False}})
+_mc = _mbk.app.test_client()
+_mbk._mqtt_read_lights = lambda: []
+_g = _mc.get("/api/mqtt").get_json()
+check("1.100: /api/mqtt: off at first, the default topic from the host name", _g["enabled"] is False and _g["running"] is None and _g["default_base_topic"].startswith("klippeye/") and "password" not in _g, _g)
+check("1.100: on without an address: refused, in the language of the page", _mc.post("/api/mqtt", json={"enabled": True}, headers={"Accept-Language": "it"}).get_json()["error"] == "Scrivi l'indirizzo del broker.")
+_p = _mc.post("/api/mqtt", json={"enabled": True, "host": "127.0.0.1", "port": _broker.port, "username": "ha", "password": "secret", "allow_cancel": True}).get_json()
+check("1.100: saved: running, the password kept on the Raspberry (600) and not sent back", _p["enabled"] and _p["has_password"] and "password" not in _p and _p["running"] is not None
+      and oct(os.stat(_mbk.MQTT_FILE).st_mode & 0o777) == "0o600" and json.load(open(_mbk.MQTT_FILE))["password"] == "secret", _p)
+check("1.100: test with the saved password (the field left empty)", _mc.post("/api/mqtt/test", json={"host": "127.0.0.1", "port": _broker.port, "username": "ha"}).get_json() == {"ok": True, "error": ""})
+wait_for(lambda: (_mc.get("/api/mqtt").get_json()["running"] or {}).get("connected"), 10)
+check("1.100: the service's bridge connected to the broker", (_mc.get("/api/mqtt").get_json()["running"] or {}).get("connected") is True, _mc.get("/api/mqtt").get_json())
+_mc.post("/api/mqtt", json={"enabled": False})
+check("1.100: switched off from the page: stopped", _mc.get("/api/mqtt").get_json()["running"] is None)
+_broker.close()
+
 stop_all()
 fake.close()
 print("\n%d PASS, %d FAIL" % (passed, failed))

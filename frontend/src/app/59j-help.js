@@ -321,6 +321,15 @@ const HELP = {
       { id: "outside", title: tx("From outside your home"), text: [tx("Never open port 8085 to the internet: use a VPN such as ZeroTier, Tailscale or WireGuard.")] },
     ],
   },
+  homeauto: {
+    title: "Home Assistant / MQTT",
+    sections: [
+      { id: "broker", title: tx("The broker"), text: [tx("KlippEye publishes the printer on an MQTT broker: in Home Assistant, the Mosquitto broker add-on (Settings → Add-ons) with a user of its own. The printer then appears by itself in Settings → Devices & services → MQTT.")] },
+      { id: "ha", title: "Home Assistant", text: [tx("The printer appears in Home Assistant by itself, with its sensors, buttons and lights."), tx("Pause, resume and the lights, from Home Assistant or another system.")] },
+      { id: "cancel", title: tx("Allow cancelling the print"), text: [tx("A cancelled print cannot be recovered: turn it on only if nobody can press it by mistake.")] },
+      { id: "others", title: tx("Other systems (Node-RED, openHAB, ioBroker…)"), text: [tx("The same values are on plain topics, retained: read them, or publish a command.")] },
+    ],
+  },
   software: {
     title: tx("Updates"),
     sections: [

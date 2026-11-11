@@ -1276,6 +1276,13 @@ def mock_https():
                    addresses=["192.168.1.50"], secure=False, nginx=bool(web.get("main")))
 
 
+@app.route("/api/mqtt", methods=["GET", "POST"])
+def mock_mqtt():
+    """1.100: Home Assistant / MQTT, off (its real behaviour is tested by mqtt_test.py with the real backend and a broker)."""
+    return jsonify(ok=True, enabled=False, host="", port=1883, tls=False, username="", base_topic="", discovery=True, discovery_prefix="homeassistant",
+                   commands=True, allow_cancel=False, has_password=False, node="voron", default_base_topic="klippeye/voron", running=None)
+
+
 @app.route("/api/web", methods=["GET", "POST"])
 def mock_web():
     """1.94: KlippEye at the Raspberry's own address (scripts/web_front.py is tested by the backend tests)."""

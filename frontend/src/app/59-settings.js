@@ -807,6 +807,7 @@ const SETTINGS_ENTRIES = [
   { id: "language", group: "yours", title: tx("Language"), icon: Icons.Language },
   { id: "network", group: "system", title: tx("Addresses"), icon: Icons.Network },
   { id: "access", group: "system", title: tx("Access"), icon: Icons.Lock },
+  { id: "homeauto", group: "system", title: "Home Assistant / MQTT", icon: Icons.House }, // 1.100
   { id: "software", group: "system", title: tx("Updates"), icon: Icons.Download },
 ];
 /** Pages that are now a part of another one: still opened by a link (the guided set-up, the help). */
@@ -932,6 +933,7 @@ function SettingsDrawer({ menu, updates, printing, actions }) {
   else if (page === "recordings") body = h(RecordingsPage, { active: true });
   else if (page === "camcal") body = h(CameraCalibrationPage, { active: true });
   else if (page === "access") body = h(AccessPage, { active: true });
+  else if (page === "homeauto") body = h(HomeAutomationPage);
   else if (page === "language") body = h(LanguagePage);
   else if (page === "appearance") body = h(React.Fragment, null, h("h3", { className: "fn-section", "data-section": "printer" }, h(Icons.Cube, { size: 18 }), tx("The printer, on every device")), h(PrinterPage), h("h3", { className: "fn-section", "data-section": "device" }, h(Icons.Sliders, { size: 18 }), tx("On this device")), h(AppearancePage));
   else if (page === "functions") body = h(PrinterFunctionsPage, { printing });
