@@ -29,14 +29,17 @@ jobs:
       - name: Install the Python packages
         run: pip install flask waitress requests werkzeug numpy opencv-python-headless cryptography pillow playwright==1.56.0
       - name: Install Chromium (the notifier integration test starts the dashboard stand-in)
-        run: python -m playwright install --with-deps chromium
+        # the system libraries come from Ubuntu's archive; when the runners cannot reach it the image's own libraries
+        # (Chrome is preinstalled on it) are enough to run Chromium
+        run: |
+          python -m playwright install --with-deps chromium || { echo "::warning::Ubuntu's archive not reachable, Chromium without --with-deps"; python -m playwright install chromium; }
       - name: Run the tests (no browser tests)
         run: bash tests/run_all.sh --no-ui
 
   ui:
     name: Dashboard in the browser
     runs-on: ubuntu-24.04   # pinned: Playwright 1.56 installs its system libraries on 24.04 (ubuntu-latest moves to 26)
-    timeout-minutes: 60
+    timeout-minutes: 90     # the tests take about 50 minutes; a slow Ubuntu archive adds several to the installation
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -45,7 +48,10 @@ jobs:
       - name: Install the Python packages
         run: pip install flask waitress requests werkzeug numpy opencv-python-headless pillow playwright==1.56.0
       - name: Install Chromium
-        run: python -m playwright install --with-deps chromium
+        # the system libraries come from Ubuntu's archive; when the runners cannot reach it the image's own libraries
+        # (Chrome is preinstalled on it) are enough to run Chromium
+        run: |
+          python -m playwright install --with-deps chromium || { echo "::warning::Ubuntu's archive not reachable, Chromium without --with-deps"; python -m playwright install chromium; }
       - name: Run the browser tests
         run: bash tests/ui/run_all.sh "$RUNNER_TEMP/ui"
       - name: Keep the screenshots and logs when something fails
