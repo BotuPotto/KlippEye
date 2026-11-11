@@ -3346,13 +3346,14 @@ button.ai-header-badge { cursor: pointer; font: inherit; color: inherit; }
 /* Devices connected to the Raspberry (app/56b-peripherals.js) */
 .peripherals-kinds { margin: 4px 0 12px; max-width: 100%; overflow-x: auto; }
 .peripherals-kinds > button { white-space: nowrap; }
-.peripherals-note { margin-top: 10px; }
-.peripheral-row { display: flex; flex-direction: column; gap: 4px; padding: 10px 2px; min-width: 0; }
-.peripheral-row + .peripheral-row { border-top: 1px solid var(--oui-stroke); }
+.peripherals-note { margin-top: 12px; padding: 0 4px; }
+/* 1.101: a row as the other lists of the dashboard: its own padding, the rows apart by the list's gap */
+.peripheral-row { display: flex; flex-direction: column; gap: 4px; padding: 14px 16px; min-width: 0; }
 .peripheral-row__title { font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
 .peripheral-row__detail { font-size: 12px; color: var(--oui-text-3); overflow-wrap: anywhere; }
-.peripheral-row__copy { display: flex; align-items: center; gap: 6px; min-height: 36px; padding: 6px 10px; border-radius: 10px; background: var(--oui-surface-2); color: var(--oui-text-2); text-align: left; }
-.peripheral-row__copy code { flex: 1; min-width: 0; font-size: 12px; overflow-wrap: anywhere; }
+.peripheral-row__copy { display: flex; align-items: center; gap: 10px; min-height: 40px; margin-top: 6px; padding: 8px 12px; border-radius: var(--oui-r-field); background: var(--oui-inset); color: var(--oui-text-2); text-align: left; }
+.peripheral-row__copy svg { flex-shrink: 0; }
+.peripheral-row__copy code { flex: 1; min-width: 0; font-size: 12px; line-height: 1.45; overflow-wrap: anywhere; }
 .peripheral-row__copy:hover { background: var(--oui-surface-3); }
 /* 1.101: phones: the four kinds share the card's width, none cut at the edge («CAN») */
 @media (max-width: 420px) {
@@ -3526,19 +3527,17 @@ button.ai-header-badge { cursor: pointer; font: inherit; color: inherit; }
 .editor-search-btn[aria-pressed="true"] { color: var(--oui-accent); }
 .editor-section-item .oui-menu__title { font-family: var(--oui-font-mono); font-size: 13px; }
 /* a menu opened from the editor goes over it (the editor covers the page) */
-/* the narrowest phones (320 px): the comment buttons keep their words and give up their icons */
-@media (max-width: 400px) {
-  .editor-tools .editor-comment svg { display: none; }
-  .editor-tools .editor-comment { padding: 0 8px; }
-}
-@media (max-width: 359px) {
+/* not room for icon and word: the comment buttons keep their words and give up their icons (1.101: measured) */
+.editor-tools--words .editor-comment svg { display: none; }
+@media (max-width: 480px) { /* phones: the tools row a little denser */
   .editor-tools { gap: 4px; margin: 0 10px 8px; }
   .editor-tools .editor-history { width: 36px; }
-  .editor-tools .editor-comment { padding: 0 4px; font-size: 13px; }
+  .editor-tools .editor-comment { gap: 6px; padding: 0 8px; font-size: 13.5px; }
 }
 /* 1.101: words that do not fit (a narrow phone, a long language): the two buttons show their icons, # and #̸ */
 .editor-tools--tight .editor-comment__label { display: none; }
-.editor-tools--tight .editor-comment svg { display: block !important; }
+.editor-tools .editor-comment svg { flex-shrink: 0; }
+.editor-tools--tight .editor-comment svg { display: block; }
 
 /* the code well: CodeMirror (51-config-editor.js), coloured by its own highlight style */
 .editor-body {
@@ -4077,7 +4076,7 @@ button.ai-header-badge { cursor: pointer; font: inherit; color: inherit; }
   .shaper-table th, .shaper-table td { padding-left: 2px; padding-right: 2px; }
   .shaper-table thead th { font-size: 10px; }
   .shaper-table tbody th, .shaper-table td { font-size: 11.5px; }
-  .shaper-row__tag { display: table; margin: 0 0 4px 13px; font-size: 9.5px; }
+  .shaper-row__tag { display: flex; width: fit-content; min-height: 20px; margin: 0 0 4px 13px; padding: 0 8px; font-size: 10px; }
   .shaper-row__pick { min-height: 28px; gap: 4px; }
 }
 
@@ -22511,11 +22510,12 @@ async function sendSaveConfig() {
  * phone): the earlier versions of the file, the reference page of the section, fold or unfold, the sections. */
 function EditorMoreButton({ sections, current, onJump, onFoldAll, onUnfoldAll, onVersions, docsUrl }) {
   const menu = useDropdown();
-  const item = (key, title, subtitle, onClick, checked, extra = {}) =>
+  // every row with its icon (1.101): fold / unfold, «go to» for a section, ✓ on the section the cursor is in
+  const item = (key, title, subtitle, onClick, checked, icon) =>
     h(
       "button",
-      { key, type: "button", className: "oui-menu__item console-option editor-section-item", role: "menuitem", "data-section-line": typeof key === "number" ? key : undefined, onClick: () => (menu.close(), onClick()), ...extra },
-      h("span", { className: "oui-menu__icon" }, checked ? h(Icons.Check, { size: 18 }) : extra.icon || null),
+      { key, type: "button", className: cx("oui-menu__item console-option", typeof key === "number" ? "editor-section-item" : "editor-more-item"), role: "menuitem", "data-section-line": typeof key === "number" ? key : undefined, onClick: () => (menu.close(), onClick()) },
+      h("span", { className: "oui-menu__icon" }, h(checked ? Icons.Check : icon, { size: 18 })),
       h("span", { className: "oui-menu__text" }, h("span", { className: "oui-menu__title" }, title), subtitle && h("span", { className: "oui-menu__sub" }, subtitle)),
     );
   return h(
@@ -22534,18 +22534,19 @@ function EditorMoreButton({ sections, current, onJump, onFoldAll, onUnfoldAll, o
       docsUrl && h("a", { className: "oui-menu__item console-option editor-more-item editor-docs", role: "menuitem", href: docsUrl, target: "_blank", rel: "noopener noreferrer", onClick: () => menu.close() },
         h("span", { className: "oui-menu__icon" }, h(Icons.Doc, { size: 18 })), h("span", { className: "oui-menu__text" }, h("span", { className: "oui-menu__title" }, tx("What this section does (the reference)")))),
       sections.length > 0 && h(MenuLabel, null, tx("Fold")),
-      sections.length > 0 && item("fold", tx("Fold every section"), null, onFoldAll),
-      sections.length > 0 && item("unfold", tx("Unfold every section"), null, onUnfoldAll),
+      sections.length > 0 && item("fold", tx("Fold every section"), null, onFoldAll, false, Icons.Shrink),
+      sections.length > 0 && item("unfold", tx("Unfold every section"), null, onUnfoldAll, false, Icons.Expand),
       sections.length > 0 && h(MenuLabel, null, tx("Go to the section")),
-      sections.map((section) => item(section.line, "[" + section.name + "]", tx("line {line}", { line: section.line }), () => onJump(section.line), current && current.line === section.line)),
+      sections.map((section) => item(section.line, "[" + section.name + "]", tx("line {line}", { line: section.line }), () => onJump(section.line), current && current.line === section.line, Icons.Forward)),
     ),
   );
 }
 
-/** True when the comment buttons' words do not fit in the tools row (a narrow phone, a long language such as German
- * or Russian): they then show only their icons (1.101). Measured from the words, so it changes back as soon as they fit. */
+/** How the two comment buttons fit in the tools row (1.101): "" icon and word, "words" (the icons step aside first),
+ * "icons" (a narrow phone, a long language such as German or Russian: only # and #̸). Measured from the words, so it
+ * changes back as soon as they fit. */
 function useTightTools(rowRef, labels) {
-  const [tight, setTight] = useState(false);
+  const [tight, setTight] = useState("");
   useLayoutEffect(() => {
     const row = rowRef.current;
     if (!row || typeof ResizeObserver === "undefined") return undefined;
@@ -22559,8 +22560,9 @@ function useTightTools(rowRef, labels) {
       const others = [...row.children].filter((child) => !child.classList.contains("editor-comment")).reduce((sum, child) => sum + child.getBoundingClientRect().width, 0);
       const available = row.clientWidth - others - gap * (row.children.length - 1);
       const padding = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight) + 2;
-      const needed = labels.reduce((sum, label) => sum + Math.ceil(canvas.measureText(label).width) + padding, 0);
-      setTight(needed > available);
+      const words = labels.reduce((sum, label) => sum + Math.ceil(canvas.measureText(label).width) + padding, 0);
+      const icons = labels.length * (18 + (parseFloat(style.columnGap) || 6)); // each icon with its gap
+      setTight(words + icons <= available ? "" : words <= available ? "words" : "icons");
     };
     check();
     const observer = new ResizeObserver(check);
@@ -22810,7 +22812,7 @@ function EditorScreen({ session, onClose, inline, onDirtyChange }) {
     (!readOnly || sections.length > 0) &&
       h(
         "div",
-        { className: cx("editor-tools", toolsTight && "editor-tools--tight"), ref: toolsRef },
+        { className: cx("editor-tools", toolsTight && "editor-tools--" + (toolsTight === "words" ? "words" : "tight")), ref: toolsRef },
         !readOnly && h("button", { type: "button", className: "oui-btn oui-btn--sm editor-history", title: tx("Undo (Ctrl+Z)"), "aria-label": txc("edit", "Undo"), disabled: historyDepth.undo === 0, onMouseDown: keepFocus, onClick: () => runHistory(CM.undo) }, h(Icons.Undo, { size: 20 })),
         !readOnly && h("button", { type: "button", className: "oui-btn oui-btn--sm editor-history", title: tx("Redo (Ctrl+Y)"), "aria-label": txc("edit", "Redo"), disabled: historyDepth.redo === 0, onMouseDown: keepFocus, onClick: () => runHistory(CM.redo) }, h(Icons.Redo, { size: 20 })),
         !readOnly && h("button", { type: "button", className: "oui-btn oui-btn--sm editor-comment", title: tx("Puts {mark} in front of the selected lines (Ctrl+/)", { mark: commentMark }), onMouseDown: keepFocus, "aria-label": tx("Comment"), onClick: () => markComments("comment") }, h(Icons.Hash, { size: 18 }), h("span", { className: "editor-comment__label" }, tx("Comment"))),

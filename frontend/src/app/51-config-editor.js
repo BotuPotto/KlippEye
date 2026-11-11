@@ -365,11 +365,12 @@ async function sendSaveConfig() {
  * phone): the earlier versions of the file, the reference page of the section, fold or unfold, the sections. */
 function EditorMoreButton({ sections, current, onJump, onFoldAll, onUnfoldAll, onVersions, docsUrl }) {
   const menu = useDropdown();
-  const item = (key, title, subtitle, onClick, checked, extra = {}) =>
+  // every row with its icon (1.101): fold / unfold, «go to» for a section, ✓ on the section the cursor is in
+  const item = (key, title, subtitle, onClick, checked, icon) =>
     h(
       "button",
-      { key, type: "button", className: "oui-menu__item console-option editor-section-item", role: "menuitem", "data-section-line": typeof key === "number" ? key : undefined, onClick: () => (menu.close(), onClick()), ...extra },
-      h("span", { className: "oui-menu__icon" }, checked ? h(Icons.Check, { size: 18 }) : extra.icon || null),
+      { key, type: "button", className: cx("oui-menu__item console-option", typeof key === "number" ? "editor-section-item" : "editor-more-item"), role: "menuitem", "data-section-line": typeof key === "number" ? key : undefined, onClick: () => (menu.close(), onClick()) },
+      h("span", { className: "oui-menu__icon" }, h(checked ? Icons.Check : icon, { size: 18 })),
       h("span", { className: "oui-menu__text" }, h("span", { className: "oui-menu__title" }, title), subtitle && h("span", { className: "oui-menu__sub" }, subtitle)),
     );
   return h(
@@ -388,18 +389,19 @@ function EditorMoreButton({ sections, current, onJump, onFoldAll, onUnfoldAll, o
       docsUrl && h("a", { className: "oui-menu__item console-option editor-more-item editor-docs", role: "menuitem", href: docsUrl, target: "_blank", rel: "noopener noreferrer", onClick: () => menu.close() },
         h("span", { className: "oui-menu__icon" }, h(Icons.Doc, { size: 18 })), h("span", { className: "oui-menu__text" }, h("span", { className: "oui-menu__title" }, tx("What this section does (the reference)")))),
       sections.length > 0 && h(MenuLabel, null, tx("Fold")),
-      sections.length > 0 && item("fold", tx("Fold every section"), null, onFoldAll),
-      sections.length > 0 && item("unfold", tx("Unfold every section"), null, onUnfoldAll),
+      sections.length > 0 && item("fold", tx("Fold every section"), null, onFoldAll, false, Icons.Shrink),
+      sections.length > 0 && item("unfold", tx("Unfold every section"), null, onUnfoldAll, false, Icons.Expand),
       sections.length > 0 && h(MenuLabel, null, tx("Go to the section")),
-      sections.map((section) => item(section.line, "[" + section.name + "]", tx("line {line}", { line: section.line }), () => onJump(section.line), current && current.line === section.line)),
+      sections.map((section) => item(section.line, "[" + section.name + "]", tx("line {line}", { line: section.line }), () => onJump(section.line), current && current.line === section.line, Icons.Forward)),
     ),
   );
 }
 
-/** True when the comment buttons' words do not fit in the tools row (a narrow phone, a long language such as German
- * or Russian): they then show only their icons (1.101). Measured from the words, so it changes back as soon as they fit. */
+/** How the two comment buttons fit in the tools row (1.101): "" icon and word, "words" (the icons step aside first),
+ * "icons" (a narrow phone, a long language such as German or Russian: only # and #̸). Measured from the words, so it
+ * changes back as soon as they fit. */
 function useTightTools(rowRef, labels) {
-  const [tight, setTight] = useState(false);
+  const [tight, setTight] = useState("");
   useLayoutEffect(() => {
     const row = rowRef.current;
     if (!row || typeof ResizeObserver === "undefined") return undefined;
@@ -413,8 +415,9 @@ function useTightTools(rowRef, labels) {
       const others = [...row.children].filter((child) => !child.classList.contains("editor-comment")).reduce((sum, child) => sum + child.getBoundingClientRect().width, 0);
       const available = row.clientWidth - others - gap * (row.children.length - 1);
       const padding = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight) + 2;
-      const needed = labels.reduce((sum, label) => sum + Math.ceil(canvas.measureText(label).width) + padding, 0);
-      setTight(needed > available);
+      const words = labels.reduce((sum, label) => sum + Math.ceil(canvas.measureText(label).width) + padding, 0);
+      const icons = labels.length * (18 + (parseFloat(style.columnGap) || 6)); // each icon with its gap
+      setTight(words + icons <= available ? "" : words <= available ? "words" : "icons");
     };
     check();
     const observer = new ResizeObserver(check);
@@ -664,7 +667,7 @@ function EditorScreen({ session, onClose, inline, onDirtyChange }) {
     (!readOnly || sections.length > 0) &&
       h(
         "div",
-        { className: cx("editor-tools", toolsTight && "editor-tools--tight"), ref: toolsRef },
+        { className: cx("editor-tools", toolsTight && "editor-tools--" + (toolsTight === "words" ? "words" : "tight")), ref: toolsRef },
         !readOnly && h("button", { type: "button", className: "oui-btn oui-btn--sm editor-history", title: tx("Undo (Ctrl+Z)"), "aria-label": txc("edit", "Undo"), disabled: historyDepth.undo === 0, onMouseDown: keepFocus, onClick: () => runHistory(CM.undo) }, h(Icons.Undo, { size: 20 })),
         !readOnly && h("button", { type: "button", className: "oui-btn oui-btn--sm editor-history", title: tx("Redo (Ctrl+Y)"), "aria-label": txc("edit", "Redo"), disabled: historyDepth.redo === 0, onMouseDown: keepFocus, onClick: () => runHistory(CM.redo) }, h(Icons.Redo, { size: 20 })),
         !readOnly && h("button", { type: "button", className: "oui-btn oui-btn--sm editor-comment", title: tx("Puts {mark} in front of the selected lines (Ctrl+/)", { mark: commentMark }), onMouseDown: keepFocus, "aria-label": tx("Comment"), onClick: () => markComments("comment") }, h(Icons.Hash, { size: 18 }), h("span", { className: "editor-comment__label" }, tx("Comment"))),
