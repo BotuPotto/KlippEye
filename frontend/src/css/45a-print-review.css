@@ -1,0 +1,19 @@
+/* How did the print go? (app/45a-print-review.js, 1.103) */
+.print-review { display: flex; flex-direction: column; gap: 12px; }
+.print-review__head { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.print-review__thumb { flex: none; width: 96px; height: 64px; object-fit: cover; border-radius: var(--oui-r-field); background: var(--oui-inset); }
+.print-review__text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.print-review__file { font-size: 15px; font-weight: 600; overflow-wrap: anywhere; }
+.print-review .print-review__choice .oui-chip { flex: 1 1 130px; min-height: 64px; }
+.print-review .print-review__choice .rec-labels__main { display: inline-flex; align-items: center; gap: 6px; }
+.print-review .print-review__choice .rec-labels__good { background: var(--oui-ok-soft, rgba(52, 199, 89, 0.16)); color: var(--oui-ok, #34c759); }
+.print-review .print-review__choice .rec-labels__bad { background: var(--oui-danger-soft); color: var(--oui-danger); }
+.print-review .print-review__choice .rec-labels__detail { color: inherit; opacity: 0.75; }
+.print-review__problems { display: flex; flex-wrap: wrap; gap: 8px; }
+.print-review__problems .oui-chip { min-height: 36px; }
+.print-review__problems .oui-chip.is-selected { background: var(--oui-danger-soft); color: var(--oui-danger); box-shadow: inset 0 0 0 1px var(--oui-danger); }
+.print-review__when { display: flex; flex-direction: column; gap: 6px; }
+.print-review__slider { width: 100%; accent-color: var(--oui-accent); }
+.print-review__actions { display: flex; gap: 8px; }
+.print-review__actions .oui-btn { flex: 1 1 0; }
+.print-review__more { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px; margin: -4px -8px -6px; }

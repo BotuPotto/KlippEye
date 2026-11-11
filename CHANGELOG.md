@@ -1,5 +1,23 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.103.0
+
+**«How did the print go?»** (the first step of the new AI monitor: OpenCV, a local model and the online AI working
+together).
+
+* When a print ends (finished, cancelled or stopped by an error), a card at the top of the home page asks how it went:
+  **Went fine**, or **There was a problem**, with its kinds (spaghetti, part detached, layer shift, warping, blob on
+  the nozzle, under-extrusion, something else) and, with a slider over the print's pictures, from when it can be seen.
+  **Skip** passes this print; **Don't ask again** switches the question off (Settings → Recordings → «Ask how each print
+  went» switches it back on).
+* The answer judges the print's alarms not judged yet: a print that went fine makes them false alarms; a failed one with
+  its moment makes the alarms from then on real problems. The recording of the same print, if any, gets the same label.
+* Every print keeps a few small pictures of its own (one a minute at most, 48 at most, in `klippeye/reviews/`), also with
+  the recordings off: with the answers, they are the examples the local model will learn from. A print shorter than two
+  minutes is not asked about, nor one ended more than two days ago.
+* Backend: `backend/print_review.py`, `GET /api/print/review`, `GET /api/print/review/<id>/<n>.jpg`,
+  `POST /api/print/review/<id>`; the setting `print_review`.
+
 ## 1.102.0
 
 **The AI monitor stops less often by mistake** (from the alarms judged on a real printer: 5 wrong stops out of 6, all at

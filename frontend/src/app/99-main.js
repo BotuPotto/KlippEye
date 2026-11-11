@@ -16,6 +16,7 @@ function HomePage({ printStatus, printControls, status, motion, bedTools, zOffse
     "div",
     { className: "grid grid-cols-1 md:grid-cols-2" },
     printStatus.printing && h(PrintProgressCard, { status: printStatus, controls: printControls, monitor: aiMonitor }),
+    h(PrintReviewCard, { printing: printStatus.printing }), // 1.103: «how did it go?» when a print ends
     arrangeCards("home", {
       camera: h("div", { className: "md:col-span-2" }, h(CameraCard)),
       heaters: h("div", { className: "md:col-span-2" }, h(HeatersFansCard, { hotend: status.hotend, bed: status.bed, onEditTemperature })),

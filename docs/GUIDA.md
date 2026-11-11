@@ -440,6 +440,11 @@ L'IA scrive le sue osservazioni nella lingua delle notifiche; ogni allarme resta
 Registrazioni e `~/printer_data/klippeye/alerts/`). Quando l'IA ha proposto pausa o annullamento ma nessun difetto arrivava alla
 fiducia minima, l'allarme lo dice in arancione («Pausa proposta, sotto la soglia»).
 
+**A fine stampa** una card in cima alla Home chiede **Com'è andata la stampa?**: *Andata bene*, oppure *C'era un problema*
+(quale, e col cursore da quale foto si vede). Richiede un secondo ed è facoltativo: *Salta*, oppure *Non chiedere più*
+(Impostazioni → Registrazioni → «Chiedi com'è andata ogni stampa» la riattiva). La risposta giudica gli allarmi della stampa non
+ancora giudicati, e le piccole foto che tiene di ogni stampa sono ciò da cui il monitor IA imparerà.
+
 Prima di una pausa o di un annullamento l'IA **guarda due volte**: 40 secondi dopo, su una foto nuova, le si chiede di nuovo, e lo
 stop vale solo se anche quella volta vede un problema (un riflesso, un'ombra o la testina di passaggio non restano; un guasto vero
 sì). Le notifiche e la pausa automatica aspettano quel secondo sguardo. Finché la stampa è più bassa di 2 mm, «piatto vuoto» da
