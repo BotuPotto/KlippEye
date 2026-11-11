@@ -425,6 +425,11 @@ The AI writes its observations in the language of the notifications; every alert
 the alarms in Recordings, and `~/printer_data/klippeye/alerts/`). When the AI proposed to pause or cancel but no defect reached
 the minimum confidence, the alarm says so in orange ("Pause proposed, under the threshold").
 
+**At the end of a print** a card at the top of the home page asks **How did the print go?**: *Went fine*, or *There was a
+problem* (which kinds, and with the slider from which picture it can be seen). It takes a second and it is optional: *Skip*,
+or *Don't ask again* (Settings → Recordings → "Ask how each print went" turns it back on). The answer judges the print's
+alarms not judged yet, and the small pictures it keeps of each print are what the AI monitor will learn from.
+
 Before a pause or a cancel the AI **looks twice**: 40 seconds later, on a new picture, it is asked again, and the stop holds
 only if it sees a problem that time too (a reflection, a shadow or the head passing over do not stay; a real failure does).
 The notifications and the automatic pause wait for that second look. While the print is lower than 2 mm, "empty bed" alone does

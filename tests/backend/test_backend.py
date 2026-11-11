@@ -1361,7 +1361,7 @@ check("GET: done, with the result (one print, the thresholds in use now)", j["st
 r = cr.delete("/api/recordings/" + sid)
 check("DELETE: the recording goes, then 404", r.status_code == 200 and cr.get("/api/recordings/" + sid).status_code == 404 and cr.delete("/api/recordings/" + sid).status_code == 404)
 check("CPU of the monitor: time of a check in the status", isinstance(mr.detector.stats.get("check_ms"), float), mr.detector.stats)
-check("the recording settings are in the menu's list (group 'recording')", [s["key"] for s in cr.get("/api/backend/config").get_json()["spec"] if s["group"] == "recording"] == ["record", "record_max_mb"])
+check("the recording settings are in the menu's list (group 'recording')", [s["key"] for s in cr.get("/api/backend/config").get_json()["spec"] if s["group"] == "recording"] == ["record", "record_max_mb", "print_review"])
 check("turning recording off from the menu reaches the recorder", cr.post("/api/backend/config", json={"values": {"record": False}}).status_code == 200 and mr.recorder.enabled is False and mr.recorder.status == "off")
 fake.state["filename"] = "test.gcode"
 
@@ -2510,6 +2510,71 @@ check("1.100: the service's bridge connected to the broker", (_mc.get("/api/mqtt
 _mc.post("/api/mqtt", json={"enabled": False})
 check("1.100: switched off from the page: stopped", _mc.get("/api/mqtt").get_json()["running"] is None)
 _broker.close()
+
+print("== 1.103: how did the print go? (print_review.py and its routes)")
+import print_review as _pr  # noqa: E402
+_rv_root = os.path.join(tmp(), "reviews")
+_rv = _pr.PrintReviews(_rv_root, _core.cv2)
+_rv.observe("printing", "cube.gcode", 1000.0)
+check("1.103: a print starts: its review is open, nothing asked during the print", _rv.current and _rv.current["file"] == "cube.gcode" and _rv.pending(1100.0) is None)
+for i in range(130):
+    _rv.add_frame(fakes.frame(), 1000.0 + i * 61, {"progress": i * 0.7, "layer": i})
+_thumbs = _rv.current["thumbs"]
+_files = [n for n in os.listdir(os.path.join(_rv_root, _rv.current["id"])) if n.endswith(".jpg")]
+check("1.103: a small picture a minute at most, never more than 48: when full every other one goes and the pause doubles",
+      len(_thumbs) <= _pr.MAX_THUMBS and len(_files) == len(_thumbs) and _thumbs[0]["n"] == 1 and _thumbs[-1]["t"] > 1000.0 + 100 * 61 and _rv.every > _pr.THUMB_EVERY_S, (len(_thumbs), len(_files), _rv.every))
+_rv.observe("complete", "", 1000.0 + 130 * 61)
+_pend = _rv.pending(1000.0 + 131 * 61)
+check("1.103: the print ends: it is asked about (with its pictures)", _pend and _pend["end_state"] == "complete" and _pend["thumbs"], _pend and _pend.get("end_state"))
+check("... not two days later", _rv.pending(1000.0 + 130 * 61 + 49 * 3600) is None)
+try:
+    _rv.answer(_pend["id"], "failed", ["spaghetti"], 5.0)
+    _bad = False
+except ValueError:
+    _bad = True
+check("1.103: a time outside the print: refused", _bad)
+_a = _rv.answer(_pend["id"], "failed", ["warping", "spaghetti", "made-up"], 1000.0 + 60 * 61)["answer"]
+check("1.103: the answer: failed, the known kinds in their order, from when", _a["outcome"] == "failed" and _a["problems"] == ["spaghetti", "warping"] and _a["failed_at"] == 1000.0 + 60 * 61, _a)
+check("... answered: no longer asked", _rv.pending(1000.0 + 131 * 61) is None)
+_rv.observe("printing", "short.gcode", 20000.0)
+_rv.observe("cancelled", "", 20060.0)
+check("1.103: a print of one minute (a test, a quick cancel): not asked about", _rv.pending(20070.0) is None)
+_rv.configure(False)
+_rv.observe("printing", "off.gcode", 30000.0)
+check("1.103: the question switched off: nothing opened, nothing asked", _rv.current is None and _rv.pending(30010.0) is None)
+_rv2 = _pr.PrintReviews(_rv_root, _core.cv2)
+_rv2.observe("printing", "x.gcode", 40000.0)
+_rv3 = _pr.PrintReviews(_rv_root, _core.cv2)
+_rv3.observe("printing", "x.gcode", 40100.0)
+check("1.103: the service restarts during the print: the same review goes on", _rv3.current and _rv3.current["id"] == _rv2.current["id"])
+
+# the routes, with the alarms of the print judged by the answer
+_rvb = load_brain(NEW_BRAIN, tmp(), fake=fake, brain_json={"formato": 1, "values": {"enabled": False}})
+_rvc = _rvb.app.test_client()
+_t0 = time.time() - 3600
+_rvb.reviews.observe("printing", "benchy.gcode", _t0)
+_rvb.reviews.add_frame(fakes.frame(), _t0 + 10, {"progress": 1.0})
+_rvb.reviews.observe("complete", "", _t0 + 1800)
+for _k, _when in enumerate((_t0 + 600, _t0 + 1200)):
+    _rvb.record_alert({"outcome": "analysed", "action": "CONTINUE", "filename": "benchy.gcode", "trigger_time": _when})
+    time.sleep(1.05)
+_rvb.record_alert({"outcome": "analysed", "action": "CONTINUE", "filename": "other.gcode", "trigger_time": _t0 + 900})
+_g = _rvc.get("/api/print/review").get_json()
+check("1.103: GET /api/print/review: the print just ended, its pictures, the kinds of problem", _g["ok"] and _g["review"]["file"] == "benchy.gcode" and _g["review"]["thumbs"] and "spaghetti" in _g["problems"], _g)
+_r = _rvc.get("/api/print/review/%s/%d.jpg" % (_g["review"]["id"], _g["review"]["thumbs"][0]["n"]))
+check("... its picture (jpeg); a strange name: 404", _r.status_code == 200 and _r.data[:2] == b"\xff\xd8" and _rvc.get("/api/print/review/..%2Fx/1.jpg").status_code == 404)
+_r.close()
+_p = _rvc.post("/api/print/review/" + _g["review"]["id"], json={"outcome": "ok"}).get_json()
+_labels = {e.get("filename"): [] for e in _rvb.read_alert_history(40)}
+for e in _rvb.read_alert_history(40):
+    _labels[e.get("filename")].append(e.get("label"))
+check("1.103: «went fine»: the alarms of that print not judged yet become false alarms (the other print's stay)",
+      _p["ok"] and _p["alarms_marked"] == 2 and _labels["benchy.gcode"] == ["false", "false"] and _labels["other.gcode"] == [None], (_p, _labels))
+check("... and it is no longer asked about", _rvc.get("/api/print/review").get_json()["review"] is None)
+check("1.103: a wrong answer: 400; an unknown print: 404", _rvc.post("/api/print/review/" + _g["review"]["id"], json={"outcome": "maybe"}).status_code == 400
+      and _rvc.post("/api/print/review/20200101-000000-x", json={"outcome": "ok"}).status_code == 404)
+_rvc.post("/api/backend/config", json={"values": {"print_review": False}})
+check("1.103: «Don't ask again» (print_review off): the service stops asking", _rvb.reviews.enabled is False and _rvc.get("/api/print/review").get_json()["enabled"] is False)
 
 stop_all()
 fake.close()

@@ -206,7 +206,9 @@ function DesktopDevicePage({ printStatus, printControls, status, capabilities, m
   const main = {
     camera: h(CameraPanel),
     // 1.67: no AI strip above it any more: the AI badge at the top says the same, and opens the same panel
-    print: printStatus.printing ? h(DesktopPrintCard, { status: printStatus, controls: printControls, monitor: aiMonitor }) : h(IdlePrintCard, { status: printStatus, onOpenFiles: () => onNavigate("files"), onPrint }),
+    print: printStatus.printing
+      ? h(DesktopPrintCard, { status: printStatus, controls: printControls, monitor: aiMonitor })
+      : h(React.Fragment, null, h(PrintReviewCard, { printing: false }), h(IdlePrintCard, { status: printStatus, onOpenFiles: () => onNavigate("files"), onPrint })), // 1.103
     temps: h(TemperatureCard, { onEditTemperature }),
   };
   const side = {

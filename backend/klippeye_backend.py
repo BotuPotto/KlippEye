@@ -752,6 +752,8 @@ CONFIG_SPEC = [
     {"key": "record_max_mb", "type": "int", "default": 2000, "min": 200, "max": 50000, "step": 100, "unit": "MB", "group": "recording",
      "label": "Space for the recordings",
      "help": "A four-hour print takes about 150 MB. Over this limit the oldest prints are deleted; with less than 1 GB free on the disk nothing is recorded."},
+    {"key": "print_review", "type": "bool", "default": True, "group": "recording", "label": "Ask how each print went",
+     "help": "When a print ends the dashboard asks whether it went fine or had a problem (which, and from when). It keeps a few small pictures of each print: the answers teach the AI monitor what a failure looks like on this printer."},
     {"key": "ai_model", "type": "text", "default": "", "maxlen": 80, "pattern": r"[A-Za-z0-9._:/@+-]*", "group": "ia",
      "label": "AI model (optional)",
      "help": "Empty = the default of the chosen service. Write it only if the service retires the model (error 404 or 'model not found')."},
@@ -2383,6 +2385,7 @@ class LightDetector(FrameJudge):
             frame = cv2.imdecode(np.frombuffer(r.content, np.uint8), cv2.IMREAD_COLOR) if r.ok and len(r.content) >= 1000 else None
             if frame is not None:
                 recorder.add_frame(frame, now, dict(self.meta, score=None, trig=False, cool=True))
+                reviews.add_frame(frame, now, self.meta)
         except Exception as error:
             print(f"[RECORDER] picture during the pause not taken: {error}")
 
@@ -2522,6 +2525,7 @@ class LightDetector(FrameJudge):
                     state = ps.get("state","")
                     self._follow_print(state)
                     recorder.observe(state, ps.get("filename", ""), time.time(), brain_config.snapshot())
+                    reviews.observe(state, ps.get("filename", ""), time.time())  # 1.103: «how did it go?» at the end
                     camera_cal.maybe_check()  # has the camera moved since its calibration? (every 10 minutes)
 
                     if state != "printing":
@@ -2626,6 +2630,7 @@ class LightDetector(FrameJudge):
                 zone = self._zone_masks()
                 score, triggered = self.judge(frame, r.content, now, ignore, zone)
                 recorder.add_frame(frame, now, dict(self.meta, score=None if score is None else round(score, 2), trig=triggered))
+                reviews.add_frame(frame, now, self.meta)  # a small picture a minute at most, for «how did it go?»
                 self._measure(time.time() - now + decode_seconds)  # decoding, judging and (when on) recording
                 if score is None:  # the comparison is not ready yet, or this check is to be ignored (light change)
                     self._nap(generation, self.check_interval)
@@ -2900,6 +2905,10 @@ recorder = Recorder(RECORDINGS_DIR, cv2 if HAS_CV2 else None, RELEASE)
 detector = LightDetector()
 detector.apply_config(brain_config.snapshot())  # the saved thresholds (or the defaults) apply from the first check
 recorder.configure(brain_config.snapshot()["record"], brain_config.snapshot()["record_max_mb"])
+from print_review import PrintReviews, PROBLEMS as REVIEW_PROBLEMS  # noqa: E402  (1.103: how each print went)
+REVIEWS_DIR = os.path.join(DATA_DIR, "reviews")
+reviews = PrintReviews(REVIEWS_DIR, cv2 if HAS_CV2 else None)
+reviews.configure(brain_config.snapshot()["print_review"])
 
 
 def set_brain_config(changes):
@@ -2910,6 +2919,7 @@ def set_brain_config(changes):
     values = brain_config.snapshot()
     detector.apply_config(values)
     recorder.configure(values["record"], values["record_max_mb"])
+    reviews.configure(values["print_review"])
     if "enabled" in changed:
         if values["enabled"]:
             detector.start()
@@ -3462,6 +3472,87 @@ def api_alert_label(alert_id):
     if entry is None:
         return jsonify({"ok": False, "error": "no such alarm"}), 404
     return jsonify({"ok": True, "alert": entry})
+
+
+# ---------------------------------------------------------------------------------------------------------------------
+# HOW EACH PRINT WENT (1.103): the question at the end of a print (print_review.py)
+# ---------------------------------------------------------------------------------------------------------------------
+def _review_public(review):
+    if not review:
+        return None
+    return {k: review.get(k) for k in ("id", "file", "started", "ended", "end_state", "thumbs", "answer")}
+
+
+@app.route("/api/print/review", methods=["GET"])
+def api_print_review():
+    """{"ok", "review": the last print that ended and is not answered yet, or null; "problems": the kinds to choose from}."""
+    return jsonify({"ok": True, "enabled": reviews.enabled, "review": _review_public(reviews.pending()), "problems": list(REVIEW_PROBLEMS)})
+
+
+@app.route("/api/print/review/<rid>/<int:n>.jpg", methods=["GET"])
+def api_print_review_picture(rid, n):
+    path = reviews.picture(rid, n)
+    if not path:
+        return jsonify({"ok": False, "error": "no such picture"}), 404
+    return send_file(path, mimetype="image/jpeg", max_age=86400)
+
+
+def _alerts_of_print(review):
+    """The alarms raised during a print (alert history), by file and time."""
+    start, end = review.get("started") or 0, review.get("ended") or time.time()
+    out = []
+    for entry in read_alert_history(ALERT_HISTORY_KEEP):
+        when = entry.get("trigger_time")
+        if not isinstance(when, (int, float)):
+            try:
+                when = time.mktime(time.strptime(entry.get("time", ""), "%Y-%m-%d %H:%M:%S"))
+            except (TypeError, ValueError):
+                continue
+        if start - 5 <= when <= end + 5 and (not entry.get("filename") or entry.get("filename") == review.get("file")):
+            out.append(dict(entry, _when=when))
+    return out
+
+
+@app.route("/api/print/review/<rid>", methods=["POST"])
+def api_print_review_answer(rid):
+    """{"outcome": "ok" | "failed" | "skipped", "problems": [...], "failed_at": time or null}. A print that went fine also
+    marks its alarms not judged yet as false alarms; a failed one marks those from failed_at on as real problems. The
+    recording of the same print (if any) gets the same label."""
+    body = request.get_json(silent=True)
+    if not isinstance(body, dict):
+        return jsonify({"ok": False, "error": "a JSON object is needed"}), 400
+    try:
+        review = reviews.answer(rid, body.get("outcome"), body.get("problems"), body.get("failed_at"))
+    except KeyError:
+        return jsonify({"ok": False, "error": "no such print"}), 404
+    except ValueError as error:
+        return jsonify({"ok": False, "error": str(error)}), 400
+    answer = review["answer"]
+    marked = 0
+    if answer["outcome"] in ("ok", "failed"):
+        for entry in _alerts_of_print(review):
+            if entry.get("label") in ALERT_LABELS:
+                continue
+            if answer["outcome"] == "ok":
+                label = "false"
+            elif answer["failed_at"] is not None:
+                label = "right" if entry["_when"] >= answer["failed_at"] - 30 else "false"
+            else:
+                continue  # failed, but from when is not known: the alarms stay for the person to judge
+            if label_alert(entry["id"], label, entry.get("session")):
+                marked += 1
+        for sid in reversed(recorder.ids()[-5:]):
+            session = recorder.load(sid)
+            if session and session.get("file") == review.get("file") and abs((session.get("started") or 0) - review["started"]) < 600:
+                try:
+                    when = answer["failed_at"]
+                    if answer["outcome"] == "failed" and when is None:
+                        when = session.get("ended") or session["started"]
+                    recorder.set_label(sid, answer["outcome"], when)
+                except (KeyError, ValueError) as error:
+                    print("[REVIEW] recording not labelled: %s" % error)
+                break
+    return jsonify({"ok": True, "review": _review_public(review), "alarms_marked": marked})
 
 
 import ai_precision  # noqa: E402  (1.28: how often the AI's verdict matches the real print)

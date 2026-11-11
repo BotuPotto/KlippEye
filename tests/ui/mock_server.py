@@ -106,6 +106,7 @@ def default_state():
         "has_analysis": True,
         "analysis_action": "CONTINUA",
         "ai_answer": None, "ai_answers": [],   # the person's answers to the alarm (/api/print/last_analysis/answer, 1.25)
+        "review": None, "review_answers": [],  # 1.103: the print waiting for «how did it go?» and the answers
         "update_channel": "dev",   # the channel of [update_manager klippeye] (None: not listed)
         "channel_posts": [],
         "mesh": True,
@@ -421,7 +422,7 @@ def mock_reset():
     S.clear(); S.update(default_state()); return jsonify(ok=True)
 @app.route("/__mock/state")
 def mock_state():
-    return jsonify({k: v for k, v in S.items() if k in ("light", "light_cmds", "light_reads", "actions", "webhooks", "webhooks_msg", "disconnected", "moonraker_down", "host_off", "services", "update_log", "brain_cfg_log", "brain_release", "brain_started", "klippeye_info", "pending_release", "logos", "app_apk_hits", "app_apk_downloads", "update_channel", "channel_posts", "rec_posts", "measure_starts", "measure_bodies", "ai_cfg", "ai_posts", "ai_model_reads", "excluded", "strip", "caselight", "mesh_profiles", "mesh_active", "mp", "mp_points", "tune", "speed_factor", "extrude_factor", "bs", "level_applied", "recordings", "alerts", "pm_macros", "pm_wraps", "pm_posts", "gcode_log", "ntfy", "ntfy_posts", "ntfy_tests", "ntfy_app_reads", "ai_answers", "ai_answer", "history_log", "queue", "queue_state", "queue_log", "power_devices", "power_log", "pins", "sensors", "timelapse_settings", "timelapse_log", "timelapse_conf_reads", "cfg", "timelapse_files", "spool_id", "spool_log", "webcams", "webcam_log", "peek_log", "schedule", "schedule_log", "metascan_log", "versions_log", "web", "web_log")})
+    return jsonify({k: v for k, v in S.items() if k in ("light", "light_cmds", "light_reads", "actions", "webhooks", "webhooks_msg", "disconnected", "moonraker_down", "host_off", "services", "update_log", "brain_cfg_log", "brain_release", "brain_started", "klippeye_info", "pending_release", "logos", "app_apk_hits", "app_apk_downloads", "update_channel", "channel_posts", "rec_posts", "measure_starts", "measure_bodies", "ai_cfg", "ai_posts", "ai_model_reads", "excluded", "strip", "caselight", "mesh_profiles", "mesh_active", "mp", "mp_points", "tune", "speed_factor", "extrude_factor", "bs", "level_applied", "recordings", "alerts", "pm_macros", "pm_wraps", "pm_posts", "gcode_log", "ntfy", "ntfy_posts", "ntfy_tests", "ntfy_app_reads", "ai_answers", "ai_answer", "history_log", "queue", "queue_state", "queue_log", "power_devices", "power_log", "pins", "sensors", "timelapse_settings", "timelapse_log", "timelapse_conf_reads", "cfg", "timelapse_files", "spool_id", "spool_log", "webcams", "webcam_log", "peek_log", "schedule", "schedule_log", "metascan_log", "versions_log", "web", "web_log", "review", "review_answers")})
 @app.route("/__mock/print_actions")
 def mock_print_actions():
     return jsonify(S.get("print_actions", []))
@@ -1399,6 +1400,26 @@ def mock_camera_calibration():
     if S["brain"] == "old":
         return Response("<!doctype html><title>404 Not Found</title>", status=404, mimetype="text/html")
     return jsonify(ok=True, saved=None, watch={"state": "unknown"}, usable=False, draft={}, marks={"state": "idle"}, printer=None, targets=[], has_cv2=True)
+
+
+@app.route("/api/print/review")
+def mock_print_review():
+    """1.103: the last print that ended and is not answered yet (S["review"]; the real one: print_review.py)."""
+    return jsonify(ok=True, enabled=S.get("review_enabled", True), review=S.get("review"), problems=["spaghetti", "detached", "layer_shift", "nozzle_blob", "clog", "warping", "stringing", "under_extrusion", "over_extrusion", "elephant_foot", "ghosting", "overhangs", "supports", "rough_surface", "other"])
+
+
+@app.route("/api/print/review/<rid>/<int:n>.jpg")
+def mock_print_review_picture(rid, n):
+    shade = 40 + (n * 13) % 180
+    return Response('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 214"><rect width="320" height="214" fill="rgb(%d,%d,%d)"/></svg>' % (shade, shade, shade), mimetype="image/svg+xml")
+
+
+@app.route("/api/print/review/<rid>", methods=["POST"])
+def mock_print_review_answer(rid):
+    body = request.get_json(force=True) or {}
+    S["review_answers"].append(dict(body, id=rid))
+    S["review"] = None
+    return jsonify(ok=True, review=None, alarms_marked=2 if body.get("outcome") == "ok" else 0)
 
 
 @app.route("/api/print/alerts/image/<name>")
