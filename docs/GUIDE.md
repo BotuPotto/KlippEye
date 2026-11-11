@@ -116,7 +116,7 @@ in the middle, with the list on the left.
 * **Notifications and appearance**
   * **Notifications**: where they arrive (the KlippEye app or the ntfy app), which ones and their language (see 6).
   * **Appearance**: name and logo, colour, look, cards (see below).
-  * **Language**: English, Italian, Spanish, German, French, Portuguese (Brazil), Polish or Simplified Chinese, chosen on each device (*Automatic* follows the device's language).
+  * **Language**: English, Italian, Spanish, German, French, Portuguese (Brazil), Polish, Simplified Chinese or Russian, chosen on each device (*Automatic* follows the device's language).
 * **System**
   * **Addresses**: only needed if you open KlippEye from outside your home with ZeroTier, Tailscale or another VPN: the
     Raspberry's local IP and its external IP. Empty, the camera uses the address you opened the dashboard at.

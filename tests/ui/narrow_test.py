@@ -39,7 +39,7 @@ JS = """() => { const out = []; const vw = document.documentElement.clientWidth;
 with sync_playwright() as p:
     b = p.chromium.launch()
     # 1.86: in Spanish too (longer words than Italian)
-    for lang, w in (("it-IT", 320), ("it-IT", 390), ("es-ES", 320), ("es-ES", 390), ("de-DE", 320), ("de-DE", 390), ("fr-FR", 320), ("fr-FR", 390), ("pt-BR", 320), ("pt-BR", 390), ("pl-PL", 320), ("pl-PL", 390), ("zh-CN", 320), ("zh-CN", 390)):
+    for lang, w in (("it-IT", 320), ("it-IT", 390), ("es-ES", 320), ("es-ES", 390), ("de-DE", 320), ("de-DE", 390), ("fr-FR", 320), ("fr-FR", 390), ("pt-BR", 320), ("pt-BR", 390), ("pl-PL", 320), ("pl-PL", 390), ("zh-CN", 320), ("zh-CN", 390), ("ru-RU", 320), ("ru-RU", 390)):
         mock.reset()
         mock.set(extra_temps=True, power_on=True, extra_devices=True, spoolman_on=True, queue_on=True, timelapse_on=True, printing=True,
                  queue=[{"filename": "Benchy_0.2mm_PLA.gcode", "job_id": "1", "time_added": 1}])
@@ -62,6 +62,9 @@ with sync_playwright() as p:
         if lang == "zh-CN":
             P.goto("home", 2600)
             ok("[%d] zh: the page is in Simplified Chinese" % w, P.pg.evaluate("document.documentElement.lang") == "zh" and P.pg.locator('.app-header button[aria-label="设置"]').count() == 1 and "加热器" in P.pg.locator("body").inner_text())
+        if lang == "ru-RU":
+            P.goto("home", 2600)
+            ok("[%d] ru: the page is in Russian" % w, P.pg.evaluate("document.documentElement.lang") == "ru" and P.pg.locator('.app-header button[aria-label="Настройки"]').count() == 1 and "Нагреватели" in P.pg.locator("body").inner_text())
         tag = "" if lang == "it-IT" else " " + lang[:2]
         for tab in ("home", "controllo", "files", "config", "sistema"):
             P.goto(tab, 2600)

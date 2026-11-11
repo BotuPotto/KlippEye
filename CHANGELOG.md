@@ -1,5 +1,13 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.98.0
+
+**Russian.**
+
+* The dashboard, the login page, the notifications and the AI monitor's texts are now also in Russian (Settings →
+  Language → Русский, or «Automatic» on a Russian device).
+* Print history: a long state badge wraps in a narrow card instead of leaving it.
+
 ## 1.97.0
 
 **Simplified Chinese.**
