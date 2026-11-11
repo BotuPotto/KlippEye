@@ -18,7 +18,10 @@
 }
 @media (max-width: 340px) {
   .app-header__logo { display: none; } /* the narrowest phones: the menu button takes the logo's place, the name stays whole */
-  .app-header__name { font-size: 16px; }
+  .app-header__name { font-size: 15px; }
+  /* 1.101: the AI badge came after: the round buttons get a little smaller so the name is not cut */
+  .app-header__actions { gap: 6px; }
+  .header-btn { width: 36px; height: 36px; }
 }
 
 /* ---- the panel ---- */
@@ -252,7 +255,7 @@
 .notify-rule__icon { display: grid; flex: none; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: var(--oui-accent-soft); color: var(--oui-accent-text); }
 .notify-rule__warn { color: var(--oui-warn); }
 .notify-add .oui-chip { display: inline-flex; align-items: center; gap: 4px; }
-.notify-placeholders code { font-size: 12px; overflow-wrap: anywhere; }
+.notify-placeholders code { font-size: 12px; white-space: nowrap; }
 
 /* ---- Appearance: the order of the cards (1.50, app/59o-appearance.js) ---- */
 .layout-row { display: flex; align-items: center; gap: 4px; min-height: 52px; padding: 4px 8px 4px 16px; }
@@ -371,3 +374,15 @@
 /* 1.94 · the Raspberry's own address (59d-access-settings.js) */
 .web-moved { margin-top: 6px; overflow-wrap: anywhere; }
 .web-command { display: block; margin-top: 8px; padding: 8px 10px; border-radius: var(--oui-r-tile); background: var(--oui-surface-2); font-size: 13px; overflow-wrap: anywhere; }
+
+/* 1.101: the narrowest phones: the arrows a little closer, so the card names (Riscaldatori, Temperature) stay whole */
+@media (max-width: 359px) {
+  .layout-row { gap: 0; padding-left: 12px; padding-right: 4px; }
+  .layout-row__btn { width: 34px; }
+  .layout-row__switch { min-width: 50px; }
+  .layout-row__name { font-size: 14px; }
+}
+/* 1.101: phones: a long page name («Home Assistant / MQTT») goes on two lines instead of «Home Assi…» */
+@media (max-width: 420px) {
+  .drawer__title { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; white-space: normal; font-size: 20px; line-height: 1.15; }
+}

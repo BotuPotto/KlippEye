@@ -9,3 +9,8 @@
 .peripheral-row__copy { display: flex; align-items: center; gap: 6px; min-height: 36px; padding: 6px 10px; border-radius: 10px; background: var(--oui-surface-2); color: var(--oui-text-2); text-align: left; }
 .peripheral-row__copy code { flex: 1; min-width: 0; font-size: 12px; overflow-wrap: anywhere; }
 .peripheral-row__copy:hover { background: var(--oui-surface-3); }
+/* 1.101: phones: the four kinds share the card's width, none cut at the edge («CAN») */
+@media (max-width: 420px) {
+  .peripherals-kinds { display: flex; }
+  .peripherals-kinds > button { flex: 1 1 auto; padding-left: 6px; padding-right: 6px; }
+}

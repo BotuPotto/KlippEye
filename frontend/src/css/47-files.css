@@ -13,7 +13,7 @@
   border-radius: var(--oui-r-pill);
 }
 .files-sort__icon { display: flex; color: var(--oui-text-2); }
-.files-sort__label { flex: 1; min-width: 0; font-size: 14px; font-weight: 500; color: var(--oui-text-2); }
+.files-sort__label { flex: 1; min-width: 0; font-size: 14px; font-weight: 500; color: var(--oui-text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } /* 1.101: one line, as the other pills */
 .files-hint { margin: -4px 4px 12px; }
 .files-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; } /* 3 columns on a phone (see the media query below), up to 5 on a wide screen */
 .files-notice { grid-column: 1 / -1; padding: 12px 4px; }
@@ -70,7 +70,7 @@
 }
 .file-card__more:active { transform: scale(0.92); }
 
-/* phones: three tiles per row, so the tile is a compact one */
+/* phones: three tiles per row, so the tile is a compact one (two on the narrowest, 1.101) */
 @media (max-width: 600px) {
   .files-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
   .file-card { gap: 8px; padding: 6px 6px 8px; border-radius: 18px; }
@@ -112,3 +112,6 @@
 .file-details__list dd { margin: 0; padding: 9px 0; border-top: 1px solid var(--oui-stroke); font-size: 14px; }
 .file-details__list dt { padding-right: 16px; color: var(--oui-text-2); }
 .file-details__list dd { color: var(--oui-text); font-weight: 600; text-align: right; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+@media (max-width: 359px) {
+  .files-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

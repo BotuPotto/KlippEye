@@ -11,7 +11,8 @@
        each with its value, its text, and "important" (the alarm sound).
    ========================================================================== */
 
-const PLACEHOLDER_HINT = NOTIFY_PLACEHOLDERS.map((name) => "{" + name + "}").join(" ");
+// 1.101: each placeholder whole on its line ({total_layers} was broken in two on a phone)
+const placeholderCodes = () => NOTIFY_PLACEHOLDERS.map((name, index) => h(React.Fragment, { key: name }, index ? " " : null, h("code", null, "{" + name + "}")));
 
 /** A text of a notification: empty shows (and sends) the service's own one, in the language of the notifications. */
 function NotifyTextField({ value, fallback, onCommit, testId }) {
@@ -155,6 +156,6 @@ function NotifyRules({ settings, update }) {
       ),
     ),
     rules.map((rule, index) => h(NotifyRuleEditor, { key: rule.id, rule, index, settings, update })),
-    h("p", { className: "set-group__note notify-placeholders" }, tx("In the texts:"), " ", h("code", null, PLACEHOLDER_HINT), " — ", tx("filled in when the notification goes out (file name, percent, layer, elapsed and remaining time, Klipper's message, the console line, heater and temperature, the printer's name).")),
+    h("p", { className: "set-group__note notify-placeholders" }, tx("In the texts:"), " ", placeholderCodes(), " — ", tx("filled in when the notification goes out (file name, percent, layer, elapsed and remaining time, Klipper's message, the console line, heater and temperature, the printer's name).")),
   );
 }

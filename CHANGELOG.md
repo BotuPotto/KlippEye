@@ -1,5 +1,23 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.101.0
+
+**A visual pass over the whole dashboard, from 320 px phones to the computer.**
+
+* Editor: Earlier versions, the configuration reference, folding and the list of sections are now together in one ⋯
+  menu, so Comment and Uncomment keep their room; on the narrowest phones (or a long language) they become icons.
+  The file name stands centred beside ✕.
+* Phones of 320 px: the name in the top bar stays whole, the big temperatures, the fan readings, the temperature table
+  (the power column steps aside), the movement pad, the print card's figures, the bed-mesh profiles, the input shaper
+  (its table scrolls sideways instead of breaking words), the files in two columns, the config search on its own line,
+  the MCU versions and the tab bar's names all stay inside the screen.
+* Adjustments: on a narrow card a setting's name goes above its buttons; every row's buttons stand in the same column.
+* Long languages: Motors off and Calibrate each take their own line when they do not fit side by side; a long word of a
+  field name is split at a syllable; a long settings page name goes on two lines.
+* Computer: a card that is not shown leaves no extra gap in the side column.
+* Notifications: each placeholder stays whole on its line. Home Assistant / MQTT: the topics as a tidy list.
+* Extruder: a single macro button takes the whole width.
+
 ## 1.100.1
 
 **Code review, first pass.**

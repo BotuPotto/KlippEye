@@ -61,7 +61,7 @@ function ExtruderCard({ hotend, onGcode, onEditTemperature }) {
       h(HeaterTile, { kind: "hotend", heater: hotend, onEdit: () => onEditTemperature("hotend", hotend.target), className: "h-full" }),
       h(
         "div",
-        { className: "grid grid-cols-2 h-full gap-2" },
+        { className: cx("grid h-full gap-2", buttons.length === 1 ? "grid-cols-1" : "grid-cols-2") }, // 1.101: one macro fills the half
         buttons.map((macro) =>
           h(
             "button",

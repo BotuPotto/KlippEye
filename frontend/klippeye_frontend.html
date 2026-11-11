@@ -919,6 +919,13 @@ body:has(.modal, .confirm-overlay, .sheet-overlay, .screen) .bottom-nav { opacit
 /* 1.82: a guest's badge in the top bar, instead of the power, save and stop buttons */
 .header-guest { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px; font-weight: 600; white-space: nowrap; }
 
+/* 1.101: the narrowest phones: five tabs in 320 px, the longer names («Sterowanie», «Управление») whole */
+@media (max-width: 359px) {
+  .bottom-nav { width: calc(100% - 16px); gap: 0; padding: 6px 4px; }
+  .bottom-nav__tab { padding: 0 1px; }
+  .bottom-nav__label { font-size: 10px; letter-spacing: 0; }
+}
+
 /* ============================================================================
    Dropdown menu: glass panel anchored to a button (markup: app/21-dropdown.js)
    Floats above the page and the tab bar (z 900) but below every dialog (9999).
@@ -1729,6 +1736,14 @@ body.is-pulling { overscroll-behavior-y: none; }
 .fan-lock.is-unlocked .fan-lock__icon { background: rgba(var(--oui-accent-rgb), 0.28); color: var(--oui-accent-text); }
 .fan-lock.is-unlocked .fan-lock__hint { color: var(--oui-accent-text); }
 
+/* 1.101: the narrowest phones: a fan shown as a reading puts its name on its own line, the bar and the value under it */
+@media (max-width: 359px) {
+  .fan-row { padding-left: 12px; padding-right: 12px; }
+  .fan-row--readout { flex-wrap: wrap; row-gap: 8px; }
+  .fan-row--readout .fan-name { flex: 1 1 100%; }
+  .fan-row--readout .fan-level { flex: 1 1 auto; width: auto; }
+}
+
 /* ============================================================================
    Devices: power, outputs, filament sensors (app/42a-devices.js)
    ========================================================================== */
@@ -1786,6 +1801,11 @@ body.is-pulling { overscroll-behavior-y: none; }
 
 /* gap between the two tiles and the fan list below them */
 .heater-tiles { margin-bottom: 20px; }
+
+/* 1.101: the narrowest phones (320 px): the big reading fits its half of the card */
+@media (max-width: 359px) {
+  .heater-tile .oui-value { font-size: 28px; }
+}
 
 /* ============================================================================
    Temperatures: every sensor and the chart (app/43a-temperatures.js)
@@ -1853,6 +1873,12 @@ body.is-pulling { overscroll-behavior-y: none; }
 .temp-cool { flex: none; color: #7cc4ff; }
 .temp-cool:hover { background: rgba(124, 196, 255, 0.14); }
 
+/* 1.101: the narrowest phones: the power column steps aside so the names and the headings do not run into each other */
+@media (max-width: 359px) {
+  .temp-row { grid-template-columns: minmax(0, 1fr) 66px 62px; }
+  .temp-row > :nth-child(2) { display: none; }
+}
+
 /* ============================================================================
    Movement card: jog pad (XY wheel, home button), Z buttons, axis tiles
    ========================================================================= */
@@ -1870,7 +1896,8 @@ body.is-pulling { overscroll-behavior-y: none; }
 .pad-axis { font-size: 19px; font-weight: 600; line-height: 1; color: var(--oui-text); }
 
 /* ---- jog pad: wheel container, home button, Z buttons ---- */
-.jog-pad { transform: scale(0.85); transform-origin: center center; margin: -21px; } /* 1.31: the margin gives back the room the scale takes off (280 × 0.15 / 2), so the Z column fits on a phone */
+.jog-pad { transform: scale(0.85); transform-origin: center center; margin: -21px; }
+@media (max-width: 359px) { .jog-pad { transform: scale(0.72); margin: -39px; } } /* 1.101: 320 px: the pad and the Z column inside the card (280 × 0.28 / 2) */ /* 1.31: the margin gives back the room the scale takes off (280 × 0.15 / 2), so the Z column fits on a phone */
 .jog-home {
   width: 64px;
   height: 64px;
@@ -1969,6 +1996,10 @@ body.is-pulling { overscroll-behavior-y: none; }
 .manual-probe__z { font-variant-numeric: tabular-nums; }
 .manual-probe__steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 4px; }
 .manual-probe__step { min-width: 0; padding: 0 4px; font-variant-numeric: tabular-nums; }
+/* 1.101: a long language on a narrow phone («Моторы выключены», «Калибровать»): each button on its own line instead of
+   being cut */
+.movement-actions { flex-wrap: wrap; row-gap: 8px; }
+.movement-actions > .oui-btn, .movement-actions > :not(.oui-btn) { flex: 1 1 auto; }
 
 /* ============================================================================
    Z offset card: the big read-out, step chips, raise / lower and the actions
@@ -2060,6 +2091,11 @@ body.is-pulling { overscroll-behavior-y: none; }
 .exclude-list__name { min-width: 0; overflow-wrap: anywhere; font-size: 14px; }
 .exclude-warn { color: var(--oui-danger); }
 .print-live .print-stat__value { white-space: nowrap; font-size: 17px; }
+
+/* 1.101: the narrowest phones: the six figures of the print card stay inside it («6,3 mm³/s») */
+@media (max-width: 359px) {
+  .print-stat__value, .print-live .print-stat__value { font-size: 15px; }
+}
 
 /* ============================================================================
    Console card: log well, line colours, input row
@@ -2191,7 +2227,7 @@ body.is-pulling { overscroll-behavior-y: none; }
   border-radius: var(--oui-r-pill);
 }
 .files-sort__icon { display: flex; color: var(--oui-text-2); }
-.files-sort__label { flex: 1; min-width: 0; font-size: 14px; font-weight: 500; color: var(--oui-text-2); }
+.files-sort__label { flex: 1; min-width: 0; font-size: 14px; font-weight: 500; color: var(--oui-text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } /* 1.101: one line, as the other pills */
 .files-hint { margin: -4px 4px 12px; }
 .files-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; } /* 3 columns on a phone (see the media query below), up to 5 on a wide screen */
 .files-notice { grid-column: 1 / -1; padding: 12px 4px; }
@@ -2248,7 +2284,7 @@ body.is-pulling { overscroll-behavior-y: none; }
 }
 .file-card__more:active { transform: scale(0.92); }
 
-/* phones: three tiles per row, so the tile is a compact one */
+/* phones: three tiles per row, so the tile is a compact one (two on the narrowest, 1.101) */
 @media (max-width: 600px) {
   .files-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
   .file-card { gap: 8px; padding: 6px 6px 8px; border-radius: 18px; }
@@ -2290,6 +2326,9 @@ body.is-pulling { overscroll-behavior-y: none; }
 .file-details__list dd { margin: 0; padding: 9px 0; border-top: 1px solid var(--oui-stroke); font-size: 14px; }
 .file-details__list dt { padding-right: 16px; color: var(--oui-text-2); }
 .file-details__list dd { color: var(--oui-text); font-weight: 600; text-align: right; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+@media (max-width: 359px) {
+  .files-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
 
 /* ============================================================================
    Print history and statistics (app/47b-history.js) and the Files page's switch
@@ -2518,6 +2557,9 @@ body.is-pulling { overscroll-behavior-y: none; }
 .macro-btn:hover { background: var(--oui-surface-3); }
 .macro-btn:active { transform: scale(0.96); background: var(--oui-accent-soft); color: var(--oui-accent-text); }
 
+/* 1.101: one long word («Extrusionsvorschub») is split at a syllable instead of running out of its half */
+.extruder-fields .oui-label { hyphens: auto; overflow-wrap: break-word; }
+
 /* ============================================================================
    Tune card (1.32): speed / flow, pressure advance, machine limits, retraction
    ========================================================================= */
@@ -2558,7 +2600,7 @@ body.is-pulling { overscroll-behavior-y: none; }
   align-items: baseline;
   justify-content: flex-end;
   gap: 3px;
-  min-width: 92px;
+  min-width: 104px; /* 1.101: «3000 mm/s²» fits, so every row's buttons stand in the same column */
   height: 36px;
   padding: 0 8px;
   border-radius: var(--oui-r-field);
@@ -2597,7 +2639,7 @@ body.is-pulling { overscroll-behavior-y: none; }
 @media (max-width: 480px) {
   .tune-row { gap: 8px; }
   .tune-row__controls { gap: 4px; }
-  .tune-value { min-width: 78px; padding: 0 6px; }
+  .tune-value { min-width: 90px; padding: 0 6px; }
   .tune-step { width: 34px; }
   .tune-reset { width: 28px; height: 28px; }
   .tune-row__label { font-size: 14px; }
@@ -2610,6 +2652,15 @@ body.is-pulling { overscroll-behavior-y: none; }
 .bed-screws__how { margin: 14px 0 10px; padding-left: 20px; font-size: 14px; line-height: 1.5; color: var(--oui-text-2); list-style: decimal; }
 .bed-screws__done { display: flex; align-items: center; gap: 10px; color: var(--oui-ok); font-weight: 600; }
 .bed-screws .sheet-footer { gap: 8px; }
+
+/* 1.101: a narrow card (a 320 px phone, a long language): the name goes above its controls instead of being squeezed
+   into a column a word wide */
+.tune-card { container-type: inline-size; }
+@container (max-width: 300px) {
+  .tune-row { flex-wrap: wrap; row-gap: 6px; }
+  .tune-row__text { flex: 1 1 100%; }
+  .tune-row__controls { margin-left: auto; }
+}
 
 /* ============================================================================
    Print queue (app/48b-queue.js)
@@ -2918,6 +2969,13 @@ body.is-pulling { overscroll-behavior-y: none; }
 .cfg-row__tag { color: var(--oui-warn); font-weight: 600; }
 .cfg-left { display: block; width: 100%; margin-top: 10px; padding: 8px 4px; border: 0; background: transparent; color: var(--oui-text-3); font-size: 12.5px; text-align: center; }
 .cfg-left:hover { color: var(--oui-accent-text); }
+
+/* 1.101: the narrowest phones: the search field takes its own line, the three buttons the next one */
+@media (max-width: 359px) {
+  .cfg-toolbar { flex-wrap: wrap; }
+  .cfg-toolbar__search { flex: 1 1 100%; }
+  .cfg-toolbar .oui-chip { flex: 1 1 0; }
+}
 
 /* ============================================================================
    Config file manager: the row menu, the name dialog and the folder chooser
@@ -3296,6 +3354,11 @@ button.ai-header-badge { cursor: pointer; font: inherit; color: inherit; }
 .peripheral-row__copy { display: flex; align-items: center; gap: 6px; min-height: 36px; padding: 6px 10px; border-radius: 10px; background: var(--oui-surface-2); color: var(--oui-text-2); text-align: left; }
 .peripheral-row__copy code { flex: 1; min-width: 0; font-size: 12px; overflow-wrap: anywhere; }
 .peripheral-row__copy:hover { background: var(--oui-surface-3); }
+/* 1.101: phones: the four kinds share the card's width, none cut at the edge («CAN») */
+@media (max-width: 420px) {
+  .peripherals-kinds { display: flex; }
+  .peripherals-kinds > button { flex: 1 1 auto; padding-left: 6px; padding-right: 6px; }
+}
 
 /* ============================================================================
    Endstops & probe: a card of its own (1.33), foldable like the others (1.56)
@@ -3397,6 +3460,12 @@ button.ai-header-badge { cursor: pointer; font: inherit; color: inherit; }
 .bottom-nav__badge { position: absolute; top: 6px; left: calc(50% + 6px); }
 .header-tabs__badge { margin-left: 6px; vertical-align: 1px; }
 
+/* 1.101: the narrowest phones: the firmware version on its own line under the name, the state badge beside the name */
+@media (max-width: 359px) {
+  .mcu-row { flex-wrap: wrap; row-gap: 6px; }
+  .mcu-row__version { font-size: 13px; }
+}
+
 /* ============================================================================
    Full-screen overlays: the file editor and the image viewer
    A column of  top bar · content · (bottom bar)  over the whole page. The bars
@@ -3434,12 +3503,13 @@ button.ai-header-badge { cursor: pointer; font: inherit; color: inherit; }
 .editor-title-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .editor-title { min-width: 0; overflow: hidden; font-size: 16px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
 .editor-status { min-height: 16px; font-size: 12px; line-height: 16px; color: var(--oui-text-3); }
+.editor-status:empty { display: none; } /* 1.101: no status: the name centred beside ✕ (the bar keeps its height) */
 .editor-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 .editor-save { min-height: 44px; padding: 0 18px; font-size: 14px; white-space: nowrap; }
 /* phones: the actions drop to their own row and share its width */
 @media (max-width: 640px) {
   .editor-actions { flex-basis: 100%; }
-  .editor-actions .editor-save { flex: 1; padding: 0 10px; }
+  .editor-actions .editor-save { flex: 1 1 0; min-width: 0; padding: 4px 10px; white-space: normal; line-height: 1.15; } /* a long language wraps instead of leaving the screen */
 }
 
 /* the tools bar: Annulla / Ripristina (icons) and the comment buttons, which share what is left of the row on a phone */
@@ -3452,16 +3522,23 @@ button.ai-header-badge { cursor: pointer; font: inherit; color: inherit; }
 .editor-tools .editor-comment { white-space: nowrap; }
 /* the sections of the file and the reference page: at the end of the row */
 .editor-tools .editor-sections-btn { margin-left: auto; }
-.editor-tools .editor-docs { display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }
+.editor-more-item { color: inherit; text-decoration: none; }
 .editor-search-btn[aria-pressed="true"] { color: var(--oui-accent); }
 .editor-section-item .oui-menu__title { font-family: var(--oui-font-mono); font-size: 13px; }
 /* a menu opened from the editor goes over it (the editor covers the page) */
 /* the narrowest phones (320 px): the comment buttons keep their words and give up their icons */
-@media (max-width: 359px) {
-  .editor-tools { gap: 6px; }
-  .editor-tools .oui-btn:not(.editor-history) { padding: 0 6px; }
-  .editor-tools .oui-btn:not(.editor-history) svg { display: none; }
+@media (max-width: 400px) {
+  .editor-tools .editor-comment svg { display: none; }
+  .editor-tools .editor-comment { padding: 0 8px; }
 }
+@media (max-width: 359px) {
+  .editor-tools { gap: 4px; margin: 0 10px 8px; }
+  .editor-tools .editor-history { width: 36px; }
+  .editor-tools .editor-comment { padding: 0 4px; font-size: 13px; }
+}
+/* 1.101: words that do not fit (a narrow phone, a long language): the two buttons show their icons, # and #̸ */
+.editor-tools--tight .editor-comment__label { display: none; }
+.editor-tools--tight .editor-comment svg { display: block !important; }
 
 /* the code well: CodeMirror (51-config-editor.js), coloured by its own highlight style */
 .editor-body {
@@ -3892,6 +3969,14 @@ button.ai-header-badge { cursor: pointer; font: inherit; color: inherit; }
 .mesh-name__input.is-invalid { box-shadow: 0 0 0 2px var(--oui-danger); }
 .mesh-adaptive { display: flex; align-items: flex-start; gap: 10px; margin-top: 4px; font-size: 13.5px; line-height: 1.4; color: var(--oui-text-2); }
 
+/* 1.101: the narrowest phones: a profile's name keeps its line («adaptive» was broken in two by its buttons), the
+   buttons go under it on the right */
+@media (max-width: 359px) {
+  .mesh-profile-row { flex-wrap: wrap; row-gap: 6px; }
+  .mesh-profile-row .oui-row__text { flex: 1 1 100%; }
+  .mesh-profile-row .oui-row__text + button { margin-left: auto; }
+}
+
 /* 1.80 · the input shaper graphs (57b-shaper.js) */
 .shaper-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 10px; }
 .shaper-file { width: auto; min-width: 0; max-width: 100%; padding-top: 6px; padding-bottom: 6px; }
@@ -3937,12 +4022,12 @@ button.ai-header-badge { cursor: pointer; font: inherit; color: inherit; }
 .shaper-advice { display: grid; gap: 2px; margin-top: 12px; padding: 10px 12px; border-radius: var(--oui-r-tile); background: var(--oui-surface-2); font-size: 13px; font-variant-numeric: tabular-nums; }
 .shaper-advice__title { font-weight: 600; }
 .shaper-table-box { margin-top: 10px; overflow-x: auto; }
-.shaper-table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
+.shaper-table { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; } /* 1.101: columns sized by their words; a narrow card scrolls the table sideways instead of breaking «Frequenza» in two */
 .shaper-table__caption { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .shaper-table th, .shaper-table td { padding: 6px 3px; text-align: right; border-bottom: 1px solid var(--oui-stroke); }
 .shaper-table thead th { color: var(--oui-text-3); font-size: 10.5px; font-weight: 600; line-height: 1.25; vertical-align: bottom; }
-.shaper-table th:first-child { width: 31%; text-align: left; }
-.shaper-table th, .shaper-table td { overflow-wrap: anywhere; }
+.shaper-table th:first-child { text-align: left; }
+.shaper-table td { white-space: nowrap; }
 .shaper-row { cursor: pointer; }
 .shaper-row:hover { background: var(--oui-surface-2); }
 .shaper-row.is-selected { background: var(--oui-accent-soft); }
@@ -3977,7 +4062,12 @@ button.ai-header-badge { cursor: pointer; font: inherit; color: inherit; }
 .shaper-legend__swatch.is-warning { background: rgba(245, 159, 0, 0.4); }
 /* the switch fits a 320 px phone in every language: the two halves share the width and their text wraps */
 .shaper-mode .oui-segmented { display: flex; max-width: 100%; }
-.shaper-mode .oui-segmented > button { flex: 1 1 auto; min-width: 0; white-space: normal; line-height: 1.2; padding-top: 4px; padding-bottom: 4px; }
+.shaper-mode .oui-segmented > button { flex: 1 1 auto; min-width: 0; white-space: normal; line-height: 1.2; padding-top: 4px; padding-bottom: 4px; text-wrap: balance; }
+
+/* 1.101: the narrowest phones: «SHAPER_CALIBRATE (ζ = 0,1)» is one long word, a smaller type keeps it in its button */
+@media (max-width: 359px) {
+  .shaper-mode .oui-segmented > button { font-size: 12px; padding-left: 8px; padding-right: 8px; }
+}
 
 /* ============================================================================
    Settings menu: the side panel behind the menu button of the top bar (markup: app/59-settings.js)
@@ -3999,7 +4089,10 @@ button.ai-header-badge { cursor: pointer; font: inherit; color: inherit; }
 }
 @media (max-width: 340px) {
   .app-header__logo { display: none; } /* the narrowest phones: the menu button takes the logo's place, the name stays whole */
-  .app-header__name { font-size: 16px; }
+  .app-header__name { font-size: 15px; }
+  /* 1.101: the AI badge came after: the round buttons get a little smaller so the name is not cut */
+  .app-header__actions { gap: 6px; }
+  .header-btn { width: 36px; height: 36px; }
 }
 
 /* ---- the panel ---- */
@@ -4233,7 +4326,7 @@ button.ai-header-badge { cursor: pointer; font: inherit; color: inherit; }
 .notify-rule__icon { display: grid; flex: none; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: var(--oui-accent-soft); color: var(--oui-accent-text); }
 .notify-rule__warn { color: var(--oui-warn); }
 .notify-add .oui-chip { display: inline-flex; align-items: center; gap: 4px; }
-.notify-placeholders code { font-size: 12px; overflow-wrap: anywhere; }
+.notify-placeholders code { font-size: 12px; white-space: nowrap; }
 
 /* ---- Appearance: the order of the cards (1.50, app/59o-appearance.js) ---- */
 .layout-row { display: flex; align-items: center; gap: 4px; min-height: 52px; padding: 4px 8px 4px 16px; }
@@ -4352,6 +4445,18 @@ button.ai-header-badge { cursor: pointer; font: inherit; color: inherit; }
 /* 1.94 · the Raspberry's own address (59d-access-settings.js) */
 .web-moved { margin-top: 6px; overflow-wrap: anywhere; }
 .web-command { display: block; margin-top: 8px; padding: 8px 10px; border-radius: var(--oui-r-tile); background: var(--oui-surface-2); font-size: 13px; overflow-wrap: anywhere; }
+
+/* 1.101: the narrowest phones: the arrows a little closer, so the card names (Riscaldatori, Temperature) stay whole */
+@media (max-width: 359px) {
+  .layout-row { gap: 0; padding-left: 12px; padding-right: 4px; }
+  .layout-row__btn { width: 34px; }
+  .layout-row__switch { min-width: 50px; }
+  .layout-row__name { font-size: 14px; }
+}
+/* 1.101: phones: a long page name («Home Assistant / MQTT») goes on two lines instead of «Home Assi…» */
+@media (max-width: 420px) {
+  .drawer__title { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; white-space: normal; font-size: 20px; line-height: 1.15; }
+}
 
 /* ============================================================================
    Recordings page of the settings menu (markup: app/59e-recordings.js): the alarms to mark, the picture viewer of a
@@ -4794,6 +4899,7 @@ input[type="range"] { touch-action: pan-y; }
 .desk-side { display: flex; flex-direction: column; gap: 16px; min-height: 0; overflow-y: auto; }
 .desk-side__group { display: contents; }
 .desk-slot { display: flex; flex: none; flex-direction: column; gap: 16px; }
+.desk-slot:empty { display: none; } /* 1.101: a card that is not there (no spool, no MMU...) leaves no double gap */
 /* 1.66: a slot per card of the side column, in the order of the computer's layout (Settings → Appearance → Cards) */
 .desk-slot--heaters, .desk-slot--motion, .desk-slot--fans, .desk-slot--spool, .desk-slot--mmu, .desk-slot--shaper, .desk-slot--devices, .desk-slot--extruder, .desk-slot--tune, .desk-slot--camera, .desk-slot--print, .desk-slot--temps { min-width: 0; }
 .heater-tiles--last { margin-bottom: 0; }
@@ -5002,6 +5108,9 @@ input[type="range"] { touch-action: pan-y; }
 .mqtt-topics { display: grid; gap: 8px; margin-bottom: 12px; }
 .mqtt-topic { display: grid; gap: 2px; min-width: 0; }
 .mqtt-topic code { overflow-wrap: anywhere; font-size: 13px; }
+/* 1.101: the topics as a small list on a surface, each topic a chip of its own length (not a grey strip as wide as the page) */
+.mqtt-topics { gap: 10px; padding: 12px 14px; border-radius: var(--oui-r-row); background: var(--oui-surface-2); }
+.mqtt-topic code { justify-self: start; max-width: 100%; }
 
 /* ============================================================================
    Looks (1.53, roadmap 6e part 4): the same page, the same palette (the accent
@@ -9425,7 +9534,7 @@ function usePrinterFunctions() {
    ========================================================================== */
 
 /** Written by build.py from the VERSION file of the release; stays as it is when the page is built by hand. */
-const DASHBOARD_RELEASE = "1.100.1";
+const DASHBOARD_RELEASE = "1.101.0";
 const dashboardRelease = () => (DASHBOARD_RELEASE.startsWith("__") ? "sviluppo" : DASHBOARD_RELEASE);
 
 /** The interface level this page needs from the backend (the backend says its own in /api/version). */
@@ -18855,7 +18964,7 @@ function ExtruderCard({ hotend, onGcode, onEditTemperature }) {
       h(HeaterTile, { kind: "hotend", heater: hotend, onEdit: () => onEditTemperature("hotend", hotend.target), className: "h-full" }),
       h(
         "div",
-        { className: "grid grid-cols-2 h-full gap-2" },
+        { className: cx("grid h-full gap-2", buttons.length === 1 ? "grid-cols-1" : "grid-cols-2") }, // 1.101: one macro fills the half
         buttons.map((macro) =>
           h(
             "button",
@@ -22386,14 +22495,15 @@ async function sendSaveConfig() {
 /* ---------------------------------------------------------------------------
    Component
    ------------------------------------------------------------------------- */
-/** The sections of the file: tap one to go there; fold or unfold them all. */
-function EditorSectionsButton({ sections, current, onJump, onFoldAll, onUnfoldAll }) {
+/** The «⋯» menu of the editor (1.101: one button instead of three, so that Comment / Uncomment keep their room on a
+ * phone): the earlier versions of the file, the reference page of the section, fold or unfold, the sections. */
+function EditorMoreButton({ sections, current, onJump, onFoldAll, onUnfoldAll, onVersions, docsUrl }) {
   const menu = useDropdown();
-  const item = (key, title, subtitle, onClick, checked) =>
+  const item = (key, title, subtitle, onClick, checked, extra = {}) =>
     h(
       "button",
-      { key, type: "button", className: "oui-menu__item console-option editor-section-item", role: "menuitem", "data-section-line": typeof key === "number" ? key : undefined, onClick: () => (menu.close(), onClick()) },
-      h("span", { className: "oui-menu__icon" }, checked ? h(Icons.Check, { size: 18 }) : null),
+      { key, type: "button", className: "oui-menu__item console-option editor-section-item", role: "menuitem", "data-section-line": typeof key === "number" ? key : undefined, onClick: () => (menu.close(), onClick()), ...extra },
+      h("span", { className: "oui-menu__icon" }, checked ? h(Icons.Check, { size: 18 }) : extra.icon || null),
       h("span", { className: "oui-menu__text" }, h("span", { className: "oui-menu__title" }, title), subtitle && h("span", { className: "oui-menu__sub" }, subtitle)),
     );
   return h(
@@ -22401,19 +22511,51 @@ function EditorSectionsButton({ sections, current, onJump, onFoldAll, onUnfoldAl
     null,
     h(
       "button",
-      { type: "button", ref: menu.anchorRef, className: cx("oui-btn oui-btn--sm editor-history editor-sections-btn", menu.open && "oui-btn--accent-soft"), title: tx("Sections of the file"), "aria-label": tx("Sections of the file"), "aria-haspopup": "menu", "aria-expanded": menu.open, onMouseDown: (event) => event.preventDefault(), onClick: menu.toggle },
-      h(Icons.Layers, { size: 20 }),
+      { type: "button", ref: menu.anchorRef, className: cx("oui-btn oui-btn--sm editor-history editor-sections-btn", menu.open && "oui-btn--accent-soft"), title: tx("More"), "aria-label": tx("More"), "aria-haspopup": "menu", "aria-expanded": menu.open, onMouseDown: (event) => event.preventDefault(), onClick: menu.toggle },
+      h(Icons.Dots, { size: 20 }),
     ),
     h(
       DropdownMenu,
       { menu },
-      h(MenuLabel, null, tx("Fold")),
-      item("fold", tx("Fold every section"), null, onFoldAll),
-      item("unfold", tx("Unfold every section"), null, onUnfoldAll),
-      h(MenuLabel, null, tx("Go to the section")),
+      onVersions && h("button", { type: "button", className: "oui-menu__item console-option editor-more-item", role: "menuitem", "data-editor-versions": "1", onClick: () => (menu.close(), onVersions()) },
+        h("span", { className: "oui-menu__icon" }, h(Icons.Clock, { size: 18 })), h("span", { className: "oui-menu__text" }, h("span", { className: "oui-menu__title" }, tx("Earlier versions")))),
+      docsUrl && h("a", { className: "oui-menu__item console-option editor-more-item editor-docs", role: "menuitem", href: docsUrl, target: "_blank", rel: "noopener noreferrer", onClick: () => menu.close() },
+        h("span", { className: "oui-menu__icon" }, h(Icons.Doc, { size: 18 })), h("span", { className: "oui-menu__text" }, h("span", { className: "oui-menu__title" }, tx("What this section does (the reference)")))),
+      sections.length > 0 && h(MenuLabel, null, tx("Fold")),
+      sections.length > 0 && item("fold", tx("Fold every section"), null, onFoldAll),
+      sections.length > 0 && item("unfold", tx("Unfold every section"), null, onUnfoldAll),
+      sections.length > 0 && h(MenuLabel, null, tx("Go to the section")),
       sections.map((section) => item(section.line, "[" + section.name + "]", tx("line {line}", { line: section.line }), () => onJump(section.line), current && current.line === section.line)),
     ),
   );
+}
+
+/** True when the comment buttons' words do not fit in the tools row (a narrow phone, a long language such as German
+ * or Russian): they then show only their icons (1.101). Measured from the words, so it changes back as soon as they fit. */
+function useTightTools(rowRef, labels) {
+  const [tight, setTight] = useState(false);
+  useLayoutEffect(() => {
+    const row = rowRef.current;
+    if (!row || typeof ResizeObserver === "undefined") return undefined;
+    const canvas = document.createElement("canvas").getContext("2d");
+    const check = () => {
+      const buttons = [...row.querySelectorAll(".editor-comment")];
+      if (!buttons.length) return;
+      const style = getComputedStyle(buttons[0]);
+      canvas.font = style.fontWeight + " " + style.fontSize + " " + style.fontFamily;
+      const gap = parseFloat(getComputedStyle(row).columnGap) || 0;
+      const others = [...row.children].filter((child) => !child.classList.contains("editor-comment")).reduce((sum, child) => sum + child.getBoundingClientRect().width, 0);
+      const available = row.clientWidth - others - gap * (row.children.length - 1);
+      const padding = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight) + 2;
+      const needed = labels.reduce((sum, label) => sum + Math.ceil(canvas.measureText(label).width) + padding, 0);
+      setTight(needed > available);
+    };
+    check();
+    const observer = new ResizeObserver(check);
+    observer.observe(row);
+    return () => observer.disconnect();
+  }, [rowRef, labels.join("|")]);
+  return tight;
 }
 
 function EditorScreen({ session, onClose, inline, onDirtyChange }) {
@@ -22431,6 +22573,8 @@ function EditorScreen({ session, onClose, inline, onDirtyChange }) {
   const [confirmingDiscard, setConfirmingDiscard] = useState(false);
   const [versionsOpen, setVersionsOpen] = useState(false); // 1.81: the earlier versions of the file
   const hostRef = useRef(null);
+  const toolsRef = useRef(null);
+  const toolsTight = useTightTools(toolsRef, [tx("Comment"), tx("Uncomment")]);
   const viewRef = useRef(null);
   const statusTimer = useRef(0);
   const textTimer = useRef(0);
@@ -22654,20 +22798,21 @@ function EditorScreen({ session, onClose, inline, onDirtyChange }) {
     (!readOnly || sections.length > 0) &&
       h(
         "div",
-        { className: "editor-tools" },
+        { className: cx("editor-tools", toolsTight && "editor-tools--tight"), ref: toolsRef },
         !readOnly && h("button", { type: "button", className: "oui-btn oui-btn--sm editor-history", title: tx("Undo (Ctrl+Z)"), "aria-label": txc("edit", "Undo"), disabled: historyDepth.undo === 0, onMouseDown: keepFocus, onClick: () => runHistory(CM.undo) }, h(Icons.Undo, { size: 20 })),
         !readOnly && h("button", { type: "button", className: "oui-btn oui-btn--sm editor-history", title: tx("Redo (Ctrl+Y)"), "aria-label": txc("edit", "Redo"), disabled: historyDepth.redo === 0, onMouseDown: keepFocus, onClick: () => runHistory(CM.redo) }, h(Icons.Redo, { size: 20 })),
-        !readOnly && h("button", { type: "button", className: "oui-btn oui-btn--sm editor-comment", title: tx("Puts {mark} in front of the selected lines (Ctrl+/)", { mark: commentMark }), onMouseDown: keepFocus, onClick: () => markComments("comment") }, h(Icons.Hash, { size: 18 }), tx("Comment")),
-        !readOnly && h("button", { type: "button", className: "oui-btn oui-btn--sm editor-comment", title: tx("Removes one {mark} from the selected lines that have it (Ctrl+/)", { mark: commentMark }), onMouseDown: keepFocus, onClick: () => markComments("uncomment") }, h(Icons.HashOff, { size: 18 }), tx("Uncomment")),
-        keepsVersions && h("button", { type: "button", className: "oui-btn oui-btn--sm editor-history editor-versions", title: tx("Earlier versions"), "aria-label": tx("Earlier versions"), "data-editor-versions": "1", onMouseDown: keepFocus, onClick: () => setVersionsOpen(true) }, h(Icons.Clock, { size: 19 })),
-        sections.length > 0 && h(EditorSectionsButton, { sections, current: sectionAtLine(sections, caretLine), onJump: jumpToLine, onFoldAll: () => foldEverything(true), onUnfoldAll: () => foldEverything(false) }),
-        docsUrl &&
-          canOpenLinks &&
-          h(
-            "a",
-            { className: "oui-btn oui-btn--sm editor-history editor-docs", href: docsUrl, target: "_blank", rel: "noopener noreferrer", title: tx("What this section does (the reference)"), "aria-label": tx("What this section does (the reference)"), onMouseDown: keepFocus },
-            h(Icons.Doc, { size: 19 }),
-          ),
+        !readOnly && h("button", { type: "button", className: "oui-btn oui-btn--sm editor-comment", title: tx("Puts {mark} in front of the selected lines (Ctrl+/)", { mark: commentMark }), onMouseDown: keepFocus, "aria-label": tx("Comment"), onClick: () => markComments("comment") }, h(Icons.Hash, { size: 18 }), h("span", { className: "editor-comment__label" }, tx("Comment"))),
+        !readOnly && h("button", { type: "button", className: "oui-btn oui-btn--sm editor-comment", title: tx("Removes one {mark} from the selected lines that have it (Ctrl+/)", { mark: commentMark }), onMouseDown: keepFocus, "aria-label": tx("Uncomment"), onClick: () => markComments("uncomment") }, h(Icons.HashOff, { size: 18 }), h("span", { className: "editor-comment__label" }, tx("Uncomment"))),
+        (keepsVersions || sections.length > 0 || (docsUrl && canOpenLinks)) &&
+          h(EditorMoreButton, {
+            sections,
+            current: sectionAtLine(sections, caretLine),
+            onJump: jumpToLine,
+            onFoldAll: () => foldEverything(true),
+            onUnfoldAll: () => foldEverything(false),
+            onVersions: keepsVersions ? () => setVersionsOpen(true) : null,
+            docsUrl: docsUrl && canOpenLinks ? docsUrl : null,
+          }),
       ),
     h("div", { className: "editor-body", ref: hostRef }),
     versionsOpen && createPortal(h(ConfigVersionsDialog, { path, current: viewRef.current ? viewRef.current.state.doc.toString() : text, onRestore: restoreVersion, onClose: () => setVersionsOpen(false) }), document.body),
@@ -33815,7 +33960,8 @@ function MacrosPage() {
        each with its value, its text, and "important" (the alarm sound).
    ========================================================================== */
 
-const PLACEHOLDER_HINT = NOTIFY_PLACEHOLDERS.map((name) => "{" + name + "}").join(" ");
+// 1.101: each placeholder whole on its line ({total_layers} was broken in two on a phone)
+const placeholderCodes = () => NOTIFY_PLACEHOLDERS.map((name, index) => h(React.Fragment, { key: name }, index ? " " : null, h("code", null, "{" + name + "}")));
 
 /** A text of a notification: empty shows (and sends) the service's own one, in the language of the notifications. */
 function NotifyTextField({ value, fallback, onCommit, testId }) {
@@ -33959,7 +34105,7 @@ function NotifyRules({ settings, update }) {
       ),
     ),
     rules.map((rule, index) => h(NotifyRuleEditor, { key: rule.id, rule, index, settings, update })),
-    h("p", { className: "set-group__note notify-placeholders" }, tx("In the texts:"), " ", h("code", null, PLACEHOLDER_HINT), " — ", tx("filled in when the notification goes out (file name, percent, layer, elapsed and remaining time, Klipper's message, the console line, heater and temperature, the printer's name).")),
+    h("p", { className: "set-group__note notify-placeholders" }, tx("In the texts:"), " ", placeholderCodes(), " — ", tx("filled in when the notification goes out (file name, percent, layer, elapsed and remaining time, Klipper's message, the console line, heater and temperature, the printer's name).")),
   );
 }
 
