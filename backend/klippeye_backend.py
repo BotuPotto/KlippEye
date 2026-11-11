@@ -957,6 +957,24 @@ def frontend_ok(path):
         return False
 
 
+def log_tail(path, max_lines, block=65536, max_bytes=16 * 1024 * 1024):
+    """The last `max_lines` lines of a text file, read from its end (1.100.1 review): klippy.log can be hundreds of MB on a
+    printer that runs for weeks, and reading it whole to keep a few thousand lines filled the Raspberry's memory."""
+    with open(path, "rb") as fh:
+        fh.seek(0, os.SEEK_END)
+        end = fh.tell()
+        data = b""
+        while end > 0 and data.count(b"\n") <= max_lines and len(data) < max_bytes:
+            start = max(0, end - block)
+            fh.seek(start)
+            data = fh.read(end - start) + data
+            end = start
+    lines = data.decode("utf-8", errors="ignore").splitlines(keepends=True)
+    if end > 0 and lines:  # the first line read is cut in the middle: not shown
+        lines = lines[1:]
+    return lines[-max_lines:] if max_lines else lines
+
+
 def run_repair(extra=(), force=False):
     """Runs scripts/repair.sh. True if it ran (not when skipped by the rate limit or because the script is missing)."""
     if not os.path.isfile(REPAIR_SCRIPT):
@@ -1172,17 +1190,15 @@ def api_gcode():
     if request.method == "OPTIONS":
         return "", 200
     try:
-        body = request.get_json(force=True, silent=True) or {}
-        script = body.get("script") or body.get("gcode") or request.data.decode() if request.data else ""
-        if not script:
-            # also try the query parameter
-            script = request.args.get("script", "")
-        if not script:
+        body = request.get_json(force=True, silent=True)
+        body = body if isinstance(body, dict) else {}
+        # {script} or {gcode} as JSON, else the body as plain text, else ?script= (1.100.1 review: one reading, in this order)
+        script = body.get("script") or body.get("gcode") or ("" if body else request.get_data(as_text=True)) or request.args.get("script", "")
+        if not isinstance(script, str) or not script.strip():
             return jsonify({"error": "no script"}), 400
-        # Manda a Moonraker
+        # to Moonraker, which answers {"result": "ok"}
         mr_url = f"{MOONRAKER_URL}/printer/gcode/script"
         r = requests.post(mr_url, json={"script": script}, timeout=5)
-        # Moonraker ritorna result: ok
         try:
             j = r.json()
         except:
@@ -1756,12 +1772,8 @@ def api_logs_content():
         max_lines = max(50, min(max_lines, 10000))
         # read the file efficiently from the end
         try:
-            with open(full, 'r', encoding='utf-8', errors='ignore') as f:
-                lines = f.readlines()
-                # take the last max_lines
-                if len(lines) > max_lines:
-                    lines = lines[-max_lines:]
-                content = "".join(lines)
+            lines = log_tail(full, max_lines)
+            content = "".join(lines)
         except Exception as e:
             return jsonify({"error": f"read error: {e}"}), 500
         return jsonify({
@@ -1866,42 +1878,39 @@ def get_logs_combined(max_files=25, lines_per_file=400, max_chars=12000):
     total_chars=0
     for name,full,mtime,size,priority in files:
         try:
-            with open(full,'r',encoding='utf-8',errors='ignore') as f:
-                lines=f.readlines()
-                # lines by priority - FIX 413: cut down a lot for the Groq TPM limit
-                if 'klippy' in name.lower():
-                    want_lines = 1200
-                    want_chars = 4000
-                elif 'moonraker' in name.lower() and 'telegram' not in name.lower():
-                    want_lines = 800
-                    want_chars = 2500
-                elif 'crowsnest' in name.lower() or 'mainsail-error' in name.lower():
-                    want_lines = 500
-                    want_chars = 1500
-                else:
-                    want_lines = 300
-                    want_chars = 1000
+            # lines by priority - FIX 413: cut down a lot for the Groq TPM limit
+            if 'klippy' in name.lower():
+                want_lines = 1200
+                want_chars = 4000
+            elif 'moonraker' in name.lower() and 'telegram' not in name.lower():
+                want_lines = 800
+                want_chars = 2500
+            elif 'crowsnest' in name.lower() or 'mainsail-error' in name.lower():
+                want_lines = 500
+                want_chars = 1500
+            else:
+                want_lines = 300
+                want_chars = 1000
 
-                if len(lines)>want_lines:
-                    lines=lines[-want_lines:]
-                chunk="".join(lines)
-                if len(chunk)>want_chars:
-                    chunk=chunk[-want_chars:]
-                # an empty file is said so
-                if not chunk.strip():
-                    chunk="(empty file - 0 bytes of useful content)"
+            lines = log_tail(full, want_lines)
+            chunk="".join(lines)
+            if len(chunk)>want_chars:
+                chunk=chunk[-want_chars:]
+            # an empty file is said so
+            if not chunk.strip():
+                chunk="(empty file - 0 bytes of useful content)"
 
-                header=f"\n\n===== FILE: {name} ({len(lines)} lines taken, {size} bytes in total, priority {priority}) =====\n"
-                entry=header+chunk
-                # controlla se superiamo max_chars totale
-                if total_chars+len(entry) > max_chars and 'klippy' not in name.lower() and 'moonraker' not in name.lower():
-                    # a file that is not critical is skipped when over the limit,
-                    # klippy and moonraker always go in
-                    if total_chars > max_chars*0.8:
-                        continue
-                combined+=entry
-                total_chars+=len(entry)
-                used.append(name)
+            header=f"\n\n===== FILE: {name} ({len(lines)} lines taken, {size} bytes in total, priority {priority}) =====\n"
+            entry=header+chunk
+            # controlla se superiamo max_chars totale
+            if total_chars+len(entry) > max_chars and 'klippy' not in name.lower() and 'moonraker' not in name.lower():
+                # a file that is not critical is skipped when over the limit,
+                # klippy and moonraker always go in
+                if total_chars > max_chars*0.8:
+                    continue
+            combined+=entry
+            total_chars+=len(entry)
+            used.append(name)
         except Exception as e:
             combined+=f"\n\n===== FILE: {name} READ ERROR: {e} =====\n"
             used.append(name)
@@ -1979,14 +1988,10 @@ def api_logs_analyze():
             if ".log." in safe_name or not os.path.isfile(full):
                 return jsonify({"error": bt("File {name} not found", _lang(), name=safe_name)}), 404
             try:
-                with open(full,'r',encoding='utf-8',errors='ignore') as f:
-                    lines = f.readlines()
-                    want = 3500 if 'klippy' in safe_name.lower() else 2500
-                    if len(lines) > want:
-                        lines = lines[-want:]
-                    content = "".join(lines)[-18000:]
-                    if not content.strip():
-                        content = "(empty file)"
+                lines = log_tail(full, 3500 if 'klippy' in safe_name.lower() else 2500)
+                content = "".join(lines)[-18000:]
+                if not content.strip():
+                    content = "(empty file)"
                 combined = f"===== FILE: {safe_name} ({len(lines)} lines, single analysis) =====\n" + content
                 used_files = [safe_name]
                 is_single = True

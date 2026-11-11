@@ -2335,6 +2335,23 @@ _wc.get("/api/printer", headers={"X-Api-Key": "abc"})
 check("1.94: OctoPrint's upload, job and printer questions go to Moonraker", _seen == ["api/files/local", "api/job", "api/printer"], _seen)
 _wb.proxy_moonraker = _orig_proxy
 
+# 1.100.1 review: the logs read from their end (a log of hundreds of MB no longer read whole); /api/gcode's three ways
+_lf = os.path.join(tmp(), "klippy.log")
+with open(_lf, "w") as _h:
+    for _i in range(300000):
+        _h.write("line %d of a long log\n" % _i)
+_rv = load_brain(NEW_BRAIN, tmp(), fake=fake, brain_json={"formato": 1, "values": {"enabled": False}})
+check("1.100.1: log_tail: the last lines of a big log, the first one read cut never shown", _rv.log_tail(_lf, 3) == ["line 299997 of a long log\n", "line 299998 of a long log\n", "line 299999 of a long log\n"]
+      and _rv.log_tail(_lf, 2, block=5) == ["line 299998 of a long log\n", "line 299999 of a long log\n"])
+_rc = _rv.app.test_client()
+fake.scripts.clear()
+_rc.post("/api/gcode", json={"script": "M115"})
+_rc.post("/api/gcode", json={"gcode": "G28 X"})
+_rc.post("/api/gcode", data="M400", content_type="text/plain")
+_rc.post("/api/gcode?script=M114")
+_empty = _rc.post("/api/gcode", json={"other": 1})
+check("1.100.1: /api/gcode: {script}, {gcode}, plain text, ?script=; nothing to send refused", fake.scripts == ["M115", "G28 X", "M400", "M114"] and _empty.status_code == 400, fake.scripts)
+
 # 1.100: Home Assistant / MQTT (backend/mqtt_client.py, mqtt_bridge.py, printer_lights.py) against a small broker
 import printer_lights as _pl  # noqa: E402
 import mqtt_bridge as _mb  # noqa: E402
