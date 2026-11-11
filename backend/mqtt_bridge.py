@@ -202,6 +202,7 @@ class Bridge:
         self._stop = threading.Event()
         self._thread = None
         self._fresh = threading.Event()
+        self._busy = threading.Lock()  # held while publishing: stop() waits for it, so nothing is published after the removal
         self.client = mqtt_client.MqttClient(
             settings["host"], settings["port"], "klippeye-" + self.node, settings.get("username", ""), settings.get("password", ""),
             settings.get("tls"), will=(self.base + "/availability", "offline", True),
@@ -216,6 +217,15 @@ class Bridge:
 
     def stop(self, remove_discovery=False):
         self._stop.set()
+        self._fresh.set()
+        got = self._busy.acquire(timeout=10)  # a round already publishing (the discovery after a reconnection) ends first
+        try:
+            self._finish(remove_discovery)
+        finally:
+            if got:
+                self._busy.release()
+
+    def _finish(self, remove_discovery):
         if self.client.connected:
             if remove_discovery:
                 for topic in list(self.published_configs):
@@ -228,6 +238,8 @@ class Bridge:
                 "node": self.node, "lights": [{"id": light["id"], "name": light["name"]} for light in self.lights], "last_command": self.last_command}
 
     def on_connect(self):
+        if self._stop.is_set():
+            return
         self.last, self.last_lights = {}, {}
         self.client.publish(self.base + "/availability", "online", retain=True)
         self.lights_at = 0
@@ -236,8 +248,9 @@ class Bridge:
     def _loop(self):
         while not self._stop.is_set():
             try:
-                if self.client.connected:
-                    self.tick()
+                with self._busy:
+                    if self.client.connected and not self._stop.is_set():
+                        self.tick()
             except Exception as error:  # noqa: BLE001 - the bridge goes on
                 print("[MQTT] publishing failed: %s" % error)
             self._fresh.wait(self.INTERVAL)

@@ -17,6 +17,8 @@
 * Computer: a card that is not shown leaves no extra gap in the side column.
 * Notifications: each placeholder stays whole on its line. Home Assistant / MQTT: the topics as a tidy list.
 * Extruder: a single macro button takes the whole width.
+* Home Assistant / MQTT: switching it off right after a reconnection could leave some entities in Home Assistant
+  (the removal ran while the entities were being published again); now the removal waits for that round.
 
 ## 1.100.1
 
