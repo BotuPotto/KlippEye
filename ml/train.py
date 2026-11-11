@@ -70,6 +70,27 @@ def read_manifest(path):
     return train, val
 
 
+def recalibrate(model, loader, device, batches=40):
+    """MobileNetV3's normalisation layers follow the pictures very slowly (momentum 0.01): before measuring or exporting,
+    their statistics are computed again on the training pictures (an average over `batches` batches), so the model is
+    measured — and runs on the Raspberry — with statistics of what it learned."""
+    norms = [m for m in model.modules() if isinstance(m, nn.modules.batchnorm._BatchNorm)]
+    if not norms:
+        return
+    saved = [m.momentum for m in norms]
+    for m in norms:
+        m.reset_running_stats()
+        m.momentum = None   # a plain average of every batch seen
+    model.train()
+    with torch.no_grad():
+        for i, (x, _) in enumerate(loader):
+            if i >= batches:
+                break
+            model(x.to(device))
+    for m, momentum in zip(norms, saved):
+        m.momentum = momentum
+
+
 def scores_of(model, loader, device):
     model.eval()
     out, labels = [], []
@@ -167,6 +188,7 @@ def main(argv=None):
     sampler = WeightedRandomSampler([1.0 / counts[l] for l in labels], num_samples=len(labels), replacement=True)
     train_loader = DataLoader(Pictures(train_rows, train_tf), batch_size=args.batch, sampler=sampler, num_workers=args.workers)
     val_loader = DataLoader(Pictures(val_rows, val_tf), batch_size=args.batch, num_workers=args.workers)
+    calib_loader = DataLoader(Pictures(train_rows, val_tf), batch_size=args.batch, shuffle=True, num_workers=args.workers)
     device = "cuda" if torch.cuda.is_available() else "cpu"
     model = Monitor(pretrained=not args.no_pretrained).to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=1e-4)
@@ -184,6 +206,7 @@ def main(argv=None):
             optimizer.step()
             schedule.step()
             total += float(loss) * len(x)
+        recalibrate(model, calib_loader, device)
         scores, val_labels = scores_of(model, val_loader, device)
         chosen = choose_threshold(scores, val_labels)
         print("epoch %d/%d: loss %.4f, on the pictures kept aside %s (%.0fs)" % (epoch, args.epochs, total / len(train_rows), chosen, time.time() - started))
