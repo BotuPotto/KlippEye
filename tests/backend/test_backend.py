@@ -776,11 +776,94 @@ class _Quota:
 _quota_posts = []
 b_ai, cur, prev = fresh_ai(lambda url, headers=None, json=None, timeout=None: (_quota_posts.append(1), _Quota())[1])
 b_ai.detector.call_ai_analysis(cur, prev, 60)
-left_s = b_ai.detector.ai_quota_until - time.time()
+left_s = max(b_ai.detector.ai_quota.values() or [0]) - time.time()
 b_ai.detector.last_ai_call = 0
 b_ai.detector.call_ai_analysis(cur, prev, 60)
 check("1.102: the service's daily limit is used up (429, try again in 20 min): one alarm says so, then the AI is left alone until then (no call, no alarm)",
       len(_quota_posts) == 1 and 1200 < left_s < 1250 and len(b_ai.read_alert_history()) == 1 and "used up" in b_ai.detector.stats.get("status", ""), (len(_quota_posts), left_s, b_ai.read_alert_history()))
+
+# ---------------------------------------------------------------------------------------------------------------------
+print("== 1.104: backup services for the monitor, a second opinion from another one")
+import ai_services as _ais  # noqa: E402
+_cfg = {"version": 2, "keys": {"groq": "g" * 30, "gemini": "AIza" + "x" * 30},
+        "monitor": {"provider": "groq", "model": ""}, "logs": {"provider": "groq", "model": ""},
+        "monitor_backups": [{"provider": "gemini", "model": ""}, {"provider": "mistral", "model": ""}, {"provider": "groq", "model": ""}, {"provider": "nope"}]}
+_chain = _ais.resolve_chain(_cfg, "monitor")
+check("1.104: the chain: the monitor's service, then its backups that can be used (Mistral has no key, Groq again and an unknown one left out)",
+      [t["provider"] for t in _chain] == ["groq", "gemini"] and _chain[1]["model"] == _ais.PROVIDERS["gemini"]["monitor"], [t["provider"] for t in _chain])
+check("... the logs have no backups", [t["provider"] for t in _ais.resolve_chain(_cfg, "logs")] == ["groq"])
+_sum = _ais.summary(_cfg)
+check("1.104: summary: the backups with whether they can be used, the second opinion on by default, the max",
+      [(b["provider"], b["usable"]) for b in _sum["monitor_backups"]] == [("gemini", True), ("mistral", False), ("groq", True)] and _sum["second_opinion"] is True and _sum["max_backups"] == 3, _sum["monitor_backups"])
+_new, _err = _ais.apply(_cfg, {"monitor_backups": [{"provider": "gemini", "model": "gemini-x"}], "second_opinion": False})
+check("1.104: apply: the backups replaced, the second opinion switched off", _err is None and _new["monitor_backups"] == [{"provider": "gemini", "model": "gemini-x"}] and _new["second_opinion"] is False, (_new, _err))
+check("... four backups, an unknown service, a bad model: refused",
+      _ais.apply(_cfg, {"monitor_backups": [{"provider": "groq"}] * 4})[1] == "bad_backups" and _ais.apply(_cfg, {"monitor_backups": [{"provider": "zz"}]})[1] == "unknown"
+      and _ais.apply(_cfg, {"monitor_backups": [{"provider": "groq", "model": "a b"}]})[1] == "bad_model")
+
+
+def _chain_post(plan):
+    """plan: {base url part: [answers]}: "429" (daily limit), "500", "down", or an action."""
+    calls = []
+
+    def _post(url, headers=None, json=None, timeout=None):
+        who = "gemini" if "googleapis" in url else "groq"
+        answers = plan[who]
+        answer = answers[min(sum(1 for c in calls if c == who), len(answers) - 1)]
+        calls.append(who)
+        if answer == "down":
+            raise b_ai.requests.ConnectionError("no route")
+        if answer in ("429", "500"):
+            r = _Quota()
+            r.status_code = int(answer)
+            return r
+
+        class R:
+            ok = True
+            status_code = 200
+            text = ""
+
+            def json(self_inner):
+                return {"choices": [{"message": {"content": __import__("json").dumps({"observation": "x", "spaghetti": {"detected": answer != "CONTINUE", "confidence": 90},
+                                                                                        "action": answer, "summary": who})}}]}
+        return R()
+    return _post, calls
+
+
+def _two_services(post, second_opinion=True):
+    b, c, p = fresh_ai(post)
+    json.dump({"version": 2, "keys": {"groq": "g" * 30, "gemini": "AIza" + "x" * 30}, "monitor": {"provider": "groq", "model": ""},
+               "logs": {"provider": "groq", "model": ""}, "monitor_backups": [{"provider": "gemini", "model": ""}], "second_opinion": second_opinion},
+              open(b.AI_CONFIG_PATH, "w"))
+    b.detector._ai_picture = lambda suffix, _c=c: _c
+    b.moonraker_status = lambda query, timeout=3: {"print_stats": {"state": "printing", "filename": "x.gcode"}}
+    return b, c, p
+
+
+post, calls = _chain_post({"groq": ["429"], "gemini": ["CONTINUE"]})
+b_ai, cur, prev = _two_services(post)
+b_ai.detector.call_ai_analysis(cur, prev, 60)
+h0 = b_ai.read_alert_history()[0]
+check("1.104: Groq's daily limit used up: Gemini answers the same alarm (written as a backup)",
+      calls == ["groq", "gemini"] and h0.get("outcome") == "analysed" and h0.get("service") == "Google Gemini" and h0.get("backup") is True, (calls, h0))
+b_ai.detector.last_ai_call = 0
+b_ai.detector.call_ai_analysis(cur, prev, 60)
+check("... the next alarm goes straight to Gemini (Groq left alone until its time)", calls == ["groq", "gemini", "gemini"], calls)
+post, calls = _chain_post({"groq": ["down"], "gemini": ["500"]})
+b_ai, cur, prev = _two_services(post)
+b_ai.detector.call_ai_analysis(cur, prev, 60)
+h0 = b_ai.read_alert_history()[0]
+check("1.104: neither answers (one down, one in error): one alarm, with what each said", calls == ["groq", "gemini"] and h0.get("outcome", "").startswith("AI error") and len(h0.get("tried") or []) == 2, h0)
+post, calls = _chain_post({"groq": ["PAUSE"], "gemini": ["CONTINUE"]})
+b_ai, cur, prev = _two_services(post)
+b_ai.detector.call_ai_analysis(cur, prev, 60)
+h0 = b_ai.read_alert_history()[0]
+check("1.104: Groq proposes a pause, the second look is Gemini's (second opinion): it sees nothing, CONTINUE",
+      calls == ["groq", "gemini"] and h0.get("action") == "CONTINUE" and (h0.get("second_look") or {}).get("service") == "Google Gemini", (calls, h0))
+post, calls = _chain_post({"groq": ["PAUSE"], "gemini": ["CONTINUE"]})
+b_ai, cur, prev = _two_services(post, second_opinion=False)
+b_ai.detector.call_ai_analysis(cur, prev, 60)
+check("... second opinion off: the second look is Groq's again", calls == ["groq", "groq"] and b_ai.read_alert_history()[0].get("action") == "PAUSE", calls)
 
 b_ai, cur, prev = fresh_ai(ai_reply())
 for i in range(45):

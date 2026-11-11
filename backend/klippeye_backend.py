@@ -1954,6 +1954,7 @@ AI_CONFIG_ERRORS = {
     "unknown": btn("unknown AI service"),
     "bad_base": btn("the address must start with http:// or https://"),
     "bad_model": btn("the model name has characters that are not allowed"),
+    "bad_backups": btn("three backup services at most"),
 }
 
 
@@ -2338,7 +2339,7 @@ class LightDetector(FrameJudge):
         self.thread = None
         self.generation = 0  # every start() opens a new one: an old loop still asleep understands by itself that it must end
         self.last_ai_call = 0
-        self.ai_quota_until = 0  # 1.102: the AI service said its limit is used up (429): not asked again before this
+        self.ai_quota = {}  # 1.102/1.104: "service/model" -> the time its limit is used up until (429): not asked before
         self.last_alert_img_path = None
         self.last_analysis = None  # last AI result, formatted; None again at the start and at the end of every print (1.25)
         self.in_print = False  # a print (printing or paused) was running at the last look
@@ -2737,7 +2738,12 @@ class LightDetector(FrameJudge):
             ], temperature=0.1, max_tokens=900, json_mode=True, timeout=40)
 
         used_reference = bool(ref_b64)
-        r = ask(used_reference)
+        quota_key = target["provider"] + "/" + target["model"]
+        try:
+            r = ask(used_reference)
+        except requests.RequestException as error:   # 1.104: down, too slow: the next service of the chain is asked
+            print(f"[OPENCV] {target['name']} does not answer: {error}")
+            return {"ok": False, "status": 0, "error": "%s: %s" % (target["name"], str(error)[:200])}
         if r.status_code == 429:
             # 1.26.1: too many requests (the limits of the AI service's plan, per minute or per day). A short wait asked
             # by the service: wait it and ask once more; a long one (daily limit): give up, and (1.102) leave the AI
@@ -2748,13 +2754,16 @@ class LightDetector(FrameJudge):
                 time.sleep(wait + 1)
                 r = ask(used_reference)
             else:
-                self.ai_quota_until = time.time() + (wait if wait is not None else AI_QUOTA_PAUSE_S)
-                print("[OPENCV] the AI service's limit is used up: the AI is left alone until %s" % time.strftime("%H:%M", time.localtime(self.ai_quota_until)))
-        if not r.ok and used_reference and r.status_code != 429:
+                self.ai_quota[quota_key] = time.time() + (wait if wait is not None else AI_QUOTA_PAUSE_S)
+                print("[OPENCV] %s: the limit is used up, not asked again until %s" % (quota_key, time.strftime("%H:%M", time.localtime(self.ai_quota[quota_key]))))
+        if not r.ok and used_reference and r.status_code in (400, 413, 422):
             # some services/models accept one picture only (or have a data limit): try again with the current picture only
             print(f"[OPENCV] the AI refused two pictures ({r.status_code}): trying with one")
             used_reference = False
-            r = ask(False)
+            try:
+                r = ask(False)
+            except requests.RequestException as error:
+                return {"ok": False, "status": 0, "error": "%s: %s" % (target["name"], str(error)[:200])}
         if not r.ok:
             print(f"[OPENCV] IA error {r.status_code}: {r.text[:500]}")
             return {"ok": False, "status": r.status_code, "error": ai_services.error_detail(r)}
@@ -2785,18 +2794,47 @@ class LightDetector(FrameJudge):
             parsed, _ = distrust_low_empty_bed(parsed, self._height_now(), self.ai_min_confidence, language)
         return {"ok": True, "parsed": parsed, "answer": answer, "with_reference": used_reference}
 
+    def _free_targets(self, chain, now=None):
+        """The services of the chain whose limit is not used up (1.104)."""
+        now = time.time() if now is None else now
+        return [t for t in chain if self.ai_quota.get(t["provider"] + "/" + t["model"], 0) <= now]
+
+    def _ask_chain(self, chain, *args):
+        """Asks the services of `chain` in order until one answers (1.104: its limit used up, down, a key refused: the next
+        one). -> (result, target that answered or the last asked, [errors of those that did not])."""
+        errors = []
+        result, target = {"ok": False, "status": 0, "error": "no AI service"}, None
+        for target in chain:
+            if self.ai_quota.get(target["provider"] + "/" + target["model"], 0) > time.time():
+                continue
+            result = self._ask_ai(target, *args)
+            if result["ok"]:
+                return result, target, errors
+            errors.append({"service": target["name"], "model": target["model"], "status": result["status"], "error": result["error"]})
+            print(f"[OPENCV] {target['name']} / {target['model']} could not answer ({result['status']}): the next service")
+        return result, target, errors
+
     def call_ai_analysis(self, img_path, ref_path=None, ref_age=None):
         """Asks the AI to look at the picture (and, if there is one, at how it was before) when the monitor triggers, with
         nobody involved. 1.102: a stop it proposes is looked at again AI_CONFIRM_DELAY_S later on a new picture, and
-        holds only if that look proposes a stop too."""
+        holds only if that look proposes a stop too. 1.104: the services of the chain (the monitor's, then its backups)
+        are asked in order until one answers; the second look asks another of them when there is one (second opinion)."""
         score = self.stats.get("last_score", 0)
         try:
             now = time.time()
-            if now < self.ai_quota_until:
-                # the AI service's limit is used up (429): no question until it says, no alarm written for each check
-                back = time.strftime("%H:%M", time.localtime(self.ai_quota_until))
+            try:
+                ai_cfg = _read_ai_file()
+                chain = ai_services.resolve_chain(ai_cfg, "monitor", self.ai_model)
+            except ai_services.AiError:
+                print("[OPENCV] No API key for the AI call")
+                record_alert({"outcome": "skipped: no AI key", "score": score}, img_path, ref_path)
+                return
+            free = self._free_targets(chain, now)
+            if not free:
+                # every service's limit is used up (429): no question until the first is back, no alarm for each check
+                back = time.strftime("%H:%M", time.localtime(min(self.ai_quota.get(t["provider"] + "/" + t["model"], now) for t in chain)))
                 self.stats["status"] = f"AI: the service's limit is used up, back at {back}"
-                print(f"[OPENCV] AI not asked: the service's limit is used up until {back}")
+                print(f"[OPENCV] AI not asked: the limit of every service is used up until {back}")
                 return
             if now - self.last_ai_call < self.ai_cooldown:
                 # the AI is resting (pause between two analyses): this alarm is not lost, the monitor rests until the AI can
@@ -2823,20 +2861,14 @@ class LightDetector(FrameJudge):
             progress = telemetry.get("display_status", {}).get("progress", 0) * 100
             temp_h = telemetry.get("extruder", {}).get("temperature", 0)
 
-            # 1.27: the service and model chosen for the monitor (the model of Monitor thresholds, before 1.27, if none)
-            try:
-                target = ai_services.resolve(_read_ai_file(), "monitor", self.ai_model)
-            except ai_services.AiError:
-                print("[OPENCV] No API key for the AI call")
-                record_alert({"outcome": "skipped: no AI key", "score": score}, img_path, ref_path)
-                return
-            final_model = target["model"]
             language = shared_language()
-
-            first = self._ask_ai(target, img_path, ref_path, ref_age, score, state, filename, progress, temp_h, language)
+            first, target, errors = self._ask_chain(free, img_path, ref_path, ref_age, score, state, filename, progress, temp_h, language)
+            final_model = target["model"] if target else ""
             if not first["ok"]:
-                record_alert({"outcome": f"AI error {first['status']}", "score": score, "model": final_model, "error": first["error"]}, img_path, ref_path)
+                record_alert({"outcome": f"AI error {first['status']}", "score": score, "model": final_model, "error": first["error"],
+                              "tried": errors if len(errors) > 1 else None}, img_path, ref_path)
                 return
+            backup = target is not chain[0]
             parsed, answer, used_reference = first["parsed"], first["answer"], first["with_reference"]
             if parsed is None:
                 self.last_analysis = {
@@ -2862,11 +2894,16 @@ class LightDetector(FrameJudge):
                     still = None
                 again = self._ai_picture("confirm") if still == "printing" else None
                 if again:
-                    look = self._ask_ai(target, again, img_path, AI_CONFIRM_DELAY_S, score, state, filename, progress, temp_h, language)
+                    # 1.104: a second opinion, from another service of the chain when there is one (and it is wanted);
+                    # the first one if that cannot answer
+                    others = [t for t in self._free_targets(chain) if t is not target]
+                    order = (others + [target]) if (ai_cfg.get("second_opinion") is not False and others) else ([target] + others)
+                    look, second_target, _ = self._ask_chain(order, again, img_path, AI_CONFIRM_DELAY_S, score, state, filename, progress, temp_h, language)
                     self.last_ai_call = time.time()
                     if look["ok"] and look["parsed"] is not None:
                         second = look["parsed"]
-                        confirm = {"action": second.get("action"), "summary": second.get("summary"), "observation": second.get("observation")}
+                        confirm = {"action": second.get("action"), "summary": second.get("summary"), "observation": second.get("observation"),
+                                   "model": second_target["model"], "service": second_target["name"]}
                 parsed = confirm_stop(parsed, second, language)
                 print(f"[OPENCV] second look: {'confirmed' if parsed.get('confirmed') else 'not confirmed' if parsed.get('confirmed') is False else 'not made'}")
 
@@ -2887,6 +2924,7 @@ class LightDetector(FrameJudge):
             recorded = record_alert({
                 "outcome": "analysed" + (" (downgraded)" if downgraded else ""),
                 "score": score, "progress": round(progress, 1), "filename": filename, "model": final_model,
+                "service": target["name"], "backup": backup or None,
                 "action": parsed.get("action"), "original_action": parsed.get("original_action"),
                 "confidence": max([c for c in confidences if isinstance(c, (int, float))] or [0]),
                 "summary": parsed.get("summary"), "observation": parsed.get("observation"),

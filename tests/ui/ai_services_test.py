@@ -102,7 +102,7 @@ with sync_playwright() as p:
     # --- the keys
     keys = P.pg.locator("[data-ai-keys]")
     ok("the keys: one list, folded when a key is saved, says how many", keys.count() == 1 and keys.get_attribute("open") is None and "Chiavi dei servizi IA (1 salvata)" in keys.inner_text(), keys.inner_text()[:200] if keys.count() else "")
-    keys.locator("summary").click()
+    keys.locator(":scope > summary").click()
     P.settle(300)
     groq = P.pg.locator('[data-ai-key-row="groq"]')
     gemini = P.pg.locator('[data-ai-key-row="gemini"]')
@@ -185,7 +185,7 @@ with sync_playwright() as p:
     # --- 360 px
     P = fresh(b, w=360, h=740)
     open_ai_page(P)
-    P.pg.locator("[data-ai-keys] summary").click()
+    P.pg.locator("[data-ai-keys] > summary").click()
     P.pg.locator('[data-ai-key-edit="custom"]').click()
     P.settle(300)
     ok("360 px: no horizontal scrolling, also with the address of another service open", overflow(P) <= 0, overflow(P))

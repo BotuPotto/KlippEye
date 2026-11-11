@@ -151,6 +151,116 @@ function AiUseSettings({ use, ai }) {
   );
 }
 
+/** How to get a free key, step by step, for the services with a free plan (1.104). The free plans change: the steps say
+ * where to click, the link opens the service's own page. */
+const AI_KEY_GUIDES = {
+  groq: {
+    steps: () => [tx("Open console.groq.com and sign in (Google, GitHub or e-mail)."), tx("Open «API Keys» and press «Create API Key»; call it KlippEye."), tx("Copy the key at once (it is shown only once) and paste it here.")],
+    note: () => tx("Free plan: limits per minute and per day. When they are used up, the monitor asks the backup services."),
+  },
+  gemini: {
+    steps: () => [tx("Open aistudio.google.com/apikey and sign in with a Google account."), tx("Press «Create API key» (a project is made for you if needed)."), tx("Copy the key and paste it here.")],
+    note: () => tx("On the free plan Google may use what is sent (the pictures of the printer) to improve its products."),
+  },
+  openrouter: {
+    steps: () => [tx("Open openrouter.ai and sign in."), tx("Open «Keys» and press «Create API Key»."), tx("Copy the key and paste it here; as model choose one whose name ends with «:free» and that sees pictures.")],
+    note: () => tx("The free models allow 50 requests a day (1,000 once 10 dollars of credit have been bought)."),
+  },
+  mistral: {
+    steps: () => [tx("Open console.mistral.ai and sign in."), tx("In «Subscription» choose the free «Experiment» plan: it asks to verify a phone number."), tx("Open «API Keys», press «Create new key», copy it and paste it here.")],
+    note: () => tx("On the Experiment plan Mistral may use the requests to train its models."),
+  },
+};
+
+function AiKeyGuide({ service }) {
+  const guide = AI_KEY_GUIDES[service.id];
+  if (!guide) return null;
+  return h(
+    "details",
+    { className: "ai-guide", "data-ai-guide": service.id },
+    h("summary", null, tx("How to get a free key")),
+    h("ol", { className: "ai-guide__steps" }, guide.steps().map((step, index) => h("li", { key: index }, step))),
+    h("p", { className: "oui-caption" }, guide.note()),
+  );
+}
+
+/** The monitor's backup services (1.104): asked in order when the one before cannot answer (its limit used up, down, a
+ * key refused); with the second opinion on, the second look before a stop is asked of another service. */
+function AiBackupRow({ index, backup, services, busy, onChange, onRemove }) {
+  const service = services.find((s) => s.id === backup.provider) || null;
+  const usable = Boolean(service && (service.key_set || service.key_optional));
+  const models = useAiModels(usable ? backup.provider : "", usable);
+  const list = models.models;
+  const ordered = [...list.filter((m) => m.vision === true), ...list.filter((m) => m.vision !== true && m.vision !== false)];
+  return h(
+    "div",
+    { className: "ai-backup", "data-ai-backup": index },
+    h("span", { className: "ai-backup__n", "aria-hidden": "true" }, String(index + 1)),
+    h(
+      "div",
+      { className: "ai-backup__fields" },
+      h(
+        "select",
+        { className: "oui-field", value: backup.provider, disabled: busy, "aria-label": tx("Backup service {n}", { n: index + 1 }), "data-ai-backup-service": index, onChange: (event) => onChange({ provider: event.target.value, model: "" }) },
+        services.map((s) => h("option", { key: s.id, value: s.id }, s.name + (s.key_set || s.key_optional ? "" : " " + tx("(no key)")))),
+      ),
+      usable &&
+        h(
+          "select",
+          { className: "oui-field", value: backup.model || "", disabled: busy || models.phase === "loading", "aria-label": tx("Model of backup service {n}", { n: index + 1 }), "data-ai-backup-model": index, onChange: (event) => onChange({ provider: backup.provider, model: event.target.value }) },
+          h("option", { value: "" }, backup.default_model ? tx("Default: {model}", { model: backup.default_model }) : tx("— choose —")),
+          backup.model && !list.some((m) => m.id === backup.model) && h("option", { value: backup.model }, backup.model),
+          ordered.map((m) => h("option", { key: m.id, value: m.id }, m.id)),
+        ),
+      service && !usable && h("span", { className: "set-field__error", role: "alert" }, tx("No key saved for {name}: enter it below, in «Keys of the AI services».", { name: service.name })),
+    ),
+    h("button", { type: "button", className: "header-btn ai-backup__remove", disabled: busy, title: tx("Remove"), "aria-label": tx("Remove"), "data-ai-backup-remove": index, onClick: onRemove }, h(Icons.Close, { size: 18 })),
+  );
+}
+
+function AiBackupsSettings({ ai }) {
+  const data = ai.data;
+  const services = data.services || [];
+  const backups = Array.isArray(data.monitor_backups) ? data.monitor_backups : [];
+  const max = data.max_backups || 3;
+  const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState("");
+  if (!Array.isArray(data.monitor_backups)) return null; // a KlippEye service older than 1.104
+  const save = async (body) => {
+    setBusy(true);
+    const reply = await ai.save(body);
+    setBusy(false);
+    setProblem(reply.ok ? "" : tx("Not saved: ") + reply.message);
+  };
+  const plain = (list) => list.map((b) => ({ provider: b.provider, model: b.model || "" }));
+  const add = () => {
+    const used = new Set([data.monitor && data.monitor.provider, ...backups.map((b) => b.provider)]);
+    const next = services.find((s) => s.key_set && !used.has(s.id)) || services.find((s) => !used.has(s.id)) || services[0];
+    save({ monitor_backups: [...plain(backups), { provider: next.id, model: "" }] });
+  };
+  return h(
+    "div",
+    { className: "ai-backups", "data-ai-backups": backups.length },
+    h("span", { className: "set-field__label" }, tx("Backup services")),
+    h("p", { className: "set-group__note" }, tx("When the service above cannot answer (its limit of the day used up, down), the monitor asks these, in order.")),
+    backups.map((backup, index) =>
+      h(AiBackupRow, {
+        key: index + ":" + backup.provider,
+        index,
+        backup,
+        services,
+        busy,
+        onChange: (one) => save({ monitor_backups: plain(backups).map((b, i) => (i === index ? one : b)) }),
+        onRemove: () => save({ monitor_backups: plain(backups).filter((b, i) => i !== index) }),
+      }),
+    ),
+    backups.length < max && h("button", { type: "button", className: "oui-btn oui-btn--sm ai-backups__add", disabled: busy, "data-ai-backup-add": "1", onClick: add }, h(Icons.Plus, { size: 16 }), tx("Add a backup service")),
+    backups.length > 0 &&
+      h("div", { className: "oui-list" }, h(SwitchRow, { title: tx("Second opinion from another service"), detail: tx("Before a pause or a cancel, the second look is asked of a backup service: two different AIs must agree."), checked: data.second_opinion !== false, disabled: busy, onChange: (value) => save({ second_opinion: value }) })),
+    problem && h("p", { className: "set-field__error", role: "alert" }, problem),
+  );
+}
+
 /** One service in the list of the keys. */
 function AiKeyRow({ service, ai, customBase }) {
   const [editing, setEditing] = useState(false);
@@ -196,6 +306,7 @@ function AiKeyRow({ service, ai, customBase }) {
       h("span", { className: "ai-key__name" }, service.name, service.free && !custom && h("span", { className: "oui-badge oui-badge--ok ai-key__free" }, tx("free plan"))),
       h("span", { className: "ai-key__status" }, status),
     ),
+    !editing && !askDelete && h(AiKeyGuide, { service }),
     editing
       ? h(
           "div",
@@ -230,7 +341,7 @@ function AiKeysList({ ai }) {
     "details",
     { className: "ai-keys", open: saved === 0 || undefined, "data-ai-keys": saved },
     h("summary", null, saved === 1 ? tx("Keys of the AI services (1 saved)") : tx("Keys of the AI services ({count} saved)", { count: saved })),
-    h("p", { className: "set-group__note" }, tx("A key is like a password of your account at that service: it stays on the Raspberry. Groq, Google Gemini and Mistral have a free plan; with a free plan there are limits per minute and per day.")),
+    h("p", { className: "set-group__note" }, tx("A key is like a password of your account at that service: it stays on the Raspberry. Groq, Google Gemini, OpenRouter and Mistral have a free plan; with a free plan there are limits per minute and per day: add a second service as a backup.")),
     services.map((service) => h(AiKeyRow, { key: service.id, service, ai, customBase: ai.data.custom_base })),
   );
 }
@@ -255,6 +366,7 @@ function AiServicesPanel({ use, ai }) {
           : tx("No AI key: the logs cannot be analysed. Groq and Google Gemini have a free key."),
     ),
     h(AiUseSettings, { use, ai }),
+    use === "monitor" && h(AiBackupsSettings, { ai }),
     h(AiKeysList, { ai }),
   );
 }
