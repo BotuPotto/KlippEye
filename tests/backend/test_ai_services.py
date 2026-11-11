@@ -63,7 +63,8 @@ check("ai.json of before 1.27: that key for that service, used for logs and moni
 check("... OpenAI keeps its gpt-4o-mini", ai.normalize({"api_key": "sk-" + "b" * 40, "provider": "openai", "model": "gpt-4o-mini"})["logs"]["model"] == "gpt-4o-mini")
 check("... the old names: llama -> meta, an unknown service is dropped", ai.normalize({"api_key": "LLM" + "c" * 30, "provider": "llama"})["keys"] == {"meta": "LLM" + "c" * 30}
       and ai.normalize({"keys": {"nobody": "x" * 30}})["keys"] == {})
-check("nothing saved: no service for either use", ai.normalize({}) == {"version": 2, "keys": {}, "custom_base": "", "logs": {"provider": "", "model": ""}, "monitor": {"provider": "", "model": ""}})
+check("nothing saved: no service for either use", ai.normalize({}) == {"version": 2, "keys": {}, "custom_base": "", "logs": {"provider": "", "model": ""}, "monitor": {"provider": "", "model": ""},
+                                                          "monitor_backups": [], "second_opinion": True})
 check("which service a key belongs to, from how it starts", [ai.guess_provider(k) for k in ("sk-ant-x", "sk-or-x", "sk-x", "gsk_x", "AIzax", "LLMx", "fw_x", "zzz")]
       == ["anthropic", "openrouter", "openai", "groq", "gemini", "meta", "fireworks", "groq"])
 
