@@ -1,5 +1,19 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.100.0
+
+**Home Assistant and MQTT.**
+
+* Settings › Home Assistant / MQTT: the KlippEye service publishes the printer on an MQTT broker (the Mosquitto add-on of
+  Home Assistant, or any other), with nothing to install on the Raspberry. With Home Assistant's discovery the printer
+  appears there by itself: state, progress, time left and end time, file, layer, temperatures, the AI monitor and its
+  alarm, Pause and Resume buttons, and the lights of Printer functions (switched as the dashboard switches them).
+  Cancel print only when allowed. The entities are named in the language of the notifications.
+* Plain topics for Node-RED, openHAB, ioBroker and the others: everything in one JSON, each value on its own topic,
+  `pause` / `resume` / `cancel` on the command topic, `ON` / `OFF` for each light.
+* «Test the connection» says whether the broker answers and the user and password are right; the password stays on the
+  Raspberry and is never shown again. KlippEye leaves «offline» as its last will, and connects again by itself.
+
 ## 1.99.0
 
 **Ukrainian.**

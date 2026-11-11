@@ -103,6 +103,20 @@ below).
 | GET | `/api/notifications/app` | the topics the app listens to |
 | POST | `/api/notifications/test` | sends a test through every channel |
 
+## Home Assistant / MQTT (1.100)
+
+| Method | Path | What |
+|---|---|---|
+| GET | `/api/mqtt` | the settings (never the password: `has_password`), `default_base_topic`, `running` (connected, error, lights) |
+| POST | `/api/mqtt` | `{enabled, host, port, tls, username, password, password_clear, base_topic, discovery, discovery_prefix, commands, allow_cancel}`; an empty password keeps the saved one |
+| POST | `/api/mqtt/test` | `{host, port, tls, username, password}` → `{ok, error}`: connects once to the broker |
+
+On the broker (`<base>` is `klippeye/<host name>` unless set): `<base>/availability` (`online` / `offline`), `<base>/state`
+(everything in one JSON), `<base>/status/<name>` (state, progress, elapsed, remaining, eta, file, layer, total_layers,
+nozzle, nozzle_target, bed, bed_target, ai, ai_alarm, ai_summary), `<base>/light/<id>/state`; commands on
+`<base>/command` (`pause`, `resume`, `cancel` when allowed) and `<base>/light/<id>/set` (`ON` / `OFF`). Every value is
+retained; a value not known now is `None`.
+
 ## Moonraker
 
 `/printer/…`, `/server/…`, `/machine/…` and `/webcam/…` on the KlippEye address are passed to Moonraker and to the

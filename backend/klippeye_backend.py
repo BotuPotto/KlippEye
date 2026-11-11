@@ -36,6 +36,7 @@ import time
 import tempfile
 import shutil
 import threading
+import socket
 import subprocess
 import urllib.parse
 
@@ -4384,6 +4385,175 @@ def api_web_set():
     return jsonify({"ok": True, "message": text, **web_status(), "port": PORT})
 
 
+# === HOME ASSISTANT / MQTT (1.100) ===================================================================================
+# The printer on a broker (backend/mqtt_bridge.py): its state, the AI monitor, the lights, and the commands pause /
+# resume / cancel / light from Home Assistant (found by itself with the discovery) or any other home automation system.
+# Off until set up in Settings › Phone and network › Home Assistant / MQTT; the settings in data/mqtt.json (600).
+import mqtt_bridge  # noqa: E402
+import mqtt_client  # noqa: E402
+import printer_lights  # noqa: E402
+
+MQTT_FILE = os.path.join(DATA_DIR, "mqtt.json")
+_MQTT = {"bridge": None, "lock": threading.Lock()}
+MQTT_MESSAGES = (btn("Not an address"), btn("Choose a port between 1 and 65535."),  # what mqtt_bridge.clean may answer
+                 btn("A topic has only letters, digits and _ - / . (no spaces, no + or #)."), btn("Write the address of the broker."))
+# the names of the entities in Home Assistant, in the language of the notifications (mqtt_bridge.discovery_configs)
+MQTT_ENTITY_NAMES = (btn("State"), btn("Progress"), btn("Print time"), btn("Time left"), btn("Ends at"), btn("File"), btn("Layer"), btn("Total layers"),
+                     btn("Nozzle"), btn("Nozzle target"), btn("Bed"), btn("Bed target"), btn("AI monitor"), btn("AI verdict"), btn("AI alarm"),
+                     btn("Pause"), btn("Resume"), btn("Cancel print"))
+
+
+def _mqtt_settings():
+    try:
+        with open(MQTT_FILE, "r", encoding="utf-8") as handle:
+            return mqtt_bridge.clean(json.load(handle))
+    except (OSError, ValueError):
+        return dict(mqtt_bridge.DEFAULTS)
+
+
+def _mqtt_dashboard_settings():
+    try:
+        answer = requests.get(MOONRAKER_URL + "/server/database/item?namespace=klippeye&key=settings", timeout=3).json()
+        return (answer.get("result") or {}).get("value") or {}
+    except Exception:  # noqa: BLE001
+        return {}
+
+
+def _mqtt_read_status(objects):
+    answer = live_query(objects)
+    if answer is not None:
+        return answer
+    try:
+        query = "&".join(urllib.parse.quote(name) + ("=" + ",".join(fields) if fields else "") for name, fields in objects.items())
+        r = requests.get(f"{MOONRAKER_URL}/printer/objects/query?{query}", timeout=3)
+        r.raise_for_status()
+        return r.json().get("result", {}).get("status", {})
+    except Exception:  # noqa: BLE001 - Moonraker not there now: nothing published this time
+        return None
+
+
+def _mqtt_read_ai():
+    if not detector.enabled:
+        return {"state": "off", "alarm": False, "summary": ""}
+    if not detector.in_print:
+        return {"state": "idle", "alarm": False, "summary": ""}
+    la = detector.last_analysis or {}
+    analysis = la.get("analysis") or {}
+    alarm = analysis.get("action") in ("PAUSE", "CANCEL") and la.get("answer") not in ("false", "ignore")
+    return {"state": "alarm" if alarm else "watching", "alarm": alarm, "summary": str(analysis.get("summary") or "")[:200] if alarm else ""}
+
+
+def _mqtt_read_lights():
+    """The lights of Settings › Printer functions, resolved as the dashboard does (printer_lights.py)."""
+    objects = requests.get(f"{MOONRAKER_URL}/printer/objects/list", timeout=5).json().get("result", {}).get("objects", [])
+    configfile = requests.get(f"{MOONRAKER_URL}/printer/objects/query?configfile=settings,config", timeout=8).json().get("result", {}).get("status", {}).get("configfile", {})
+    try:
+        commands = requests.get(f"{MOONRAKER_URL}/printer/gcode/help", timeout=5).json().get("result", {})
+    except Exception:  # noqa: BLE001
+        commands = {}
+    lights = ((_mqtt_dashboard_settings().get("functions") or {}).get("lights")) or {}
+    return printer_lights.resolve(lights, printer_lights.outputs_from(objects, configfile), printer_lights.macros_from(configfile), commands)
+
+
+def _mqtt_print_action(word):
+    try:
+        r = requests.post(f"{MOONRAKER_URL}/printer/print/{word}", timeout=10)
+        return r.ok
+    except Exception as error:  # noqa: BLE001
+        print(f"[MQTT] {word} not sent: {error}")
+        return False
+
+
+def _mqtt_gcode(script):
+    try:
+        r = requests.post(f"{MOONRAKER_URL}/printer/gcode/script", json={"script": script}, timeout=15)
+        return r.ok
+    except Exception as error:  # noqa: BLE001
+        print(f"[MQTT] G-code not sent: {error}")
+        return False
+
+
+def _mqtt_device():
+    printer = _mqtt_dashboard_settings().get("printer") or {}
+    name = str(printer.get("name") or "").strip() or socket.gethostname() or "KlippEye"
+    host = (https_relay.local_addresses() or [""])[0]
+    device = {"identifiers": ["klippeye_" + mqtt_bridge.node_id()], "name": name[:60], "manufacturer": "KlippEye", "model": "Klipper printer",
+              "sw_version": RELEASE}
+    if host:
+        device["configuration_url"] = "http://%s/" % host if web_status().get("main") else "http://%s:%d/" % (host, PORT)
+    return device
+
+
+def _mqtt_apply(settings, remove_discovery=False):
+    """Stops the bridge running and starts one with `settings` (when they are on)."""
+    with _MQTT["lock"]:
+        old, _MQTT["bridge"] = _MQTT["bridge"], None
+        if old:
+            old.stop(remove_discovery=remove_discovery)
+        if settings.get("enabled") and settings.get("host"):
+            bridge = mqtt_bridge.Bridge(settings, _mqtt_read_status, _mqtt_read_ai, _mqtt_read_lights, _mqtt_print_action, _mqtt_gcode, _mqtt_device,
+                                        say=lambda text: bt(text, shared_language()))
+            bridge.start()
+            _MQTT["bridge"] = bridge
+
+
+def _mqtt_status():
+    settings = _mqtt_settings()
+    bridge = _MQTT["bridge"]
+    public = {key: value for key, value in settings.items() if key != "password"}
+    return {"ok": True, **public, "has_password": bool(settings.get("password")), "node": mqtt_bridge.node_id(),
+            "default_base_topic": "klippeye/" + mqtt_bridge.node_id(), "running": bridge.status() if bridge else None}
+
+
+@app.route("/api/mqtt", methods=["GET"])
+def api_mqtt():
+    return jsonify(_mqtt_status())
+
+
+def _mqtt_merge(body, settings):
+    merged = dict(settings)
+    for key in mqtt_bridge.DEFAULTS:
+        if key in body and key != "password":
+            merged[key] = body[key]
+    if body.get("password_clear"):
+        merged["password"] = ""
+    elif isinstance(body.get("password"), str) and body["password"]:
+        merged["password"] = body["password"]
+    return mqtt_bridge.clean(merged)
+
+
+@app.route("/api/mqtt", methods=["POST"])
+def api_mqtt_set():
+    """{enabled, host, port, tls, username, password (empty: kept), password_clear, base_topic, discovery,
+    discovery_prefix, commands, allow_cancel}: saved and applied at once."""
+    body = request.get_json(silent=True) or {}
+    old = _mqtt_settings()
+    try:
+        settings = _mqtt_merge(body, old)
+    except ValueError as error:
+        return jsonify({"ok": False, "error": bt(str(error), _lang())}), 400
+    os.makedirs(DATA_DIR, exist_ok=True)
+    write_json_atomic(MQTT_FILE, settings, private=True)  # the broker's password
+    # switched off, or discovery off: the entities leave Home Assistant
+    _mqtt_apply(settings, remove_discovery=(old.get("enabled") and (not settings["enabled"] or not settings["discovery"])) or old.get("base_topic") != settings.get("base_topic"))
+    print("[MQTT] %s from %s" % ("on, %s:%d" % (settings["host"], settings["port"]) if settings["enabled"] else "off", request.remote_addr))
+    return jsonify(_mqtt_status())
+
+
+@app.route("/api/mqtt/test", methods=["POST"])
+def api_mqtt_test():
+    """{host, port, tls, username, password (empty: the saved one)}: connects once and says how it went."""
+    body = request.get_json(silent=True) or {}
+    try:
+        settings = _mqtt_merge(dict(body, enabled=False), _mqtt_settings())
+    except ValueError as error:
+        return jsonify({"ok": False, "error": bt(str(error), _lang())}), 400
+    if not settings["host"]:
+        return jsonify({"ok": False, "error": bt("Write the address of the broker.", _lang())}), 400
+    ok, message = mqtt_client.test_connection(settings["host"], settings["port"], settings["username"], settings["password"], settings["tls"])
+    return jsonify({"ok": ok, "error": "" if ok else message})
+
+
 # === THE WEB SERVER (1.74) ===========================================================================================
 # Waitress (python3-waitress, installed with KlippEye since 1.74) is a server made to run for months: a fixed number of
 # threads, requests that time out, no development warnings. Without it (an installation older than 1.74 not repaired
@@ -4414,5 +4584,6 @@ if __name__ == "__main__":
     threading.Thread(target=_repair_at_startup, name="repair", daemon=True).start()
     threading.Thread(target=_schedule_loop, name="schedule", daemon=True).start()
     _https_apply(_https_settings())  # 1.93: the encrypted entrance, when it was switched on
+    _mqtt_apply(_mqtt_settings())  # 1.100: Home Assistant / MQTT, when set up
     print(f"KlippEye backend {RELEASE} (api {API_LEVEL}) - data in {DATA_DIR} - settings {'read from ' + BRAIN_CONFIG_PATH if brain_config.saved else 'default (no saved file)'}")
     serve_forever()

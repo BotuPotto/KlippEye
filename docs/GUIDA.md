@@ -611,6 +611,20 @@ Raspberry il comando che la pagina mostra (`bash ~/klippeye/scripts/install.sh`)
 `klippeye notify check` (controllo). La lingua delle notifiche si sceglie in **Impostazioni → Notifiche**; in `notifier.json` puoi
 anche scrivere testi tuoi (`"messages": {"complete": "Fatto!"}`).
 
+### Home Assistant e altra domotica (MQTT)
+
+Impostazioni → **Home Assistant / MQTT** mette la stampante su un broker MQTT. In Home Assistant: installa il componente
+aggiuntivo **Mosquitto broker** (Impostazioni → Componenti aggiuntivi), dagli un utente tutto suo (Impostazioni → Persone →
+Utenti), poi in KlippEye scrivi l'indirizzo di Home Assistant, porta 1883, quell'utente e la sua password, **Prova il
+collegamento** e **Salva**. La stampante compare da sola in Impostazioni → Dispositivi e servizi → MQTT: stato, avanzamento,
+tempo rimasto e ora di fine, file, layer, temperature, il monitor IA e il suo allarme, i pulsanti **Pausa** e **Riprendi** e
+le luci di *Funzioni della stampante*. **Annulla stampa** c'è solo se attivi *Permetti di annullare la stampa*. I nomi delle
+entità sono nella lingua delle notifiche.
+
+Node-RED, openHAB, ioBroker e gli altri leggono gli stessi valori su argomenti semplici (`klippeye/<nome>/state` in un JSON,
+`klippeye/<nome>/status/…` uno per uno) e mandano `pause` / `resume` a `klippeye/<nome>/command`: la pagina li elenca.
+L'utente e la password del broker proteggono i comandi; *Comandi dalla domotica* li spegne tutti.
+
 ## 7. Password e sicurezza
 
 * **Password facoltativa**: Impostazioni → **Accesso** → scrivila due volte → **Attiva la password**. Il dispositivo che usi resta

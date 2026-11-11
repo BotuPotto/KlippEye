@@ -1,0 +1,9 @@
+/* ============================================================================
+   Settings › Home Assistant / MQTT (1.100)
+   ========================================================================== */
+
+.mqtt-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 4px; }
+.mqtt-actions > .oui-btn { flex: 1 1 140px; min-width: 0; white-space: normal; }
+.mqtt-topics { display: grid; gap: 8px; margin-bottom: 12px; }
+.mqtt-topic { display: grid; gap: 2px; min-width: 0; }
+.mqtt-topic code { overflow-wrap: anywhere; font-size: 13px; }

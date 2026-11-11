@@ -594,6 +594,19 @@ command the page shows (`bash ~/klippeye/scripts/install.sh`). From the terminal
 `klippeye notify check`. The language of the notifications is chosen in **Settings → Notifications**; you can also write your
 own texts in `notifier.json` (`"messages": {"complete": "Done!"}`).
 
+### Home Assistant and other home automation (MQTT)
+
+Settings → **Home Assistant / MQTT** puts the printer on an MQTT broker. In Home Assistant: install the **Mosquitto broker**
+add-on (Settings → Add-ons), give it a user of its own (Settings → People → Users), then in KlippEye write the address of
+Home Assistant, port 1883, that user and its password, **Test the connection** and **Save**. The printer appears by itself
+in Settings → Devices & services → MQTT: state, progress, time left and end time, file, layer, temperatures, the AI monitor
+and its alarm, the **Pause** and **Resume** buttons and the lights of *Printer functions*. **Cancel print** is there only
+when you turn on *Allow cancelling the print*. The entities are named in the language of the notifications.
+
+Node-RED, openHAB, ioBroker and the others read the same values on plain topics (`klippeye/<name>/state` as one JSON,
+`klippeye/<name>/status/…` one by one) and send `pause` / `resume` to `klippeye/<name>/command`: the page lists them.
+The broker's own user and password protect the commands; *Commands from home automation* switches them all off.
+
 ## 7. Password and security
 
 * **Optional password**: Settings → **Access** → type it twice → **Turn on the password**. This device stays logged in; the
