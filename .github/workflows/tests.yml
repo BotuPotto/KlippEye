@@ -62,6 +62,24 @@ jobs:
           path: ${{ runner.temp }}/ui
           retention-days: 7
 
+  local-model:
+    name: Local model (training chain)
+    # ml/: the list of pictures, a short training on synthetic pictures, the export checked against OpenCV, the
+    # measurement on a KlippEye data folder (ml/tests/smoke_train.py). PyTorch is only needed here, never on the Raspberry.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install PyTorch (CPU) and the tools
+        run: |
+          pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+          pip install -r ml/requirements.txt
+      - name: Run the chain
+        run: python ml/tests/smoke_train.py
+
   app:
     name: Android app compiles
     # The APK is published by app.yml only after a merge into main: this job compiles the app on every pull request
