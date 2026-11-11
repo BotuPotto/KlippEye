@@ -58,19 +58,17 @@
 .editor-search-btn[aria-pressed="true"] { color: var(--oui-accent); }
 .editor-section-item .oui-menu__title { font-family: var(--oui-font-mono); font-size: 13px; }
 /* a menu opened from the editor goes over it (the editor covers the page) */
-/* the narrowest phones (320 px): the comment buttons keep their words and give up their icons */
-@media (max-width: 400px) {
-  .editor-tools .editor-comment svg { display: none; }
-  .editor-tools .editor-comment { padding: 0 8px; }
-}
-@media (max-width: 359px) {
+/* not room for icon and word: the comment buttons keep their words and give up their icons (1.101: measured) */
+.editor-tools--words .editor-comment svg { display: none; }
+@media (max-width: 480px) { /* phones: the tools row a little denser */
   .editor-tools { gap: 4px; margin: 0 10px 8px; }
   .editor-tools .editor-history { width: 36px; }
-  .editor-tools .editor-comment { padding: 0 4px; font-size: 13px; }
+  .editor-tools .editor-comment { gap: 6px; padding: 0 8px; font-size: 13.5px; }
 }
 /* 1.101: words that do not fit (a narrow phone, a long language): the two buttons show their icons, # and #̸ */
 .editor-tools--tight .editor-comment__label { display: none; }
-.editor-tools--tight .editor-comment svg { display: block !important; }
+.editor-tools .editor-comment svg { flex-shrink: 0; }
+.editor-tools--tight .editor-comment svg { display: block; }
 
 /* the code well: CodeMirror (51-config-editor.js), coloured by its own highlight style */
 .editor-body {

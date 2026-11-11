@@ -1,5 +1,15 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.101.1
+
+**Finishing touches to the visual pass.**
+
+* Editor's ⋯ menu: every row has its icon (fold, unfold, go to the section). Comment and Uncomment first give up
+  their icons, then their words, always both the same way.
+* Connected devices: rows with the same padding as the other lists, the address to copy in a box of its own.
+* Input shaper: the «in use» tag stays a whole pill under the name.
+* Uncomment no longer squeezes its icon to a dot.
+
 ## 1.101.0
 
 **A visual pass over the whole dashboard, from 320 px phones to the computer.**
