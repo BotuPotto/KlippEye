@@ -117,7 +117,7 @@ impostazioni sono un pannello al centro, con l'elenco a sinistra.
 * **Notifiche e aspetto**
   * **Notifiche**: dove arrivano (l'app KlippEye o l'app ntfy), quali ricevere e in che lingua (vedi 6).
   * **Aspetto**: nome e logo, colore, stile, card (vedi più avanti).
-  * **Lingua**: italiano, inglese, spagnolo, tedesco, francese o portoghese (Brasile), scelta su ogni dispositivo (*Automatica* segue la lingua del dispositivo).
+  * **Lingua**: italiano, inglese, spagnolo, tedesco, francese, portoghese (Brasile) o polacco, scelta su ogni dispositivo (*Automatica* segue la lingua del dispositivo).
 * **Sistema**
   * **Indirizzi**: servono solo se apri KlippEye da fuori casa con ZeroTier, Tailscale o un'altra VPN: l'IP locale del Raspberry e
     quello esterno. Vuoti, la telecamera usa l'indirizzo da cui hai aperto la dashboard.
