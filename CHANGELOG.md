@@ -1,5 +1,13 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.100.1
+
+**Code review, first pass.**
+
+* The logs (System logs, their AI analysis) are read from their end: a klippy.log of hundreds of MB, on a printer that
+  runs for weeks, is no longer loaded whole into the Raspberry's memory to keep its last lines.
+* `/api/gcode` reads the command in one clear order ({script}, {gcode}, plain text, ?script=) and refuses an empty one.
+
 ## 1.100.0
 
 **Home Assistant and MQTT.**
