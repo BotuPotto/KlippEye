@@ -1,5 +1,24 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.102.0
+
+**The AI monitor stops less often by mistake** (from the alarms judged on a real printer: 5 wrong stops out of 6, all at
+95% confidence, so no minimum confidence could tell them apart).
+
+* **A second look before a stop**: when the AI proposes to pause or cancel, KlippEye takes a new picture 40 seconds later
+  and asks again. The stop holds only if the AI sees a problem that time too: a real failure stays (spaghetti grows, a
+  part stays off the bed), a reflection, a shadow or the head passing over do not. The notifications and the automatic
+  pause wait for the second look; if the AI service cannot answer it, the first verdict stands, so a real failure is
+  never let go for that. The alarm keeps both answers.
+* **«Empty bed» on a flat print**: below 2 mm of height (a first layer, a calibration print, a flat part) the camera can
+  hardly see the print, and the AI took it for an empty bed. Below that height «empty bed» alone no longer stops the
+  print; the other defects still do.
+* **The start of the print**: with the slicer's progress (M73) the monitor waits for its 2%, not for 1% of the file:
+  on short prints the start G-code (heating, mesh, purge) is more than that, and the monitor used to start while the
+  head was still moving over the empty bed.
+* **The AI service's daily limit**: when the service says its limit is used up (Groq's free plan: about 40 analyses a
+  day), KlippEye leaves it alone until the time it gives, instead of asking at every alarm: one print had filled the
+  alarm list with 17 «AI error 429», pushing the judged alarms out of it.
 ## 1.101.1
 
 **Finishing touches to the visual pass.**

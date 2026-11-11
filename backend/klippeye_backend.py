@@ -2087,6 +2087,58 @@ _history_lock = threading.Lock()
 
 
 AI_RATE_RETRY_MAX_S = 30  # a 429 that asks to wait longer than this is not retried (the alarm says the AI was busy)
+AI_QUOTA_PAUSE_S = 600  # 1.102: a 429 with no time given: the AI is left alone this long
+AI_CONFIRM_DELAY_S = 40  # 1.102: a stop the AI proposes is looked at again this much later, on a new picture
+EMPTY_BED_MIN_Z = 2.0  # 1.102: below this height (mm) a part can hardly be seen: «empty bed» is not trusted
+
+
+def started_by_progress(progress, file_progress, minimum):
+    """Has the print gone past `minimum` % (1.102)? `progress` is Klipper's display_status (the slicer's M73 when it sends
+    it, else the file position), `file_progress` the file position. With M73 the slicer's figure decides: the start G-code
+    (heating, mesh, purge) is often more than 1% of a short file, and before 1.102 the file position let the monitor start
+    while the head was still moving over the empty bed."""
+    with_m73 = abs(float(progress) - float(file_progress)) > 0.002
+    if with_m73:
+        return progress >= minimum / 100.0
+    return progress >= minimum / 100.0 or file_progress >= minimum / 200.0
+
+
+def distrust_low_empty_bed(parsed, z, minimum, language="en"):
+    """«Empty bed» is not trusted while the print is lower than EMPTY_BED_MIN_Z (1.102): a first layer, a calibration print
+    or a flat part is a film the camera hardly sees, and the AI took it for an empty bed (a false CANCEL at 76% of a
+    0.2 mm print). The other defects stay as they are. -> (verdict, changed)"""
+    if z is None or z >= EMPTY_BED_MIN_Z or not isinstance(parsed, dict):
+        return parsed, False
+    empty = parsed.get("empty_bed")
+    if not (isinstance(empty, dict) and empty.get("detected") is True):
+        return parsed, False
+    out = dict(parsed, empty_bed=dict(empty, detected=False, distrusted=True))
+    action = normalize_action(parsed.get("action"))
+    others = [v for k, v in out.items() if k in AI_DEFECT_KEYS and isinstance(v, dict) and v.get("detected") is True
+              and isinstance(v.get("confidence"), (int, float)) and v.get("confidence") >= minimum]
+    if action in ("PAUSE", "CANCEL") and not others:
+        out["original_action"] = out.get("original_action") or action
+        out["action"] = "CONTINUE"
+        out["summary"] = bt("The print is still lower than {height} mm: the camera can hardly see it, «empty bed» is not trusted.", language, height="%g" % EMPTY_BED_MIN_Z) + " " + str(parsed.get("summary", ""))
+        return out, True
+    return out, False
+
+
+def confirm_stop(first, second, language="en"):
+    """A stop proposed by the AI holds only if a second look, AI_CONFIRM_DELAY_S later on a new picture, proposes a stop
+    too (1.102): a real failure stays (spaghetti grows, a part stays off the bed), a reflection, a shadow or the head
+    passing over do not. `second` None: the second look could not be made (an error of the service): the first stands,
+    so a real failure is never let go for that. -> the verdict that counts."""
+    if second is None:
+        return dict(first, confirmed=None)
+    if normalize_action(second.get("action")) in ("PAUSE", "CANCEL"):
+        out = dict(first, confirmed=True)
+        if normalize_action(second.get("action")) == "PAUSE" and normalize_action(first.get("action")) == "CANCEL":
+            out["action"] = "PAUSE"  # the milder of the two
+        return out
+    out = dict(first, confirmed=False, original_action=first.get("original_action") or normalize_action(first.get("action")), action="CONTINUE")
+    out["summary"] = bt("Not confirmed: {seconds} s later, on a new picture, the AI sees no problem.", language, seconds=AI_CONFIRM_DELAY_S) + " " + str(second.get("summary") or "")
+    return out
 
 
 def _retry_after_s(response):
@@ -2284,6 +2336,7 @@ class LightDetector(FrameJudge):
         self.thread = None
         self.generation = 0  # every start() opens a new one: an old loop still asleep understands by itself that it must end
         self.last_ai_call = 0
+        self.ai_quota_until = 0  # 1.102: the AI service said its limit is used up (429): not asked again before this
         self.last_alert_img_path = None
         self.last_analysis = None  # last AI result, formatted; None again at the start and at the end of every print (1.25)
         self.in_print = False  # a print (printing or paused) was running at the last look
@@ -2497,7 +2550,7 @@ class LightDetector(FrameJudge):
                     real_started = True
 
                     # 1. progress above the threshold (2% by default; the file half of that)
-                    if progress < self.min_progress/100 and file_progress < self.min_progress/200:
+                    if not started_by_progress(progress, file_progress, self.min_progress):
                         real_started = False
                         reasons.append(f"progress {progress*100:.1f}% <{self.min_progress:g}%")
                     # 2. hotend close to its target
@@ -2631,11 +2684,115 @@ class LightDetector(FrameJudge):
             print(f"[OPENCV] earlier picture not saved: {error}")
             return None, None
 
+    def _ai_picture(self, suffix):
+        """A new camera picture, sized as the AI gets them, saved for the AI (1.102: the second look). -> path or None."""
+        try:
+            r = requests.get(snapshot_url(), timeout=5)
+            if not r.ok or len(r.content) < 1000:
+                return None
+            frame = cv2.imdecode(np.frombuffer(r.content, np.uint8), cv2.IMREAD_COLOR)
+            if frame is None:
+                return None
+            path = f"/tmp/klippeye_alert_{int(time.time())}_{suffix}.jpg"
+            resized = cv2.resize(frame, (AI_IMAGE_WIDTH, AI_IMAGE_HEIGHT), interpolation=cv2.INTER_AREA)
+            cv2.imwrite(path, resized, [int(cv2.IMWRITE_JPEG_QUALITY), AI_IMAGE_QUALITY])
+            return path
+        except Exception as error:
+            print(f"[OPENCV] picture for the second look not taken: {error}")
+            return None
+
+    def _height_now(self):
+        """The nozzle's height (mm) at the last round, or None."""
+        for key in ("live", "pos"):
+            value = (self.meta or {}).get(key)
+            if isinstance(value, list) and len(value) >= 3 and isinstance(value[2], (int, float)):
+                return float(value[2])
+        return None
+
+    def _ask_ai(self, target, img_path, ref_path, ref_age, score, state, filename, progress, temp_h, language):
+        """One question to the AI about a picture (and the one before it, if any).
+        -> {"ok": True, "parsed": dict | None, "answer": text, "with_reference": bool} or {"ok": False, "status", "error"}."""
+        def read(path):
+            if path and os.path.exists(path):
+                with open(path, 'rb') as f:
+                    return base64.b64encode(f.read()).decode('utf-8')
+            return None
+        img_b64, ref_b64 = read(img_path), read(ref_path)
+        if not img_b64:
+            return {"ok": False, "status": 0, "error": "picture not found"}
+
+        def ask(with_reference):
+            prompt = build_ai_prompt(score, state, filename, progress, temp_h, ref_age if with_reference else None, language)
+            content = [{"type": "text", "text": prompt}]
+            for b64 in ([ref_b64, img_b64] if with_reference else [img_b64]):
+                content.append({"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}})
+            return ai_services.chat(target, [
+                {"role": "system", "content": "You are a careful 3D printing expert: you report a defect only when you see it clearly. Answer ONLY with valid JSON as asked."},
+                {"role": "user", "content": content},
+            ], temperature=0.1, max_tokens=900, json_mode=True, timeout=40)
+
+        used_reference = bool(ref_b64)
+        r = ask(used_reference)
+        if r.status_code == 429:
+            # 1.26.1: too many requests (the limits of the AI service's plan, per minute or per day). A short wait asked
+            # by the service: wait it and ask once more; a long one (daily limit): give up, and (1.102) leave the AI
+            # alone until then, instead of asking at every alarm (one print used to fill the alarm list with these)
+            wait = _retry_after_s(r)
+            if wait is not None and wait <= AI_RATE_RETRY_MAX_S:
+                print(f"[OPENCV] the AI service asks to wait {wait:.0f}s (429): asking again")
+                time.sleep(wait + 1)
+                r = ask(used_reference)
+            else:
+                self.ai_quota_until = time.time() + (wait if wait is not None else AI_QUOTA_PAUSE_S)
+                print("[OPENCV] the AI service's limit is used up: the AI is left alone until %s" % time.strftime("%H:%M", time.localtime(self.ai_quota_until)))
+        if not r.ok and used_reference and r.status_code != 429:
+            # some services/models accept one picture only (or have a data limit): try again with the current picture only
+            print(f"[OPENCV] the AI refused two pictures ({r.status_code}): trying with one")
+            used_reference = False
+            r = ask(False)
+        if not r.ok:
+            print(f"[OPENCV] IA error {r.status_code}: {r.text[:500]}")
+            return {"ok": False, "status": r.status_code, "error": ai_services.error_detail(r)}
+        answer = ai_services.answer_text(r)
+        print(f"[OPENCV] AI answer: {answer[:500]}")
+        parsed = None
+        try:
+            parsed = json.loads(answer)
+            if isinstance(parsed, dict) and "spaghetti" not in parsed:
+                for v in parsed.values():  # sometimes the answer is inside another object
+                    if isinstance(v, dict) and "spaghetti" in v:
+                        parsed = v
+                        break
+        except Exception:
+            try:
+                m = re.search(r'\{[\s\S]*"spaghetti"[\s\S]*\}', answer)
+                if m:
+                    parsed = json.loads(m.group(0))
+            except Exception:
+                parsed = None
+        if not isinstance(parsed, dict):
+            parsed = None
+        else:
+            parsed = dict(parsed, action=normalize_action(parsed.get("action")) or "CONTINUE")
+            if "observation" not in parsed and "osservazione" in parsed:  # an answer the old way
+                parsed["observation"] = parsed.pop("osservazione")
+            parsed, _ = apply_min_confidence(parsed, self.ai_min_confidence, language)
+            parsed, _ = distrust_low_empty_bed(parsed, self._height_now(), self.ai_min_confidence, language)
+        return {"ok": True, "parsed": parsed, "answer": answer, "with_reference": used_reference}
+
     def call_ai_analysis(self, img_path, ref_path=None, ref_age=None):
-        """Asks the AI to look at the picture (and, if there is one, at how it was before) when the monitor triggers, with nobody involved."""
+        """Asks the AI to look at the picture (and, if there is one, at how it was before) when the monitor triggers, with
+        nobody involved. 1.102: a stop it proposes is looked at again AI_CONFIRM_DELAY_S later on a new picture, and
+        holds only if that look proposes a stop too."""
         score = self.stats.get("last_score", 0)
         try:
             now = time.time()
+            if now < self.ai_quota_until:
+                # the AI service's limit is used up (429): no question until it says, no alarm written for each check
+                back = time.strftime("%H:%M", time.localtime(self.ai_quota_until))
+                self.stats["status"] = f"AI: the service's limit is used up, back at {back}"
+                print(f"[OPENCV] AI not asked: the service's limit is used up until {back}")
+                return
             if now - self.last_ai_call < self.ai_cooldown:
                 # the AI is resting (pause between two analyses): this alarm is not lost, the monitor rests until the AI can
                 # look again and then checks afresh (before 1.19 the alarm was written as "skipped" and the monitor rested
@@ -2646,32 +2803,20 @@ class LightDetector(FrameJudge):
                 return
             self.last_ai_call = now
             print(f"[OPENCV] calling the AI for {img_path}")
-
-            # read the picture as base64
             if not os.path.exists(img_path):
                 print(f"[OPENCV] picture not found {img_path}")
                 return
-            with open(img_path, 'rb') as f:
-                img_b64 = base64.b64encode(f.read()).decode('utf-8')
-            ref_b64 = None
-            if ref_path and os.path.exists(ref_path):
-                with open(ref_path, 'rb') as f:
-                    ref_b64 = base64.b64encode(f.read()).decode('utf-8')
 
-            # Telemetria
             telemetry = {}
             try:
                 telemetry = moonraker_status("print_stats&extruder&heater_bed&display_status&virtual_sdcard")
-            except Exception as e:
+            except Exception:
                 telemetry = {}
-
-            print_stats = telemetry.get("print_stats",{})
-            display = telemetry.get("display_status",{})
-            extruder = telemetry.get("extruder",{})
-            state = print_stats.get("state","unknown")
-            filename = print_stats.get("filename","")
-            progress = display.get("progress",0)*100
-            temp_h = extruder.get("temperature",0)
+            print_stats = telemetry.get("print_stats", {})
+            state = print_stats.get("state", "unknown")
+            filename = print_stats.get("filename", "")
+            progress = telemetry.get("display_status", {}).get("progress", 0) * 100
+            temp_h = telemetry.get("extruder", {}).get("temperature", 0)
 
             # 1.27: the service and model chosen for the monitor (the model of Monitor thresholds, before 1.27, if none)
             try:
@@ -2681,88 +2826,14 @@ class LightDetector(FrameJudge):
                 record_alert({"outcome": "skipped: no AI key", "score": score}, img_path, ref_path)
                 return
             final_model = target["model"]
-
             language = shared_language()
 
-            def ask(with_reference):
-                prompt = build_ai_prompt(score, state, filename, progress, temp_h, ref_age if with_reference else None, language)
-                content = [{"type": "text", "text": prompt}]
-                for b64 in ([ref_b64, img_b64] if with_reference else [img_b64]):
-                    content.append({"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}})
-                return ai_services.chat(target, [
-                    {"role": "system", "content": "You are a careful 3D printing expert: you report a defect only when you see it clearly. Answer ONLY with valid JSON as asked."},
-                    {"role": "user", "content": content},
-                ], temperature=0.1, max_tokens=900, json_mode=True, timeout=40)
-
-            used_reference = bool(ref_b64)
-            r = ask(used_reference)
-            if r.status_code == 429:
-                # 1.26.1: too many requests (the limits of the AI service's plan, per minute or per day). A short wait asked
-                # by the service: wait it and ask once more; a long one (daily limit): give up, the alarm says why
-                wait = _retry_after_s(r)
-                if wait is not None and wait <= AI_RATE_RETRY_MAX_S:
-                    print(f"[OPENCV] the AI service asks to wait {wait:.0f}s (429): asking again")
-                    time.sleep(wait + 1)
-                    r = ask(used_reference)
-            if not r.ok and used_reference and r.status_code != 429:
-                # some services/models accept one picture only (or have a data limit): try again with the current picture only
-                print(f"[OPENCV] the AI refused two pictures ({r.status_code}): trying with one")
-                used_reference = False
-                r = ask(False)
-            if not r.ok:
-                print(f"[OPENCV] IA error {r.status_code}: {r.text[:500]}")
-                record_alert({"outcome": f"AI error {r.status_code}", "score": score, "model": final_model, "error": ai_services.error_detail(r)}, img_path, ref_path)
+            first = self._ask_ai(target, img_path, ref_path, ref_age, score, state, filename, progress, temp_h, language)
+            if not first["ok"]:
+                record_alert({"outcome": f"AI error {first['status']}", "score": score, "model": final_model, "error": first["error"]}, img_path, ref_path)
                 return
-            answer = ai_services.answer_text(r)
-            print(f"[OPENCV] AI answer: {answer[:500]}")
-
-            # Parsa JSON
-            parsed = None
-            try:
-                parsed = json.loads(answer)
-                if isinstance(parsed, dict) and "spaghetti" not in parsed:
-                    for v in parsed.values():  # sometimes the answer is inside another object
-                        if isinstance(v, dict) and "spaghetti" in v:
-                            parsed = v
-                            break
-            except Exception:
-                try:
-                    m = re.search(r'\{[\s\S]*"spaghetti"[\s\S]*\}', answer)
-                    if m:
-                        parsed = json.loads(m.group(0))
-                except Exception:
-                    parsed = None
-
-            if isinstance(parsed, dict):
-                parsed = dict(parsed, action=normalize_action(parsed.get("action")) or "CONTINUE")
-                if "observation" not in parsed and "osservazione" in parsed:  # an answer the old way
-                    parsed["observation"] = parsed.pop("osservazione")
-                parsed, downgraded = apply_min_confidence(parsed, self.ai_min_confidence, language)
-                self.last_analysis = {
-                    "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
-                    "model": final_model,
-                    "progress": progress,
-                    "filename": filename,
-                    "image_path": img_path,
-                    "with_reference": used_reference,
-                    "analysis": parsed,
-                    "raw": answer
-                }
-                self.stats["status"] = f"AI: {parsed.get('action','?')} - {str(parsed.get('summary',''))[:40]}"
-                print(f"[OPENCV] AI analysis saved: {parsed}")
-                confidences = [d.get("confidence") for k, d in parsed.items() if k in AI_DEFECT_KEYS and isinstance(d, dict) and d.get("detected") is True]
-                recorded = record_alert({
-                    "outcome": "analysed" + (" (downgraded: confidence below the minimum)" if downgraded else ""),
-                    "score": score, "progress": round(progress, 1), "filename": filename, "model": final_model,
-                    "action": parsed.get("action"), "original_action": parsed.get("original_action"),
-                    "confidence": max([c for c in confidences if isinstance(c, (int, float))] or [0]),
-                    "summary": parsed.get("summary"), "observation": parsed.get("observation"),
-                    "with_reference": used_reference, "filter": self.persistent_filter,
-                }, img_path, ref_path if used_reference else None)
-                if recorded:  # the dashboard asks the person about this alarm (right / false / ignore) with its picture
-                    self.last_analysis["alert_id"] = recorded.get("id")
-                    self.last_analysis["image"] = recorded.get("image")
-            else:
+            parsed, answer, used_reference = first["parsed"], first["answer"], first["with_reference"]
+            if parsed is None:
                 self.last_analysis = {
                     "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
                     "model": final_model,
@@ -2771,7 +2842,55 @@ class LightDetector(FrameJudge):
                     "raw": answer
                 }
                 record_alert({"outcome": "AI answer not readable", "score": score, "model": final_model, "summary": answer[:200]}, img_path, ref_path)
+                return
 
+            confirm = None
+            if parsed.get("action") in ("PAUSE", "CANCEL"):
+                # 1.102: the second look. The dashboard and the notifications hear nothing until it is done.
+                self.stats["status"] = "AI: a problem is being checked again"
+                print(f"[OPENCV] the AI proposes {parsed.get('action')}: looking again in {AI_CONFIRM_DELAY_S}s")
+                time.sleep(AI_CONFIRM_DELAY_S)
+                second = None
+                try:
+                    still = (moonraker_status("print_stats").get("print_stats") or {}).get("state")
+                except Exception:
+                    still = None
+                again = self._ai_picture("confirm") if still == "printing" else None
+                if again:
+                    look = self._ask_ai(target, again, img_path, AI_CONFIRM_DELAY_S, score, state, filename, progress, temp_h, language)
+                    self.last_ai_call = time.time()
+                    if look["ok"] and look["parsed"] is not None:
+                        second = look["parsed"]
+                        confirm = {"action": second.get("action"), "summary": second.get("summary"), "observation": second.get("observation")}
+                parsed = confirm_stop(parsed, second, language)
+                print(f"[OPENCV] second look: {'confirmed' if parsed.get('confirmed') else 'not confirmed' if parsed.get('confirmed') is False else 'not made'}")
+
+            self.last_analysis = {
+                "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+                "model": final_model,
+                "progress": progress,
+                "filename": filename,
+                "image_path": img_path,
+                "with_reference": used_reference,
+                "analysis": parsed,
+                "raw": answer
+            }
+            self.stats["status"] = f"AI: {parsed.get('action','?')} - {str(parsed.get('summary',''))[:40]}"
+            print(f"[OPENCV] AI analysis saved: {parsed}")
+            confidences = [d.get("confidence") for k, d in parsed.items() if k in AI_DEFECT_KEYS and isinstance(d, dict) and d.get("detected") is True]
+            downgraded = bool(parsed.get("original_action")) and parsed.get("action") == "CONTINUE"
+            recorded = record_alert({
+                "outcome": "analysed" + (" (downgraded)" if downgraded else ""),
+                "score": score, "progress": round(progress, 1), "filename": filename, "model": final_model,
+                "action": parsed.get("action"), "original_action": parsed.get("original_action"),
+                "confidence": max([c for c in confidences if isinstance(c, (int, float))] or [0]),
+                "summary": parsed.get("summary"), "observation": parsed.get("observation"),
+                "with_reference": used_reference, "filter": self.persistent_filter,
+                "confirmed": parsed.get("confirmed"), "second_look": confirm,
+            }, img_path, ref_path if used_reference else None)
+            if recorded:  # the dashboard asks the person about this alarm (right / false / ignore) with its picture
+                self.last_analysis["alert_id"] = recorded.get("id")
+                self.last_analysis["image"] = recorded.get("image")
         except Exception as e:
             print(f"[OPENCV] AI call fail: {e}")
             import traceback; traceback.print_exc()
@@ -4105,7 +4224,7 @@ def api_print_analyze():
             progress_frac = progress/100 if progress>1 else progress
             # the same criteria as the detector
             checks = []
-            if progress_frac < detector.min_progress/100 and file_progress < detector.min_progress/200:
+            if not started_by_progress(progress_frac, file_progress, detector.min_progress):
                 checks.append(f"progress {progress_frac*100:.1f}% low")
             else:
                 real_print_started = True
@@ -4115,7 +4234,7 @@ def api_print_analyze():
             if total_dur < detector.warmup:
                 real_print_started = False
                 checks.append(f"duration {total_dur:.0f}s <{detector.warmup}s")
-            if progress_frac >= detector.min_progress/100 and abs(temp_h - target_h) <= detector.hotend_tol:
+            if started_by_progress(progress_frac, file_progress, detector.min_progress) and abs(temp_h - target_h) <= detector.hotend_tol and total_dur >= detector.warmup:
                 real_print_started = True
                 checks = ["ok - real print started"]
             real_reason = "; ".join(checks)

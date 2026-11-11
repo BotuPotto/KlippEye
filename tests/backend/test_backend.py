@@ -652,6 +652,7 @@ def fresh_ai(post):
     open(cur, "wb").write(fakes.jpeg(fakes.frame(BLOB)))
     open(prev, "wb").write(fakes.jpeg(fakes.frame()))
     b_ai.detector.last_ai_call = 0
+    b_ai.AI_CONFIRM_DELAY_S = 0  # 1.102: the second look of a stop, at once in the tests
     return b_ai, cur, prev
 
 
@@ -704,6 +705,82 @@ b_ai.detector.cooldown_until = time.time() + 5
 b_ai.detector.call_ai_analysis(cur, prev, 60)
 check("1.19: the AI is resting: no 'skipped' entry, the monitor waits until the AI can look and checks again",
       b_ai.read_alert_history() == [] and abs(b_ai.detector.cooldown_until - (b_ai.detector.last_ai_call + b_ai.detector.ai_cooldown)) < 1, (b_ai.read_alert_history()[:1], b_ai.detector.cooldown_until - time.time()))
+
+# ---------------------------------------------------------------------------------------------------------------------
+print("== 1.102: the monitor's start with M73, «empty bed» on a flat print, the second look of a stop, the service's limit")
+sbp = b_ai.started_by_progress
+check("1.102: with the slicer's M73 its figure decides (0% while the file is at 1.5%: not started yet); without, the file as before",
+      not sbp(0.0, 0.015, 2) and sbp(0.02, 0.03, 2) and sbp(0.012, 0.012, 2) and not sbp(0.005, 0.005, 2) and sbp(0.0, 0.0, 0))
+_empty = {"empty_bed": {"detected": True, "confidence": 95}, "spaghetti": {"detected": False, "confidence": 0}, "action": "CANCEL", "summary": "bed empty"}
+v, changed = b_ai.distrust_low_empty_bed(_empty, 0.2, 70, "it")
+check("1.102: «empty bed» on a print 0.2 mm high: not trusted, CANCEL becomes CONTINUE (the original kept), the reason in the language",
+      changed and v["action"] == "CONTINUE" and v["original_action"] == "CANCEL" and v["empty_bed"]["detected"] is False and "2 mm" in v["summary"] and "piatto vuoto" in v["summary"], v)
+check("... 5 mm high, or the height unknown: as the AI said",
+      b_ai.distrust_low_empty_bed(_empty, 5.0, 70)[0]["action"] == "CANCEL" and b_ai.distrust_low_empty_bed(_empty, None, 70)[0]["action"] == "CANCEL")
+_both = dict(_empty, spaghetti={"detected": True, "confidence": 90})
+check("... spaghetti seen too on the flat print: the stop stays", b_ai.distrust_low_empty_bed(_both, 0.2, 70)[0]["action"] == "CANCEL")
+_stop = {"spaghetti": {"detected": True, "confidence": 90}, "action": "CANCEL", "summary": "nest"}
+v = b_ai.confirm_stop(_stop, {"action": "CONTINUE", "summary": "all fine"}, "it")
+check("1.102: confirm_stop: the second look sees nothing: CONTINUE, the proposal kept, why in the language",
+      v["action"] == "CONTINUE" and v["original_action"] == "CANCEL" and v["confirmed"] is False and "Non confermato" in v["summary"], v)
+check("... it sees a problem too: the stop holds (the milder of the two); no second look: the first stands",
+      b_ai.confirm_stop(_stop, {"action": "PAUSE"})["action"] == "PAUSE" and b_ai.confirm_stop(_stop, {"action": "PAUSE"})["confirmed"] is True
+      and b_ai.confirm_stop(_stop, None)["action"] == "CANCEL" and b_ai.confirm_stop(_stop, None)["confirmed"] is None)
+
+
+def ai_sequence(actions):
+    calls = []
+
+    def _post(url, headers=None, json=None, timeout=None):
+        action = actions[min(len(calls), len(actions) - 1)]
+        calls.append(action)
+
+        class R:
+            ok = True
+            status_code = 200
+            text = ""
+
+            def json(self_inner):
+                return {"choices": [{"message": {"content": __import__("json").dumps({"observation": "x", "spaghetti": {"detected": action != "CONTINUE", "confidence": 90},
+                                                                                        "action": action, "summary": "look %d" % len(calls)})}}]}
+        return R()
+    return _post, calls
+
+
+for actions, final, confirmed in ((["PAUSE", "CONTINUE"], "CONTINUE", False), (["PAUSE", "PAUSE"], "PAUSE", True)):
+    post, calls = ai_sequence(actions)
+    b_ai, cur, prev = fresh_ai(post)
+    b_ai.detector._ai_picture = lambda suffix, _cur=cur: _cur
+    b_ai.moonraker_status = lambda query, timeout=3: {"print_stats": {"state": "printing", "filename": "x.gcode"}}
+    b_ai.detector.call_ai_analysis(cur, prev, 60)
+    h0 = (b_ai.read_alert_history() or [{}])[0]
+    check("1.102: the AI proposes a stop, the second look says %s: %s (one alarm written, with the second look)" % (actions[1], final),
+          len(calls) == 2 and b_ai.detector.last_analysis["analysis"]["action"] == final and h0.get("confirmed") is confirmed
+          and h0.get("action") == final and (h0.get("second_look") or {}).get("action") == actions[1] and len(b_ai.read_alert_history()) == 1, (calls, h0))
+post, calls = ai_sequence(["CONTINUE"])
+b_ai, cur, prev = fresh_ai(post)
+b_ai.detector.call_ai_analysis(cur, prev, 60)
+check("... CONTINUE at the first look: no second look", calls == ["CONTINUE"])
+
+
+class _Quota:
+    ok = False
+    status_code = 429
+    headers = {}
+    text = "Rate limit reached on tokens per day (TPD): Limit 200000, Used 199000. Please try again in 20m40.2s."
+
+    def json(self):
+        return {"error": {"message": self.text}}
+
+
+_quota_posts = []
+b_ai, cur, prev = fresh_ai(lambda url, headers=None, json=None, timeout=None: (_quota_posts.append(1), _Quota())[1])
+b_ai.detector.call_ai_analysis(cur, prev, 60)
+left_s = b_ai.detector.ai_quota_until - time.time()
+b_ai.detector.last_ai_call = 0
+b_ai.detector.call_ai_analysis(cur, prev, 60)
+check("1.102: the service's daily limit is used up (429, try again in 20 min): one alarm says so, then the AI is left alone until then (no call, no alarm)",
+      len(_quota_posts) == 1 and 1200 < left_s < 1250 and len(b_ai.read_alert_history()) == 1 and "used up" in b_ai.detector.stats.get("status", ""), (len(_quota_posts), left_s, b_ai.read_alert_history()))
 
 b_ai, cur, prev = fresh_ai(ai_reply())
 for i in range(45):

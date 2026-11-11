@@ -440,6 +440,12 @@ L'IA scrive le sue osservazioni nella lingua delle notifiche; ogni allarme resta
 Registrazioni e `~/printer_data/klippeye/alerts/`). Quando l'IA ha proposto pausa o annullamento ma nessun difetto arrivava alla
 fiducia minima, l'allarme lo dice in arancione («Pausa proposta, sotto la soglia»).
 
+Prima di una pausa o di un annullamento l'IA **guarda due volte**: 40 secondi dopo, su una foto nuova, le si chiede di nuovo, e lo
+stop vale solo se anche quella volta vede un problema (un riflesso, un'ombra o la testina di passaggio non restano; un guasto vero
+sì). Le notifiche e la pausa automatica aspettano quel secondo sguardo. Finché la stampa è più bassa di 2 mm, «piatto vuoto» da
+solo non la ferma: un primo strato la telecamera lo vede appena. Quando il limite giornaliero del servizio IA è finito, KlippEye
+non lo interroga più fino all'ora che il servizio indica (piano gratuito di Groq: circa 40 analisi al giorno).
+
 | Se… | prova a… |
 |---|---|
 | allarmi quando passa la testina | calibrare la telecamera e regolare i contorni di testina e gantry; alzare «Controlli di fila in cui il cambiamento deve restare» (3 → 4) |
