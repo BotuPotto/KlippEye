@@ -448,7 +448,10 @@ ancora giudicati, e le piccole foto che tiene di ogni stampa sono ciò da cui il
 Prima di una pausa o di un annullamento l'IA **guarda due volte**: 40 secondi dopo, su una foto nuova, le si chiede di nuovo, e lo
 stop vale solo se anche quella volta vede un problema (un riflesso, un'ombra o la testina di passaggio non restano; un guasto vero
 sì). Le notifiche e la pausa automatica aspettano quel secondo sguardo. Finché la stampa è più bassa di 2 mm, «piatto vuoto» da
-solo non la ferma: un primo strato la telecamera lo vede appena. Quando il limite giornaliero del servizio IA è finito, KlippEye
+solo non la ferma: un primo strato la telecamera lo vede appena. Puoi aggiungere fino a tre **servizi di riserva** (Impostazioni → Monitor IA → Il servizio IA): quando il servizio del monitor non
+può rispondere (limite del giorno esaurito, non raggiungibile), si chiede al successivo. Con **Secondo parere da un altro servizio**
+il secondo sguardo prima di uno stop è chiesto a un servizio diverso: due IA diverse devono essere d'accordo. Sotto ogni servizio
+con piano gratuito, **Come avere una chiave gratuita** mostra i passaggi. Quando il limite giornaliero del servizio IA è finito, KlippEye
 non lo interroga più fino all'ora che il servizio indica (piano gratuito di Groq: circa 40 analisi al giorno).
 
 | Se… | prova a… |

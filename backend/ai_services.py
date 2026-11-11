@@ -14,7 +14,10 @@ ai.json (data folder, mode 600: it holds passwords), version 2:
     {"version": 2, "keys": {"groq": "gsk_...", "gemini": "AIza..."},
      "logs": {"provider": "groq", "model": ""}, "monitor": {"provider": "gemini", "model": "gemini-3.8-flash"},
      "custom_base": "http://192.168.1.20:11434/v1"}
-An empty model is the service's default. The file of before 1.27 ({"provider", "api_key", "model"}) is read as: that key
+An empty model is the service's default. 1.104: "monitor_backups" [{"provider", "model"}] (3 at most): the services the
+monitor asks, in order, when the one before cannot answer (its limit used up, down, a key refused); "second_opinion"
+(default true): the second look before a stop asks another of these services, when there is one, for an independent view.
+The file of before 1.27 ({"provider", "api_key", "model"}) is read as: that key
 for that service, used for both, its model for the logs.
 """
 import re
@@ -48,6 +51,7 @@ PROVIDERS = {
 ORDER = ["groq", "gemini", "openai", "anthropic", "mistral", "openrouter", "meta", "together", "fireworks", "custom"]
 ALIASES = {"llama": "meta", "llama.com": "meta", "google": "gemini", "claude": "anthropic"}
 USES = ("logs", "monitor")
+MAX_BACKUPS = 3
 KEY_RE = re.compile(r"^[A-Za-z0-9._~+/=:\-]{8,300}$")
 MODEL_RE = re.compile(r"^[A-Za-z0-9._:/@+\-]{1,120}$")
 BASE_RE = re.compile(r"^https?://[A-Za-z0-9.\-\[\]:]+(/[A-Za-z0-9._~\-/]*)?$")
@@ -116,7 +120,61 @@ def normalize(raw):
     for use in USES:
         if not out[use]["provider"]:
             out[use]["provider"] = first
+    out["monitor_backups"] = _backups(raw.get("monitor_backups"))
+    out["second_opinion"] = raw.get("second_opinion") is not False
     return out
+
+
+def _backups(value):
+    """The backup services of the monitor, cleaned: known services, valid models, no repeats, 3 at most."""
+    out, seen = [], set()
+    for one in value if isinstance(value, list) else []:
+        if not isinstance(one, dict):
+            continue
+        provider = provider_id(one.get("provider"))
+        model = str(one.get("model") or "").strip()
+        if provider not in PROVIDERS or (model and not MODEL_RE.match(model)) or (provider, model) in seen:
+            continue
+        seen.add((provider, model))
+        out.append({"provider": provider, "model": model})
+        if len(out) >= MAX_BACKUPS:
+            break
+    return out
+
+
+def _target(cfg, provider, model, use):
+    """-> the target of one service and model, or None when it cannot be used (no key, no address, no model)."""
+    spec = PROVIDERS.get(provider)
+    if not spec:
+        return None
+    key = cfg["keys"].get(provider, "")
+    base = base_of(cfg, provider)
+    model = model or spec[use]
+    if (not key and not spec.get("key_optional")) or not base or not model:
+        return None
+    return {"provider": provider, "name": spec["name"], "base": base, "key": key, "model": model, "default_model": spec[use],
+            "endpoint": base + "/chat/completions"}
+
+
+def resolve_chain(cfg, use, fallback_model=""):
+    """The services to ask, in order (1.104): the one chosen for the use, then the monitor's backups that can be used (a
+    backup equal to one before it is left out). AiError when none can be used."""
+    cfg = normalize(cfg)
+    chain = []
+    try:
+        chain.append(resolve(cfg, use, fallback_model))
+    except AiError as error:
+        first_error = error
+    else:
+        first_error = None
+    if use == "monitor":
+        for one in cfg["monitor_backups"]:
+            target = _target(cfg, one["provider"], one["model"], use)
+            if target and not any(t["provider"] == target["provider"] and t["model"] == target["model"] for t in chain):
+                chain.append(target)
+    if not chain:
+        raise first_error or AiError("no_key", "no AI key")
+    return chain
 
 
 def base_of(cfg, provider):
@@ -273,7 +331,13 @@ def summary(cfg):
         usable = bool(one["provider"]) and (bool(cfg["keys"].get(one["provider"])) or bool(spec and spec.get("key_optional")))
         uses[use] = {"provider": one["provider"], "model": one["model"], "default_model": spec[use] if spec else "", "usable": usable}
     logs = uses["logs"]
+    backups = []
+    for one in cfg["monitor_backups"]:
+        spec = PROVIDERS[one["provider"]]
+        backups.append({"provider": one["provider"], "model": one["model"], "default_model": spec["monitor"],
+                        "usable": bool(cfg["keys"].get(one["provider"])) or bool(spec.get("key_optional"))})
     return {"version": 2, "services": services, "logs": uses["logs"], "monitor": uses["monitor"], "custom_base": cfg["custom_base"],
+            "monitor_backups": backups, "second_opinion": cfg["second_opinion"], "max_backups": MAX_BACKUPS,
             "configured": logs["usable"] or uses["monitor"]["usable"], "provider": logs["provider"] or uses["monitor"]["provider"],
             "model": logs["model"] or logs["default_model"],
             "key_preview": ("…" + cfg["keys"].get(logs["provider"], "")[-4:]) if cfg["keys"].get(logs["provider"]) else ""}
@@ -327,6 +391,17 @@ def apply(cfg, body):
         if base and not BASE_RE.match(base):
             return None, "bad_base"
         cfg["custom_base"] = base
+    if "monitor_backups" in body:
+        if not isinstance(body["monitor_backups"], list) or len(body["monitor_backups"]) > MAX_BACKUPS:
+            return None, "bad_backups"
+        for one in body["monitor_backups"]:
+            if not isinstance(one, dict) or provider_id(one.get("provider")) not in PROVIDERS:
+                return None, "unknown"
+            if str(one.get("model") or "").strip() and not MODEL_RE.match(str(one.get("model")).strip()):
+                return None, "bad_model"
+        cfg["monitor_backups"] = _backups(body["monitor_backups"])
+    if "second_opinion" in body:
+        cfg["second_opinion"] = bool(body["second_opinion"])
     for use in USES:
         if isinstance(body.get(use), dict):
             one = body[use]

@@ -1,5 +1,18 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.104.0
+
+**Backup AI services for the monitor, a second opinion, and how to get a free key.**
+
+* Settings → AI monitor → The AI service → **Backup services** (up to three): when the monitor's service cannot answer
+  (its limit of the day used up, down, a key refused), the same alarm is asked of the next one, in order. A service whose
+  limit is used up is left alone until the time it gave; the others go on answering.
+* **Second opinion from another service** (on when there is a backup): before a pause or a cancel, the second look is
+  asked of a different service, so two different AIs must agree to stop a print.
+* The alarm says which service answered (and whether it was a backup); when none could, the alarm lists what each said.
+* Under Groq, Google Gemini, OpenRouter and Mistral: **How to get a free key**, step by step, with what their free plan
+  means (limits, what may be used to train their models).
+
 ## 1.103.0
 
 **«How did the print go?»** (the first step of the new AI monitor: OpenCV, a local model and the online AI working
