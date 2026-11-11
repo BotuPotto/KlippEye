@@ -425,6 +425,12 @@ The AI writes its observations in the language of the notifications; every alert
 the alarms in Recordings, and `~/printer_data/klippeye/alerts/`). When the AI proposed to pause or cancel but no defect reached
 the minimum confidence, the alarm says so in orange ("Pause proposed, under the threshold").
 
+Before a pause or a cancel the AI **looks twice**: 40 seconds later, on a new picture, it is asked again, and the stop holds
+only if it sees a problem that time too (a reflection, a shadow or the head passing over do not stay; a real failure does).
+The notifications and the automatic pause wait for that second look. While the print is lower than 2 mm, "empty bed" alone does
+not stop it: the camera can hardly see a first layer. When the AI service's daily limit is used up, KlippEye does not ask it
+again until the time the service gives (Groq's free plan: about 40 analyses a day).
+
 | If… | try… |
 |---|---|
 | alarms when the print head passes | calibrate the camera and adjust the toolhead and gantry outlines; raise "Checks in a row the change must stay for" (3 → 4) |
