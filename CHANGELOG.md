@@ -1,5 +1,12 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.97.0
+
+**Simplified Chinese.**
+
+* The dashboard, the login page, the notifications and the AI monitor's texts are now also in Simplified Chinese
+  (Settings → Language → 简体中文, or «Automatic» on a Chinese device).
+
 ## 1.96.0
 
 **Polish.**
