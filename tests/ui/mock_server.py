@@ -47,7 +47,7 @@ def default_extra_temps():
 
 def default_state():
     history = default_history()
-    return {
+    return {"history_made": time.time(),
         "power_on": False, "power_devices": [{"device": "printer", "status": "on", "locked_while_printing": True, "type": "tplink_smartplug", "is_shutdown": False},
                                               {"device": "led_strip", "status": "off", "locked_while_printing": False, "type": "gpio", "is_shutdown": False},
                                               {"device": "_hidden_relay", "status": "off", "locked_while_printing": False, "type": "gpio", "is_shutdown": False}],
@@ -1777,12 +1777,30 @@ def spoolman_proxy():
         return jsonify(result={"response": None, "error": {"status_code": 404, "message": "No spool"}})
     return jsonify(result={"response": None, "error": {"status_code": 404, "message": "Unknown path"}})
 
+def history_now(job):
+    """A copy of the job timed from this request, not from the reset (1.99): the Benchy stays "a minute ago" and on the
+    page's today even when a test starts just before midnight in Rome (the browser's time zone) and loads just after."""
+    out = copy.deepcopy(job)
+    now = time.time()
+    try:
+        from zoneinfo import ZoneInfo
+        import datetime
+        local = datetime.datetime.fromtimestamp(now, ZoneInfo("Europe/Rome"))
+        since_midnight = local.hour * 3600 + local.minute * 60 + local.second
+    except Exception:
+        since_midnight = 86400
+    shift = (now - S.get("history_made", now)) + max(0, 120 - since_midnight)
+    for key in ("start_time", "end_time"):
+        if isinstance(out.get(key), (int, float)):
+            out[key] += shift
+    return out
+
 @app.route("/server/history/list")
 def history_list():
     if S["history_mode"] == "missing": return jsonify(error={"code": 404, "message": "Not Found"}), 404
     limit, start = int(request.args.get("limit", 50)), int(request.args.get("start", 0))
     jobs = S["history"] if request.args.get("order", "desc") == "desc" else list(reversed(S["history"]))
-    return jsonify(result={"count": len(jobs), "jobs": copy.deepcopy(jobs[start:start + limit])})
+    return jsonify(result={"count": len(jobs), "jobs": [history_now(j) for j in jobs[start:start + limit]]})
 @app.route("/server/history/totals")
 def history_totals():
     if S["history_mode"] == "missing": return jsonify(error={"code": 404, "message": "Not Found"}), 404
@@ -1796,7 +1814,7 @@ def history_job():
         S["history"] = [j for j in S["history"] if j["job_id"] != uid]
         S["history_log"].append("DELETE:" + uid)
         return jsonify(result={"deleted_jobs": [uid]})
-    return jsonify(result={"job": found[0]})
+    return jsonify(result={"job": history_now(found[0])})
 @app.route("/server/history/reset_totals", methods=["POST"])
 def history_reset_totals():
     last = S["history_totals"]
