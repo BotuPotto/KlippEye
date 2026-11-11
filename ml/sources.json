@@ -1,0 +1,25 @@
+{
+ "about": "Public datasets of 3D-printing failures on Roboflow Universe that ml/download.py fetches (each with its own licence, written to ml/data/CREDITS.md). Add or remove freely: workspace/project as in the dataset's address.",
+ "roboflow": [
+  "seeed-ai-competition/3d-print-failure",
+  "3d-printing-failure/3d-printing-failure",
+  "3d-printing-failure/spaghetti-3d",
+  "3d-printer-project-2025/spaghetti-3d-7axfb",
+  "bu-engme500-vision-project/fdm-failures-spaghetti",
+  "stringing/spaghetti-gwfdd",
+  "freshdata/spaghetti-z7jrn",
+  "spaghettidetect/3d-printing-flaws",
+  "sylucauc/3d-printing-failure-detection",
+  "atco/3d-printing-error",
+  "hcmut-yxyhm/3d-printing-defects",
+  "project-jkfnh/defect-detection-in-3d-printing-9vutd",
+  "defects-of-3d-printing/fdm-sw9eb",
+  "3d-printing-monitoring-system-team-129-spring-2024-survm/3d-printing-defects-e2fsz",
+  "om-sakharkar-d0y3z/3d-print-failure-detection-pbxw5",
+  "lewis-ly9ii/3d-printer-error-detection",
+  "dark-eden-nuheg/3d-printing-fail-detection",
+  "fyp-ul2aa/3d-printing-defects-wptsr",
+  "xtremus3d/3d-printing-failures-old",
+  "stringing/fdm-failures-stringing-uxbbo"
+ ]
+}

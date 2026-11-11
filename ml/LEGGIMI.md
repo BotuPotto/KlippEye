@@ -7,11 +7,23 @@ pubbliche e, se vuoi, con le tue; poi lo misuri sulle tue stampe prima di usarlo
 Il modello è MobileNetV3-Small (licenza BSD), parte da ciò che sa già sulle immagini (ImageNet) e impara solo com'è una
 stampa fallita. Sul Raspberry lo esegue OpenCV, già installato con KlippEye: non serve nient'altro.
 
+## Il modo più semplice: Google Colab
+
+Apri [il notebook su Colab](https://colab.research.google.com/github/BotuPotto/KlippEye/blob/main/ml/KlippEye_local_model.ipynb)
+ed esegui le celle dall'alto in basso: scarica da solo **tutte** le raccolte pubbliche elencate in `ml/sources.json`
+(serve solo una chiave Roboflow gratuita), aggiunge le tue stampe se carichi il loro zip, addestra con la GPU gratuita,
+misura e ti fa scaricare il modello. I passaggi sotto sono gli stessi, per chi preferisce il proprio computer.
+
 ## 1. Le foto
 
 Servono foto di **stampe fallite** e di **stampe andate bene**.
 
-- **Raccolte pubbliche**: su [Roboflow Universe](https://universe.roboflow.com) cerca «3D print failure», «spaghetti»,
+- **Raccolte pubbliche, tutte insieme**: `ROBOFLOW_API_KEY=… python ml/download.py` scarica ogni raccolta di
+  `ml/sources.json` (una ventina, l'ultima versione di ciascuna) in `ml/data/` e scrive `ml/data/CREDITS.md` con la
+  licenza di ognuna. La chiave è gratuita: [roboflow.com](https://roboflow.com) → Settings → API Keys. Le classi delle
+  raccolte vengono lette dai nomi: i guasti che rovinano la stampa (spaghetti, distacco, layer spostati, blob…) contano
+  come «fallita», le foto di stampe normali come «buona», i difetti di qualità (stringing, zits…) restano fuori.
+- **Altre raccolte a mano**: su [Roboflow Universe](https://universe.roboflow.com) cerca «3D print failure», «spaghetti»,
   «print defects». Apri una raccolta → *Download Dataset* → formato **YOLOv8** → scarica lo zip ed estrailo. Controlla la
   licenza di ogni raccolta (molte sono CC BY 4.0: va bene, citando l'autore). Alcune da cui partire:
   [FDM Failures – Spaghetti](https://universe.roboflow.com/bu-engme500-vision-project/fdm-failures-spaghetti),
@@ -28,7 +40,7 @@ Servono foto di **stampe fallite** e di **stampe andate bene**.
 
 ```
 pip install -r ml/requirements.txt
-python ml/datasets.py --yolo ./spaghetti --yolo ./difetti --klippeye ./klippeye-data --out ml/work
+python ml/datasets.py --auto ml/data --klippeye ./klippeye-data --out ml/work
 ```
 Dice quante foto ha trovato, fallite e buone. Le foto della stessa stampa restano insieme: una parte viene tenuta da parte
 per misurare il modello su foto che non ha mai visto.

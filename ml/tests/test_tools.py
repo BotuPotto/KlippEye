@@ -34,12 +34,29 @@ check("... a list on lines, a mapping", datasets._yaml_names("names:\n  - a\n  -
 rows = datasets.from_yolo(paths["yolo"], os.path.join(root, "work"), set(), False, cv2)
 fails = [r for r in rows if r[1] == 1 and r[3] == "yolo"]
 crops = [r for r in rows if r[3] == "yolo-crop"]
-check("YOLO: a photo with a spaghetti box is failed (the «print» class is not a failure), its box cut out; no box: left out",
-      len(fails) == 30 and len(crops) == 30 and all(os.path.isfile(r[0]) for r in crops) and not [r for r in rows if r[1] == 0], (len(fails), len(crops), len(rows)))
+check("YOLO: a photo with a spaghetti box is failed, its box cut out; one with only a «print» box is a fine print",
+      len(fails) == 30 and len(crops) == 30 and all(os.path.isfile(r[0]) for r in crops) and len([r for r in rows if r[1] == 0]) == 30, (len(fails), len(crops), len(rows)))
 check("... Roboflow's copies of one photo share a group", all(r[2].startswith("yolo:photo") and ".rf." not in r[2] for r in rows))
-rows_ok = datasets.from_yolo(paths["yolo"], os.path.join(root, "work"), set(), True, cv2)
-check("... --empty-is-ok: a photo with only «print» boxes is still not «fine» (it has boxes); --fail-classes print: all failed",
-      not [r for r in rows_ok if r[1] == 0] and len([r for r in datasets.from_yolo(paths["yolo"], os.path.join(root, "w2"), {"print"}, False, cv2) if r[3] == "yolo"]) == 60)
+check("... --fail-classes print: every photo failed",
+      len([r for r in datasets.from_yolo(paths["yolo"], os.path.join(root, "w2"), {"print"}, False, cv2) if r[3] == "yolo" and r[1] == 1]) == 60)
+kinds = {n: datasets.kind_of(n) for n in ("spaghetti", "Spagetti", "failure", "detached", "layer_shift", "Warping", "blob", "defect", "error", "stringing",
+                                         "zits", "under_extrusion", "nozzle", "Print", "part", "good", "normal", "extruder", "weird")}
+check("class names: failures, defects of quality (left out), a normal print / the printer's parts",
+      [n for n, k in kinds.items() if k == 1] == ["spaghetti", "Spagetti", "failure", "detached", "layer_shift", "Warping", "blob", "defect", "error", "weird"]
+      and [n for n, k in kinds.items() if k is None] == ["stringing", "zits", "under_extrusion"], kinds)
+cls_root = os.path.join(root, "cls")
+for split, cls, n in (("train", "good", 4), ("train", "spaghetti", 3), ("valid", "stringing", 2), ("valid", "Normal", 1)):
+    os.makedirs(os.path.join(cls_root, split, cls), exist_ok=True)
+    for i in range(n):
+        cv2.imwrite(os.path.join(cls_root, split, cls, "%s%d_jpg.rf.%d.jpg" % (cls, i, i)), synthetic.picture(False, __import__("random").Random(i))[0])
+rows = datasets.from_classes(cls_root)
+check("class folders: good / Normal fine, spaghetti failed, stringing left out", sorted((r[1]) for r in rows) == [0] * 5 + [1] * 3, [(r[0][-20:], r[1]) for r in rows])
+auto_root = os.path.join(root, "auto")
+os.makedirs(auto_root)
+os.symlink(paths["yolo"], os.path.join(auto_root, "a__yolo"))
+os.symlink(cls_root, os.path.join(auto_root, "b__cls"))
+rows = datasets.from_auto(auto_root, os.path.join(root, "w3"), set(), False, cv2)
+check("--auto: each downloaded dataset read as what it is (YOLO, class folders)", {r[3] for r in rows} == {"yolo", "yolo-crop", "classes"}, {r[3] for r in rows})
 
 rows = datasets.from_folders(paths["sorted"])
 check("folders: ok/ fine, fail/ failed", len([r for r in rows if r[1] == 0]) == 20 and len([r for r in rows if r[1] == 1]) == 20)

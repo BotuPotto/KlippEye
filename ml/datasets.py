@@ -4,12 +4,14 @@ Collects the pictures the local model is trained on into one list (ml/work/manif
 
 Sources, any number of each:
   --folders DIR    DIR/**/fail/*.jpg and DIR/**/ok/*.jpg (any picture format): pictures you sorted yourself.
+  --auto DIR       every dataset ml/download.py put in DIR (ml/data): each one in YOLO format or in class folders.
   --yolo DIR       a dataset exported in YOLO format (Roboflow Universe → Download → «YOLOv8»): data.yaml with the class
                    names, train/valid/test with images/ and labels/. A picture with a box of a failure class is «failed»,
-                   and each such box is also cut out with its surroundings (small spaghetti become large); with
-                   --empty-is-ok a picture without boxes counts as «fine».
-                   --fail-classes NAME,NAME... : the classes that are failures (default: all but those named like
-                   ok / good / normal / nozzle / print / object).
+                   and each such box is also cut out with its surroundings (small spaghetti become large); a picture whose
+                   boxes are only of a normal print (nozzle, part, print…) is «fine»; one with only defects of quality
+                   (stringing, zits…) is left out; with --empty-is-ok a picture without boxes counts as «fine».
+                   --fail-classes NAME,NAME... : the classes that are failures (default: by their names, see FAILURE).
+  --classes DIR    a dataset of class folders (Roboflow «folder» export: train/<class>/*.jpg): the classes by their names.
   --klippeye DIR   KlippEye's data folder copied from the Raspberry (the folder with recordings/ and reviews/): the
                    labelled recordings and the answers to «How did the print go?». Fine prints give «fine» pictures; a
                    failed print gives «failed» pictures from FAILED_AFTER seconds after its moment on, «fine» before it.
@@ -26,7 +28,24 @@ import re
 import sys
 
 IMAGE_EXT = (".jpg", ".jpeg", ".png", ".bmp", ".webp")
-NOT_FAILURE = re.compile(r"^(ok|good|normal|nozzle|print|printing|object|part|bed|extruder|head)$", re.I)
+# the classes of the datasets, by their names: a failure that ruins the print (what the monitor must catch), a defect of
+# quality (the print goes on: left out, neither failed nor fine), a normal print or a part of the printer (fine)
+FAILURE = re.compile(r"spag|fail|error|detach|blob|shift|warp|clog|nest|knot|collaps|broken|defect|bad|fault|anomal|adhes|curl|messy|mess", re.I)
+QUALITY = re.compile(r"string|zit|under|over|gap|ring|ghost|crack|bridg|line|rough|elephant|seam|pillow|hair|z.?wobble|banding|burn", re.I)
+NORMAL = re.compile(r"^(ok|good|normal|nominal|success\w*|fine|correct|no.?defect\w*|nozzle|print|printing|printed|object|part|parts|model|bed|extruder|"
+                    r"extrusor|head|hotend|printhead|print.?head|toolhead|tool|nozzle.?tip|person|hand)$", re.I)
+
+
+def kind_of(name, fail_classes=()):
+    """-> 1 (a failure), 0 (fine: a normal print or a part of the printer), None (a defect of quality: left out)."""
+    name = str(name).strip()
+    if fail_classes:
+        return 1 if name.lower() in fail_classes else 0 if NORMAL.match(name) else None
+    if NORMAL.match(name):
+        return 0
+    if QUALITY.search(name) and not re.search(r"spag|detach|fail", name, re.I):
+        return None
+    return 1  # spaghetti, failure, error, defect… and names nobody knows: counted as failures
 FAILED_AFTER = 60          # a failure is clear this many seconds after the moment the person chose
 OK_EVERY = 4               # of a fine recording, one picture in OK_EVERY (they are much alike)
 CROP_MARGIN = 0.6          # a box is cut out with this much of its size around it
@@ -65,11 +84,11 @@ def _yaml_names(text):
 def from_yolo(root, work, fail_classes, empty_is_ok, cv2):
     yaml = next(iter(glob.glob(os.path.join(root, "**", "data.yaml"), recursive=True)), None)
     names = _yaml_names(open(yaml, encoding="utf-8").read()) if yaml else []
-    if fail_classes:
-        failing = {i for i, n in enumerate(names) if n.lower() in fail_classes}
-    else:
-        failing = {i for i, n in enumerate(names) if not NOT_FAILURE.match(n.strip())}
-    print("[yolo] %s: classes %s, failures %s" % (root, names, sorted(names[i] for i in failing if i < len(names))))
+    kinds = {i: kind_of(n, fail_classes) for i, n in enumerate(names)}
+    failing = {i for i, k in kinds.items() if k == 1}
+    quality = {i for i, k in kinds.items() if k is None}
+    print("[yolo] %s: failures %s, quality (left out) %s, normal %s" % (
+        os.path.basename(root.rstrip(os.sep)), [names[i] for i in sorted(failing)], [names[i] for i in sorted(quality)], [names[i] for i in sorted(kinds) if kinds[i] == 0]))
     rows = []
     crops = os.path.join(work, "crops")
     os.makedirs(crops, exist_ok=True)
@@ -103,8 +122,38 @@ def from_yolo(root, work, fail_classes, empty_is_ok, cv2):
                         out = os.path.join(crops, "%s_%d.jpg" % (re.sub(r"[^A-Za-z0-9_.-]+", "_", os.path.basename(path))[:80], k))
                         cv2.imwrite(out, image[y0:y1, x0:x1])
                         rows.append((out, 1, group, "yolo-crop"))
+        elif boxes and not [c for c, _ in boxes if c in quality]:
+            rows.append((path, 0, group, "yolo"))   # only a normal print and the printer's parts
         elif not boxes and empty_is_ok:
             rows.append((path, 0, group, "yolo"))
+    return rows
+
+
+def from_classes(root, fail_classes=()):
+    """A dataset of class folders: <root>/<split>/<class>/*.jpg (or <root>/<class>/*.jpg)."""
+    rows, seen = [], {}
+    for path in images_in(root):
+        parent = os.path.basename(os.path.dirname(path))
+        if parent.lower() in ("images", "labels"):
+            continue
+        kind = seen.setdefault(parent, kind_of(parent, fail_classes))
+        if kind is not None:
+            rows.append((path, kind, "cls:" + os.path.basename(path).split(".rf.")[0], "classes"))
+    print("[classes] %s: %s" % (os.path.basename(root.rstrip(os.sep)), {k: ("failed" if v == 1 else "fine" if v == 0 else "left out") for k, v in seen.items()}))
+    return rows
+
+
+def from_auto(root, work, fail_classes, empty_is_ok, cv2):
+    """Every dataset in `root` (one folder each, as ml/download.py writes them)."""
+    rows = []
+    for name in sorted(os.listdir(root)):
+        folder = os.path.join(root, name)
+        if not os.path.isdir(folder):
+            continue
+        if glob.glob(os.path.join(folder, "**", "data.yaml"), recursive=True):
+            rows += from_yolo(folder, work, fail_classes, empty_is_ok, cv2)
+        else:
+            rows += from_classes(folder, fail_classes)
     return rows
 
 
@@ -157,6 +206,8 @@ def from_klippeye(root):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--auto", action="append", default=[])
+    parser.add_argument("--classes", action="append", default=[])
     parser.add_argument("--folders", action="append", default=[])
     parser.add_argument("--yolo", action="append", default=[])
     parser.add_argument("--klippeye", action="append", default=[])
@@ -178,6 +229,10 @@ def main(argv=None):
     fail_classes = {c.strip().lower() for c in args.fail_classes.split(",") if c.strip()}
     for folder in args.yolo:
         rows += from_yolo(folder, args.out, fail_classes, args.empty_is_ok, cv2)
+    for folder in args.classes:
+        rows += from_classes(folder, fail_classes)
+    for folder in args.auto:
+        rows += from_auto(folder, args.out, fail_classes, args.empty_is_ok, cv2)
     for folder in args.klippeye:
         rows += from_klippeye(folder)
     if not rows:
