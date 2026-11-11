@@ -93,7 +93,11 @@ with sync_playwright() as p:
     ok("the file's menu has «Programma la stampa»", pg.locator(".file-action", has_text="Programma la stampa").count() == 1)
     pg.locator(".file-action", has_text="Programma la stampa").click()
     dialog = pg.locator(".schedule-add")
-    ok("the dialog: the file, the quick choices, a day and a time (in an hour to start with)", wait_until(lambda: dialog.count() == 1 and dialog.locator("[data-schedule-quick]").count() >= 2) and "Benchy" in dialog.inner_text() and any(t in dialog.locator(".schedule-add__when").inner_text().lower() for t in ("tra 59", "tra 60", "tra 1h")), dialog.inner_text() if dialog.count() else "")
+    # 1.100.1: everything waited for together (a slow CI machine drew the title first, the rest a moment later)
+    ok("the dialog: the file, the quick choices, a day and a time (in an hour to start with)",
+       wait_until(lambda: dialog.count() == 1 and dialog.locator("[data-schedule-quick]").count() >= 2 and "Benchy" in dialog.inner_text()
+                  and any(t in dialog.locator(".schedule-add__when").inner_text().lower() for t in ("tra 59", "tra 60", "tra 1h")), timeout=15),
+       dialog.inner_text() if dialog.count() else "")
     ok("... and it says to leave the bed clear", "piatto libero" in dialog.inner_text())
     dialog.locator('[data-schedule-quick="morning"]').click()
     ok("«Domani alle 7:00»: tomorrow at 07:00", "Domani alle 07:00" in dialog.locator(".schedule-add__when").inner_text() and dialog.locator("[data-schedule-time]").input_value() == "07:00", dialog.locator(".schedule-add__when").inner_text())
