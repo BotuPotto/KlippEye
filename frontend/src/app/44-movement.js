@@ -122,7 +122,7 @@ const PAD_QUADRANTS = [
 ];
 /** The step of each ring written on the diagonal gaps: +step up-right, −step down-left. */
 function padStepLabels(rings) {
-  const size = rings.length > 3 ? 10 : rings.length > 2 ? 10.5 : 11;
+  const size = rings.length > 3 ? 11 : rings.length > 2 ? 11.5 : 12.5; // 1.115: a little bigger, in their gaps
   return rings.flatMap((ring) => {
     const middle = (ring.from + ring.to) / 2;
     const up = polar(middle, -45);
@@ -146,7 +146,7 @@ function padAxisLabels(rings) {
 
 /** 1.115: the cuts between the quadrants are real gaps (what lies behind shows through), as wide as the step written in
  * them; their sides are parallel, so a gap is as wide near the centre as at the edge. */
-const PAD_CUT = 15;
+const PAD_CUT = 16;
 
 const polar = (radius, degrees) => {
   const radians = (degrees * Math.PI) / 180;
