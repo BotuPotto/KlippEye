@@ -787,9 +787,9 @@ function settingsSummary(page, settings, brain) {
  */
 const SETTINGS_GROUPS = [
   { id: "printer", title: tx("The printer") },
-  { id: "watch", title: tx("Camera and AI monitor") },
-  { id: "yours", title: tx("Notifications and appearance") },
-  { id: "system", title: tx("System") },
+  { id: "watch", title: tx("Camera, monitor and notifications") }, // 1.110: what watches the print and what tells you
+  { id: "yours", title: tx("Appearance and language") },
+  { id: "system", title: tx("Network and system") },
 ];
 /**
  * 1.60: fewer, fuller pages. "Name and logo" is part of Appearance (with the colours, the look and the cards), the
@@ -802,7 +802,7 @@ const SETTINGS_ENTRIES = [
   { id: "motion", group: "printer", title: tx("Motion and Z-offset"), icon: Icons.Move },
   { id: "camera", group: "watch", title: tx("Camera"), icon: Icons.Camera },
   { id: "ai", group: "watch", title: tx("AI monitor"), icon: Icons.Sparkle },
-  { id: "notifications", group: "yours", title: tx("Notifications"), icon: Icons.Bell },
+  { id: "notifications", group: "watch", title: tx("Notifications"), icon: Icons.Bell },
   { id: "appearance", group: "yours", title: tx("Appearance"), icon: Icons.Sliders },
   { id: "language", group: "yours", title: tx("Language"), icon: Icons.Language },
   { id: "network", group: "system", title: tx("Addresses"), icon: Icons.Network },
@@ -828,6 +828,47 @@ const CAMERA_SUBPAGES = [
 ];
 const PAGE_PARENT = Object.fromEntries([...AI_SUBPAGES.map((entry) => [entry.id, "ai"]), ...CAMERA_SUBPAGES.map((entry) => [entry.id, "camera"]), ...PAGES_INSIDE.map((entry) => [entry.id, entry.parent])]);
 const PAGE_TITLES = Object.fromEntries([...SETTINGS_ENTRIES, ...AI_SUBPAGES, ...CAMERA_SUBPAGES, ...PAGES_INSIDE].map((entry) => [entry.id, entry.title]));
+
+/**
+ * 1.110: what each page is about, for the menu's search (besides its name and what it is set to now): words a person
+ * would look for. The pages inside another one are found too.
+ */
+const SETTINGS_WORDS = () => ({
+  printers: tx("printers, other printer, switch printer, address"),
+  functions: tx("lights, LED, filament sensor, fans, chamber, heaters, power, buzzer"),
+  macros: tx("macros, buttons, G-code, groups, start, end"),
+  motion: tx("jog, move, steps, speed, home, Z offset, baby step, probe"),
+  camera: tx("webcam, stream, picture, timelapse, rotate, flip"),
+  ai: tx("AI, spaghetti, failure, detection, key, Gemini, Groq, local model, pause by itself"),
+  notifications: tx("notifications, ntfy, phone, alerts, end of print"),
+  appearance: tx("theme, dark, light, colour, look, cards, order, logo, name"),
+  language: tx("language, translation, units"),
+  network: tx("address, IP, remote, outside, local"),
+  access: tx("password, login, security, HTTPS, users"),
+  homeauto: tx("Home Assistant, MQTT, smart home, automation"),
+  software: tx("update, version, Klipper, Moonraker, app, Android, restart"),
+  camcal: tx("calibration, bed corners, camera position"),
+  detector: tx("thresholds, sensitivity, false alarms, motion"),
+  recordings: tx("recordings, history, alarms, labels, measure"),
+  "camera-timelapse": tx("timelapse, video, frames, render"),
+});
+
+/** The pages the search can find: the menu's lines, then the pages inside them (with their parent's name). */
+function searchPages(query, settings, brain) {
+  const words = SETTINGS_WORDS();
+  const norm = (text) => String(text || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const parts = norm(query).split(/\s+/).filter(Boolean);
+  if (!parts.length) return [];
+  const all = [
+    ...SETTINGS_ENTRIES.map((entry) => ({ ...entry, meta: settingsSummary(entry.id, settings, brain) })),
+    ...AI_SUBPAGES.map((entry) => ({ ...entry, parent: "ai" })),
+    ...CAMERA_SUBPAGES.map((entry) => ({ ...entry, parent: "camera" })),
+  ];
+  return all.filter((entry) => {
+    const text = norm([entry.title, entry.meta, words[entry.id], entry.parent && PAGE_TITLES[entry.parent]].join(" "));
+    return parts.every((part) => text.includes(part));
+  });
+}
 
 /** One row of the menu: icon, name, what it is set to now, and a badge when something waits. */
 /** The menu's line a page belongs to (a page inside another one: its parent's; a camera of Moonraker: Camera). */
@@ -857,8 +898,20 @@ function SettingsEntry({ entry, settings, brain, menu }) {
   );
 }
 
+/** 1.110: a line of the search's results: the page and, for a page inside another, where it is. */
+function SettingsFound({ entry, menu }) {
+  return h(
+    "button",
+    { type: "button", className: "set-entry", "data-page": entry.id, "data-found": entry.id, onClick: () => menu.goTo(entry.id) },
+    h("span", { className: "oui-row__icon oui-row__icon--accent" }, h(entry.icon || Icons.Sliders)),
+    h("span", { className: "oui-row__text" }, h("span", { className: "oui-row__name" }, entry.title), h("span", { className: "oui-row__meta set-entry__meta" }, entry.parent ? tx("in {page}", { page: PAGE_TITLES[entry.parent] }) : entry.meta)),
+    h("span", { className: "set-entry__go", "aria-hidden": "true" }, h(Icons.Forward)),
+  );
+}
+
 function SettingsHome({ menu }) {
   const { settings, sync } = useSettings();
+  const [query, setQuery] = useState("");
   const [components, setComponents] = useState(null);
   useEffect(() => {
     let cancelled = false;
@@ -880,6 +933,23 @@ function SettingsHome({ menu }) {
       !settings.setup.done && h("span", { className: "set-entry__badge" }, tx("Start")),
       h("span", { className: "set-entry__go", "aria-hidden": "true" }, h(Icons.Forward)),
     ),
+    h(
+      "label",
+      { className: "set-search" },
+      h(Icons.Search, { size: 18 }),
+      h("input", { type: "search", className: "set-search__input", placeholder: tx("Search the settings"), "aria-label": tx("Search the settings"), value: query, onChange: (event) => setQuery(event.target.value), "data-settings-search": "1" }),
+    ),
+    query.trim() &&
+      (() => {
+        const found = searchPages(query, settings, brain);
+        return h(
+          "section",
+          { className: "set-group set-group--menu", "data-group": "found" },
+          h("div", { className: "set-group__label" }, found.length ? tx("Found") : tx("Nothing found: try another word")),
+          found.length > 0 && h("div", { className: "oui-list" }, found.map((entry) => h(SettingsFound, { key: entry.id, entry, menu }))),
+        );
+      })(),
+    !query.trim() &&
     SETTINGS_GROUPS.map((group) =>
       h(
         "section",

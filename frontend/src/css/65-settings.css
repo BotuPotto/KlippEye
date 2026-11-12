@@ -400,3 +400,9 @@
 @media (max-width: 420px) {
   .drawer__title { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; white-space: normal; font-size: 20px; line-height: 1.15; }
 }
+
+/* 1.110: the menu's search */
+.set-search { display: flex; align-items: center; gap: 10px; margin: 12px 0 4px; padding: 0 14px; min-height: 44px; border: 1px solid var(--oui-stroke); border-radius: var(--oui-r-pill); background: var(--oui-surface-2); color: var(--oui-text-3); }
+.set-search:focus-within { border-color: rgba(var(--oui-accent-rgb), 0.6); color: var(--oui-accent-text); }
+.set-search__input { flex: 1; min-width: 0; height: 42px; border: 0; background: transparent; color: var(--oui-text); font: inherit; font-size: 15px; outline: none; }
+.set-search__input::-webkit-search-cancel-button { filter: grayscale(1); }

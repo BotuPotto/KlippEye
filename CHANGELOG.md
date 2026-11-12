@@ -1,5 +1,16 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.110.0
+
+**The settings menu, easier to find your way in.**
+
+* Clearer groups: *The printer*; *Camera, monitor and notifications* (the notifications now sit with what watches the
+  print); *Appearance and language*; *Network and system*.
+* A **search** at the top of the menu: it finds any page, also the ones inside another (Monitor thresholds,
+  Recordings, Camera calibration, Timelapse), by its name, by what it is set to, or by words a person would use
+  («dark», «password», «spaghetti»…), with or without accents.
+* The menu's help («What is where») describes the new groups.
+
 ## 1.109.0
 
 **Four more looks and a few small animations.**
