@@ -25,3 +25,7 @@ tests/**/*.log
 /tmp/
 *.damaged-*
 tests/e2e/.work/
+
+# the local model tools: the pictures list and the trained models stay on the computer
+ml/work/
+ml/out/

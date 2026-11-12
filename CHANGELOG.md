@@ -1,5 +1,24 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.105.0
+
+**The local model's tools** (the third step of the new AI monitor): what is needed to make, on a computer or on Google
+Colab, the small model that will judge the pictures on the Raspberry itself, and to measure it on your own prints first.
+
+* `ml/download.py` + `ml/sources.json`: downloads every listed public dataset of Roboflow Universe (about twenty) with
+  a free key, and writes their licences in `ml/data/CREDITS.md`. `ml/KlippEye_local_model.ipynb`: the whole chain on
+  Google Colab, cell by cell.
+* `ml/datasets.py`: lists the training pictures from public datasets in YOLO format or class folders (the classes read
+  by their names: failures, normal prints, quality defects left out) (a failure's box is also cut out),
+  folders sorted by hand, and KlippEye's own data (labelled recordings, answers to «How did the print go?»), keeping the
+  pictures of one print together when some are set aside for measuring.
+* `ml/train.py`: MobileNetV3-Small from its ImageNet weights, a score (failed / fine) and the embedding for each printer's
+  personal layer; exported to ONNX, checked against OpenCV, with the threshold that keeps 9 alarms out of 10 right.
+* `ml/evaluate.py`: on the labelled prints, false alarms per hour and failures caught (and how late) for several thresholds.
+* `backend/local_model.py`: runs the model with OpenCV's DNN module (nothing new to install on the Raspberry).
+* Guides: `ml/LEGGIMI.md`, `ml/README.md`. Tests: `ml/tests/test_tools.py` (in `tests/run_all.sh`) and a new CI job that
+  runs the whole chain on synthetic pictures.
+
 ## 1.104.0
 
 **Backup AI services for the monitor, a second opinion, and how to get a free key.**
