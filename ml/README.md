@@ -25,6 +25,9 @@ and run its cells from top to bottom (a free Roboflow key is all it needs).
 2. **The list**: `pip install -r ml/requirements.txt` then
    `python ml/datasets.py --yolo ./spaghetti --klippeye ./klippeye-data --out ml/work`
    (`--fail-classes a,b` to name the failure classes of a dataset; `--empty-is-ok` when its pictures without boxes are fine prints).
+   Public datasets are nearly all failures: pieces of the same photos away from the boxes become the fine examples, the
+   whole photo is kept only when the failure covers at least a fifth of it, and each dataset gives at most 3000 pictures
+   (`--max-per-dataset`).
 3. **Training**: `python ml/train.py --manifest ml/work/manifest.csv --out ml/out/model` — minutes to an hour on a CPU,
    much less on [Google Colab](https://colab.research.google.com) with its free GPU. It writes `model.onnx` + `model.json`
    (the threshold: the lowest that keeps at least 9 alarms out of 10 right) and checks that OpenCV answers as PyTorch does.
