@@ -91,14 +91,16 @@ write there the address of its single photo (the snapshot).
 
 ## 3. First settings
 
-**The first time you open the dashboard the guided set-up starts**: nine steps (name and logo, camera, addresses, printer
-functions, notifications, AI monitor, password) with a couple of lines of explanation each. Every step can be skipped, and the
-last one says what is done and what is left. Repeat it whenever you want from **Settings → Guided set-up**.
+**The first time you open the dashboard the guided set-up starts**: a welcome (language and theme), then name and logo,
+camera, printer functions, notifications, AI monitor (the free key, Google Gemini suggested, and learning from your prints),
+and, only if you need them, addresses, Home Assistant and password, with a couple of lines of explanation each. Every step can
+be skipped, and the last one says what is done and what is left. Repeat it whenever you want from **Settings → Guided set-up**.
 
 Every page has a **?** button in its title bar that opens a short guide (with a drawing where it helps: where to tap the nozzle
 in the calibration, what the addresses are for, how the notifications arrive); some groups have their own small **?**.
 
-Everything is in the menu **☰ (Settings)**, in four groups. The settings are saved on the Raspberry and are the same on every
+Everything is in the menu **☰ (Settings)**, in four groups; the **search** at its top finds any page, also the ones inside
+another (type «thresholds», «dark», «password»…). The settings are saved on the Raspberry and are the same on every
 device (except those marked "on this device"). On a phone each page fills the screen; on a computer the settings are one panel
 in the middle, with the list on the left.
 
@@ -108,19 +110,20 @@ in the middle, with the list on the left.
     below.
   * **Macros**: how the macros are shown (see below).
   * **Motion and Z-offset**: what Z moves, the motion steps and those of the Z-offset card.
-* **Camera and AI monitor**
+* **Camera, monitor and notifications**
   * **Camera**: the method (WebRTC, MJPEG, MJPEG adaptive or any web page) and its address. **Import from the printer** takes
     them from the cameras already set up on the printer (Moonraker keeps them). Each camera of the printer has its own page;
     there is also **Timelapse** (see below) and the way to the camera calibration of the AI monitor.
   * **AI monitor**: everything of the AI monitor (thresholds, camera calibration, recordings), see 5.
-* **Notifications and appearance**
   * **Notifications**: where they arrive (the KlippEye app or the ntfy app), which ones and their language (see 6).
-  * **Appearance**: name and logo, colour, look, cards (see below).
+* **Appearance and language**
+  * **Appearance**: name and logo, theme, colour, look, cards (see below).
   * **Language**: English, Italian, Spanish, German, French, Portuguese (Brazil), Polish, Simplified Chinese, Russian or Ukrainian, chosen on each device (*Automatic* follows the device's language).
-* **System**
+* **Network and system**
   * **Addresses**: only needed if you open KlippEye from outside your home with ZeroTier, Tailscale or another VPN: the
     Raspberry's local IP and its external IP. Empty, the camera uses the address you opened the dashboard at.
   * **Access**: the optional password (see 7).
+  * **Home Assistant / MQTT**: the printer in Home Assistant or another smart-home system.
   * **Updates**: the version, new versions, going back to the previous one, restart of the services, the Android app.
 
 ### Printer functions
@@ -312,11 +315,16 @@ In **Settings → Appearance → Show the hints** you can hide on this device th
 (*Tap to change*, *Long-press a file…* and the like).
 
 In **Settings → Appearance → Colour** choose the colour of buttons, switches and highlights: the logo's violet, blue,
-teal, green, amber, pink or **your own** from the colour wheel (one too dark or too pale is adjusted to read on the dark
+teal, green, amber, pink or **your own** from the colour wheel (one too dark or too pale is adjusted to read on the
 page). It stays on this device.
 
-In **Settings → Appearance → Look** the same page dresses after another phone: **One UI** (the usual), **Liquid
-Glass**, **Material 3 Expressive** or **HyperOS 4**, always with the chosen colour.
+In **Settings → Appearance → Theme** choose **Dark** (the usual), **Light**, or **As the device**, which follows the dark mode
+of the phone or computer, also when it changes by itself in the evening. The code editor and the camera stay dark.
+
+In **Settings → Appearance → Look** the same page dresses after another popular app: **One UI** (the usual), **Liquid
+Glass**, **Material 3 Expressive**, **HyperOS 4**, **Studio** (flat, thin lines, small corners), **Soft** (big soft cards,
+gradient buttons), **Fluent** (Windows 11) or **Aurora** (a slowly moving glow of your colour), always with the chosen colour
+and in the chosen theme.
 
 ### Print queue
 

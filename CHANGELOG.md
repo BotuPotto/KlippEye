@@ -1,5 +1,19 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.111.0
+
+**The guided set-up, brought up to date** with what KlippEye learned since it was made.
+
+* Welcome: besides the language, the **theme** (dark, light, as the device).
+* AI monitor: **Google Gemini** suggested for the free key (its free plan allows many more checks a day), the **backup
+  services** mentioned, and a new group **Learning from your prints**: «Ask how each print went» and «Learn from this
+  printer's prints».
+* A new optional step, **Home Assistant**, only for who uses it; the optional steps (addresses, Home Assistant, password)
+  now come last. The summary at the end shows Home Assistant as done when it is connected.
+* Translations: the new texts of the last releases in Portuguese (Brazil), like the rest; «Look» was translated as the verb in
+  five languages.
+* GUIDE / GUIDA: the new groups of the menu and its search, the theme, the new looks, the guided set-up.
+
 ## 1.110.0
 
 **The settings menu, easier to find your way in.**

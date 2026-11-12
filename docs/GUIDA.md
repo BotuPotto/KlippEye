@@ -92,14 +92,16 @@ telecamera scrivi lì l'indirizzo della sua foto singola (lo snapshot).
 
 ## 3. Prime impostazioni
 
-**La prima volta che apri la dashboard parte la configurazione guidata**: nove passi (nome e logo, telecamera, indirizzi, funzioni
-della stampante, notifiche, monitor IA, password) con due righe di spiegazione ciascuno. Ogni passo si può saltare, e l'ultimo
-dice cosa è fatto e cosa resta da fare. Si ripete quando vuoi da **Impostazioni → Configurazione guidata**.
+**La prima volta che apri la dashboard parte la configurazione guidata**: un benvenuto (lingua e tema), poi nome e logo,
+telecamera, funzioni della stampante, notifiche, monitor IA (la chiave gratuita, consigliato Google Gemini, e l'apprendimento
+dalle tue stampe) e, solo se ti servono, indirizzi, Home Assistant e password, con due righe di spiegazione ciascuno. Ogni passo
+si può saltare, e l'ultimo dice cosa è fatto e cosa resta da fare. Si ripete quando vuoi da **Impostazioni → Configurazione guidata**.
 
 Ogni pagina ha un pulsante **?** nella barra del titolo che apre una breve guida (con un disegno dove serve: dove toccare l'ugello
 nella calibrazione, a cosa servono gli indirizzi, come arrivano le notifiche); alcuni gruppi hanno un loro piccolo **?**.
 
-Tutto sta nel menu **☰ (Impostazioni)**, in quattro gruppi. Le impostazioni restano sul Raspberry e valgono su tutti i
+Tutto sta nel menu **☰ (Impostazioni)**, in quattro gruppi; la **ricerca** in cima trova qualsiasi pagina, anche quelle
+dentro un'altra (scrivi «soglie», «scuro», «password»…). Le impostazioni restano sul Raspberry e valgono su tutti i
 dispositivi (tranne quelle segnate «su questo dispositivo»). Sul telefono ogni pagina occupa tutto lo schermo; sul computer le
 impostazioni sono un pannello al centro, con l'elenco a sinistra.
 
@@ -109,19 +111,20 @@ impostazioni sono un pannello al centro, con l'elenco a sinistra.
     tua stampante, vedi sotto.
   * **Macro**: come mostrare le macro (vedi più avanti).
   * **Movimento e Z-offset**: cosa muove Z, i passi del movimento e quelli della card Z-offset.
-* **Telecamera e monitor IA**
+* **Telecamera, monitor e notifiche**
   * **Telecamera**: il metodo (WebRTC, MJPEG, MJPEG adattivo o una pagina web qualsiasi) e il suo indirizzo. **Importa dalla
     stampante** li prende dalle telecamere già configurate sulla stampante (le tiene Moonraker). Ogni telecamera della stampante ha
     la sua pagina; c'è anche **Timelapse** (vedi più avanti) e il collegamento alla calibrazione della telecamera per il monitor IA.
   * **Monitor IA**: tutto il monitor IA (soglie, calibrazione della telecamera, registrazioni), vedi 5.
-* **Notifiche e aspetto**
   * **Notifiche**: dove arrivano (l'app KlippEye o l'app ntfy), quali ricevere e in che lingua (vedi 6).
-  * **Aspetto**: nome e logo, colore, stile, card (vedi più avanti).
+* **Aspetto e lingua**
+  * **Aspetto**: nome e logo, tema, colore, stile, card (vedi più avanti).
   * **Lingua**: italiano, inglese, spagnolo, tedesco, francese, portoghese (Brasile), polacco, cinese semplificato, russo o ucraino, scelta su ogni dispositivo (*Automatica* segue la lingua del dispositivo).
-* **Sistema**
+* **Rete e sistema**
   * **Indirizzi**: servono solo se apri KlippEye da fuori casa con ZeroTier, Tailscale o un'altra VPN: l'IP locale del Raspberry e
     quello esterno. Vuoti, la telecamera usa l'indirizzo da cui hai aperto la dashboard.
   * **Accesso**: la password facoltativa (vedi 7).
+  * **Home Assistant / MQTT**: la stampante in Home Assistant o in un altro sistema per la casa intelligente.
   * **Aggiornamenti**: versione, nuove versioni, ritorno alla versione precedente, riavvio dei servizi, app Android.
 
 ### Funzioni della stampante
@@ -324,10 +327,15 @@ come usare la pagina (*Tocca per modificare*, *Tieni premuto un file…* e simil
 
 In **Impostazioni → Aspetto → Colore** scegli il colore di pulsanti, interruttori ed evidenziazioni: il viola del logo,
 blu, verde acqua, verde, ambra, rosa o **il tuo** dalla ruota dei colori (un colore troppo scuro o troppo chiaro viene
-adattato perché si legga sulla pagina scura). Resta su questo dispositivo.
+adattato perché si legga sulla pagina). Resta su questo dispositivo.
 
-In **Impostazioni → Aspetto → Stile** la stessa pagina si veste come un altro telefono: **One UI** (predefinito),
-**Liquid Glass**, **Material 3 Expressive** o **HyperOS 4**, sempre con il colore scelto.
+In **Impostazioni → Aspetto → Tema** scegli **Scuro** (predefinito), **Chiaro** o **Come il dispositivo**, che segue la modalità
+scura del telefono o del computer, anche quando cambia da sola la sera. L'editor del codice e la telecamera restano scuri.
+
+In **Impostazioni → Aspetto → Stile** la stessa pagina si veste come un'altra app famosa: **One UI** (predefinito),
+**Liquid Glass**, **Material 3 Expressive**, **HyperOS 4**, **Studio** (piatto, linee sottili, angoli piccoli), **Soft** (card
+grandi e morbide, pulsanti sfumati), **Fluent** (Windows 11) o **Aurora** (un bagliore del tuo colore che si muove lento),
+sempre con il colore e il tema scelti.
 
 ### Coda di stampa
 
