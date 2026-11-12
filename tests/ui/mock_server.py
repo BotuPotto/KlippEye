@@ -56,7 +56,7 @@ def default_state():
         "spoolman_on": False, "spoolman_connected": True, "spool_id": 2, "spool_log": [],   # 1.47: Spoolman through Moonraker
         "spools": [{"id": 1, "filament": {"id": 1, "name": "PLA Basic Black", "material": "PLA", "color_hex": "1a1a1a", "diameter": 1.75, "weight": 1000, "vendor": {"name": "Bambu"}},
                     "remaining_weight": 120.0, "initial_weight": 1000, "remaining_length": 40200.0, "used_weight": 880.0, "location": "Shelf", "last_used": "2026-10-20T10:00:00Z", "archived": False},
-                   {"id": 2, "filament": {"id": 2, "name": "PETG Orange", "material": "PETG", "color_hex": "f07020", "diameter": 1.75, "weight": 1000, "vendor": {"name": "Sunlu"}},
+                   {"id": 2, "filament": {"id": 2, "name": "PETG Orange", "material": "PETG", "color_hex": "f07020", "settings_extruder_temp": 235, "settings_bed_temp": 75, "diameter": 1.75, "weight": 1000, "vendor": {"name": "Sunlu"}},
                     "remaining_weight": 640.0, "initial_weight": 1000, "remaining_length": 211000.0, "used_weight": 360.0, "location": "", "last_used": "2026-11-03T10:00:00Z", "archived": False},
                    {"id": 3, "filament": {"id": 3, "name": "ASA White", "material": "ASA", "color_hex": "f4f4f4", "diameter": 1.75, "weight": 750},
                     "remaining_weight": 750.0, "initial_weight": None, "remaining_length": 0, "used_weight": 0, "location": "Dry box", "last_used": None, "archived": False}],

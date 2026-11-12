@@ -153,7 +153,7 @@ with sync_playwright() as p:
     P.ctx.close()
 
     # --- the logs: the gear opens their AI settings at the top of the card
-    P = fresh(b, tab="config")
+    P = fresh(b, tab="sistema")   # 1.113: the logs are on the System page
     gear = P.pg.locator("[data-logs-gear]")
     ok("System logs: the gear is there", wait_until(lambda: gear.count() == 1), "")
     gear.click()
@@ -176,7 +176,7 @@ with sync_playwright() as p:
     ok("no JavaScript error", P.errors == [], P.errors)
     P.ctx.close()
 
-    P = fresh(b, tab="config", ai_key_ok=False)
+    P = fresh(b, tab="sistema", ai_key_ok=False)
     P.pg.locator("button", has_text="Analizza automaticamente").click()
     ok("an analysis without a key: the card says so and opens the AI settings by itself", wait_until(lambda: P.pg.locator("[data-logs-key]").count() == 1 and P.pg.locator("[data-logs-settings]").count() == 1, 6)
        and "ingranaggio accanto ad «Analisi errori e suggerimenti»" in P.pg.locator("[data-logs-key]").inner_text(), P.pg.locator(".logs-result").inner_text()[:300])

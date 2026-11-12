@@ -802,10 +802,18 @@ function useSystemData() {
   return { data, reload, checkForUpdates };
 }
 
-function SystemPage({ controller }) {
+function SystemPage({ controller, onEditFile }) {
   const { data, reload, checkForUpdates } = useSystemData();
 
   return data
-    ? h("div", { className: "sys-grid" }, h(HostCard, { data, onRefresh: reload }), h(McuCard, { data }), h(PeripheralsCard), h(UpdatesCard, { data, controller, onCheck: checkForUpdates }))
+    ? h(
+        "div",
+        { className: "sys-grid" },
+        h(HostCard, { data, onRefresh: reload }),
+        h(McuCard, { data }),
+        h(PeripheralsCard),
+        h(UpdatesCard, { data, controller, onCheck: checkForUpdates }),
+        h(LogsCard, { onEditFile }), // 1.113: the logs are system things (they were on the Config page)
+      )
     : h(LoadingCard, { label: tx("System"), text: tx("Loading...") });
 }

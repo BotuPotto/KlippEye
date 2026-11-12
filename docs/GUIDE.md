@@ -110,6 +110,7 @@ in the middle, with the list on the left.
     below.
   * **Macros**: how the macros are shown (see below).
   * **Motion and Z-offset**: what Z moves, the motion steps and those of the Z-offset card.
+  * **Materials**: the materials of the temperature window (name, nozzle and bed), yours to change; with Spoolman the spool in use comes first.
 * **Camera, monitor and notifications**
   * **Camera**: the method (WebRTC, MJPEG, MJPEG adaptive or any web page) and its address. **Import from the printer** takes
     them from the cameras already set up on the printer (Moonraker keeps them). Each camera of the printer has its own page;
@@ -121,7 +122,9 @@ in the middle, with the list on the left.
   * **Language**: English, Italian, Spanish, German, French, Portuguese (Brazil), Polish, Simplified Chinese, Russian or Ukrainian, chosen on each device (*Automatic* follows the device's language).
 * **Network and system**
   * **Addresses**: only needed if you open KlippEye from outside your home with ZeroTier, Tailscale or another VPN: the
-    Raspberry's local IP and its external IP. Empty, the camera uses the address you opened the dashboard at.
+    Raspberry's local IP and its external IP. Empty, the camera uses the address you opened the dashboard at. At the
+    bottom, **From outside home with ZeroTier: the guide**: six steps, with the commands to copy, to set ZeroTier up
+    (free for up to 10 devices); they follow the guide of [Pi My Life Up](https://pimylifeup.com/raspberry-pi-zerotier/).
   * **Access**: the optional password (see 7).
   * **Home Assistant / MQTT**: the printer in Home Assistant or another smart-home system.
   * **Updates**: the version, new versions, going back to the previous one, restart of the services, the Android app.
@@ -421,7 +424,7 @@ Everything is in **Settings → AI monitor**, one page, top to bottom:
    (listed first; **Default** is one KlippEye knows works). The keys stay in `~/printer_data/klippeye/ai.json`, readable only
    by the service; the page shows only their last 4 characters. Also here: whether the earlier picture is sent too.
    The **log analysis** has its own service and model: the gear next to **Error analysis and suggestions** in the
-   System logs card (Config page); the keys are the same.
+   System logs card (System page); the keys are the same.
 
 **During a print.** The **AI** badge in the top bar is grey with no print, green while all is well, amber or red with an alarm; a
 tap opens the **AI monitoring panel** (status, score, the last verdict with its picture to enlarge). When the AI sees a problem,

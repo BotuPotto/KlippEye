@@ -99,3 +99,11 @@
   .tune-row__text { flex: 1 1 100%; }
   .tune-row__controls { margin-left: auto; }
 }
+
+/* 1.113: the groups that start folded */
+.tune-group__toggle { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 40px; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.tune-group__toggle > span:first-child { flex: 1; }
+.tune-group__toggle svg { flex-shrink: 0; color: var(--oui-text-3); transition: transform var(--oui-dur-base) var(--oui-ease); }
+.tune-group.is-folded .tune-group__toggle svg { transform: rotate(-90deg); }
+.tune-group.is-folded .tune-group__title { margin-bottom: 0; }
+.tune-group__changed { width: 7px; height: 7px; border-radius: 50%; background: var(--oui-accent); }

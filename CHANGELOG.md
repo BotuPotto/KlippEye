@@ -1,5 +1,18 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.113.0
+
+**Tidier pages, your own materials, and the ZeroTier guide.**
+
+* The **system logs** moved from Config to the **System** page (as on a computer): Config keeps only the configuration files.
+* Control → Tune: **Machine limits** and **Firmware retraction** start folded, one tap opens them (the device remembers);
+  folded, a dot says when one of their values differs from printer.cfg.
+* **Settings → Materials**: the materials of the temperature window are the printer's own, to change, add or remove
+  (and back to the usual ones); **Edit** in the window opens the page. With **Spoolman**, the spool in use comes first,
+  with its filament's temperatures.
+* **Settings → Addresses → From outside home with ZeroTier: the guide**: six steps with the commands to copy, from the
+  free account to the address to write in KlippEye; they follow the guide of Pi My Life Up, credited with its link.
+
 ## 1.112.0
 
 **Materials in the temperature window.** Tap the nozzle or the bed: the usual **materials**, PLA, PETG, ABS, ASA and
