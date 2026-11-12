@@ -178,7 +178,7 @@ function App() {
     h(PhotoViewerLayer),
     h(GcodeViewerLayer),
     h(HelpLayer),
-    h(Presence, null, temperature.dialog.open && h(TemperatureDialog, { maxTemp: capabilities.maxTemp, dialog: temperature.dialog, onChange: temperature.setValue, onClose: temperature.close, onConfirm: temperature.confirm })),
+    h(Presence, null, temperature.dialog.open && h(TemperatureDialog, { maxTemp: capabilities.maxTemp, dialog: temperature.dialog, onChange: temperature.setValue, onClose: temperature.close, onConfirm: temperature.confirm, onMaterial: temperature.material, onOff: temperature.off })),
     h(Presence, null, motion.positionDialog.open && h(PositionDialog, { dialog: motion.positionDialog, onChange: motion.setPositionValue, onClose: motion.closePositionDialog, onConfirm: motion.goToPosition })),
     h(Presence, null, updates.dialog.open && h(UpdateDialog, { controller: updates })),
     !desktop && h(BottomNav, { active: tab, onSelect: selectTab }),

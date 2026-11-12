@@ -1,5 +1,10 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.112.0
+
+**Materials in the temperature window.** Tap the nozzle or the bed: the usual **materials**, PLA, PETG, ABS, ASA and
+TPU, set the nozzle and the bed together with one tap; **Off** switches off the heater the window was opened for.
+
 ## 1.111.0
 
 **The guided set-up, brought up to date** with what KlippEye learned since it was made.
