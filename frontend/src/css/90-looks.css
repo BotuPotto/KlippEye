@@ -73,3 +73,134 @@ html[data-look="hyperos"] {
 html[data-look="hyperos"] body::before { background: #000; }
 html[data-look="hyperos"] .oui-card { -webkit-backdrop-filter: none; backdrop-filter: none; }
 html[data-look="hyperos"] .oui-card-title { font-weight: 600; }
+
+/* ============================================================================
+   1.109: four more looks, after popular apps and sites (not only phones).
+   ========================================================================== */
+
+/* ---- Studio (the tools of software teams): flat near-black, hairline borders, small corners, compact titles, no
+   glow; the accent only where something is chosen ---- */
+html[data-look="studio"] {
+  --oui-bg: #08090a;
+  --oui-surface: #101113;
+  --oui-surface-2: #16171a;
+  --oui-surface-3: #1e2024;
+  --oui-inset: #060607;
+  --oui-stroke: rgba(255, 255, 255, 0.07);
+  --oui-stroke-strong: rgba(255, 255, 255, 0.13);
+  --oui-glass: rgba(16, 17, 19, 0.9);
+  --oui-r-card: 14px;
+  --oui-r-tile: 10px;
+  --oui-r-field: 8px;
+  --oui-r-pill: 8px;
+}
+html[data-look="studio"] body::before { background: var(--oui-bg); }
+html[data-look="studio"] .oui-card { -webkit-backdrop-filter: none; backdrop-filter: none; }
+html[data-look="studio"] .oui-card-title { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; }
+html[data-look="studio"] .bottom-nav { border-radius: 14px; }
+html[data-mode="light"][data-look="studio"] {
+  --oui-bg: #fbfbfc;
+  --oui-surface: #ffffff;
+  --oui-surface-2: #f4f4f6;
+  --oui-surface-3: #ebebee;
+  --oui-inset: #f1f1f3;
+  --oui-stroke: rgba(20, 22, 30, 0.09);
+  --oui-stroke-strong: rgba(20, 22, 30, 0.16);
+  --oui-glass: rgba(255, 255, 255, 0.92);
+}
+html[data-mode="light"][data-look="studio"] .oui-card { box-shadow: none; }
+
+/* ---- Soft (the dashboards of web services): big soft cards with a deep shadow instead of an outline, the accent as a
+   gentle gradient on the main buttons, airy spacing ---- */
+html[data-look="soft"] {
+  --oui-bg: #0d0e14;
+  --oui-surface: #161822;
+  --oui-surface-2: #1d2030;
+  --oui-surface-3: #262a3d;
+  --oui-inset: #11131b;
+  --oui-stroke: transparent;
+  --oui-stroke-strong: rgba(255, 255, 255, 0.1);
+  --oui-glass: rgba(22, 24, 34, 0.9);
+  --oui-r-card: 26px;
+  --oui-r-tile: 18px;
+  --oui-r-field: 14px;
+}
+html[data-look="soft"] body::before {
+  background:
+    radial-gradient(60% 30% at 85% -4%, rgba(var(--oui-accent-rgb), 0.18), transparent 70%),
+    radial-gradient(50% 30% at 0% 20%, rgba(var(--oui-backdrop-rgb), 0.14), transparent 70%),
+    var(--oui-bg);
+}
+html[data-look="soft"] .oui-card { -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 18px 40px rgba(0, 0, 0, 0.35); }
+html[data-look="soft"] .oui-btn--primary { background: linear-gradient(135deg, var(--oui-accent-strong), color-mix(in srgb, var(--oui-accent-strong) 70%, #ff7ab6)); }
+html[data-look="soft"] .oui-progress__bar:not(.oui-progress__bar--ok) { background: linear-gradient(90deg, var(--oui-accent), color-mix(in srgb, var(--oui-accent) 60%, #ff7ab6)); }
+html[data-mode="light"][data-look="soft"] {
+  --oui-bg: #f5f6fb;
+  --oui-surface: #ffffff;
+  --oui-surface-2: #f3f4fa;
+  --oui-surface-3: #e9ebf5;
+  --oui-inset: #eef0f7;
+  --oui-stroke-strong: rgba(20, 22, 40, 0.1);
+  --oui-glass: rgba(255, 255, 255, 0.94);
+}
+html[data-mode="light"][data-look="soft"] .oui-card { box-shadow: 0 2px 4px rgba(30, 34, 70, 0.04), 0 16px 36px rgba(30, 34, 70, 0.08); }
+
+/* ---- Fluent (Windows 11): smoky acrylic over a tinted page, 8 px corners, a thin light edge on top, calm type ---- */
+html[data-look="fluent"] {
+  --oui-bg: #101014;
+  --oui-surface: rgba(255, 255, 255, 0.045);
+  --oui-surface-2: rgba(255, 255, 255, 0.065);
+  --oui-surface-3: rgba(255, 255, 255, 0.1);
+  --oui-stroke: rgba(255, 255, 255, 0.08);
+  --oui-glass: rgba(32, 32, 38, 0.82);
+  --oui-r-card: 10px;
+  --oui-r-tile: 8px;
+  --oui-r-field: 6px;
+  --oui-r-pill: 6px;
+  --oui-blur: 40px;
+}
+html[data-look="fluent"] body::before {
+  background:
+    radial-gradient(100% 60% at 20% 0%, rgba(var(--oui-backdrop-rgb), 0.28), transparent 70%),
+    radial-gradient(80% 50% at 100% 100%, rgba(var(--oui-accent-rgb), 0.12), transparent 70%),
+    var(--oui-bg);
+}
+html[data-look="fluent"] .oui-card { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07), 0 2px 8px rgba(0, 0, 0, 0.25); }
+html[data-look="fluent"] .oui-card-title { font-weight: 600; }
+html[data-look="fluent"] .bottom-nav { border-radius: 10px; }
+html[data-mode="light"][data-look="fluent"] {
+  --oui-bg: #f3f3f6;
+  --oui-surface: rgba(255, 255, 255, 0.72);
+  --oui-surface-2: rgba(20, 22, 30, 0.045);
+  --oui-surface-3: rgba(20, 22, 30, 0.08);
+  --oui-stroke: rgba(20, 22, 30, 0.07);
+  --oui-glass: rgba(249, 249, 251, 0.85);
+}
+html[data-mode="light"][data-look="fluent"] .oui-card { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 2px 8px rgba(20, 22, 40, 0.06); }
+
+/* ---- Aurora (the colourful browsers): a slow gradient of the accent behind everything, glass cards, rounder pills ---- */
+html[data-look="aurora"] {
+  --oui-surface: rgba(255, 255, 255, 0.06);
+  --oui-surface-2: rgba(255, 255, 255, 0.085);
+  --oui-glass: rgba(24, 20, 40, 0.6);
+  --oui-r-card: 30px;
+  --oui-r-tile: 24px;
+}
+html[data-look="aurora"] body::before {
+  background:
+    radial-gradient(60% 45% at 10% 5%, rgba(var(--oui-accent-rgb), 0.38), transparent 70%),
+    radial-gradient(55% 40% at 95% 35%, color-mix(in srgb, var(--oui-accent) 40%, rgba(255, 110, 180, 0.4)), transparent 70%),
+    radial-gradient(70% 45% at 40% 105%, rgba(var(--oui-backdrop-rgb), 0.35), transparent 70%),
+    var(--oui-bg);
+  background-size: 140% 140%;
+  animation: aurora-drift 40s ease-in-out infinite alternate;
+}
+@keyframes aurora-drift { from { background-position: 0% 0%; } to { background-position: 100% 60%; } }
+@media (prefers-reduced-motion: reduce) { html[data-look="aurora"] body::before { animation: none; } }
+html[data-look="aurora"] .oui-card { -webkit-backdrop-filter: blur(26px) saturate(1.6); backdrop-filter: blur(26px) saturate(1.6); }
+html[data-mode="light"][data-look="aurora"] {
+  --oui-surface: rgba(255, 255, 255, 0.62);
+  --oui-surface-2: rgba(40, 20, 80, 0.05);
+  --oui-surface-3: rgba(40, 20, 80, 0.09);
+  --oui-glass: rgba(255, 255, 255, 0.65);
+}

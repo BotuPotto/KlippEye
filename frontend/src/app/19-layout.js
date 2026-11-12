@@ -295,14 +295,18 @@ function arrangeCards(page, cards, column = "main") {
 /* ---------------------------------------------------------------------------
    The look (1.53): css/90-looks.css dresses the page after another phone
    ------------------------------------------------------------------------- */
-const LOOKS = ["oneui", "glass", "material", "hyperos"];
-const lookLabel = (id) => ({ oneui: "One UI", glass: "Liquid Glass", material: "Material 3 Expressive", hyperos: "HyperOS 4" })[id];
+const LOOKS = ["oneui", "glass", "material", "hyperos", "studio", "soft", "fluent", "aurora"];
+const lookLabel = (id) => ({ oneui: "One UI", glass: "Liquid Glass", material: "Material 3 Expressive", hyperos: "HyperOS 4", studio: "Studio", soft: "Soft", fluent: "Fluent", aurora: "Aurora" })[id];
 const lookDetail = (id) =>
   ({
     oneui: tx("Glass cards on the logo's glow (the usual one)"),
     glass: tx("Clearer glass, a light edge, rounder corners"),
     material: tx("Solid surfaces tinted by the colour, bolder titles"),
     hyperos: tx("Black page, flat grey cards"),
+    studio: tx("Flat and sharp, thin lines, small corners: like the tools of software teams"),
+    soft: tx("Big soft cards with shadows, gradient buttons: like the dashboards of web services"),
+    fluent: tx("Smoky glass and square corners, like Windows 11"),
+    aurora: tx("A slowly moving glow of your colour behind glass cards"),
   })[id];
 function applyLook() {
   const look = layoutStore.snapshot().look;

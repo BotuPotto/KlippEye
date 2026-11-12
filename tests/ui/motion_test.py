@@ -98,7 +98,7 @@ with sync_playwright() as p:
     ok("page change: cards of the new page are animating in", any(a["n"] in ("oui-rise", "oui-fade") for a in run), run[:6])
     P.pg.screenshot(path=f"{out}/page_in_60ms.png", animations="allow")
     P.pg.wait_for_timeout(900)
-    left = [a for a in anims(P) if a["t"] == "CSSAnimation" and a["n"] not in ("oui-pulse", "vz-spin", "oui-spin")]
+    left = [a for a in anims(P) if a["t"] == "CSSAnimation" and a["n"] not in ("oui-pulse", "vz-spin", "oui-spin", "oui-breathe", "oui-sweep", "aurora-drift")]
     ok("page change: all entrance animations are over after 0.9 s", not left, left)
     ok("no page errors (tabs)", not errs(P), errs(P)[:3]); P.close()
 

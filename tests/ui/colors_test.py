@@ -81,7 +81,7 @@ with sync_playwright() as p:
     pg.locator('[data-accent="violet"]').click()
     ok("Viola: the logo's colour again", wait_until(lambda: accent(P) == "#b79cff"), accent(P))
     # 1.53: the looks
-    for look in ("glass", "material", "hyperos"):
+    for look in ("glass", "material", "studio", "soft", "fluent", "aurora", "hyperos"):
         pg.locator('[data-look-choice="%s"]' % look).click()
         ok("look %s: set on the page" % look, wait_until(lambda: pg.evaluate("document.documentElement.getAttribute('data-look')") == look))
     ok("HyperOS: the cards are flat grey", pg.evaluate("() => getComputedStyle(document.querySelector('.oui-card')).backgroundColor") == "rgb(22, 23, 26)", pg.evaluate("() => getComputedStyle(document.querySelector('.oui-card')).backgroundColor"))

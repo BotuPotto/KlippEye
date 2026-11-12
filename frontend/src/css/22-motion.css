@@ -91,3 +91,30 @@
   transition: transform var(--oui-dur-slow) var(--oui-ease), width var(--oui-dur-slow) var(--oui-ease);
   pointer-events: none;
 }
+
+/* ---- 1.109: a few more small motions (transform and opacity only: no work for the page's layout) ---- */
+/* the bar of a print going on: a soft light runs along it now and then */
+.oui-progress--live > .oui-progress__bar { position: relative; overflow: hidden; }
+.oui-progress--live > .oui-progress__bar::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.35), transparent);
+  transform: translateX(-100%);
+  animation: oui-sweep 3.2s var(--oui-ease) infinite;
+}
+@keyframes oui-sweep { 60%, 100% { transform: translateX(100%); } }
+/* the AI badge breathes while the monitor is watching */
+.ai-header-badge:not(.ai-header-badge--idle) .ai-header-badge__dot { animation: oui-breathe 2.4s ease-in-out infinite; }
+@keyframes oui-breathe { 50% { transform: scale(0.7); opacity: 0.6; } }
+/* the menu's lines come in one after the other */
+.drawer .set-group--menu .set-entry { animation: oui-fade var(--oui-dur-base) linear backwards, oui-rise var(--oui-dur-slow) var(--oui-ease) backwards; }
+.drawer .set-group--menu:nth-of-type(2) .set-entry { animation-delay: calc(var(--oui-stagger) * 1); }
+.drawer .set-group--menu:nth-of-type(3) .set-entry { animation-delay: calc(var(--oui-stagger) * 2); }
+.drawer .set-group--menu:nth-of-type(4) .set-entry { animation-delay: calc(var(--oui-stagger) * 3); }
+.drawer .set-group--menu:nth-of-type(n + 5) .set-entry { animation-delay: calc(var(--oui-stagger) * 4); }
+/* a switch's knob lands with a small bounce */
+.oui-switch__knob { transition-timing-function: cubic-bezier(0.34, 1.56, 0.64, 1); }
+@media (prefers-reduced-motion: reduce) {
+  .oui-progress--live > .oui-progress__bar::after, .ai-header-badge__dot { animation: none !important; }
+}
