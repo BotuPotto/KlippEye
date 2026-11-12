@@ -111,6 +111,7 @@ impostazioni sono un pannello al centro, con l'elenco a sinistra.
     tua stampante, vedi sotto.
   * **Macro**: come mostrare le macro (vedi più avanti).
   * **Movimento e Z-offset**: cosa muove Z, i passi del movimento e quelli della card Z-offset.
+  * **Materiali**: i materiali della finestra della temperatura (nome, ugello e piatto), modificabili; con Spoolman la bobina in uso viene proposta per prima.
 * **Telecamera, monitor e notifiche**
   * **Telecamera**: il metodo (WebRTC, MJPEG, MJPEG adattivo o una pagina web qualsiasi) e il suo indirizzo. **Importa dalla
     stampante** li prende dalle telecamere già configurate sulla stampante (le tiene Moonraker). Ogni telecamera della stampante ha
@@ -122,7 +123,9 @@ impostazioni sono un pannello al centro, con l'elenco a sinistra.
   * **Lingua**: italiano, inglese, spagnolo, tedesco, francese, portoghese (Brasile), polacco, cinese semplificato, russo o ucraino, scelta su ogni dispositivo (*Automatica* segue la lingua del dispositivo).
 * **Rete e sistema**
   * **Indirizzi**: servono solo se apri KlippEye da fuori casa con ZeroTier, Tailscale o un'altra VPN: l'IP locale del Raspberry e
-    quello esterno. Vuoti, la telecamera usa l'indirizzo da cui hai aperto la dashboard.
+    quello esterno. Vuoti, la telecamera usa l'indirizzo da cui hai aperto la dashboard. In fondo, **Da fuori casa con
+    ZeroTier: la guida**: sei passi, con i comandi da copiare, per configurare ZeroTier (gratis fino a 10 dispositivi);
+    seguono la guida di [Pi My Life Up](https://pimylifeup.com/raspberry-pi-zerotier/).
   * **Accesso**: la password facoltativa (vedi 7).
   * **Home Assistant / MQTT**: la stampante in Home Assistant o in un altro sistema per la casa intelligente.
   * **Aggiornamenti**: versione, nuove versioni, ritorno alla versione precedente, riavvio dei servizi, app Android.
@@ -435,7 +438,7 @@ Tutto sta in **Impostazioni → Monitor IA**, una pagina sola, dall'alto in bass
    di un modello che **veda le immagini** (elencati per primi; **Predefinito** è uno che KlippEye sa che funziona). Le chiavi
    restano in `~/printer_data/klippeye/ai.json`, leggibile solo dal servizio; la pagina ne mostra solo gli ultimi 4
    caratteri. Qui c'è anche se mandare la foto di prima. L'**analisi dei log** ha il suo servizio e modello: l'ingranaggio
-   accanto ad **Analisi errori e suggerimenti** nella scheda Log di sistema (pagina Config); le chiavi sono le stesse.
+   accanto ad **Analisi errori e suggerimenti** nella scheda Log di sistema (pagina Sistema); le chiavi sono le stesse.
 
 **Durante la stampa.** Il badge **AI** nella barra in alto è grigio senza stampa, verde quando va tutto bene, arancione o rosso con
 un allarme; toccandolo si apre il **pannello del monitoraggio IA** (stato, punteggio, ultimo giudizio con la foto da ingrandire). Quando

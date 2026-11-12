@@ -149,15 +149,16 @@ with sync_playwright() as p:
         ok(f"[{label}] move chooser: folders have the amber folder tile", len(tones) == 2 and all("fi--warn" in t for t in tones), tones)
         ok(f"[{label}] move chooser: no tile inside a round disc", P.pg.locator(".cfg-pick .oui-row__icon .fi").count() == 0)
         P.pg.screenshot(path=f"{out}/cfg_move_{label}.png", animations="disabled")
+        log_ref = svg_of(P, ".cfg-row", ".cfg-row__name", "telegram.log")  # the logs are on the System page (1.113)
         ok(f"[{label}] no page errors (config)", not errs(P), errs(P)[:2]); P.close()
 
-        P = fresh("config", w, h, cfg=CFG)
+        P = fresh("sistema", w, h, cfg=CFG)  # 1.113: the logs are on the System page
         logs = P.pg.locator(".log-row")
         n = logs.count()
         want = {"klippy.log": "neutral", "moonraker.log": "neutral", "crowsnest.log": "neutral"}
         got = {name: tone_of(P, ".log-row", ".log-row__name", name) for name in want}
         ok(f"[{label}] logs: every log has a tile of its kind", n == 3 and got == want, got)
-        ref = svg_of(P, ".cfg-row", ".cfg-row__name", "telegram.log")
+        ref = log_ref
         ok(f"[{label}] logs: every log wears the drawing of telegram.log", ref and all(svg_of(P, ".log-row", ".log-row__name", n) == ref for n in want), [n for n in want if svg_of(P, ".log-row", ".log-row__name", n) != ref])
         ok(f"[{label}] logs: tile left of the name, same height as 40 px", P.pg.evaluate("""() => [...document.querySelectorAll('.log-row')].every((r) => { const t = r.querySelector('.fi').getBoundingClientRect(), n = r.querySelector('.log-row__name').getBoundingClientRect(); return t.right <= n.left + 1 && Math.round(t.width) === 40 })"""))
         ok(f"[{label}] logs: name and size still readable (not squeezed to a sliver)", P.pg.evaluate("() => [...document.querySelectorAll('.log-row__name')].every((e) => e.getBoundingClientRect().width > 60)"))

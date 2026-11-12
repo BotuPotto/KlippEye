@@ -210,7 +210,25 @@ function TuneRow({ row, value, onSend }) {
   );
 }
 
+/** 1.113: the groups that start folded (one tap opens them; this device remembers what is open). */
+const TUNE_FOLDED = ["limits", "retraction"];
+const TUNE_OPEN_KEY = "ke_tune_open";
+
 function TuneCard({ capabilities, onGcode }) {
+  const [opened, setOpened] = useState(() => {
+    try {
+      const saved = JSON.parse(storage.get(TUNE_OPEN_KEY) || "[]");
+      return Array.isArray(saved) ? saved : [];
+    } catch (e) {
+      return [];
+    }
+  });
+  const toggle = (id) =>
+    setOpened((now) => {
+      const next = now.includes(id) ? now.filter((one) => one !== id) : now.concat(id);
+      storage.set(TUNE_OPEN_KEY, JSON.stringify(next));
+      return next;
+    });
   const { values, refresh } = useTuneStatus();
   const send = (script) => {
     onGcode(script);
@@ -231,14 +249,26 @@ function TuneCard({ capabilities, onGcode }) {
       : h(
           React.Fragment,
           null,
-          groups.map((group) =>
-            h(
+          groups.map((group) => {
+            const foldable = TUNE_FOLDED.includes(group.id);
+            const open = !foldable || opened.includes(group.id);
+            // folded: a dot says when one of its values differs from printer.cfg
+            const changed = group.rows.some((row) => row.fallback != null && values[row.id] != null && Math.abs(values[row.id] - row.fallback) > 1e-9);
+            return h(
               "div",
-              { key: group.id, className: "tune-group", "data-tune-group": group.id },
-              h("div", { className: "oui-label tune-group__title" }, group.title),
-              group.rows.map((row) => h(TuneRow, { key: row.id, row, value: values[row.id], onSend: send })),
-            ),
-          ),
+              { key: group.id, className: cx("tune-group", foldable && "tune-group--foldable", !open && "is-folded"), "data-tune-group": group.id },
+              foldable
+                ? h(
+                    "button",
+                    { type: "button", className: "oui-label tune-group__title tune-group__toggle", "aria-expanded": open, "data-tune-fold": group.id, onClick: () => toggle(group.id) },
+                    h("span", null, group.title),
+                    !open && changed && h("span", { className: "tune-group__changed", title: tx("Changed from printer.cfg") }),
+                    h(Icons.Chevron, { size: 16 }),
+                  )
+                : h("div", { className: "oui-label tune-group__title" }, group.title),
+              open && group.rows.map((row) => h(TuneRow, { key: row.id, row, value: values[row.id], onSend: send })),
+            );
+          }),
           h("div", { className: "oui-caption tune-note" }, tx("Changes apply at once, during a print too, and last until Klipper restarts: printer.cfg is not changed.")),
         ),
   );

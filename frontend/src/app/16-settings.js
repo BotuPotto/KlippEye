@@ -100,6 +100,35 @@ const MACRO_STATES = ["standby", "printing", "paused"];
 const MACRO_GROUPS_MAX = 30;
 const MACRO_GROUP_NAME_MAX = 40;
 
+/**
+ * 1.112: the usual materials of the temperature window (one tap: the nozzle and the bed together); 1.113: they are
+ * the printer's own list, changed in Settings → Materials (the common starting points; a spool's may differ a little).
+ */
+const MATERIAL_PRESETS = [
+  { name: "PLA", hotend: 210, bed: 60 },
+  { name: "PETG", hotend: 240, bed: 80 },
+  { name: "ABS", hotend: 250, bed: 100 },
+  { name: "ASA", hotend: 255, bed: 100 },
+  { name: "TPU", hotend: 225, bed: 50 },
+];
+const MATERIALS_MAX = 12;
+const MATERIAL_NAME_MAX = 16;
+const MATERIAL_HOTEND_MAX = 350;
+const MATERIAL_BED_MAX = 150;
+
+/** The materials as saved: up to MATERIALS_MAX, each with a name and two whole temperatures (not an array: the usual ones). */
+function cleanMaterials(given) {
+  if (!Array.isArray(given)) return MATERIAL_PRESETS.map((one) => ({ ...one }));
+  return given
+    .filter((one) => isPlainObject(one) && typeof one.name === "string" && one.name.trim())
+    .slice(0, MATERIALS_MAX)
+    .map((one) => ({
+      name: one.name.trim().slice(0, MATERIAL_NAME_MAX),
+      hotend: Math.round(asNumber(one.hotend, 0, MATERIAL_HOTEND_MAX, 0)),
+      bed: Math.round(asNumber(one.bed, 0, MATERIAL_BED_MAX, 0)),
+    }));
+}
+
 const SETTINGS_DEFAULTS = {
   camera: {
     method: "webrtc",
@@ -139,6 +168,7 @@ const SETTINGS_DEFAULTS = {
   macros: { mode: "simple", hidden: [], groups: [] },
   // the guided set-up (59k, 1.22): shown by itself once on a new installation, until it is done or skipped
   setup: { done: false },
+  materials: MATERIAL_PRESETS.map((one) => ({ ...one })), // 1.113: the temperature window's materials
 };
 
 /* ---------------------------------------------------------------------------
@@ -407,6 +437,7 @@ function sanitizeSettings(raw) {
     functions: cleanFunctions(given.functions),
     macros: cleanMacroSettings(given.macros),
     notify: cleanNotify(given.notify),
+    materials: cleanMaterials(given.materials),
     // settings saved before 1.22 (anything stored, without "setup"): an installation already set up, the guide is not forced on it
     setup: { done: isPlainObject(given.setup) ? asBool(given.setup.done, false) : Object.keys(given).length > 0 },
   };

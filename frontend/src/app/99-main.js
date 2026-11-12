@@ -46,9 +46,10 @@ function ControlPage({ entries, status, capabilities, lockReason, printState, on
   );
 }
 
-/** 1.25: the AI monitoring card left this page: the badge in the top bar opens it as a panel. */
+/** 1.25: the AI monitoring card left this page: the badge in the top bar opens it as a panel. 1.113: the logs went to
+ *  the System page (as on a computer). */
 function ConfigPage({ onEditFile, onViewImage }) {
-  return h("div", { className: "grid grid-cols-1" }, h(ConfigFilesCard, { onEditFile, onViewImage }), h(LogsCard, { onEditFile }));
+  return h("div", { className: "grid grid-cols-1" }, h(ConfigFilesCard, { onEditFile, onViewImage }));
 }
 
 const TAB_TITLES = { home: "Home", controllo: tx("Control"), files: "Files", config: "Config", sistema: tx("System") };
@@ -137,7 +138,7 @@ function App() {
           editor: h(TextEditor, { session: editorSession, onClose: () => setEditorSession(null), inline: true, onDirtyChange: setEditorDirty }),
         })
       : h(ConfigPage, { aiMonitor, onEditFile: openEditor, onViewImage: setImagePath }),
-    sistema: desktop ? h(DesktopSystemPage, { controller: updates, aiMonitor, onEditFile: openEditor }) : h(SystemPage, { controller: updates }),
+    sistema: desktop ? h(DesktopSystemPage, { controller: updates, aiMonitor, onEditFile: openEditor }) : h(SystemPage, { controller: updates, onEditFile: openEditor }),
   };
 
   return h(
@@ -178,7 +179,7 @@ function App() {
     h(PhotoViewerLayer),
     h(GcodeViewerLayer),
     h(HelpLayer),
-    h(Presence, null, temperature.dialog.open && h(TemperatureDialog, { maxTemp: capabilities.maxTemp, dialog: temperature.dialog, onChange: temperature.setValue, onClose: temperature.close, onConfirm: temperature.confirm, onMaterial: temperature.material, onOff: temperature.off })),
+    h(Presence, null, temperature.dialog.open && h(TemperatureDialog, { maxTemp: capabilities.maxTemp, dialog: temperature.dialog, onChange: temperature.setValue, onClose: temperature.close, onConfirm: temperature.confirm, onMaterial: temperature.material, onOff: temperature.off, onEditMaterials: () => { temperature.close(); settingsMenu.openPage("materials"); } })),
     h(Presence, null, motion.positionDialog.open && h(PositionDialog, { dialog: motion.positionDialog, onChange: motion.setPositionValue, onClose: motion.closePositionDialog, onConfirm: motion.goToPosition })),
     h(Presence, null, updates.dialog.open && h(UpdateDialog, { controller: updates })),
     !desktop && h(BottomNav, { active: tab, onSelect: selectTab }),

@@ -9,16 +9,31 @@ const HEATERS = {
 };
 
 /**
- * 1.112: the usual materials: one tap sets the nozzle and the bed together (the common starting points; a spool's own
- * temperatures may differ a little).
+ * 1.113: the temperatures of the spool in use, from Spoolman (its filament's «extruder / bed temperature»): null when
+ * there is no Spoolman, no spool in use, or the filament has no temperatures. Read when the window opens.
  */
-const MATERIAL_PRESETS = [
-  { name: "PLA", hotend: 210, bed: 60 },
-  { name: "PETG", hotend: 240, bed: 80 },
-  { name: "ABS", hotend: 250, bed: 100 },
-  { name: "ASA", hotend: 255, bed: 100 },
-  { name: "TPU", hotend: 225, bed: 50 },
-];
+function useActiveSpoolTemps() {
+  const [spool, setSpool] = useState(null);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        if (!(await moonrakerComponents()).has("spoolman")) return;
+        const status = await spoolmanApi.status();
+        if (status.spool_id === undefined || status.spool_id === null || status.spoolman_connected === false) return;
+        const found = await spoolmanApi.spool(Number(status.spool_id));
+        const filament = (found && found.filament) || {};
+        const hotend = Math.round(Number(filament.settings_extruder_temp) || 0);
+        const bed = Math.round(Number(filament.settings_bed_temp) || 0);
+        if (!cancelled && hotend > 0) setSpool({ name: filament.material || spoolName(found), hotend, bed, color: spoolColor(found) });
+      } catch (error) {}
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  return spool;
+}
 
 function HeaterTile({ kind, heater, onEdit, className }) {
   const spec = HEATERS[kind];
@@ -87,7 +102,10 @@ function useTemperatureDialog() {
   return { dialog, edit, close, setValue, confirm, material, off };
 }
 
-function TemperatureDialog({ dialog, onChange, onClose, onConfirm, onMaterial, onOff, maxTemp }) {
+function TemperatureDialog({ dialog, onChange, onClose, onConfirm, onMaterial, onOff, onEditMaterials, maxTemp }) {
+  const { settings } = useSettings();
+  const materials = settings.materials || [];
+  const spool = useActiveSpoolTemps(); // 1.113: the spool in use (Spoolman), when its filament has temperatures
   const inputRef = useRef(null);
   useEffect(() => {
     if (!dialog.open) return;
@@ -134,14 +152,26 @@ function TemperatureDialog({ dialog, onChange, onClose, onConfirm, onMaterial, o
         h(
           "div",
           { className: "temp-presets" },
-          h("div", { className: "oui-label mb-2" }, tx("Material: nozzle and bed together")),
+          h(
+            "div",
+            { className: "temp-presets__head" },
+            h("div", { className: "oui-label" }, tx("Material: nozzle and bed together")),
+            onEditMaterials && h("button", { type: "button", className: "oui-btn oui-btn--quiet oui-btn--sm", "data-edit-materials": "", onClick: onEditMaterials }, h(Icons.Pencil, { size: 15 }), tx("Edit")),
+          ),
           h(
             "div",
             { className: "temp-presets__chips" },
-            MATERIAL_PRESETS.map((preset) =>
+            spool &&
               h(
                 "button",
-                { key: preset.name, type: "button", className: "oui-chip temp-preset", "data-temp-preset": preset.name, onClick: () => onMaterial(preset) },
+                { type: "button", className: "oui-chip temp-preset temp-preset--spool", "data-temp-preset": "spool", onClick: () => onMaterial(spool) },
+                h("span", { className: "temp-preset__name" }, spool.color && h("span", { className: "temp-preset__swatch", style: { background: spool.color } }), spool.name),
+                h("span", { className: "temp-preset__values" }, tx("spool in use") + " · " + spool.hotend + "° / " + spool.bed + "°"),
+              ),
+            materials.map((preset) =>
+              h(
+                "button",
+                { key: preset.name + preset.hotend + preset.bed, type: "button", className: "oui-chip temp-preset", "data-temp-preset": preset.name, onClick: () => onMaterial(preset) },
                 h("span", { className: "temp-preset__name" }, preset.name),
                 h("span", { className: "temp-preset__values" }, preset.hotend + "° / " + preset.bed + "°"),
               ),

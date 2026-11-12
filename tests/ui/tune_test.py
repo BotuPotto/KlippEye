@@ -82,6 +82,13 @@ with sync_playwright() as p:
     ok("pressure advance 0.040, printer.cfg 0.050 written under it", value(P, "pa") == "0.040" and "printer.cfg: 0.050" in row(P, "pa").inner_text(), row(P, "pa").inner_text())
     ok("a value away from printer.cfg has the button back to it, one equal to it does not",
        "is-hidden" not in row(P, "pa").locator(".tune-reset").get_attribute("class") and "is-hidden" in row(P, "smooth").locator(".tune-reset").get_attribute("class"))
+    ok("1.113: machine limits and retraction start folded (only their titles), the others open",
+       row(P, "accel").count() == 0 and row(P, "retractLength").count() == 0 and row(P, "pa").count() == 1
+       and card.locator('[data-tune-fold="limits"]').get_attribute("aria-expanded") == "false")
+    card.locator('[data-tune-fold="limits"]').click()
+    card.locator('[data-tune-fold="retraction"]').click()
+    P.settle(300)
+    ok("... one tap opens each", row(P, "accel").count() == 1 and row(P, "retractLength").count() == 1)
     ok("limits of a recent Klipper: minimum cruise ratio, no accel_to_decel", row(P, "mcr").count() == 1 and row(P, "a2d").count() == 0)
     ok("no horizontal overflow at 390", pg.evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth"))
     card.screenshot(path=out + "/tune_card_390.png")
@@ -106,6 +113,12 @@ with sync_playwright() as p:
     field.press("Enter")
     pg.wait_for_timeout(900)
     ok("text that is not a number is not sent and the value comes back", value(P, "accel") == "5000" and not any("ACCEL=abc" in g for g in gcodes()))
+    P.goto("controllo", 2200)
+    ok("1.113: opened groups stay open on this device", row(P, "accel").count() == 1)
+    card = P.pg.locator(".tune-card")
+    card.locator('[data-tune-fold="limits"]').click(); P.settle(300)
+    ok("... folded with a value away from printer.cfg: a dot on its title", row(P, "accel").count() == 0 and card.locator('[data-tune-group="limits"] .tune-group__changed').count() == 1)
+    card.locator('[data-tune-fold="limits"]').click(); P.settle(300)
     row(P, "pa").locator(".tune-reset").click()
     ok("back to printer.cfg on the pressure advance: SET_PRESSURE_ADVANCE ADVANCE=0.05", wait_until(lambda: "SET_PRESSURE_ADVANCE ADVANCE=0.05" in gcodes()), gcodes()[-4:])
     ok("... the field shows 0.050 and the button goes", wait_until(lambda: value(P, "pa") == "0.050" and "is-hidden" in row(P, "pa").locator(".tune-reset").get_attribute("class")))
@@ -117,6 +130,8 @@ with sync_playwright() as p:
 
     # ---- an older Klipper, no firmware retraction
     P = fresh(b, old_limits=True, has_retraction=False)
+    wait_until(lambda: P.pg.locator('[data-tune-fold="limits"]').count() == 1)
+    P.pg.locator('[data-tune-fold="limits"]').click()
     ok("an older Klipper: accel_to_decel instead of the minimum cruise ratio", wait_until(lambda: row(P, "a2d").count() == 1) and row(P, "mcr").count() == 0)
     ok("no [firmware_retraction]: no retraction group", P.pg.locator('[data-tune-group="retraction"]').count() == 0)
     P.close()

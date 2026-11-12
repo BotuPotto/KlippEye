@@ -541,6 +541,68 @@ function NetworkPage() {
     h(SettingsGroup, { title: tx("For the camera use") }, h(ChoiceRows, { label: tx("Camera address"), options: routes, value: route, onChange: (id) => update((draft) => (draft.network.route = id)) })),
     h("div", { className: "set-status set-status--ok" }, h("span", { className: "set-status__dot" }), using.side === "same" ? tx("The camera now uses the address of this page: {host}", { host: using.host }) : using.side === "local" ? tx("The camera now uses the local address {host}", { host: using.host }) : tx("The camera now uses the external address {host}", { host: using.host })),
     h(AppAddressesNote, { state: appAddressesState(settings) }),
+    h(ZeroTierGuide),
+  );
+}
+
+/**
+ * 1.113: how to reach the printer from outside home with ZeroTier, step by step (free for up to 10 devices). The
+ * steps follow the guide of Pi My Life Up, credited with its link.
+ */
+const ZEROTIER_SOURCE = "https://pimylifeup.com/raspberry-pi-zerotier/";
+const ZEROTIER_INSTALL = [
+  "sudo apt update",
+  "curl https://raw.githubusercontent.com/zerotier/ZeroTierOne/master/doc/contact%40zerotier.com.gpg | gpg --dearmor | sudo tee /usr/share/keyrings/zerotierone-archive-keyring.gpg >/dev/null",
+  "RELEASE=$(lsb_release -cs)",
+  'echo "deb [signed-by=/usr/share/keyrings/zerotierone-archive-keyring.gpg] http://download.zerotier.com/debian/$RELEASE $RELEASE main" | sudo tee /etc/apt/sources.list.d/zerotier.list',
+  "sudo apt update",
+  "sudo apt install -y zerotier-one",
+].join("\n");
+
+function ZeroTierGuide() {
+  const step = (n, title, ...body) =>
+    h("li", { className: "zt-step", "data-zt-step": n }, h("div", { className: "zt-step__title" }, title), ...body);
+  const p = (text) => h("p", { className: "zt-step__text" }, text);
+  return h(
+    "details",
+    { className: "zt-guide", "data-zerotier-guide": "" },
+    h("summary", { className: "zt-guide__summary" }, h(Icons.Network, { size: 18 }), h("span", null, tx("From outside home with ZeroTier: the guide"))),
+    h(
+      "div",
+      { className: "zt-guide__body" },
+      p(tx("ZeroTier joins the Raspberry, your phone and your computer in a private network of their own, wherever they are: the dashboard opens from outside home as it does at home. Free for up to 10 devices.")),
+      h(
+        "ol",
+        { className: "zt-steps" },
+        step(1, tx("Create the network"), p(tx("On my.zerotier.com make a free account, confirm the e-mail, then tap «Create A Network». Copy its «Network ID» (16 letters and digits): it is needed below."))),
+        step(
+          2,
+          tx("Install ZeroTier on the Raspberry"),
+          p(tx("Open a terminal on the Raspberry (SSH) and run these commands one after the other:")),
+          h(CodeBlock, { code: ZEROTIER_INSTALL, lang: "bash" }),
+        ),
+        step(
+          3,
+          tx("Join the network"),
+          p(tx("Put your Network ID in place of NETWORK_ID; the answer is «200 join OK».")),
+          h(CodeBlock, { code: "sudo zerotier-cli join NETWORK_ID", lang: "bash" }),
+        ),
+        step(
+          4,
+          tx("Let the Raspberry in"),
+          p(tx("On my.zerotier.com open the network: under «Members» tick «Auth» on the Raspberry's line and give it a name. After a few seconds «Managed IPs» shows its address (for example 172.25.170.177). To check it from the Raspberry:")),
+          h(CodeBlock, { code: "sudo zerotier-cli listnetworks", lang: "bash" }),
+        ),
+        step(5, tx("Add the phone and the computer"), p(tx("Install the «ZeroTier One» app (Android, iPhone, Windows, macOS), join the same Network ID, then tick «Auth» on their lines too, as in step 4."))),
+        step(6, tx("Tell KlippEye"), p(tx("Write the Raspberry's ZeroTier address in «External IP (ZeroTier, VPN)» above. With «Camera address: Automatic» the camera picks the right one by itself, at home and outside."))),
+      ),
+      h(
+        "p",
+        { className: "oui-caption zt-guide__credit" },
+        tx("Steps based on the guide «Running ZeroTier on the Raspberry Pi» by Pi My Life Up:") + " ",
+        h("a", { href: ZEROTIER_SOURCE, target: "_blank", rel: "noopener noreferrer" }, "pimylifeup.com"),
+      ),
+    ),
   );
 }
 
@@ -768,6 +830,8 @@ function settingsSummary(page, settings, brain) {
       return motionSummary(settings.motion) + " • Z-offset " + zOffset.steps.join(" · ");
     case "macros":
       return macroSettingsSummary(settings.macros);
+    case "materials":
+      return materialsSummary(settings.materials);
     case "language":
       return languageSummary();
     case "functions":
@@ -800,6 +864,7 @@ const SETTINGS_ENTRIES = [
   { id: "functions", group: "printer", title: tx("Printer functions"), icon: Icons.Bulb },
   { id: "macros", group: "printer", title: tx("Macros"), icon: Icons.Play },
   { id: "motion", group: "printer", title: tx("Motion and Z-offset"), icon: Icons.Move },
+  { id: "materials", group: "printer", title: tx("Materials"), icon: Icons.Spool }, // 1.113
   { id: "camera", group: "watch", title: tx("Camera"), icon: Icons.Camera },
   { id: "ai", group: "watch", title: tx("AI monitor"), icon: Icons.Sparkle },
   { id: "notifications", group: "watch", title: tx("Notifications"), icon: Icons.Bell },
@@ -838,6 +903,7 @@ const SETTINGS_WORDS = () => ({
   functions: tx("lights, LED, filament sensor, fans, chamber, heaters, power, buzzer"),
   macros: tx("macros, buttons, G-code, groups, start, end"),
   motion: tx("jog, move, steps, speed, home, Z offset, baby step, probe"),
+  materials: tx("filament, PLA, PETG, temperature, nozzle, bed, spool, Spoolman"),
   camera: tx("webcam, stream, picture, timelapse, rotate, flip"),
   ai: tx("AI, spaghetti, failure, detection, key, Gemini, Groq, local model, pause by itself"),
   notifications: tx("notifications, ntfy, phone, alerts, end of print"),
@@ -997,6 +1063,7 @@ function SettingsDrawer({ menu, updates, printing, actions }) {
   else if (page === "zoffset") body = h(ZOffsetPage);
   else if (page === "motion") body = h(React.Fragment, null, h(MotionPage), h("h3", { className: "fn-section", "data-section": "zoffset" }, h(Icons.Layers, { size: 18 }), "Z-offset"), h(ZOffsetPage));
   else if (page === "macros") body = h(MacrosPage);
+  else if (page === "materials") body = h(MaterialsPage);
   else if (page === "notifications") body = h(NotificationsPage, { active: true });
   else if (page === "ai") body = h(AiPage, { active: true, menu });
   else if (page === "detector") body = h(DetectorPage, { active: true });
