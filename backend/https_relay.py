@@ -98,20 +98,43 @@ def forward_head(head, client_ip):
     return b"\r\n".join([request_line] + kept) + b"\r\n\r\n"
 
 
+def _server_context(cert, key):
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    context.minimum_version = ssl.TLSVersion.TLSv1_2
+    context.load_cert_chain(cert, key)
+    return context
+
+
 class HttpsRelay:
-    def __init__(self, port, backend_port, cert, key, log=print):
+    """public: (cert, key, name) of the secure address (public_name.py, 1.116), used when the browser asks for that
+    name (SNI); everyone else (the address, the Android app) gets the Raspberry's own certificate."""
+
+    def __init__(self, port, backend_port, cert, key, log=print, public=None):
         self.port, self.backend_port, self.log = port, backend_port, log
-        self.context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-        self.context.minimum_version = ssl.TLSVersion.TLSv1_2
-        self.context.load_cert_chain(cert, key)
+        self.context = _server_context(cert, key)
+        self.public_name = None
+        if public:
+            self.public_context, self.public_name = _server_context(public[0], public[1]), public[2].lower()
+            self.context.sni_callback = self._pick
         self.server = None
         self.slots = threading.BoundedSemaphore(MAX_CONNECTIONS)
         self.stopped = False
 
+    def _pick(self, tls, server_name, _context):
+        if server_name and server_name.lower() == self.public_name:
+            tls.context = self.public_context
+        return None
+
     def start(self):
-        server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        server.bind(("0.0.0.0", self.port))
+        try:  # 1.116: IPv4 and IPv6 (the secure address may point to the IPv6 one)
+            server = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
+            server.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
+            server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            server.bind(("::", self.port))
+        except OSError:
+            server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            server.bind(("0.0.0.0", self.port))
         server.listen(32)
         self.server = server
         threading.Thread(target=self._accept, name="https-relay", daemon=True).start()
@@ -141,7 +164,8 @@ class HttpsRelay:
             if not self.slots.acquire(blocking=False):
                 conn.close()  # too many at once: the browser tries again
                 continue
-            threading.Thread(target=self._serve, args=(conn, address[0]), daemon=True).start()
+            client = address[0][7:] if address[0].startswith("::ffff:") else address[0]  # an IPv4 client on the IPv6 socket
+            threading.Thread(target=self._serve, args=(conn, client), daemon=True).start()
 
     def _serve(self, raw, client_ip):
         tls = backend = None
