@@ -38,7 +38,12 @@ def pick(P, title):
 def toast(P): return " | ".join(P.pg.locator(".toast").all_inner_texts())
 def saved(P): return P.pg.evaluate("window.__saved || null")
 def enter(P, folder): row(P, folder).locator(".cfg-row__main").click(); P.pg.wait_for_timeout(500)
-def log_download(P, name): P.pg.locator(".log-row", has_text=name).locator("button[aria-label='Download']").click(); P.pg.wait_for_timeout(600)
+def log_download(P, name, back=True):
+    # 1.113: the logs are on the System page; back to Config afterwards
+    P.pg.locator(".bottom-nav__tab[data-tab=sistema]").click(); P.pg.wait_for_selector(".log-row", timeout=15000)
+    P.pg.locator(".log-row", has_text=name).locator("button[aria-label='Download']").click(); P.pg.wait_for_timeout(600)
+    if back:
+        P.pg.locator(".bottom-nav__tab[data-tab=config]").click(); P.pg.wait_for_timeout(900)
 def get(url): return urllib.request.urlopen(mock.base + url).read().decode()
 
 with sync_playwright() as p:
@@ -119,8 +124,9 @@ with sync_playwright() as p:
         open_menu(P, "printer.cfg"); pick(P, "Scarica")
         ok(label + ": config download explains", "aggiornala" in toast(P) and len(P.downloads) == 0, toast(P))
         P.pg.wait_for_timeout(300)
-        log_download(P, "klippy.log")
+        log_download(P, "klippy.log", back=False)
         ok(label + ": log download explains, nothing downloaded", "aggiornala" in toast(P) and len(P.downloads) == 0 and len(P.ctx.pages) == 1, (toast(P), len(P.downloads)))
+        P.pg.locator(".bottom-nav__tab[data-tab=config]").click(); P.pg.wait_for_timeout(900)
         if extra:
             card(P).locator("button:has-text('Nuovo')").click(); P.pg.wait_for_selector(".oui-menu")
             it = P.pg.locator(".oui-menu__item", has_text="Carica file")

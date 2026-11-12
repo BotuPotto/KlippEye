@@ -256,7 +256,7 @@ function TuneCard({ capabilities, onGcode }) {
             const changed = group.rows.some((row) => row.fallback != null && values[row.id] != null && Math.abs(values[row.id] - row.fallback) > 1e-9);
             return h(
               "div",
-              { key: group.id, className: cx("tune-group", foldable && "tune-group--foldable", !open && "is-folded"), "data-tune-group": group.id },
+              { key: group.id, className: cx("tune-group", !open && "is-folded"), "data-tune-group": group.id },
               foldable
                 ? h(
                     "button",
