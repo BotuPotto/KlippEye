@@ -156,7 +156,7 @@ with sync_playwright() as p:
     ok("Monitor IA page: a row leads to the thresholds", pg.locator('.set-entry[data-page="detector"]').count() == 1)
     pg.click('.set-entry[data-page="detector"]'); P.settle(600)
     ok("the thresholds page opens with its title", pg.locator(".drawer__title").inner_text() == "Soglie del monitor")
-    wanted = ["rilevamento del movimento", "falsi allarmi", "pause e consumi", "quando comincia a controllare", "senza calibrazione della telecamera: il rettangolo controllato"]
+    wanted = ["rilevamento del movimento", "falsi allarmi", "pause e consumi", "quando comincia a controllare", "modello locale", "senza calibrazione della telecamera: il rettangolo controllato"]
     ok("the groups are the ones the backend declares", wait_until(lambda: [t.lower() for t in pg.locator(".set-group__label").all_inner_texts()] == wanted), pg.locator(".set-group__label").all_inner_texts())
     ok("a line says the monitor is on", "Il monitor è acceso" in pg.locator(".set-status").first.inner_text(), pg.locator(".set-status").first.inner_text())
     ok("a number shows its usual value in its box", num_box(P, "Soglia di cambiamento").input_value() == "35" and num_box(P, "Controlli sospetti prima dell'allarme").input_value() == "3")
