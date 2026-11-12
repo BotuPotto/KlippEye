@@ -1,6 +1,7 @@
 """Release 1.106: the local model on Settings → AI monitor: none installed (it says the monitor works without, no switches),
 KlippEye's model in use (version, last look, what it did, its switches, the way to its thresholds); its thresholds in their
-own group on Monitor thresholds; 320 px. Against the mock.
+own group on Monitor thresholds; 320 px. Release 1.107: the personal layer (off at first: only its switch; on: how many
+examples, learn now, import / export / remove the imported ones). Against the mock.
 Usage: local_model_test.py <html> <outdir> <port>"""
 import json
 import os
@@ -21,6 +22,10 @@ def ok(name, cond, extra=""):
     if not cond:
         FAILS.append(name)
     print(("PASS " if cond else "FAIL ") + name + ((" :: " + str(extra)[:600]) if (extra != "" and not cond) else ""), flush=True)
+
+
+def state():
+    return json.loads(urllib.request.urlopen(mock.base + "/__mock/state").read())
 
 
 def open_page(b, page, w=390, h=844, **st):
@@ -61,7 +66,45 @@ with sync_playwright() as p:
        "MODELLO LOCALE" in page.upper() and "In dubbio da" in page and "Sicuro da" in page and "Ogni quanto guarda da solo" in page and "Usa il modello locale" not in page, page[-1200:])
     P.close()
 
-    P = open_page(b, "ai", 320, 700, local_model=model)
+    personal = {"enabled": False, "trained": False, "training": False, "error": "", "imported": [], "have": {"failed": 2, "fine": 8}, "needed": {"failed": 5, "fine": 20}}
+    P = open_page(b, "ai", local_model=dict(model, personal=personal))
+    switch = P.pg.locator('.set-switch:has-text("Impara dalle stampe di questa stampante")')
+    ok("the personal layer: off at first, only its switch", switch.count() == 1 and P.pg.locator("[data-personal]").count() == 0
+       and P.pg.locator("[data-personal-train]").count() == 0, P.pg.locator(".drawer__body").inner_text()[-800:])
+    switch.click()
+    P.settle(1500)
+    status = P.pg.locator("[data-personal]")
+    ok("... switched on: saved, and how many examples it still needs", any(c.get("personal_learning") is True for c in state()["brain_cfg_log"])
+       and status.count() == 1 and status.get_attribute("data-personal") == "waiting" and "2 di 5" in status.inner_text() and "8 di 20" in status.inner_text(),
+       status.inner_text() if status.count() else state()["brain_cfg_log"])
+    P.pg.locator("[data-personal-train]").click()
+    P.settle(1800)
+    status = P.pg.locator("[data-personal]")
+    ok("... «Learn now»: asked, then what it learned and how often it was right", {"train": True} in state()["personal_posts"]
+       and status.get_attribute("data-personal") == "trained" and "31 esempi" in status.inner_text() and "94%" in status.inner_text(), status.inner_text())
+    with P.pg.expect_download() as download:
+        P.pg.locator("[data-personal-export]").click()
+    ok("... «Export the examples»: a zip", download.value.suggested_filename.endswith(".zip"), download.value.suggested_filename)
+    zip_path = os.path.join(out, "examples.zip")
+    import zipfile
+    with zipfile.ZipFile(zip_path, "w") as archive:
+        archive.writestr("labels.json", json.dumps({"format": 1, "pictures": {}}))
+    P.pg.locator("[data-personal-import] ~ input[type=file]").set_input_files(zip_path)
+    P.settle(1800)
+    posts = state()["personal_posts"]
+    listed = P.pg.locator("[data-personal-imported]")
+    ok("... «Import examples»: the file sent, the printer it came from listed", any(p.get("import") == "examples.zip" and p.get("bytes", 0) > 0 for p in posts)
+       and listed.count() == 1 and "voron (40)" in listed.inner_text(), (posts, listed.inner_text() if listed.count() else ""))
+    P.shot(os.path.join(out, "local_model_personal.png"))
+    P.pg.locator("[data-personal-forget]").click()
+    P.settle(1800)
+    ok("... the imported ones removed", {"forget_imported": True} in state()["personal_posts"] and P.pg.locator("[data-personal-imported]").count() == 0)
+    P.close()
+
+    P = open_page(b, "ai", 320, 700, local_model=dict(model, personal=dict(personal, enabled=True, trained=True, examples=31, failed=9, fine=22,
+                                                                                          imported=[{"origin": "a", "printer": "a-printer-with-a-very-long-name", "pictures": 12}])))
+    P.pg.locator('.set-switch:has-text("Impara dalle stampe di questa stampante")').click()
+    P.settle(1200)
     wide = P.pg.evaluate("() => { const d = document.querySelector('.drawer__body'); return d.scrollWidth - d.clientWidth; }")
     ok("320 px: nothing sideways", wide <= 0, wide)
     P.close()

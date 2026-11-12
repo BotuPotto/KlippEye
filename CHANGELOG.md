@@ -1,5 +1,21 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.107.0
+
+**The local model learns from each printer** (the fifth step of the new AI monitor), optional and off at first.
+
+* Settings → AI monitor → Local model → **Learn from this printer's prints**: the answers to «How did the print go?»
+  (the pictures before the moment of the failure as fine, those from a minute after it as failed) and the labelled
+  recordings train a small personal layer on the base model's description of each picture — on the Raspberry, a few
+  seconds after each answer (the first time, with many recordings, a minute or two). Its rating is blended with the base model's, more as the examples grow (from 5 failed and
+  20 fine pictures).
+* What it learned is shown (how many examples, how often it was right on those kept aside); **Learn now** trains it at once.
+* **Export the examples** / **Import examples**: the small pictures and their labels in one zip, to carry what one printer
+  learned to another; the imported ones can be removed. Nothing is ever sent elsewhere.
+* A new base model: the descriptions are computed again from the pictures kept, by themselves.
+* `POST /api/local_model/personal`, `GET /api/local_model/personal/export`, `POST /api/local_model/personal/import`;
+  `GET /api/local_model` has `personal`.
+
 ## 1.106.0
 
 **The local model in the monitor** (the fourth step of the new AI monitor): the motion detection, the local model and the

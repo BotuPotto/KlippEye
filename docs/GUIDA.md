@@ -445,6 +445,12 @@ valuta ogni allarme del rilevamento del movimento e guarda anche da solo ogni 15
 un dubbio o è sicuro, così gli allarmi che giudica innocui non costano chiamate e un guasto che il rilevamento del movimento non
 vede viene preso lo stesso.
 
+Il modello locale è uguale per tutti. Con **Impara dalle stampe di questa stampante** attivo (stessa pagina, spento all'inizio)
+impara anche dalla tua stampante: ogni risposta a *Com'è andata la stampa?* e ogni registrazione etichettata addestrano, sul
+Raspberry e in pochi secondi, un piccolo strato tutto suo che conta di più man mano che gli esempi crescono (almeno 5 foto di
+stampe fallite e 20 di riuscite). Le foto non lasciano mai la stampante; **Esporta gli esempi** le salva (piccole, con cosa
+mostra ciascuna) in un file che **Importa esempi** aggiunge a un'altra tua stampante.
+
 **A fine stampa** una card in cima alla Home chiede **Com'è andata la stampa?**: *Andata bene*, oppure *C'era un problema*
 (quale, e col cursore da quale foto si vede). Richiede un secondo ed è facoltativo: *Salta*, oppure *Non chiedere più*
 (Impostazioni → Registrazioni → «Chiedi com'è andata ogni stampa» la riattiva). La risposta giudica gli allarmi della stampa non

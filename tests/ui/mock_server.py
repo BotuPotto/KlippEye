@@ -107,6 +107,7 @@ def default_state():
         "analysis_action": "CONTINUA",
         "ai_answer": None, "ai_answers": [],   # the person's answers to the alarm (/api/print/last_analysis/answer, 1.25)
         "review": None, "review_answers": [],
+        "personal_posts": [],       # 1.107: what the page sent to /api/local_model/personal*
         "local_model": {"available": False, "error": ""},   # 1.106: GET /api/local_model  # 1.103: the print waiting for «how did it go?» and the answers
         "update_channel": "dev",   # the channel of [update_manager klippeye] (None: not listed)
         "channel_posts": [],
@@ -423,7 +424,7 @@ def mock_reset():
     S.clear(); S.update(default_state()); return jsonify(ok=True)
 @app.route("/__mock/state")
 def mock_state():
-    return jsonify({k: v for k, v in S.items() if k in ("light", "light_cmds", "light_reads", "actions", "webhooks", "webhooks_msg", "disconnected", "moonraker_down", "host_off", "services", "update_log", "brain_cfg_log", "brain_release", "brain_started", "klippeye_info", "pending_release", "logos", "app_apk_hits", "app_apk_downloads", "update_channel", "channel_posts", "rec_posts", "measure_starts", "measure_bodies", "ai_cfg", "ai_posts", "ai_model_reads", "excluded", "strip", "caselight", "mesh_profiles", "mesh_active", "mp", "mp_points", "tune", "speed_factor", "extrude_factor", "bs", "level_applied", "recordings", "alerts", "pm_macros", "pm_wraps", "pm_posts", "gcode_log", "ntfy", "ntfy_posts", "ntfy_tests", "ntfy_app_reads", "ai_answers", "ai_answer", "history_log", "queue", "queue_state", "queue_log", "power_devices", "power_log", "pins", "sensors", "timelapse_settings", "timelapse_log", "timelapse_conf_reads", "cfg", "timelapse_files", "spool_id", "spool_log", "webcams", "webcam_log", "peek_log", "schedule", "schedule_log", "metascan_log", "versions_log", "web", "web_log", "review", "review_answers")})
+    return jsonify({k: v for k, v in S.items() if k in ("light", "light_cmds", "light_reads", "actions", "webhooks", "webhooks_msg", "disconnected", "moonraker_down", "host_off", "services", "update_log", "brain_cfg_log", "brain_release", "brain_started", "klippeye_info", "pending_release", "logos", "app_apk_hits", "app_apk_downloads", "update_channel", "channel_posts", "rec_posts", "measure_starts", "measure_bodies", "ai_cfg", "ai_posts", "ai_model_reads", "excluded", "strip", "caselight", "mesh_profiles", "mesh_active", "mp", "mp_points", "tune", "speed_factor", "extrude_factor", "bs", "level_applied", "recordings", "alerts", "pm_macros", "pm_wraps", "pm_posts", "gcode_log", "ntfy", "ntfy_posts", "ntfy_tests", "ntfy_app_reads", "ai_answers", "ai_answer", "history_log", "queue", "queue_state", "queue_log", "power_devices", "power_log", "pins", "sensors", "timelapse_settings", "timelapse_log", "timelapse_conf_reads", "cfg", "timelapse_files", "spool_id", "spool_log", "webcams", "webcam_log", "peek_log", "schedule", "schedule_log", "metascan_log", "versions_log", "web", "web_log", "review", "review_answers", "personal_posts", "local_model")})
 @app.route("/__mock/print_actions")
 def mock_print_actions():
     return jsonify(S.get("print_actions", []))
@@ -1406,6 +1407,41 @@ def mock_camera_calibration():
 @app.route("/api/local_model", methods=["GET", "POST"])
 def mock_local_model():
     return jsonify(dict(S["local_model"], ok=True, enabled=True, last=S["local_model"].get("last", {}), folders={}))
+
+
+@app.route("/api/local_model/personal", methods=["POST"])
+def mock_local_model_personal():
+    """1.107: {"train": true} trains (the mock: trained, 31 examples); {"forget_imported": true} forgets the imported ones."""
+    body = request.get_json(silent=True) or {}
+    S["personal_posts"].append(body)
+    personal = S["local_model"].setdefault("personal", {})
+    if body.get("forget_imported"):
+        personal["imported"] = []
+    if body.get("train"):
+        personal.update(trained=True, examples=31, failed=9, fine=22, measured={"right": 0.94})
+    return jsonify(ok=True, personal=personal)
+
+
+@app.route("/api/local_model/personal/export")
+def mock_local_model_personal_export():
+    S["personal_posts"].append({"export": True})
+    import io, zipfile
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        archive.writestr("labels.json", json.dumps({"format": 1, "pictures": {}}))
+    return Response(buffer.getvalue(), mimetype="application/zip", headers={"Content-Disposition": 'attachment; filename="klippeye-examples.zip"'})
+
+
+@app.route("/api/local_model/personal/import", methods=["POST"])
+def mock_local_model_personal_import():
+    upload = request.files.get("file")
+    data = upload.read() if upload else b""
+    S["personal_posts"].append({"import": upload.filename if upload else None, "bytes": len(data)})
+    if not data.startswith(b"PK"):
+        return jsonify(ok=False, error="not a file exported by KlippEye"), 400
+    personal = S["local_model"].setdefault("personal", {})
+    personal["imported"] = (personal.get("imported") or []) + [{"origin": "voron", "printer": "voron", "pictures": 40}]
+    return jsonify(ok=True, imported=40, personal=personal)
 
 
 @app.route("/api/print/review")
