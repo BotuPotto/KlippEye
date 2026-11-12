@@ -7,8 +7,6 @@
 * Control → Console: the list of matching commands (Tab) no longer squeezes its lines into each other when a command's
   help takes two lines; the same rule now holds for every list that scrolls inside a window.
 * Files: on a phone the names of the files wrap after `_`, `.` and `-` instead of in the middle of a word.
-* A visual sweep of every page, at three sizes, idle and printing, with every menu opened, now looks for texts running
-  into each other or cut off.
 
 ## 1.107.0
 
