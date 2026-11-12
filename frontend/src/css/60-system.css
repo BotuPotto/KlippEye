@@ -80,7 +80,7 @@
   box-sizing: border-box;
   border-radius: 9px;
   background: var(--oui-accent);
-  color: #fff;
+  color: var(--oui-on-accent);
   font-size: 11px;
   font-weight: 700;
   line-height: 1;

@@ -31,7 +31,7 @@
 .log--error { color: var(--oui-danger); }
 .log--info { color: var(--oui-text-2); }
 .log--dim { color: var(--oui-text-3); }
-.log-line--pick:hover .log--command { color: #fff; }
+.log-line--pick:hover .log--command { color: var(--oui-text); }
 
 .console-input { font-size: 15px; }
 .console-send { flex-shrink: 0; width: 48px; }

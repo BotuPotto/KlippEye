@@ -78,6 +78,8 @@ function profileRange(profile) {
 }
 
 /** The colours (blue low → yellow → red high), the scale running over the mesh's own range (1.36.1). */
+/** 1.108: the colour of the lines and figures drawn over the page (white on the dark page, black on the light one). */
+const inkColor = (alpha) => "rgba(" + (getComputedStyle(document.documentElement).getPropertyValue("--oui-ink-rgb").trim() || "255, 255, 255") + "," + alpha + ")";
 const MESH_COLORS = ["#313695", "#4575b4", "#74add1", "#abd9e9", "#e0f3f8", "#ffffbf", "#fee090", "#fdae61", "#f46d43", "#d73027", "#a50026"];
 const MESH_RGB = MESH_COLORS.map((hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)));
 /** White writing on the dark ends of the scale, black in the light middle. */
@@ -148,10 +150,10 @@ function drawBuildVolume(ctx, { place, boxHeight, heightScale, mid }, stats) {
     ctx.stroke();
   };
   const STEPS = 4;
-  const grid = "rgba(255,255,255,0.10)";
-  const edge = "rgba(255,255,255,0.28)";
+  const grid = inkColor(0.1);
+  const edge = inkColor(0.28);
   // floor
-  ctx.fillStyle = "rgba(255,255,255,0.035)";
+  ctx.fillStyle = inkColor(0.035);
   drawPath(ctx, [place(-1, -1, low), place(1, -1, low), place(1, 1, low), place(-1, 1, low)]);
   ctx.closePath();
   ctx.fill();
@@ -172,7 +174,7 @@ function drawBuildVolume(ctx, { place, boxHeight, heightScale, mid }, stats) {
     line(place(-1, endY, z), place(1, endY, z), grid);
   }
   // values: X along the front edge, Y along the near side, Z up the corner between the walls
-  ctx.fillStyle = "rgba(255,255,255,0.62)";
+  ctx.fillStyle = inkColor(0.62);
   ctx.font = "500 10px system-ui, sans-serif";
   ctx.textAlign = "center";
   const area = stats.area;
@@ -202,7 +204,7 @@ function drawZValues(ctx, { place, heightScale, mid }, stats) {
   const sideX = place(1, 0, 0).depth > place(-1, 0, 0).depth ? 1 : -1;
   const endY = place(0, 1, 0).depth > place(0, -1, 0).depth ? 1 : -1;
   ctx.font = "500 10px system-ui, sans-serif";
-  ctx.fillStyle = "rgba(255,255,255,0.7)";
+  ctx.fillStyle = inkColor(0.7);
   ctx.textAlign = "right";
   for (const value of [stats.min, stats.max]) {
     const p = place(sideX, endY, (value - mid) * heightScale);

@@ -18,7 +18,7 @@
 .rec-alert { display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; }
 .rec-alert + .rec-alert { margin-top: 8px; }
 .rec-alert__head { display: flex; gap: 12px; align-items: flex-start; }
-.rec-alert__img { flex-shrink: 0; width: 112px; aspect-ratio: 3 / 2; background: #0b0c0f; border-radius: 6px; }
+.rec-alert__img { flex-shrink: 0; width: 112px; aspect-ratio: 3 / 2; background: var(--oui-photo-bg); border-radius: 6px; }
 .rec-alert__under { color: var(--oui-text-3); font-size: 12px; }
 .rec-alert__text { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .rec-alert__when { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; color: var(--oui-text-3); font-size: 12px; font-variant-numeric: tabular-nums; }
