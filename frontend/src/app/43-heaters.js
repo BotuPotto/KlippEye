@@ -8,6 +8,18 @@ const HEATERS = {
   bed: { label: "BED", icon: BED_ICON_PNG, gcode: "M140 S" },
 };
 
+/**
+ * 1.112: the usual materials: one tap sets the nozzle and the bed together (the common starting points; a spool's own
+ * temperatures may differ a little).
+ */
+const MATERIAL_PRESETS = [
+  { name: "PLA", hotend: 210, bed: 60 },
+  { name: "PETG", hotend: 240, bed: 80 },
+  { name: "ABS", hotend: 250, bed: 100 },
+  { name: "ASA", hotend: 255, bed: 100 },
+  { name: "TPU", hotend: 225, bed: 50 },
+];
+
 function HeaterTile({ kind, heater, onEdit, className }) {
   const spec = HEATERS[kind];
   const tone = isHot(heater) ? "hot" : "cold";
@@ -62,10 +74,20 @@ function useTemperatureDialog() {
     sendBrainGcode(HEATERS[dialog.kind].gcode + (parseInt(dialog.value) || 0)).catch(noop);
     close();
   };
-  return { dialog, edit, close, setValue, confirm };
+  /** 1.112: a material: the nozzle and the bed at once. */
+  const material = (preset) => {
+    sendBrainGcode(HEATERS.hotend.gcode + preset.hotend + "\n" + HEATERS.bed.gcode + preset.bed).catch(noop);
+    close();
+  };
+  /** 1.112: this heater off. */
+  const off = () => {
+    sendBrainGcode(HEATERS[dialog.kind].gcode + "0").catch(noop);
+    close();
+  };
+  return { dialog, edit, close, setValue, confirm, material, off };
 }
 
-function TemperatureDialog({ dialog, onChange, onClose, onConfirm, maxTemp }) {
+function TemperatureDialog({ dialog, onChange, onClose, onConfirm, onMaterial, onOff, maxTemp }) {
   const inputRef = useRef(null);
   useEffect(() => {
     if (!dialog.open) return;
@@ -108,6 +130,25 @@ function TemperatureDialog({ dialog, onChange, onClose, onConfirm, maxTemp }) {
           h("span", { className: "dialog-unit" }, "°C"),
         ),
       ),
+      onMaterial &&
+        h(
+          "div",
+          { className: "temp-presets" },
+          h("div", { className: "oui-label mb-2" }, tx("Material: nozzle and bed together")),
+          h(
+            "div",
+            { className: "temp-presets__chips" },
+            MATERIAL_PRESETS.map((preset) =>
+              h(
+                "button",
+                { key: preset.name, type: "button", className: "oui-chip temp-preset", "data-temp-preset": preset.name, onClick: () => onMaterial(preset) },
+                h("span", { className: "temp-preset__name" }, preset.name),
+                h("span", { className: "temp-preset__values" }, preset.hotend + "° / " + preset.bed + "°"),
+              ),
+            ),
+            onOff && h("button", { type: "button", className: "oui-chip temp-preset temp-preset--off", "data-temp-preset": "off", onClick: onOff }, h(Icons.Power, { size: 14 }), txc("heater", "Off")),
+          ),
+        ),
       h(
         "div",
         { className: "oui-btn-row" },
