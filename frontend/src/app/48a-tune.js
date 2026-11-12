@@ -210,28 +210,6 @@ function TuneRow({ row, value, onSend }) {
   );
 }
 
-/** 1.112: the speed in one tap, as printers with modes do: quiet, standard, sport, turbo (M220). */
-const SPEED_MODES = [
-  { id: "quiet", percent: 50, label: () => tx("Quiet") },
-  { id: "standard", percent: 100, label: () => tx("Standard") },
-  { id: "sport", percent: 124, label: () => tx("Sport") },
-  { id: "turbo", percent: 166, label: () => tx("Turbo") },
-];
-function SpeedModes({ value, onSend }) {
-  return h(
-    "div",
-    { className: "oui-segmented speed-modes", role: "radiogroup", "aria-label": tx("Speed mode") },
-    SPEED_MODES.map((mode) =>
-      h(
-        "button",
-        { key: mode.id, type: "button", role: "radio", "aria-checked": value === mode.percent, className: cx(value === mode.percent && "is-selected"), "data-speed-mode": mode.id, onClick: () => onSend("M220 S" + mode.percent) },
-        h("span", null, mode.label()),
-        h("span", { className: "speed-modes__pct" }, mode.percent + "%"),
-      ),
-    ),
-  );
-}
-
 function TuneCard({ capabilities, onGcode }) {
   const { values, refresh } = useTuneStatus();
   const send = (script) => {
@@ -258,11 +236,7 @@ function TuneCard({ capabilities, onGcode }) {
               "div",
               { key: group.id, className: "tune-group", "data-tune-group": group.id },
               h("div", { className: "oui-label tune-group__title" }, group.title),
-              group.rows.map((row) =>
-                row.id === "speed"
-                  ? h(React.Fragment, { key: row.id }, h(TuneRow, { row, value: values[row.id], onSend: send }), h(SpeedModes, { value: values.speed, onSend: send }))
-                  : h(TuneRow, { key: row.id, row, value: values[row.id], onSend: send }),
-              ),
+              group.rows.map((row) => h(TuneRow, { key: row.id, row, value: values[row.id], onSend: send })),
             ),
           ),
           h("div", { className: "oui-caption tune-note" }, tx("Changes apply at once, during a print too, and last until Klipper restarts: printer.cfg is not changed.")),

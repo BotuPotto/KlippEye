@@ -2,12 +2,8 @@
 
 ## 1.112.0
 
-**Two small things the other printer apps have.**
-
-* The temperature window (tap the nozzle or the bed): the usual **materials**, PLA, PETG, ABS, ASA and TPU, set the
-  nozzle and the bed together with one tap; **Off** switches off the heater the window was opened for.
-* Control → Tune → Speed: the **speed modes** in one tap, Quiet 50 %, Standard 100 %, Sport 124 %, Turbo 166 % (M220); the
-  one in use is marked.
+**Materials in the temperature window.** Tap the nozzle or the bed: the usual **materials**, PLA, PETG, ABS, ASA and
+TPU, set the nozzle and the bed together with one tap; **Off** switches off the heater the window was opened for.
 
 ## 1.111.0
 

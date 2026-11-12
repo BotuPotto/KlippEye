@@ -89,13 +89,6 @@ with sync_playwright() as p:
     row(P, "speed").locator("button[aria-label$='+']").click()
     ok("+ on the speed: M220 S115, after a moment", wait_until(lambda: "M220 S115" in gcodes()), gcodes()[-5:])
     ok("... and the field shows what Klipper now reports", wait_until(lambda: value(P, "speed") == "115" and abs(state()["speed_factor"] - 1.15) < 1e-6))
-    modes = card.locator("[data-speed-mode]")
-    ok("1.112: the speed modes under the speed (quiet, standard, sport, turbo); none chosen at 115 %",
-       [modes.nth(i).get_attribute("data-speed-mode") for i in range(modes.count())] == ["quiet", "standard", "sport", "turbo"] and card.locator('[data-speed-mode][aria-checked="true"]').count() == 0)
-    card.locator('[data-speed-mode="sport"]').click()
-    ok("... «Sport»: M220 S124, then it is the one chosen", wait_until(lambda: "M220 S124" in gcodes()) and wait_until(lambda: card.locator('[data-speed-mode="sport"]').get_attribute("aria-checked") == "true"), gcodes()[-3:])
-    card.locator('[data-speed-mode="standard"]').click()
-    ok("... «Standard»: back to 100 %", wait_until(lambda: "M220 S100" in gcodes()) and wait_until(lambda: value(P, "speed") == "100"))
     before = len([g for g in gcodes() if g.startswith("M221")])
     plus = row(P, "flow").locator("button[aria-label$='+']")
     for _ in range(3):
