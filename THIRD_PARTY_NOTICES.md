@@ -24,6 +24,15 @@ It includes or uses the following third-party works, each under its own license.
 | kotlinx.coroutines | Apache License 2.0 |
 | Firebase Cloud Messaging (Firebase BoM) | Apache License 2.0 |
 
+## Included: the base local model (`models/base/`)
+
+| Work | License |
+|---|---|
+| MobileNetV3-Small network and its ImageNet weights (torchvision), the starting point of `model.onnx` | BSD-3-Clause, Copyright (c) Soumith Chintala 2016, all contributors |
+| The 19 public datasets of 3D print photos it was trained on (Roboflow Universe) | CC BY 4.0 (17), MIT (1), Public Domain (1): each one, with its authors' page, version and licence, is listed in `models/base/CREDITS.md` |
+
+No photo of the datasets is distributed with KlippEye: only the trained weights.
+
 ## Used at run time, not distributed with KlippEye
 
 Python packages installed from the system (Flask, Werkzeug, requests, NumPy, OpenCV) keep their own licenses

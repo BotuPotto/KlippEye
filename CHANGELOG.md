@@ -1,5 +1,19 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.114.0
+
+**KlippEye's own local model is here.** The AI monitor now comes with a small model (`models/base/`, about 6 MB) that
+runs on the Raspberry, without internet, and looks for a failing print: it judges the alarms of the motion detection,
+so the online AI is asked only when a picture looks doubtful, and every 15 seconds it also looks by itself, so a failure
+the motion detection misses is still caught.
+
+* Trained on 38,247 photos from 19 public collections of 3D print failures (spaghetti, detachment, layer shifts, blobs…),
+  each credited with its licence in `models/base/CREDITS.md`. On photos it never saw: about 95 failures out of 100
+  caught, and 95 alarms out of 100 right.
+* Public photos are not your camera and your light: «Learn from this printer's prints» (Settings → AI monitor) adapts
+  it to your printer, from the prints you judge.
+* A model you trained yourself (data folder → `model/`) is still used instead of this one.
+
 ## 1.113.0
 
 **Tidier pages, your own materials, and the ZeroTier guide.**

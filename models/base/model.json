@@ -1,0 +1,31 @@
+{
+ "format": 1,
+ "version": "20261112-1614",
+ "size": 224,
+ "mean": [
+  0.485,
+  0.456,
+  0.406
+ ],
+ "std": [
+  0.229,
+  0.224,
+  0.225
+ ],
+ "threshold": 0.3,
+ "embedding": 1024,
+ "network": "mobilenet_v3_small",
+ "trained_on": {
+  "pictures": 32303,
+  "failed": 22654,
+  "fine": 9649
+ },
+ "measured": {
+  "threshold": 0.3,
+  "precision": 0.948,
+  "recall": 0.952,
+  "f1": 0.95,
+  "false_alarms": 216,
+  "missed": 198
+ }
+}
