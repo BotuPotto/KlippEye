@@ -473,7 +473,7 @@ function PrintProgressCard({ status, controls, monitor }) {
         "div",
         { className: "flex-1 min-w-0" },
         h("div", { className: "print-file" }, status.filename),
-        h("div", { className: "oui-progress" }, h("div", { className: "oui-progress__bar", style: { width: status.pct + "%" } })),
+        h("div", { className: cx("oui-progress", status.state === "printing" && "oui-progress--live") }, h("div", { className: "oui-progress__bar", style: { width: status.pct + "%" } })),
       ),
     ),
     h(

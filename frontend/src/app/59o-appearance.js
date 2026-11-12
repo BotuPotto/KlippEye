@@ -179,7 +179,7 @@ function LookChoice() {
   const current = LOOKS.includes(layout.look) ? layout.look : "oneui";
   return h(
     SettingsGroup,
-    { title: tx("Look"), note: tx("The same page and colours, dressed after another phone. On this device.") },
+    { title: tx("Look"), note: tx("The same page and colours, dressed after another popular app. On this device.") },
     h(
       "div",
       { className: "look-choices", role: "radiogroup", "aria-label": tx("Look") },
