@@ -1,5 +1,16 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.108.0
+
+**Dark, light or as the device.** Settings → Appearance → **Theme**: *Dark* (the usual), *Light*, or *As the device*,
+which follows the phone's or computer's dark mode, also when it changes by itself in the evening. Kept on this device.
+
+* The light page: white cards over a pale grey, dark text, deeper status colours and a deeper accent (white text on it);
+  the top bar, the side menu, the windows and the browser's bar follow.
+* Every look (One UI, Liquid Glass, Material 3 Expressive, HyperOS 4) has its light version.
+* The code editor, the G-code viewer, the AI's code blocks and the camera stay dark.
+* The bed mesh's lines and figures take the page's colour.
+
 ## 1.107.1
 
 **Visual fixes.**
