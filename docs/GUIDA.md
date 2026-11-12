@@ -440,6 +440,11 @@ L'IA scrive le sue osservazioni nella lingua delle notifiche; ogni allarme resta
 Registrazioni e `~/printer_data/klippeye/alerts/`). Quando l'IA ha proposto pausa o annullamento ma nessun difetto arrivava alla
 fiducia minima, l'allarme lo dice in arancione («Pausa proposta, sotto la soglia»).
 
+Con un **modello locale** installato (Impostazioni → Monitor IA → Modello locale), un piccolo modello di immagini sul Raspberry
+valuta ogni allarme del rilevamento del movimento e guarda anche da solo ogni 15 secondi: l'IA online viene interpellata quando ha
+un dubbio o è sicuro, così gli allarmi che giudica innocui non costano chiamate e un guasto che il rilevamento del movimento non
+vede viene preso lo stesso.
+
 **A fine stampa** una card in cima alla Home chiede **Com'è andata la stampa?**: *Andata bene*, oppure *C'era un problema*
 (quale, e col cursore da quale foto si vede). Richiede un secondo ed è facoltativo: *Salta*, oppure *Non chiedere più*
 (Impostazioni → Registrazioni → «Chiedi com'è andata ogni stampa» la riattiva). La risposta giudica gli allarmi della stampa non

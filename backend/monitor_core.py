@@ -64,6 +64,8 @@ class FrameJudge:
         self.global_change = 30.0
         self.ai_min_confidence = 70
         self.ai_send_reference = True
+        self.local_enabled, self.local_filter, self.local_alone = True, True, False   # 1.106: the local model
+        self.local_every, self.local_doubt, self.local_sure = 15, 35, 80
         self.recent_masks = deque(maxlen=2 * 3)  # (changed, seen) of the last checks: twice persist_checks (see _persistent)
         self.ref_small = deque(maxlen=REFERENCE_SAMPLES)  # (time, small grey picture) for the background
         self.ref_jpegs = deque(maxlen=REFERENCE_SAMPLES)  # (time, picture as the camera sent it) to show the AI "how it was before"
@@ -112,6 +114,12 @@ class FrameJudge:
         self.global_change = get("global_change", self.global_change)
         self.ai_min_confidence = get("ai_min_confidence", self.ai_min_confidence)
         self.ai_send_reference = get("ai_send_reference", self.ai_send_reference)
+        self.local_enabled = get("local_enabled", self.local_enabled)
+        self.local_filter = get("local_filter", self.local_filter)
+        self.local_alone = get("local_alone", self.local_alone)
+        self.local_every = get("local_every", self.local_every)
+        self.local_doubt = get("local_doubt", self.local_doubt)
+        self.local_sure = get("local_sure", self.local_sure)
         if "roi" in values:
             x, y, w, h = values["roi"]  # in % of the picture -> pixels of the resized picture (1080x720)
             self.roi = (int(OPENCV_WIDTH * x / 100), int(OPENCV_HEIGHT * y / 100), int(OPENCV_WIDTH * w / 100), int(OPENCV_HEIGHT * h / 100))

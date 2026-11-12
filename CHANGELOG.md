@@ -1,5 +1,23 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.106.0
+
+**The local model in the monitor** (the fourth step of the new AI monitor): the motion detection, the local model and the
+online AI work together.
+
+* When a local model is installed (KlippEye's own in `models/base/`, or yours in the data folder's `model/`), it rates
+  every alarm of the motion detection and also looks by itself every 15 seconds:
+  * an alarm of the motion detection goes to the online AI only if the local model has at least a doubt (35%), with its
+    rating in the AI's question; the others are kept from it (fewer calls, fewer false alarms);
+  * two «sure» looks in a row (80%) ask the online AI even without any alarm of the motion detection — the failures the
+    motion detection misses; three «in doubt» in a row ask it too;
+  * optional: when no online AI can answer (no key, the limits used up), three sure looks propose a pause by the local
+    model alone.
+* Settings → AI monitor → **Local model**: which model is in use, its last look and what it did, its switches;
+  its thresholds in Monitor thresholds → Local model. Without a model nothing changes.
+* The recordings keep the local model's rating of each picture, to measure it afterwards.
+* `GET /api/local_model` (and `POST {"reload": true}` after copying a model).
+
 ## 1.105.0
 
 **The local model's tools** (the third step of the new AI monitor): what is needed to make, on a computer or on Google

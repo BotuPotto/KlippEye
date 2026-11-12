@@ -64,6 +64,7 @@ function AiPage({ active, menu }) {
   const calibration = useBackendJson("/api/camera/calibration", active, BRAIN_POLL_MS);
   const recordings = useBackendJson("/api/recordings", active, BRAIN_POLL_MS);
   const aiServices = useAiServices(active);
+  const localModel = useBackendJson("/api/local_model", active, BRAIN_POLL_MS);
   const data = useMemo(() => (config.data ? localizeBrainSchema(config.data) : null), [config.data]);
   const spec = (key) => (data ? data.spec.find((item) => item.key === key) : null);
   const control = (key) => (spec(key) && config.values[key] !== undefined ? h(BrainSettingControl, { key, spec: spec(key), config }) : null);
@@ -139,6 +140,29 @@ function AiPage({ active, menu }) {
       h(AiServicesPanel, { use: "monitor", ai: aiServices }),
       config.phase === "ok" && h("div", { className: "oui-list" }, control("ai_send_reference")),
     ),
+    localModel.phase === "ok" && h(LocalModelGroup, { info: localModel.data, control, config, menu }),
+  );
+}
+
+/** The local model (1.106): which one is in use and its last look, the switches; its thresholds are in Monitor thresholds. */
+function LocalModelGroup({ info, control, config, menu }) {
+  const last = info.last || {};
+  const status = info.available
+    ? tx("In use: {source} • version {version}", { source: info.source === "own" ? tx("your model") : tx("KlippEye's model"), version: info.version || "?" }) +
+      (Number.isFinite(last.score) ? " • " + tx("last look: {score}%", { score: Math.round(last.score) }) : "")
+    : tx("No local model installed yet: the monitor works without it (the motion detection and the online AI).");
+  const counts =
+    info.available && last.checks
+      ? tx("Looks: {checks} • alarms it kept from the online AI: {filtered} • times it asked the online AI: {asked}", { checks: last.checks || 0, filtered: last.filtered || 0, asked: last.asked || 0 })
+      : "";
+  return h(
+    SettingsGroup,
+    { title: tx("Local model") },
+    h("div", { className: cx("set-status", info.available ? "set-status--ok" : "set-status--warn"), "data-local-model": info.available ? info.source : "none" }, h("span", { className: "set-status__dot" }), status),
+    counts && h("p", { className: "oui-caption" }, counts),
+    info.available && config.phase === "ok" && h("div", { className: "oui-list" }, control("local_enabled"), control("local_filter"), control("local_alone")),
+    info.available && h("button", { type: "button", className: "oui-btn oui-btn--quiet oui-btn--sm set-inline-btn", "data-go": "detector", onClick: () => menu.goTo("detector") }, h(Icons.Sliders, { size: 16 }), tx("Its thresholds: Monitor thresholds → Local model")),
+    h("p", { className: "set-group__note" }, tx("A small image model that runs on the Raspberry, without internet: it looks at the print by itself and judges the alarms before the online AI is asked.")),
   );
 }
 

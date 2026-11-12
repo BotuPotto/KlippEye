@@ -106,7 +106,8 @@ def default_state():
         "has_analysis": True,
         "analysis_action": "CONTINUA",
         "ai_answer": None, "ai_answers": [],   # the person's answers to the alarm (/api/print/last_analysis/answer, 1.25)
-        "review": None, "review_answers": [],  # 1.103: the print waiting for «how did it go?» and the answers
+        "review": None, "review_answers": [],
+        "local_model": {"available": False, "error": ""},   # 1.106: GET /api/local_model  # 1.103: the print waiting for «how did it go?» and the answers
         "update_channel": "dev",   # the channel of [update_manager klippeye] (None: not listed)
         "channel_posts": [],
         "mesh": True,
@@ -1400,6 +1401,11 @@ def mock_camera_calibration():
     if S["brain"] == "old":
         return Response("<!doctype html><title>404 Not Found</title>", status=404, mimetype="text/html")
     return jsonify(ok=True, saved=None, watch={"state": "unknown"}, usable=False, draft={}, marks={"state": "idle"}, printer=None, targets=[], has_cv2=True)
+
+
+@app.route("/api/local_model", methods=["GET", "POST"])
+def mock_local_model():
+    return jsonify(dict(S["local_model"], ok=True, enabled=True, last=S["local_model"].get("last", {}), folders={}))
 
 
 @app.route("/api/print/review")
