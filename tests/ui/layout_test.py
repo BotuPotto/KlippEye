@@ -168,7 +168,29 @@ with sync_playwright() as p:
     P.pg.wait_for_selector(".drawer")
     P.settle(600)
     ok("1.63: no 'Vai a' group in the menu", P.pg.locator('[data-group="pages"]').count() == 0 and P.pg.locator('[data-page^="go-"]').count() == 0)
-    ok("1.60: 'Notifiche e aspetto': notifications, appearance, language", [e.get_attribute("data-page") for e in P.pg.locator('[data-group="yours"] [data-page]').all()] == ["notifications", "appearance", "language"])
+    ok("1.110: 'Aspetto e lingua': appearance, language; the notifications with the camera and the monitor",
+       [e.get_attribute("data-page") for e in P.pg.locator('[data-group="yours"] [data-page]').all()] == ["appearance", "language"]
+       and [e.get_attribute("data-page") for e in P.pg.locator('[data-group="watch"] [data-page]').all()] == ["camera", "ai", "notifications"])
+    search = P.pg.locator("[data-settings-search]")
+    search.fill("soglie")
+    P.settle(300)
+    found = [e.get_attribute("data-found") for e in P.pg.locator("[data-found]").all()]
+    ok("1.110: the search finds a page inside another one (Monitor thresholds, in AI monitor) and hides the groups",
+       found == ["detector"] and "in Monitor IA" in P.pg.locator('[data-found="detector"]').inner_text() and P.pg.locator('[data-group="printer"]').count() == 0, found)
+    search.fill("tema scuro")
+    P.settle(300)
+    ok("... by words a person would use (theme, dark: Appearance)", [e.get_attribute("data-found") for e in P.pg.locator("[data-found]").all()] == ["appearance"])
+    search.fill("velocita")
+    P.settle(300)
+    ok("... without accents too", "motion" in [e.get_attribute("data-found") for e in P.pg.locator("[data-found]").all()])
+    search.fill("zzzz")
+    P.settle(300)
+    ok("... nothing found: said", "nessun risultato" in P.pg.locator('[data-group="found"]').inner_text().lower())
+    search.fill("soglie")
+    P.settle(300)
+    P.pg.locator('[data-found="detector"]').click()
+    P.settle(800)
+    ok("... a result opens its page", P.pg.locator(".drawer__title").inner_text() == "Soglie del monitor")
     P.close()
 
     # computer: the cards fold there too

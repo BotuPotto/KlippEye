@@ -105,7 +105,7 @@ const HELP = {
     title: tx("How the settings work"),
     sections: [
       { id: "where", title: tx("Saved on the Raspberry"), text: [tx("The settings are saved on the Raspberry: every phone and computer that opens the dashboard sees the same ones (only the language is chosen on each device). The line under the list says whether the last change has reached the Raspberry.")] },
-      { id: "groups", title: tx("What is where"), text: [tx("The printer: name, logo, the buttons that use your macros, the Z-offset steps. Camera and AI monitor: the picture and the failure detection. Phone and network: notifications and addresses. System: password, updates, language.")] },
+      { id: "groups", title: tx("What is where"), text: [tx("The printer: your printers, its functions, the macros, motion and Z-offset. Camera, monitor and notifications: the picture, the failure detection and what you are told. Appearance and language: theme, colours, looks, the order of the cards. Network and system: addresses, password, Home Assistant, updates. The search at the top finds any page.")] },
       { id: "guide", title: tx("The guided set-up"), text: [tx("«Guided set-up», at the top of the menu, goes through everything KlippEye needs, one step at a time. It can be repeated whenever you want; every step can be skipped.")] },
       { id: "help", title: tx("The «?» buttons"), text: [tx("Every page has a «?» in its title bar: it opens the guide of that page. Some groups have their own small «?» for the part that needs a word more.")] },
     ],
