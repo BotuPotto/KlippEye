@@ -779,6 +779,10 @@ select.oui-field option { background: #1a1c22; color: var(--oui-text); }
 .my-3 { margin-top: 12px; margin-bottom: 12px; }
 .text-center { text-align: center; }
 
+/* 1.107.1: in a column that scrolls, the lines keep their height (a flex column with a maximum height would otherwise
+   squeeze them, and their texts run into each other — seen in the console's list of commands) */
+:is(.exclude-list, .console-suggest, .console-filters__list, .macro-prompt__body, .drawer__list) > * { flex-shrink: 0; }
+
 /* ============================================================================
    App chrome: top bar, floating tab bar, page column
    ========================================================================== */
@@ -2212,10 +2216,10 @@ body.is-pulling { overscroll-behavior-y: none; }
   background: var(--oui-glass-solid);
   box-shadow: var(--oui-shadow-float);
 }
-.console-suggest__item { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-height: 44px; padding: 8px 10px; border-radius: 10px; text-align: left; }
+.console-suggest__item { display: flex; flex-direction: column; align-items: flex-start; flex-shrink: 0; gap: 2px; min-height: 44px; padding: 8px 10px; border-radius: 10px; text-align: left; }
 .console-suggest__item:hover, .console-suggest__item:focus-visible { background: var(--oui-surface-2); outline: none; }
 .console-suggest__name { font-family: var(--oui-font-mono); font-size: 13px; font-weight: 600; color: var(--oui-accent-text); }
-.console-suggest__help { font-size: 12px; color: var(--oui-text-3); overflow-wrap: anywhere; }
+.console-suggest__help { font-size: 12px; line-height: 1.35; color: var(--oui-text-3); overflow-wrap: anywhere; }
 .console-suggest__more { padding: 6px 10px; font-size: 12px; color: var(--oui-text-3); }
 
 /* 1.78: hidden lines */
@@ -9594,7 +9598,7 @@ function usePrinterFunctions() {
    ========================================================================== */
 
 /** Written by build.py from the VERSION file of the release; stays as it is when the page is built by hand. */
-const DASHBOARD_RELEASE = "1.107.0";
+const DASHBOARD_RELEASE = "1.107.1";
 const dashboardRelease = () => (DASHBOARD_RELEASE.startsWith("__") ? "sviluppo" : DASHBOARD_RELEASE);
 
 /** The interface level this page needs from the backend (the backend says its own in /api/version). */
@@ -17264,6 +17268,12 @@ const FILES_METADATA_LIMIT_WIDE = 24; // ...a wide screen shows far more tiles a
    ------------------------------------------------------------------------- */
 const encodeRemotePath = (path) => path.split("/").map(encodeURIComponent).join("/");
 
+/** 1.107.1: a file's name that wraps after its separators (_ . -) rather than in the middle of a word. */
+function breakableName(name) {
+  const parts = String(name || "").split(/(?<=[_.\-])/);
+  return parts.flatMap((part, index) => (index ? [h("wbr", { key: "w" + index }), part] : [part]));
+}
+
 /** Moonraker reports errors as { error: { code, message } }, the backend proxy as { error: "text" }. */
 async function responseError(response) {
   try {
@@ -17512,7 +17522,7 @@ function FileCard({ file, meta, thumbnail, onPrint, onMenu, selected, onSelect }
     h(
       "div",
       { className: "file-card__body" },
-      h("div", { className: "file-card__name" }, fileName),
+      h("div", { className: "file-card__name", title: fileName }, breakableName(fileName)),
       h(
         "div",
         { className: "file-card__meta" },

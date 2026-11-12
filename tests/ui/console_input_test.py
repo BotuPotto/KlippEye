@@ -99,6 +99,9 @@ with sync_playwright() as p:
     field.press("Tab")
     box = pg.locator(".console-suggest").first
     ok("Tab with several: the list above the field, with each command's help", wait_until(lambda: box.count() == 1) and box.locator("[data-suggest]").count() >= 4 and "help for SET_LED" in box.inner_text(), box.inner_text() if box.count() else "")
+    rows = box.evaluate("""b => [...b.querySelectorAll('[data-suggest]')].map(e => { const r = e.getBoundingClientRect(); return [r.top, r.bottom, e.scrollHeight - e.clientHeight]; })""")
+    ok("1.107.1: the list scrolls, its lines are never squeezed into each other (a long help wraps inside its line)",
+       all(a[1] <= b[0] + 0.5 for a, b in zip(rows, rows[1:])) and all(r[2] <= 1 for r in rows), rows)
     ok("... the field has what they share", field.input_value() == "SET_")
     pg.screenshot(path=out + "/phone.png")
     box.locator('[data-suggest="SET_PRESSURE_ADVANCE"]').click()

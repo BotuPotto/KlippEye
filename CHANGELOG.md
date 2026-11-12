@@ -1,5 +1,13 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.107.1
+
+**Visual fixes.**
+
+* Control → Console: the list of matching commands (Tab) no longer squeezes its lines into each other when a command's
+  help takes two lines; the same rule now holds for every list that scrolls inside a window.
+* Files: on a phone the names of the files wrap after `_`, `.` and `-` instead of in the middle of a word.
+
 ## 1.107.0
 
 **The local model learns from each printer** (the fifth step of the new AI monitor), optional and off at first.
