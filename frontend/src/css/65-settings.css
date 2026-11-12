@@ -194,7 +194,7 @@
 
 /* ---- the camera picture with the watched area ---- */
 .set-roi { display: flex; flex-direction: column; gap: 8px; }
-.set-roi__frame { position: relative; width: 100%; aspect-ratio: 3 / 2; overflow: hidden; background: #0b0c0f; border-radius: var(--oui-r-field); }
+.set-roi__frame { position: relative; width: 100%; aspect-ratio: 3 / 2; overflow: hidden; background: var(--oui-photo-bg); border-radius: var(--oui-r-field); }
 .set-roi__img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: fill; user-select: none; -webkit-user-drag: none; }
 .set-roi__empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 16px; color: var(--oui-text-3); font-size: 12px; line-height: 1.4; text-align: center; }
 .set-roi__box { position: absolute; box-sizing: border-box; border: 2px solid var(--oui-accent); background: rgba(var(--oui-accent-rgb), 0.12); border-radius: 4px; pointer-events: none; transition: left var(--oui-dur-fast) var(--oui-ease), top var(--oui-dur-fast) var(--oui-ease), width var(--oui-dur-fast) var(--oui-ease), height var(--oui-dur-fast) var(--oui-ease); }
@@ -333,7 +333,7 @@
 }
 @keyframes drawer-panel-in { from { opacity: 0; transform: scale(0.97) translateY(8px); } }
 [data-presence="leaving"] .drawer.drawer--panel { animation: oui-fade-out var(--oui-dur-exit) linear forwards; }
-.drawer__side { display: flex; flex-direction: column; min-height: 0; border-right: 1px solid var(--oui-stroke); background: rgba(255, 255, 255, 0.02); }
+.drawer__side { display: flex; flex-direction: column; min-height: 0; border-right: 1px solid var(--oui-stroke); background: rgba(var(--oui-ink-rgb), 0.02); }
 .drawer__brand { flex: 1; min-width: 0; font-size: 20px; font-weight: 700; letter-spacing: -0.01em; }
 .drawer__list { display: flex; flex: 1; flex-direction: column; gap: 16px; min-height: 0; padding: 8px 14px 20px; overflow-y: auto; overscroll-behavior: contain; }
 .drawer__list > * { flex-shrink: 0; }

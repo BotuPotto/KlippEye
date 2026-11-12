@@ -1,0 +1,126 @@
+/* ============================================================================
+   The light page (1.108): Settings → Appearance → Theme → Light, or «As the
+   device» when the phone or computer is in light mode (<html data-mode="light">,
+   app/19-layout.js). The same tokens as 00-tokens.css, for a light page: white
+   cards over a pale grey, dark text, deeper status colours (they must read on
+   white). The accent is worked out by accentTokens() for the light page.
+   The code wells (editor, G-code viewer, AI code blocks) and the camera stay
+   dark: they are drawn with the dark tokens (.oui-dark-island below).
+   ========================================================================== */
+
+html[data-mode="light"] {
+  color-scheme: light;
+
+  --oui-bg: #eef0f5;
+  --oui-ink-rgb: 20, 22, 30;
+
+  --oui-surface: rgba(255, 255, 255, 0.82);
+  --oui-surface-2: rgba(20, 22, 30, 0.045);
+  --oui-surface-3: rgba(20, 22, 30, 0.085);
+  --oui-inset: rgba(20, 22, 30, 0.055);
+  --oui-stroke: rgba(20, 22, 30, 0.08);
+  --oui-stroke-strong: rgba(20, 22, 30, 0.16);
+  --oui-glass: rgba(250, 250, 252, 0.8);
+  --oui-glass-solid: #fafafc;
+
+  --oui-text: #15171d;
+  --oui-text-2: #4a505e;
+  --oui-text-3: #6b7181;
+
+  --oui-ok: #14995b;
+  --oui-ok-soft: rgba(20, 153, 91, 0.12);
+  --oui-warn: #b56b00;
+  --oui-warn-soft: rgba(229, 140, 0, 0.14);
+  --oui-danger: #d93636;
+  --oui-danger-strong: #d62f32;
+  --oui-danger-soft: rgba(217, 54, 54, 0.11);
+  --oui-heat: #e0582a;
+  --oui-cool: #1a8ed1;
+
+  --oui-shadow-float: 0 10px 30px rgba(20, 22, 40, 0.14);
+}
+
+html[data-mode="light"] body::before {
+  background:
+    radial-gradient(95% 46% at 50% -6%, rgba(var(--oui-backdrop-rgb), 0.3), transparent 72%),
+    radial-gradient(80% 34% at 50% 108%, rgba(var(--oui-backdrop-rgb), 0.14), transparent 70%),
+    var(--oui-bg);
+}
+
+/* white cards need a little shadow to stand off the pale page */
+html[data-mode="light"] .oui-card { box-shadow: 0 1px 2px rgba(20, 22, 40, 0.05), 0 6px 20px rgba(20, 22, 40, 0.05); }
+html[data-mode="light"] .bottom-nav { box-shadow: 0 10px 30px rgba(20, 22, 40, 0.16); }
+
+/* the chrome: the top bar, the side menu, the drop zone of the files */
+html[data-mode="light"] .app-header { background: rgba(246, 247, 250, 0.72); }
+html[data-mode="light"] .drawer { background: rgba(248, 249, 251, 0.96); }
+html[data-mode="light"] .cfg-dropzone { background: rgba(246, 247, 250, 0.85); }
+html[data-mode="light"] .modal,
+html[data-mode="light"] .confirm-overlay,
+html[data-mode="light"] .sheet-overlay,
+html[data-mode="light"] .drawer-overlay { background: rgba(20, 22, 30, 0.3); }
+
+/* dark islands: what stays dark on the light page keeps the dark page's tokens */
+html[data-mode="light"] .editor-body,
+html[data-mode="light"] .ai-codeblock,
+html[data-mode="light"] .gcode-stage,
+html[data-mode="light"] .camera-full,
+html[data-mode="light"] .photo-viewer,
+html[data-mode="light"] .oui-dark-island {
+  color-scheme: dark;
+  --oui-ink-rgb: 255, 255, 255;
+  --oui-surface: rgba(255, 255, 255, 0.058);
+  --oui-surface-2: rgba(255, 255, 255, 0.082);
+  --oui-surface-3: rgba(255, 255, 255, 0.125);
+  --oui-inset: rgba(0, 0, 0, 0.3);
+  --oui-stroke: rgba(255, 255, 255, 0.095);
+  --oui-stroke-strong: rgba(255, 255, 255, 0.18);
+  --oui-glass: rgba(26, 28, 34, 0.68);
+  --oui-glass-solid: #1a1c22;
+  --oui-text: #f3f4f6;
+  --oui-text-2: #aeb3be;
+  --oui-text-3: #7f8592;
+  color: var(--oui-text);
+}
+
+/* the looks on the light page */
+html[data-mode="light"][data-look="glass"] {
+  --oui-surface: rgba(255, 255, 255, 0.6);
+  --oui-surface-2: rgba(255, 255, 255, 0.55);
+  --oui-surface-3: rgba(255, 255, 255, 0.8);
+  --oui-stroke: rgba(255, 255, 255, 0.7);
+  --oui-stroke-strong: rgba(20, 22, 30, 0.14);
+  --oui-glass: rgba(255, 255, 255, 0.6);
+}
+html[data-mode="light"][data-look="glass"] .oui-card {
+  background: linear-gradient(165deg, rgba(255, 255, 255, 0.82), rgba(255, 255, 255, 0.5) 55%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 12px 34px rgba(20, 22, 40, 0.1);
+}
+html[data-mode="light"][data-look="glass"] .oui-btn:not(.oui-btn--primary):not(.oui-btn--danger) { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9); }
+html[data-mode="light"][data-look="glass"] .bottom-nav { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 14px 40px rgba(20, 22, 40, 0.18); }
+
+html[data-mode="light"][data-look="material"] {
+  --oui-bg: color-mix(in srgb, var(--oui-accent) 4%, #fdf8ff);
+  --oui-surface: color-mix(in srgb, var(--oui-accent) 7%, #ffffff);
+  --oui-surface-2: color-mix(in srgb, var(--oui-accent) 11%, #f7f2fa);
+  --oui-surface-3: color-mix(in srgb, var(--oui-accent) 18%, #ece6f0);
+  --oui-inset: color-mix(in srgb, var(--oui-accent) 6%, #f3edf7);
+  --oui-stroke: rgba(20, 22, 30, 0.03);
+  --oui-glass: color-mix(in srgb, var(--oui-accent) 9%, #f7f2fa);
+}
+html[data-mode="light"][data-look="material"] .oui-card { box-shadow: none; }
+
+html[data-mode="light"][data-look="hyperos"] {
+  --oui-bg: #f2f3f7;
+  --oui-surface: #ffffff;
+  --oui-surface-2: #f2f3f7;
+  --oui-surface-3: #e6e7ec;
+  --oui-inset: #eceef2;
+  --oui-stroke: transparent;
+  --oui-stroke-strong: rgba(20, 22, 30, 0.1);
+  --oui-glass: rgba(255, 255, 255, 0.94);
+}
+html[data-mode="light"][data-look="hyperos"] body::before { background: #f2f3f7; }
+html[data-mode="light"][data-look="hyperos"] .oui-card { box-shadow: none; }
+
+/* the previews of the looks stay as they are (each shows its own page) */

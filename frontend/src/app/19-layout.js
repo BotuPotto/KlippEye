@@ -8,7 +8,8 @@
      · 1.51: the small texts that explain how to use a page (.ui-hint: «Tap to
        change»…), shown or not;
      · 1.52: the accent colour (the violet of the logo, or another one);
-     · 1.53: the look (One UI, Liquid Glass, Material 3 Expressive, HyperOS 4).
+     · 1.53: the look (One UI, Liquid Glass, Material 3 Expressive, HyperOS 4);
+     · 1.108: dark, light, or as the device is set (css/05-light.css).
    ========================================================================== */
 
 const LAYOUT_KEY = "ke_layout";
@@ -162,7 +163,8 @@ const layoutStore = (() => {
     setHints: (show) => save({ ...state, hideHints: !show }),
     setAccent: (accent) => save({ ...state, accent }),
     setLook: (look) => save({ ...state, look }),
-    reset: () => save({ ...empty(), hideHints: state.hideHints, accent: state.accent, look: state.look }),
+    setMode: (mode) => save({ ...state, mode }),
+    reset: () => save({ ...empty(), hideHints: state.hideHints, accent: state.accent, look: state.look, mode: state.mode }),
   };
   return store;
 })();
@@ -212,10 +214,25 @@ function hslToRgb(h, s, l) {
 }
 const rgbHex = (rgb) => "#" + rgb.map((x) => x.toString(16).padStart(2, "0")).join("");
 
-/** The tokens of an accent colour: { accent, rgb, text, onAccent, backdrop } (null: the logo's violet, the stylesheet's own). */
-function accentTokens(accent) {
+/**
+ * The tokens of an accent colour: { accent, rgb, text, onAccent, backdrop } (null: the logo's violet, the stylesheet's
+ * own). 1.108: on the light page the colour is made deeper instead (white text on it, and it must stand out on white).
+ */
+function accentTokens(accent, light = modeIsLight()) {
   const preset = ACCENT_PRESETS.find((one) => one.id === accent);
-  const hex = preset ? preset.hex : /^#[0-9a-f]{6}$/i.test(accent || "") ? accent.toLowerCase() : null;
+  const hex = preset ? preset.hex : /^#[0-9a-f]{6}$/i.test(accent || "") ? accent.toLowerCase() : light ? ACCENT_PRESETS[0].hex : null;
+  if (light) {
+    const [h, s0] = hexToHsl(hex);
+    const s = Math.max(0.5, Math.min(0.85, s0));
+    const rgb = hslToRgb(h, s, 0.5);
+    return {
+      accent: rgbHex(rgb),
+      rgb: rgb.join(", "),
+      text: rgbHex(hslToRgb(h, s, 0.4)),
+      onAccent: "#ffffff",
+      backdrop: hslToRgb(h, Math.min(1, s + 0.1), 0.72).join(", "),
+    };
+  }
   if (!hex || hex === ACCENT_PRESETS[0].hex) return null;
   const [h, s0, l0] = hexToHsl(hex);
   const s = Math.max(0.45, s0);
@@ -230,7 +247,28 @@ function accentTokens(accent) {
   };
 }
 
+/* ---------------------------------------------------------------------------
+   Dark or light (1.108): "dark" (the usual), "light", or "auto" (as the device is set, following it when it changes).
+   <html data-mode="light"> switches the tokens (css/05-light.css); the browser's bar takes the page's colour.
+   ------------------------------------------------------------------------- */
+const MODES = ["dark", "light", "auto"];
+const modeLabel = (id) => ({ dark: txc("theme", "Dark"), light: txc("theme", "Light"), auto: tx("As the device") })[id];
+const MODE_QUERY = typeof window.matchMedia === "function" ? window.matchMedia("(prefers-color-scheme: light)") : null;
+function modeIsLight() {
+  const mode = MODES.includes(layoutStore.snapshot().mode) ? layoutStore.snapshot().mode : "dark";
+  return mode === "light" || (mode === "auto" && Boolean(MODE_QUERY && MODE_QUERY.matches));
+}
+function applyMode() {
+  const light = modeIsLight();
+  const root = document.documentElement;
+  if (light) root.setAttribute("data-mode", "light");
+  else root.removeAttribute("data-mode");
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute("content", light ? "#eef0f5" : "#040507");
+}
+
 function applyAccent() {
+  applyMode();
   const tokens = accentTokens(layoutStore.snapshot().accent);
   const style = document.documentElement.style;
   const set = (name, value) => (value ? style.setProperty(name, value) : style.removeProperty(name));
@@ -243,6 +281,11 @@ function applyAccent() {
 }
 applyAccent();
 layoutStore.subscribe(applyAccent);
+if (MODE_QUERY) {
+  const follow = () => applyAccent();   // the device switched between dark and light (only "auto" changes)
+  if (typeof MODE_QUERY.addEventListener === "function") MODE_QUERY.addEventListener("change", follow);
+  else if (typeof MODE_QUERY.addListener === "function") MODE_QUERY.addListener(follow);
+}
 
 /** A column of the page's cards in the chosen order, without the hidden ones: `cards` is { id: element }. */
 function arrangeCards(page, cards, column = "main") {

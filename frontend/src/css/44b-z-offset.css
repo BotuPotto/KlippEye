@@ -32,7 +32,7 @@
   border-radius: var(--oui-r-tile);
   background: var(--oui-surface-3);
 }
-.zoffset-adjust__btn:hover { background: rgba(255, 255, 255, 0.17); }
+.zoffset-adjust__btn:hover { background: rgba(var(--oui-ink-rgb), 0.17); }
 .zoffset-adjust__btn:active { background: var(--oui-accent-soft); color: var(--oui-accent-text); }
 .zoffset-adjust__step { font-size: 13px; font-weight: 600; color: var(--oui-text-2); font-variant-numeric: tabular-nums; }
 

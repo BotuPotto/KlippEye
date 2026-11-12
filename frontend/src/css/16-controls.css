@@ -131,7 +131,7 @@ select.oui-field {
   background-position: right 14px center;
   background-size: 18px;
 }
-select.oui-field option { background: #1a1c22; color: var(--oui-text); }
+select.oui-field option { background: var(--oui-glass-solid); color: var(--oui-text); }
 
 /* ---- badge: small status pill ---- */
 .oui-badge {

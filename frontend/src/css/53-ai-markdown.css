@@ -52,7 +52,7 @@
 .ai-list .ai-list { margin-top: 6px; }
 
 /* ---- code block ---- */
-.ai-codeblock { overflow: hidden; background: #090a0d; border: 1px solid var(--oui-stroke); border-radius: var(--oui-r-field); }
+.ai-codeblock { overflow: hidden; background: var(--oui-well); border: 1px solid var(--oui-stroke); border-radius: var(--oui-r-field); }
 .ai-codeblock__bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 6px 6px 14px; border-bottom: 1px solid var(--oui-stroke); }
 .ai-codeblock__lang { font-size: 12px; font-weight: 600; color: var(--oui-text-3); }
 .ai-codeblock__copy { min-height: 32px; padding: 0 14px; border: 0; border-radius: var(--oui-r-pill); background: var(--oui-accent-soft); color: var(--oui-accent-text); font: 600 13px var(--oui-font); }
@@ -66,7 +66,7 @@
 .ai-sum__text { margin-top: 12px; }
 .ai-sum__files { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 14px; }
 .ai-sum__caption { width: 100%; font-size: 12px; color: var(--oui-text-2); }
-.ai-chip-file { max-width: 100%; padding: 3px 10px; border-radius: var(--oui-r-pill); background: rgba(0, 0, 0, 0.26); color: var(--oui-text); font: 12px var(--oui-font-mono); overflow-wrap: anywhere; }
+.ai-chip-file { max-width: 100%; padding: 3px 10px; border-radius: var(--oui-r-pill); background: rgba(var(--oui-ink-rgb), 0.08); color: var(--oui-text); font: 12px var(--oui-font-mono); overflow-wrap: anywhere; }
 
 /* ---- sections: a collapsible card each ---- */
 .ai-sec { overflow: hidden; background: var(--oui-surface-2); border-radius: var(--oui-r-tile); }

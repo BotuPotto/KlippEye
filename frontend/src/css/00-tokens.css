@@ -25,6 +25,10 @@
   --oui-glass: rgba(26, 28, 34, 0.68);          /* floating layers: bars, dialogs */
   --oui-glass-solid: #1a1c22;                   /* fallback when blur is not available */
 
+  --oui-ink-rgb: 255, 255, 255;                 /* 1.108: the colour of thin lines and tints drawn over the page (black on the light page) */
+  --oui-well: #090a0d;                          /* code, the G-code viewer, the editor: dark on both pages */
+  --oui-photo-bg: #0b0c0f;                      /* behind a camera picture */
+
   /* ---- text ---- */
   --oui-text: #f3f4f6;
   --oui-text-2: #aeb3be;

@@ -3,11 +3,11 @@
    ========================================================================= */
 
 /* ---- jog pad: ring segments (SVG), glass fills that turn violet under the finger ---- */
-.jog-ring-outer { fill: rgba(255, 255, 255, 0.075); transition: fill var(--oui-dur-fast) var(--oui-ease); }
-.jog-ring-outer:hover { fill: rgba(255, 255, 255, 0.12); }
+.jog-ring-outer { fill: rgba(var(--oui-ink-rgb), 0.075); transition: fill var(--oui-dur-fast) var(--oui-ease); }
+.jog-ring-outer:hover { fill: rgba(var(--oui-ink-rgb), 0.12); }
 .jog-ring-outer:active { fill: rgba(var(--oui-accent-rgb), 0.35); }
-.jog-ring-inner { fill: rgba(255, 255, 255, 0.115); transition: fill var(--oui-dur-fast) var(--oui-ease); }
-.jog-ring-inner:hover { fill: rgba(255, 255, 255, 0.17); }
+.jog-ring-inner { fill: rgba(var(--oui-ink-rgb), 0.115); transition: fill var(--oui-dur-fast) var(--oui-ease); }
+.jog-ring-inner:hover { fill: rgba(var(--oui-ink-rgb), 0.17); }
 .jog-ring-inner:active { fill: rgba(var(--oui-accent-rgb), 0.45); }
 .jog-ring-num { font-weight: 600; fill: var(--oui-text-3); pointer-events: none; user-select: none; font-variant-numeric: tabular-nums; }
 /* the hairline gaps between segments are darker slices of whatever lies behind */
@@ -42,7 +42,7 @@
   font-variant-numeric: tabular-nums;
   transition: background var(--oui-dur-fast) var(--oui-ease), transform var(--oui-dur-press) var(--oui-ease);
 }
-.z-btn:hover { background: rgba(255, 255, 255, 0.17); }
+.z-btn:hover { background: rgba(var(--oui-ink-rgb), 0.17); }
 .z-btn:active { transform: scale(0.94); background: var(--oui-accent-soft); color: var(--oui-accent-text); }
 .z-btn--big { background: var(--oui-surface-2); color: var(--oui-text-2); }
 .z-divider { width: 32px; height: 2px; margin: 2px 0; background: var(--oui-stroke); border-radius: 1px; }

@@ -130,7 +130,7 @@ function AccentChoice() {
   const [wheel, setWheel] = useState(custom);
   return h(
     SettingsGroup,
-    { title: tx("Colour"), note: tx("The colour of buttons, switches and highlights on this device. A colour that is too dark or too pale is made lighter or deeper, so that it reads on the dark page.") },
+    { title: tx("Colour"), note: tx("The colour of buttons, switches and highlights on this device. A colour that is too dark or too pale is made lighter or deeper, so that it reads on the page.") },
     h(
       "div",
       { className: "accent-swatches", role: "radiogroup", "aria-label": tx("Colour") },
@@ -150,6 +150,27 @@ function AccentChoice() {
       ),
     ),
     wheel && h("div", { className: "accent-wheel" }, h(ColorWheel, { value: custom ? current : "#7c5cff", brightness: true, onChange: (hex) => layoutStore.setAccent(hex) })),
+  );
+}
+
+/** 1.108: dark, light or as the device. */
+function ModeChoice() {
+  const layout = useLayout();
+  const current = MODES.includes(layout.mode) ? layout.mode : "dark";
+  return h(
+    SettingsGroup,
+    { title: tx("Theme"), note: tx("«As the device» follows the dark or light mode of the phone or computer, also when it changes by itself in the evening.") },
+    h(
+      "div",
+      { className: "oui-segmented mode-choice", role: "radiogroup", "aria-label": tx("Theme") },
+      MODES.map((id) =>
+        h(
+          "button",
+          { key: id, type: "button", role: "radio", "aria-checked": current === id, className: cx(current === id && "is-selected"), "data-mode-choice": id, onClick: () => layoutStore.setMode(id === "dark" ? null : id) },
+          modeLabel(id),
+        ),
+      ),
+    ),
   );
 }
 
@@ -180,6 +201,7 @@ function AppearancePage() {
   return h(
     React.Fragment,
     null,
+    h(ModeChoice),
     h(AccentChoice),
     h(LookChoice),
     h(
@@ -206,5 +228,6 @@ function appearanceSummary() {
   const pages = Object.keys(LAYOUT_DEFAULTS[device]);
   const hidden = pages.reduce((sum, page) => sum + layoutStore.order(page, device).filter((id) => layoutStore.isHidden(page, id, device)).length, 0);
   const moved = pages.some((page) => JSON.stringify(layoutStore.columns(page, device)) !== JSON.stringify(LAYOUT_DEFAULTS[device][page]));
-  return [look, colour, moved ? tx("Own order") : !hidden && tx("Usual order"), hidden && (hidden === 1 ? tx("1 card hidden") : tx("{count} cards hidden", { count: hidden }))].filter(Boolean).join(" • ");
+  const mode = state.mode === "light" || state.mode === "auto" ? modeLabel(state.mode) : "";
+  return [mode, look, colour, moved ? tx("Own order") : !hidden && tx("Usual order"), hidden && (hidden === 1 ? tx("1 card hidden") : tx("{count} cards hidden", { count: hidden }))].filter(Boolean).join(" • ");
 }
