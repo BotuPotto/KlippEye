@@ -429,6 +429,12 @@ With a **local model** installed (Settings → AI monitor → Local model), a sm
 alarm of the motion detection and also looks by itself every 15 seconds: the online AI is asked when it has a doubt or is
 sure, so the alarms it judges harmless cost no call, and a failure the motion detection misses is still caught.
 
+The local model is the same for everyone. With **Learn from this printer's prints** on (same page, off at first) it also
+learns from your printer: each answer to *How did the print go?* and each labelled recording train, on the Raspberry and
+in a few seconds, a small layer of its own that counts more as the examples grow (at least 5 failed and 20 fine pictures).
+The pictures never leave the printer; **Export the examples** saves them (small, with what each shows) in a file that
+**Import examples** adds to another printer of yours.
+
 **At the end of a print** a card at the top of the home page asks **How did the print go?**: *Went fine*, or *There was a
 problem* (which kinds, and with the slider from which picture it can be seen). It takes a second and it is optional: *Skip*,
 or *Don't ask again* (Settings → Recordings → "Ask how each print went" turns it back on). The answer judges the print's

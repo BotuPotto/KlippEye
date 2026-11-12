@@ -14,6 +14,7 @@ Only the standard library plus the OpenCV and numpy modules the caller passes (t
 import json
 import math
 import os
+import threading
 
 FORMAT = 1
 
@@ -29,6 +30,7 @@ def _sigmoid(x):
 
 class LocalModel:
     def __init__(self, folder, cv2, np):
+        self._lock = threading.Lock()
         self.folder, self.cv2, self.np = folder, cv2, np
         try:
             with open(os.path.join(folder, "model.json"), encoding="utf-8") as handle:
@@ -56,9 +58,12 @@ class LocalModel:
         return np.ascontiguousarray(((rgb - self.mean) / self.std).transpose(2, 0, 1)[None], dtype=np.float32)
 
     def predict(self, frame_bgr):
-        """-> (score 0..1: how likely the picture shows a failure, embedding as a 1-D float32 array, or None)."""
-        self.net.setInput(self.blob(frame_bgr))
-        outs = self.net.forward(self.outputs)
+        """-> (score 0..1: how likely the picture shows a failure, embedding as a 1-D float32 array, or None).
+        One picture at a time (the monitor and the personal layer's training share the network)."""
+        blob = self.blob(frame_bgr)
+        with self._lock:
+            self.net.setInput(blob)
+            outs = self.net.forward(self.outputs)
         logit, embedding = None, None
         for out in outs:
             flat = self.np.asarray(out, dtype=self.np.float32).reshape(-1)

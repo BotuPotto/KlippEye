@@ -747,6 +747,8 @@ CONFIG_SPEC = [
     {"key": "local_sure", "type": "int", "default": 80, "min": 10, "max": 99, "step": 1, "unit": "%", "group": "local",
      "label": "Sure from",
      "help": "From this rating the local model is sure there is a failure: two sure looks in a row ask the online AI at once, even without an alarm of the motion detection."},
+    {"key": "personal_learning", "type": "bool", "default": False, "group": "local", "label": "Learn from this printer's prints",
+     "help": "The local model also learns from your answers to «How did the print go?» and from the labelled recordings: a small layer of its own, trained on the Raspberry in a few seconds after each answer. The pictures stay on this printer."},
     {"key": "roi", "type": "area", "default": [20, 20, 60, 60], "group": "area", "label": "Watched area",
      "help": "Left, top, width and height in % of the picture."},
     {"key": "cooldown", "type": "int", "default": 90, "min": 10, "max": 3600, "step": 10, "unit": "s", "group": "tempi",
@@ -2716,7 +2718,8 @@ class LightDetector(FrameJudge):
         if result is None:
             state["why"] = "motion" if triggered else None
             return bool(triggered)
-        score = round(result[0] * 100, 1)
+        model = local_ai.model
+        score = round(personal.blend(result[0], result[1], model.version if model is not None else None) * 100, 1)
         state.update(score=score, at=now, next=now + self.local_every, checks=state.get("checks", 0) + 1)
         sure, doubt = score >= self.local_sure, score >= self.local_doubt
         state["sure_run"] = state.get("sure_run", 0) + 1 if sure else 0
@@ -3053,6 +3056,7 @@ detector = LightDetector()
 detector.apply_config(brain_config.snapshot())  # the saved thresholds (or the defaults) apply from the first check
 recorder.configure(brain_config.snapshot()["record"], brain_config.snapshot()["record_max_mb"])
 from print_review import PrintReviews, PROBLEMS as REVIEW_PROBLEMS  # noqa: E402  (1.103: how each print went)
+from personal_layer import PersonalLayer  # noqa: E402  (1.107: the local model's layer of each printer)
 import local_model  # noqa: E402  (1.106: the local model)
 
 LOCAL_MODEL_OWN_DIR = os.path.join(DATA_DIR, "model")             # a model trained by the person (ml/), if any
@@ -3109,6 +3113,23 @@ class LocalAi:
 
 
 local_ai = LocalAi()
+personal = PersonalLayer(DATA_DIR, np, cv2 if HAS_CV2 else None)   # 1.107: what this printer learned (optional)
+personal.configure(brain_config.snapshot()["personal_learning"])
+
+
+def train_personal_later(why=""):
+    """Trains the personal layer again in the background (after an answer, an import, a new base model): only when it
+    is on and there is a model; one training at a time."""
+    if not (personal.enabled and local_ai.model is not None) or personal.training:
+        return False
+
+    def run():
+        info = personal.train(local_ai.model)
+        print("[PERSONAL] trained%s: %s" % (" (" + why + ")" if why else "", {k: info.get(k) for k in ("trained", "examples", "failed", "fine", "error")}))
+    threading.Thread(target=run, daemon=True).start()
+    return True
+
+
 REVIEWS_DIR = os.path.join(DATA_DIR, "reviews")
 reviews = PrintReviews(REVIEWS_DIR, cv2 if HAS_CV2 else None)
 reviews.configure(brain_config.snapshot()["print_review"])
@@ -3123,6 +3144,9 @@ def set_brain_config(changes):
     detector.apply_config(values)
     recorder.configure(values["record"], values["record_max_mb"])
     reviews.configure(values["print_review"])
+    personal.configure(values["personal_learning"])
+    if "personal_learning" in changed and values["personal_learning"]:
+        train_personal_later("switched on")
     if "enabled" in changed:
         if values["enabled"]:
             detector.start()
@@ -3692,10 +3716,56 @@ def api_local_model():
     measured, and its last look; POST {"reload": true} reads the model folders again (after copying a new model)."""
     if request.method == "POST":
         local_ai.reload()
+        model = local_ai.model
+        if model is not None and personal.layer and personal.layer.get("version") != model.version:
+            train_personal_later("new base model")   # the embeddings change with the model: computed again
     state = detector.local_state
-    return _no_store(jsonify(dict(local_ai.info(), ok=True, enabled=detector.local_enabled,
+    return _no_store(jsonify(dict(local_ai.info(), ok=True, enabled=detector.local_enabled, personal=personal.info(),
                                   last={k: state.get(k) for k in ("score", "at", "checks", "filtered", "asked", "why")},
                                   folders={"own": LOCAL_MODEL_OWN_DIR, "base": LOCAL_MODEL_BASE_DIR})))
+
+
+@app.route("/api/local_model/personal", methods=["POST"])
+def api_local_model_personal():
+    """The personal layer (1.107). {"train": true}: trains it now (and waits, a few seconds); {"forget_imported": true}:
+    removes the examples brought from another printer (and trains again). -> the layer's state."""
+    body = request.get_json(silent=True)
+    if not isinstance(body, dict):
+        return jsonify({"ok": False, "error": "a JSON object is needed"}), 400
+    if body.get("forget_imported"):
+        personal.forget_imported()
+    if body.get("train") or body.get("forget_imported"):
+        if local_ai.model is None:
+            return jsonify({"ok": False, "error": "no local model installed", "personal": personal.info()}), 409
+        personal.train(local_ai.model)
+    return jsonify({"ok": True, "personal": personal.info()})
+
+
+@app.route("/api/local_model/personal/export", methods=["GET"])
+def api_local_model_personal_export():
+    """A zip of what this printer learned: the small pictures and whether each shows a failure (for another printer)."""
+    data = personal.export(socket.gethostname())
+    response = Response(data, mimetype="application/zip")
+    response.headers["Content-Disposition"] = 'attachment; filename="klippeye-examples-%s.zip"' % time.strftime("%Y%m%d")
+    return _no_store(response)
+
+
+@app.route("/api/local_model/personal/import", methods=["POST"])
+def api_local_model_personal_import():
+    """The zip made by the export of another printer (the file in the body, or a form field "file"): its examples are
+    added to this printer's, and the layer is trained again."""
+    upload = request.files.get("file")
+    data = upload.read(64 * 1024 * 1024 + 1) if upload else request.get_data(cache=False)
+    if not data:
+        return jsonify({"ok": False, "error": "no file"}), 400
+    if len(data) > 64 * 1024 * 1024:
+        return jsonify({"ok": False, "error": "the file is too large"}), 413
+    try:
+        count = personal.import_zip(data, (upload.filename if upload else "") or request.args.get("origin", ""))
+    except ValueError as error:
+        return jsonify({"ok": False, "error": str(error)}), 400
+    train_personal_later("examples imported")
+    return jsonify({"ok": True, "imported": count, "personal": personal.info()})
 
 
 @app.route("/api/print/review", methods=["GET"])
@@ -3767,6 +3837,8 @@ def api_print_review_answer(rid):
                 except (KeyError, ValueError) as error:
                     print("[REVIEW] recording not labelled: %s" % error)
                 break
+    if answer["outcome"] in ("ok", "failed"):
+        train_personal_later("print answered")
     return jsonify({"ok": True, "review": _review_public(review), "alarms_marked": marked})
 
 
@@ -3861,6 +3933,8 @@ def api_recording_label(sid):
         return jsonify({"ok": False, "error": "no such recording"}), 404
     except ValueError as error:
         return jsonify({"ok": False, "error": str(error)}), 400
+    if label and label.get("outcome") in ("ok", "failed"):
+        train_personal_later("recording labelled")
     return jsonify({"ok": True, "label": label})
 
 

@@ -2739,7 +2739,52 @@ check("1.106: GET /api/local_model: the model in use (KlippEye's), its version, 
 _g = _lc.post("/api/local_model", json={"reload": True}).get_json()
 check("... POST reload: the folders read again (none there: none in use)", _g["available"] is False, _g)
 _names = [s["key"] for s in _lc.get("/api/backend/config").get_json()["spec"] if s.get("group") == "local"]
-check("1.106: the local model's settings, in their own group", _names == ["local_enabled", "local_filter", "local_alone", "local_every", "local_doubt", "local_sure"], _names)
+check("1.106: the local model's settings, in their own group (1.107: and learning from this printer)",
+      _names == ["local_enabled", "local_filter", "local_alone", "local_every", "local_doubt", "local_sure", "personal_learning"], _names)
+
+print("== 1.107: the local model's personal layer")
+_g = _lc.get("/api/local_model").get_json()
+check("1.107: GET /api/local_model has the personal layer: off at first, not trained, what it needs",
+      _g["personal"]["enabled"] is False and _g["personal"]["trained"] is False and _g["personal"]["needed"] == {"failed": 5, "fine": 20}, _g.get("personal"))
+_r = _lc.post("/api/local_model/personal", json={"train": True})
+check("... «learn now» without a local model: refused, said", _r.status_code == 409 and "no local model" in _r.get_json()["error"], _r.get_json())
+
+
+class _EmbedModel(_FakeModel):
+    def predict(self, frame):
+        score, _ = super().predict(frame)
+        return score, [1.0] + [0.0] * 7
+
+
+_lb.local_ai.model, _lb.local_ai.source = _EmbedModel([0.2, 0.2]), "base"
+_lb.personal.layer = {"version": "test-1", "w": _lb.np.array([8.0] + [0.0] * 7), "b": 0.0, "weight": 0.5}
+_det.local_state, _det.cooldown_until = {}, 0
+_det._local_look(_frame, 9500.0, False)
+_off = _det.local_state["score"]
+_lc.post("/api/backend/config", json={"personal_learning": True})
+_det.local_state = {}
+_det._local_look(_frame, 9600.0, False)
+_on = _det.local_state["score"]
+check("1.107: switched on, the personal layer's rating is blended with the base model's (off: the base model's alone)",
+      _lb.personal.enabled is True and _off == 20.0 and abs(_on - 59.98) < 0.1, (_off, _on))
+_lb.personal.layer = None
+_r = _lc.get("/api/local_model/personal/export")
+import zipfile as _zf
+import io as _io
+_zip = _zf.ZipFile(_io.BytesIO(_r.data))
+check("1.107: export: a zip with the labels (no examples yet: none)", _r.status_code == 200 and _r.mimetype == "application/zip"
+      and json.loads(_zip.read("labels.json"))["pictures"] == {}, _r.status_code)
+_r = _lc.post("/api/local_model/personal/import", data=b"not a zip")
+check("... import of something else: refused", _r.status_code == 400 and "KlippEye" in _r.get_json()["error"], _r.get_json())
+_buf = _io.BytesIO()
+with _zf.ZipFile(_buf, "w") as _z:
+    _z.writestr("00000.jpg", _lb.cv2.imencode(".jpg", _frame)[1].tobytes())
+    _z.writestr("labels.json", json.dumps({"format": 1, "printer": "other", "pictures": {"00000.jpg": 1}}))
+_r = _lc.post("/api/local_model/personal/import", data={"file": (_io.BytesIO(_buf.getvalue()), "examples.zip")}, content_type="multipart/form-data")
+check("... import of another printer's export: its pictures added, listed", _r.status_code == 200 and _r.get_json()["imported"] == 1
+      and _r.get_json()["personal"]["imported"][0]["printer"] == "other" and _r.get_json()["personal"]["have"]["failed"] == 1, _r.get_json())
+_r = _lc.post("/api/local_model/personal", json={"forget_imported": True}).get_json()
+check("... removed again", _r["personal"]["imported"] == [] and _r["personal"]["have"]["failed"] == 0, _r)
 
 stop_all()
 fake.close()

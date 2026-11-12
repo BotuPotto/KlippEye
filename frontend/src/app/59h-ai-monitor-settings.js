@@ -140,12 +140,12 @@ function AiPage({ active, menu }) {
       h(AiServicesPanel, { use: "monitor", ai: aiServices }),
       config.phase === "ok" && h("div", { className: "oui-list" }, control("ai_send_reference")),
     ),
-    localModel.phase === "ok" && h(LocalModelGroup, { info: localModel.data, control, config, menu }),
+    localModel.phase === "ok" && h(LocalModelGroup, { info: localModel.data, reload: localModel.reload, control, config, menu }),
   );
 }
 
 /** The local model (1.106): which one is in use and its last look, the switches; its thresholds are in Monitor thresholds. */
-function LocalModelGroup({ info, control, config, menu }) {
+function LocalModelGroup({ info, reload, control, config, menu }) {
   const last = info.last || {};
   const status = info.available
     ? tx("In use: {source} • version {version}", { source: info.source === "own" ? tx("your model") : tx("KlippEye's model"), version: info.version || "?" }) +
@@ -162,7 +162,102 @@ function LocalModelGroup({ info, control, config, menu }) {
     counts && h("p", { className: "oui-caption" }, counts),
     info.available && config.phase === "ok" && h("div", { className: "oui-list" }, control("local_enabled"), control("local_filter"), control("local_alone")),
     info.available && h("button", { type: "button", className: "oui-btn oui-btn--quiet oui-btn--sm set-inline-btn", "data-go": "detector", onClick: () => menu.goTo("detector") }, h(Icons.Sliders, { size: 16 }), tx("Its thresholds: Monitor thresholds → Local model")),
+    info.available && info.personal && config.phase === "ok" && h(PersonalLayerPart, { personal: info.personal, reload, control, on: config.values.personal_learning === true }),
     h("p", { className: "set-group__note" }, tx("A small image model that runs on the Raspberry, without internet: it looks at the print by itself and judges the alarms before the online AI is asked.")),
+  );
+}
+
+/**
+ * The personal layer (1.107, optional): what the local model learned from this printer's answers and labelled
+ * recordings; its switch, how far it is, train now, and the examples carried to / from another printer.
+ */
+function PersonalLayerPart({ personal, reload, control, on }) {
+  const [busy, setBusy] = useState("");
+  const fileInput = useRef(null);
+  const have = personal.have || { failed: 0, fine: 0 };
+  const needed = personal.needed || { failed: 5, fine: 20 };
+  const measured = personal.measured || {};
+  const imported = personal.imported || [];
+  let status;
+  if (personal.training || busy === "train") status = tx("Learning from the examples…");
+  else if (personal.trained)
+    status =
+      tx("Learned from {count} examples ({failed} failed, {fine} fine)", { count: personal.examples || 0, failed: personal.failed || 0, fine: personal.fine || 0 }) +
+      (Number.isFinite(measured.right) ? " • " + tx("right {percent}% of the times", { percent: Math.round(measured.right * 100) }) : "");
+  else
+    status = tx("Not enough examples yet: {failed} of {needFailed} failed and {fine} of {needFine} fine pictures", {
+      failed: have.failed,
+      needFailed: needed.failed,
+      fine: have.fine,
+      needFine: needed.fine,
+    });
+  const run = async (what, job) => {
+    setBusy(what);
+    try {
+      await job();
+    } finally {
+      setBusy("");
+      reload();
+    }
+  };
+  const train = () =>
+    run("train", async () => {
+      const reply = await brainPost("/api/local_model/personal", { train: true });
+      if (!reply.ok) toast.error(tx("Learning failed: {reason}", { reason: reply.message }));
+      else if (reply.data && reply.data.personal && !reply.data.personal.trained) toast.action(tx("Not enough examples yet: answer «How did the print go?» after a few more prints"));
+      else toast.success(tx("The local model learned from this printer's examples"));
+    });
+  const forget = () =>
+    run("forget", async () => {
+      const reply = await brainPost("/api/local_model/personal", { forget_imported: true });
+      if (!reply.ok) toast.error(reply.message);
+    });
+  const upload = (event) => {
+    const file = event.target.files && event.target.files[0];
+    event.target.value = "";
+    if (!file) return;
+    run("import", async () => {
+      const form = new FormData();
+      form.append("file", file, file.name);
+      try {
+        const response = await fetch("/api/local_model/personal/import", { method: "POST", body: form });
+        const data = await response.json().catch(() => null);
+        if (response.ok && data && data.ok) toast.success(tx("{count} examples imported", { count: data.imported }));
+        else toast.error(tx("Import failed: {reason}", { reason: (data && data.error) || "HTTP " + response.status }));
+      } catch (error) {
+        toast.error(tx("the KlippEye service does not answer"));
+      }
+    });
+  };
+  return h(
+    React.Fragment,
+    null,
+    h("div", { className: "set-field__label fn-subtitle" }, tx("Learning from this printer")),
+    h("div", { className: "oui-list" }, control("personal_learning")),
+    on && h("div", { className: cx("set-status", personal.trained ? "set-status--ok" : "set-status--warn"), "data-personal": personal.trained ? "trained" : "waiting" }, h("span", { className: "set-status__dot" }), status),
+    on && personal.error && personal.trained && h("p", { className: "oui-caption" }, personal.error),
+    on &&
+      h(
+        "div",
+        { className: "oui-btn-row set-personal-actions" },
+        h("button", { type: "button", className: "oui-btn oui-btn--quiet oui-btn--sm", "data-personal-train": "", disabled: Boolean(busy) || personal.training, onClick: train }, h(Icons.Refresh, { size: 16 }), tx("Learn now")),
+        h("button", { type: "button", className: "oui-btn oui-btn--quiet oui-btn--sm", "data-personal-export": "", disabled: Boolean(busy) || !(have.failed + have.fine), onClick: () => downloadFile("/api/local_model/personal/export", "klippeye-examples.zip") }, h(Icons.Download, { size: 16 }), tx("Export the examples")),
+        h("button", { type: "button", className: "oui-btn oui-btn--quiet oui-btn--sm", "data-personal-import": "", disabled: Boolean(busy), onClick: () => fileInput.current && fileInput.current.click() }, h(Icons.Upload, { size: 16 }), tx("Import examples")),
+        h("input", { ref: fileInput, type: "file", accept: ".zip,application/zip", hidden: true, onChange: upload }),
+      ),
+    on &&
+      imported.length > 0 &&
+      h(
+        "p",
+        { className: "oui-caption", "data-personal-imported": imported.length },
+        tx("Examples from other printers: {list}", { list: imported.map((entry) => (entry.printer || entry.origin) + " (" + entry.pictures + ")").join(", ") }) + " ",
+        h("button", { type: "button", className: "oui-btn oui-btn--quiet oui-btn--sm", "data-personal-forget": "", disabled: Boolean(busy), onClick: forget }, h(Icons.Trash, { size: 16 }), tx("Remove them")),
+      ),
+    h(
+      "p",
+      { className: "set-group__note" },
+      tx("Optional. The local model is the same for everyone; with this on it also learns what goes wrong on this printer, from your answers at the end of the prints. The pictures stay on the Raspberry; the export carries them to another printer of yours."),
+    ),
   );
 }
 

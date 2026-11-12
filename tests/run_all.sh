@@ -35,6 +35,7 @@ step "backend" python3 "$HERE/backend/test_backend.py" $QUICK
 step "backend: AI services" python3 "$HERE/backend/test_ai_services.py"
 step "backend: more printers" python3 "$HERE/backend/test_printers_peek.py"
 step "backend: scheduled prints" python3 "$HERE/backend/test_print_schedule.py"
+step "backend: the local model's personal layer" python3 "$HERE/backend/test_personal_layer.py"
 step "backend: calibration found by itself" python3 "$HERE/backend/test_calibration_auto.py"
 step "local model: tools" python3 "$ROOT/ml/tests/test_tools.py"
 step "notifier: logic" python3 "$HERE/notifier/test_watcher.py"
