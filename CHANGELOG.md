@@ -1,5 +1,20 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.109.0
+
+**Four more looks and a few small animations.**
+
+* Settings → Appearance → Look, after popular apps and sites (not only phones), each dark and light:
+  * **Studio**: flat and sharp, thin lines, small corners (the tools of software teams);
+  * **Soft**: big soft cards with shadows, gradient buttons (the dashboards of web services);
+  * **Fluent**: smoky glass and square corners (Windows 11);
+  * **Aurora**: a slowly moving glow of your colour behind glass cards.
+* Animations, light on the phone (transform and opacity only; off with the system's «reduce motion»):
+  * a soft light runs along the bar of a print going on;
+  * the AI badge's dot breathes while the monitor watches;
+  * the menu's lines come in one after the other;
+  * a switch's knob lands with a small bounce.
+
 ## 1.108.0
 
 **Dark, light or as the device.** Settings → Appearance → **Theme**: *Dark* (the usual), *Light*, or *As the device*,
