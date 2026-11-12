@@ -25,13 +25,13 @@ html[data-mode="light"] {
 
   --oui-text: #15171d;
   --oui-text-2: #4a505e;
-  --oui-text-3: #6b7181;
+  --oui-text-3: #5d6373; /* 1.115: 5.5:1 on the white cards (was 4.6) */
 
-  --oui-ok: #14995b;
+  --oui-ok: #0e7a47; /* 1.115: a deeper green, readable on its own soft badge */
   --oui-ok-soft: rgba(20, 153, 91, 0.12);
-  --oui-warn: #b56b00;
+  --oui-warn: #985a00;
   --oui-warn-soft: rgba(229, 140, 0, 0.14);
-  --oui-danger: #d93636;
+  --oui-danger: #c42d2d;
   --oui-danger-strong: #d62f32;
   --oui-danger-soft: rgba(217, 54, 54, 0.11);
   --oui-heat: #e0582a;
@@ -80,6 +80,10 @@ html[data-mode="light"] .oui-dark-island {
   --oui-text: #f3f4f6;
   --oui-text-2: #aeb3be;
   --oui-text-3: #7f8592;
+  --oui-ok: #3ddc8a;
+  --oui-warn: #ffb740;
+  --oui-danger: #ff5d5d;
+  --oui-accent-text: color-mix(in srgb, var(--oui-accent) 45%, #ffffff); /* the light page's deep accent is unreadable on the dark well */
   color: var(--oui-text);
 }
 

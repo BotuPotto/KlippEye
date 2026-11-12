@@ -1,5 +1,16 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.115.0
+
+**Clearer on the light page, and the movement wheel redrawn.**
+
+* The **movement wheel** (Home → Movement) has real gaps between its four parts instead of black lines: the page shows
+  through them, light or dark, in every look. The steps (+1, −10…) are written in those gaps, a little bigger, in the
+  page's own text colour.
+* Light page: the green, orange and red of the badges («Connected», «Up to date», the AI button of the logs…) are deeper,
+  and the small grey notes darker, so they read on the white cards; the «Copy» buttons of the commands stay readable on
+  their dark box; the options that cannot be changed («always there») are less faded.
+
 ## 1.114.0
 
 **KlippEye's own local model is here.** The AI monitor now comes with a small model (`models/base/`, about 6 MB) that

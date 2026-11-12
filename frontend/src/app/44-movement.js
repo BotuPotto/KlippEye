@@ -122,7 +122,7 @@ const PAD_QUADRANTS = [
 ];
 /** The step of each ring written on the diagonal gaps: +step up-right, −step down-left. */
 function padStepLabels(rings) {
-  const size = rings.length > 3 ? 10 : rings.length > 2 ? 10.5 : 11;
+  const size = rings.length > 3 ? 11 : rings.length > 2 ? 11.5 : 12.5; // 1.115: a little bigger, in their gaps
   return rings.flatMap((ring) => {
     const middle = (ring.from + ring.to) / 2;
     const up = polar(middle, -45);
@@ -144,23 +144,26 @@ function padAxisLabels(rings) {
   ];
 }
 
-/** The four cuts between quadrants, in degrees. */
-const PAD_DIAGONALS = [45, 135, 225, 315];
+/** 1.115: the cuts between the quadrants are real gaps (what lies behind shows through), as wide as the step written in
+ * them; their sides are parallel, so a gap is as wide near the centre as at the edge. */
+const PAD_CUT = 16;
 
 const polar = (radius, degrees) => {
   const radians = (degrees * Math.PI) / 180;
   return { x: PAD_CENTER + radius * Math.cos(radians), y: PAD_CENTER + radius * Math.sin(radians) };
 };
 
-/** SVG path of a ring segment between two radii and two angles. */
-function ringSegmentPath(innerRadius, outerRadius, startDeg, endDeg) {
+/** SVG path of a ring segment between two radii and two angles, its straight sides `cut` / 2 inside the two angles'
+ * lines (parallel to them: the gap between two segments is `cut` wide all along). */
+function ringSegmentPath(innerRadius, outerRadius, startDeg, endDeg, cut = 0) {
   let end = endDeg;
   while (end < startDeg) end += 360;
   const largeArc = end - startDeg > 180 ? 1 : 0;
-  const a = polar(innerRadius, startDeg);
-  const b = polar(outerRadius, startDeg);
-  const c = polar(outerRadius, end);
-  const d = polar(innerRadius, end);
+  const inset = (radius) => (Math.asin(Math.min(1, cut / 2 / radius)) * 180) / Math.PI;
+  const a = polar(innerRadius, startDeg + inset(innerRadius));
+  const b = polar(outerRadius, startDeg + inset(outerRadius));
+  const c = polar(outerRadius, end - inset(outerRadius));
+  const d = polar(innerRadius, end - inset(innerRadius));
   return `M ${a.x} ${a.y} L ${b.x} ${b.y} A ${outerRadius} ${outerRadius} 0 ${largeArc} 1 ${c.x} ${c.y} L ${d.x} ${d.y} A ${innerRadius} ${innerRadius} 0 ${largeArc} 0 ${a.x} ${a.y} Z`;
 }
 
@@ -212,7 +215,7 @@ function JogPad({ onJog, onHomeAll, onPark, steps = MOTION_BASE_STEPS }) {
     PAD_QUADRANTS.map((q) =>
       h("path", {
         key: `ring${ring.step}-${q.axis}${q.sign}`,
-        d: ringSegmentPath(ring.from, ring.to, q.a0, q.a1),
+        d: ringSegmentPath(ring.from, ring.to, q.a0, q.a1, PAD_CUT),
         className: ring.className,
         "data-jog": q.axis + (q.sign > 0 ? "+" : "-") + ring.step,
         onClick: () => onJog(q.axis, q.sign * ring.step),
@@ -226,11 +229,6 @@ function JogPad({ onJog, onHomeAll, onPark, steps = MOTION_BASE_STEPS }) {
       "svg",
       { width: "280", height: "280", viewBox: "0 0 280 280", className: "absolute inset-0 w-full h-full select-none" },
       rings.map(ringSegments),
-      PAD_DIAGONALS.map((degrees) => {
-        const from = polar(rings[0].from, degrees);
-        const to = polar(rings[rings.length - 1].to, degrees);
-        return h("line", { key: degrees, x1: from.x, y1: from.y, x2: to.x, y2: to.y, className: "pad-gap", strokeWidth: "3" });
-      }),
       padStepLabels(rings).map((label) =>
         h(
           "text",
