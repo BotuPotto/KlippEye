@@ -8,3 +8,7 @@
 .mt-5 { margin-top: 20px; }
 .my-3 { margin-top: 12px; margin-bottom: 12px; }
 .text-center { text-align: center; }
+
+/* 1.107.1: in a column that scrolls, the lines keep their height (a flex column with a maximum height would otherwise
+   squeeze them, and their texts run into each other — seen in the console's list of commands) */
+:is(.exclude-list, .console-suggest, .console-filters__list, .macro-prompt__body, .drawer__list) > * { flex-shrink: 0; }

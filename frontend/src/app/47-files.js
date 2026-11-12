@@ -15,6 +15,12 @@ const FILES_METADATA_LIMIT_WIDE = 24; // ...a wide screen shows far more tiles a
    ------------------------------------------------------------------------- */
 const encodeRemotePath = (path) => path.split("/").map(encodeURIComponent).join("/");
 
+/** 1.107.1: a file's name that wraps after its separators (_ . -) rather than in the middle of a word. */
+function breakableName(name) {
+  const parts = String(name || "").split(/(?<=[_.\-])/);
+  return parts.flatMap((part, index) => (index ? [h("wbr", { key: "w" + index }), part] : [part]));
+}
+
 /** Moonraker reports errors as { error: { code, message } }, the backend proxy as { error: "text" }. */
 async function responseError(response) {
   try {
@@ -263,7 +269,7 @@ function FileCard({ file, meta, thumbnail, onPrint, onMenu, selected, onSelect }
     h(
       "div",
       { className: "file-card__body" },
-      h("div", { className: "file-card__name" }, fileName),
+      h("div", { className: "file-card__name", title: fileName }, breakableName(fileName)),
       h(
         "div",
         { className: "file-card__meta" },

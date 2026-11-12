@@ -309,7 +309,7 @@ def commands_now():
     if S["has_bed_screws"]:
         names += ["BED_SCREWS_ADJUST", "ACCEPT", "ADJUSTED", "ABORT"]
     names.append("Z_OFFSET_APPLY_PROBE" if S["z_apply"] == "probe" else "Z_OFFSET_APPLY_ENDSTOP")
-    return {n: "help for " + n for n in names}
+    return {n: "help for " + n + (", a longer description that needs two lines on a phone to be read in full" if n.startswith("SET_") else "") for n in names}
 
 def status_for(keys, fields=None):
     st = {}
