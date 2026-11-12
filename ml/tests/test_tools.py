@@ -30,6 +30,8 @@ paths = synthetic.make(root)
 
 check("data.yaml names: a list on one line", datasets._yaml_names("names: ['spaghetti', \"print\"]\n") == ["spaghetti", "print"])
 check("... a list on lines, a mapping", datasets._yaml_names("names:\n  - a\n  - b\nnc: 2\n") == ["a", "b"] and datasets._yaml_names("names:\n  0: x\n  1: y\n") == ["x", "y"])
+check("... a list on lines not indented, as Roboflow writes it (the next key ends it)",
+      datasets._yaml_names("names:\n- spaghetti\n- stringing\n- zits\nnc: 3\nroboflow:\n  workspace: x\n") == ["spaghetti", "stringing", "zits"])
 
 rows = datasets.from_yolo(paths["yolo"], os.path.join(root, "work"), set(), False, cv2)
 fails = [r for r in rows if r[1] == 1 and r[3] == "yolo"]

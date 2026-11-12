@@ -70,7 +70,8 @@ def _yaml_names(text):
     match = re.search(r"^names:\s*\[(.*?)\]", text, re.M | re.S)
     if match:
         return [n.strip().strip("'\"") for n in match.group(1).split(",") if n.strip()]
-    match = re.search(r"^names:\s*\n((?:[ \t]+.*\n?)+)", text, re.M)
+    # a block list may be indented or not («names:\n- a\n- b», as Roboflow writes it), or a mapping «  0: a»
+    match = re.search(r"^names:[ \t]*\n((?:(?:[ \t]+\S.*|-[ \t].*)(?:\n|$))+)", text, re.M)
     names = []
     for line in (match.group(1).splitlines() if match else []):
         line = line.strip()
