@@ -2663,6 +2663,13 @@ print("== 1.106: the local model in the monitor")
 _lb = load_brain(NEW_BRAIN, tmp(), fake=fake, brain_json={"formato": 1, "values": {"enabled": False}})
 _lc = _lb.app.test_client()
 _g = _lc.get("/api/local_model").get_json()
+check("1.114: KlippEye's own model (models/base/) is loaded when there is none of yours", _g["ok"] and _g["available"] is True and _g["source"] == "base"
+      and _g["version"] == json.load(open(os.path.join(ROOT, "models", "base", "model.json")))["version"], _g)
+_s, _e = _lb.local_ai.model.predict(fakes.frame())
+check("... it rates a camera picture (a score from 0 to 1, its embedding)", 0.0 <= _s <= 1.0 and _e is not None and len(_e) == 1024, (_s, None if _e is None else len(_e)))
+_lb.LOCAL_MODEL_BASE_DIR = tmp()     # from here on: as if KlippEye had no model of its own
+_lb.local_ai.reload()
+_g = _lc.get("/api/local_model").get_json()
 check("1.106: no model in models/base or the data folder: none in use, the monitor as before", _g["ok"] and _g["available"] is False, _g)
 _det = _lb.detector
 _frame = fakes.frame()

@@ -1,0 +1,21 @@
+# The datasets the local model was trained on
+
+- [seeed-ai-competition/3d-print-failure](https://universe.roboflow.com/seeed-ai-competition/3d-print-failure) v2 (object-detection): CC BY 4.0
+- [3d-printing-failure/3d-printing-failure](https://universe.roboflow.com/3d-printing-failure/3d-printing-failure) v1 (object-detection): CC BY 4.0
+- [3d-printing-failure/spaghetti-3d](https://universe.roboflow.com/3d-printing-failure/spaghetti-3d) v1 (object-detection): CC BY 4.0
+- [bu-engme500-vision-project/fdm-failures-spaghetti](https://universe.roboflow.com/bu-engme500-vision-project/fdm-failures-spaghetti) v1 (object-detection): CC BY 4.0
+- [stringing/spaghetti-gwfdd](https://universe.roboflow.com/stringing/spaghetti-gwfdd) v1 (object-detection): CC BY 4.0
+- [freshdata/spaghetti-z7jrn](https://universe.roboflow.com/freshdata/spaghetti-z7jrn) v1 (object-detection): CC BY 4.0
+- [spaghettidetect/3d-printing-flaws](https://universe.roboflow.com/spaghettidetect/3d-printing-flaws) v10 (object-detection): CC BY 4.0
+- [sylucauc/3d-printing-failure-detection](https://universe.roboflow.com/sylucauc/3d-printing-failure-detection) v3 (object-detection): CC BY 4.0
+- [atco/3d-printing-error](https://universe.roboflow.com/atco/3d-printing-error) v7 (object-detection): MIT
+- [hcmut-yxyhm/3d-printing-defects](https://universe.roboflow.com/hcmut-yxyhm/3d-printing-defects) v3 (object-detection): CC BY 4.0
+- [project-jkfnh/defect-detection-in-3d-printing-9vutd](https://universe.roboflow.com/project-jkfnh/defect-detection-in-3d-printing-9vutd) v4 (object-detection): CC BY 4.0
+- [defects-of-3d-printing/fdm-sw9eb](https://universe.roboflow.com/defects-of-3d-printing/fdm-sw9eb) v8 (object-detection): CC BY 4.0
+- [3d-printing-monitoring-system-team-129-spring-2024-survm/3d-printing-defects-e2fsz](https://universe.roboflow.com/3d-printing-monitoring-system-team-129-spring-2024-survm/3d-printing-defects-e2fsz) v2 (object-detection): Public Domain
+- [om-sakharkar-d0y3z/3d-print-failure-detection-pbxw5](https://universe.roboflow.com/om-sakharkar-d0y3z/3d-print-failure-detection-pbxw5) v6 (object-detection): CC BY 4.0
+- [lewis-ly9ii/3d-printer-error-detection](https://universe.roboflow.com/lewis-ly9ii/3d-printer-error-detection) v5 (object-detection): CC BY 4.0
+- [dark-eden-nuheg/3d-printing-fail-detection](https://universe.roboflow.com/dark-eden-nuheg/3d-printing-fail-detection) v10 (object-detection): CC BY 4.0
+- [fyp-ul2aa/3d-printing-defects-wptsr](https://universe.roboflow.com/fyp-ul2aa/3d-printing-defects-wptsr) v6 (object-detection): CC BY 4.0
+- [xtremus3d/3d-printing-failures-old](https://universe.roboflow.com/xtremus3d/3d-printing-failures-old) v3 (object-detection): CC BY 4.0
+- [stringing/fdm-failures-stringing-uxbbo](https://universe.roboflow.com/stringing/fdm-failures-stringing-uxbbo) v1 (object-detection): CC BY 4.0

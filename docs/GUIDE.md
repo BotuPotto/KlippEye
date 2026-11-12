@@ -436,11 +436,11 @@ The AI writes its observations in the language of the notifications; every alert
 the alarms in Recordings, and `~/printer_data/klippeye/alerts/`). When the AI proposed to pause or cancel but no defect reached
 the minimum confidence, the alarm says so in orange ("Pause proposed, under the threshold").
 
-With a **local model** installed (Settings → AI monitor → Local model), a small image model on the Raspberry rates every
+KlippEye comes with its own **local model** (since 1.114; Settings → AI monitor → Local model shows it), a small image model on the Raspberry rates every
 alarm of the motion detection and also looks by itself every 15 seconds: the online AI is asked when it has a doubt or is
 sure, so the alarms it judges harmless cost no call, and a failure the motion detection misses is still caught.
 
-The local model is the same for everyone. With **Learn from this printer's prints** on (same page, off at first) it also
+It was trained on public photos of failed prints (credited in `models/base/CREDITS.md`). It is the same for everyone. With **Learn from this printer's prints** on (same page, off at first) it also
 learns from your printer: each answer to *How did the print go?* and each labelled recording train, on the Raspberry and
 in a few seconds, a small layer of its own that counts more as the examples grow (at least 5 failed and 20 fine pictures).
 The pictures never leave the printer; **Export the examples** saves them (small, with what each shows) in a file that
