@@ -2659,6 +2659,88 @@ check("1.103: a wrong answer: 400; an unknown print: 404", _rvc.post("/api/print
 _rvc.post("/api/backend/config", json={"values": {"print_review": False}})
 check("1.103: «Don't ask again» (print_review off): the service stops asking", _rvb.reviews.enabled is False and _rvc.get("/api/print/review").get_json()["enabled"] is False)
 
+print("== 1.106: the local model in the monitor")
+_lb = load_brain(NEW_BRAIN, tmp(), fake=fake, brain_json={"formato": 1, "values": {"enabled": False}})
+_lc = _lb.app.test_client()
+_g = _lc.get("/api/local_model").get_json()
+check("1.106: no model in models/base or the data folder: none in use, the monitor as before", _g["ok"] and _g["available"] is False, _g)
+_det = _lb.detector
+_frame = fakes.frame()
+_lb.AI_CONFIG_PATH = os.path.join(tmp(), "ai.json")
+json.dump({"api_key": "k" * 30, "provider": "groq"}, open(_lb.AI_CONFIG_PATH, "w"))   # an online AI that can be asked
+check("... without a model: an alarm of the motion detection asks the online AI, no alarm does not",
+      _det._local_look(_frame, 1000.0, True) is True and _det.local_state["why"] == "motion" and _det._local_look(_frame, 1003.0, False) is False)
+
+
+class _FakeModel:
+    version, threshold, size, info = "test-1", 0.5, 96, {"trained_on": {"pictures": 10}}
+
+    def __init__(self, scores):
+        self.scores = list(scores)
+
+    def predict(self, frame):
+        return self.scores.pop(0) if self.scores else 0.0, None
+
+
+def _with_scores(scores):
+    _lb.local_ai.model, _lb.local_ai.source = _FakeModel(scores), "base"
+    _det.local_state = {}
+    _det.cooldown_until = 0
+
+
+_det.local_every, _det.local_doubt, _det.local_sure, _det.local_filter, _det.local_alone = 15, 35, 80, True, False
+_with_scores([0.10])
+check("1.106: an alarm of the motion detection, the local model at 10% (below «in doubt»): the online AI is not asked",
+      _det._local_look(_frame, 2000.0, True) is False and _det.local_state.get("filtered") == 1 and _det.local_state["score"] == 10.0)
+_with_scores([0.50])
+check("... at 50%: asked, with the local model's opinion", _det._local_look(_frame, 2000.0, True) is True and _det.local_state["why"] == "motion+local")
+_det.local_filter = False
+_with_scores([0.10])
+check("... «only if in doubt» off: asked even at 10%", _det._local_look(_frame, 2000.0, True) is True)
+_det.local_filter = True
+_with_scores([0.9, 0.9])
+_first = _det._local_look(_frame, 3000.0, False)
+_skip = _det._local_look(_frame, 3005.0, False)   # not due yet (every 15 s): no look
+_second = _det._local_look(_frame, 3015.0, False)
+check("1.106: by itself every 15 s; two sure looks in a row (90%): the online AI is asked without an alarm, the monitor then rests",
+      _first is False and _skip is False and _second is True and _det.local_state["why"] == "local_sure" and _det.local_state["checks"] == 2 and _det.cooldown_until > 3015.0,
+      (_first, _skip, _second, _det.local_state))
+_with_scores([0.5, 0.5, 0.5])
+_r = [_det._local_look(_frame, 4000.0 + 15 * k, False) for k in range(3)]
+check("... three doubtful looks in a row (50%): asked at the third", _r == [False, False, True] and _det.local_state["why"] == "local_doubt", _r)
+_with_scores([0.5, 0.1, 0.5, 0.5])
+_r = [_det._local_look(_frame, 5000.0 + 15 * k, False) for k in range(4)]
+check("... a calm look in between starts the count again", _r == [False, False, False, False], _r)
+_lb.AI_CONFIG_PATH = os.path.join(tmp(), "ai.json")   # no key at all: no online AI can answer
+_det.local_alone = True
+_with_scores([0.95, 0.95, 0.95])
+_r = [_det._local_look(_frame, 6000.0 + 15 * k, False) for k in range(3)]
+_la = _det.last_analysis or {}
+check("1.106: no online AI and «stop on the local model alone»: three sure looks propose a pause by themselves (an alarm written)",
+      _r == [False, False, False] and (_la.get("analysis") or {}).get("action") == "PAUSE" and (_la.get("analysis") or {}).get("local_only") is True
+      and (_lb.read_alert_history() or [{}])[0].get("outcome") == "local model", (_r, _la))
+_det.local_alone = False
+_det.last_analysis = None
+_with_scores([0.95, 0.95, 0.95])
+[_det._local_look(_frame, 7000.0 + 15 * k, False) for k in range(3)]
+check("... switched off: without the online AI nothing is proposed", _det.last_analysis is None)
+_det.local_enabled = False
+_with_scores([0.95])
+check("1.106: «Use the local model» off: as without a model", _det._local_look(_frame, 8000.0, True) is True and _det.local_state.get("checks") is None)
+_det.local_enabled = True
+_p = _lb.build_ai_prompt(12, "printing", "x.gcode", 40, 210, None, "en", {"score": 91, "why": "local_sure"})
+_p2 = _lb.build_ai_prompt(12, "printing", "x.gcode", 40, 210, None, "en", {"score": 55, "why": "motion+local"})
+check("1.106: the prompt tells the online AI the local model's rating (asked by it, or with an alarm of the motion detection)",
+      "rates this picture 91% likely" in _p and "change that stays" not in _p and "change that stays" in _p2 and "55% likely" in _p2)
+_with_scores([0.4])
+_det._local_look(_frame, 9000.0, False)
+_g = _lc.get("/api/local_model").get_json()
+check("1.106: GET /api/local_model: the model in use (KlippEye's), its version, its last look", _g["available"] and _g["source"] == "base" and _g["version"] == "test-1" and _g["last"]["checks"] >= 1, _g)
+_g = _lc.post("/api/local_model", json={"reload": True}).get_json()
+check("... POST reload: the folders read again (none there: none in use)", _g["available"] is False, _g)
+_names = [s["key"] for s in _lc.get("/api/backend/config").get_json()["spec"] if s.get("group") == "local"]
+check("1.106: the local model's settings, in their own group", _names == ["local_enabled", "local_filter", "local_alone", "local_every", "local_doubt", "local_sure"], _names)
+
 stop_all()
 fake.close()
 print("\n%d PASS, %d FAIL" % (passed, failed))

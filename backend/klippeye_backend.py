@@ -686,6 +686,8 @@ CONFIG_GROUPS = [
     {"id": "avvio", "title": "When it starts checking",
      "note": "During heating, mesh or purge the real print has not started yet: the monitor waits."},
     {"id": "ia", "title": "AI model", "note": ""},
+    {"id": "local", "title": "Local model",
+     "note": "A small image model that runs on the Raspberry itself (no internet, no cost) and rates how likely each picture shows a failed print. It looks by itself every few seconds and judges the alarms of the motion detection: the online AI is asked when it is sure or in doubt. Without a model installed these settings have no effect."},
     {"id": "recording", "title": "Recording",
      "note": "While a print runs the KlippEye service keeps the pictures the monitor looked at (small, about 30 KB each) with layer, position and score, so that the monitor can be measured afterwards. The oldest prints are deleted when the space is full."},
 ]
@@ -730,6 +732,21 @@ CONFIG_SPEC = [
      "help": "The only confidence threshold of KlippEye. If the AI suggests PAUSE or CANCEL but no defect reaches it, the verdict becomes CONTINUE (it stays written in the history, in orange). Higher = fewer false alarms but a real failure may be let through: above 85% the AI rarely stops a print."},
     {"key": "ai_send_reference", "type": "bool", "default": True, "group": "ia", "label": "Also send the earlier picture to the AI",
      "help": "The AI sees «before» and «now» and judges whether something serious changed: it makes fewer mistakes. It uses more data per call; if the service refuses two pictures, it sends one."},
+    {"key": "local_enabled", "type": "bool", "default": True, "group": "local", "label": "Use the local model",
+     "help": "Off: the monitor works as without it (the motion detection alone decides when to ask the online AI)."},
+    {"key": "local_filter", "type": "bool", "default": True, "group": "local", "label": "Ask the online AI only if the local model has a doubt",
+     "help": "An alarm of the motion detection goes to the online AI only when the local model rates the picture at least «In doubt from»: fewer calls and fewer false alarms. Off: every alarm goes to the online AI, with the local model's opinion."},
+    {"key": "local_alone", "type": "bool", "default": False, "group": "local", "label": "Stop on the local model alone when the online AI cannot answer",
+     "help": "When no online AI can answer (no key, the limits used up) and the local model is sure for three looks in a row, the monitor proposes a pause by itself (the automatic pause, if on, does it). Off: without the online AI the local model only warns."},
+    {"key": "local_every", "type": "int", "default": 15, "min": 5, "max": 120, "step": 5, "unit": "s", "group": "local",
+     "label": "How often the local model looks by itself",
+     "help": "Besides every alarm of the motion detection. Each look takes a fraction of a second of the Raspberry."},
+    {"key": "local_doubt", "type": "int", "default": 35, "min": 5, "max": 95, "step": 5, "unit": "%", "group": "local",
+     "label": "In doubt from",
+     "help": "From this rating the local model has a doubt: an alarm of the motion detection goes to the online AI, and three doubtful looks in a row ask it too."},
+    {"key": "local_sure", "type": "int", "default": 80, "min": 10, "max": 99, "step": 1, "unit": "%", "group": "local",
+     "label": "Sure from",
+     "help": "From this rating the local model is sure there is a failure: two sure looks in a row ask the online AI at once, even without an alarm of the motion detection."},
     {"key": "roi", "type": "area", "default": [20, 20, 60, 60], "group": "area", "label": "Watched area",
      "help": "Left, top, width and height in % of the picture."},
     {"key": "cooldown", "type": "int", "default": 90, "min": 10, "max": 3600, "step": 10, "unit": "s", "group": "tempi",
@@ -2269,14 +2286,23 @@ def normalize_action(value):
     return ""
 
 
-def build_ai_prompt(score, state, filename, progress, hotend, ref_age=None, language="en"):
+def build_ai_prompt(score, state, filename, progress, hotend, ref_age=None, language="en", local=None):
     """The text for the AI: neutral (it does not say "it is spaghetti"), it explains what the camera sees, what a defect is
-    and what is not, and asks to describe before deciding. The free texts come back in `language`."""
+    and what is not, and asks to describe before deciding. The free texts come back in `language`. `local` (1.106): the
+    local model's rating and why the AI is asked ({"score": %, "why": "motion+local" | "local_sure" | "local_doubt"})."""
+    if local and local.get("score") is not None and local.get("why") in ("local_sure", "local_doubt"):
+        noticed = ("A small image model on the printer rates this picture %.0f%% likely to show a failed print (it can be wrong both ways). "
+                   "We do NOT know whether there is a problem." % local["score"])
+    else:
+        noticed = ("The local check noticed a change that stays in the picture (score %s%%), but it is usually harmless: print head, the part growing, "
+                   "shadows, reflections. We do NOT know whether there is a problem." % score)
+        if local and local.get("score") is not None:
+            noticed += " A small image model on the printer rates the picture %.0f%% likely to show a failed print (it can be wrong both ways)." % local["score"]
     pictures = ("I am sending TWO pictures: the first is BEFORE (about %d seconds ago), the second is NOW. Compare them: what counts is what changed and stays." % (ref_age or 0)
                 if ref_age is not None else "I am sending ONE picture (now).")
     return f"""You are watching a 3D print (a Klipper printer). The camera is fixed, very close and above the bed, in a corner: the print head, its cables and parts of the gantry often appear in the picture.
 
-The local check noticed a change that stays in the picture (score {score}%), but it is usually harmless: print head, the part growing, shadows, reflections. We do NOT know whether there is a problem.
+{noticed}
 
 {pictures}
 
@@ -2339,6 +2365,7 @@ class LightDetector(FrameJudge):
         self.thread = None
         self.generation = 0  # every start() opens a new one: an old loop still asleep understands by itself that it must end
         self.last_ai_call = 0
+        self.local_state = {}  # 1.106: the local model's last look (score, when, runs of sure / doubtful looks, counts)
         self.ai_quota = {}  # 1.102/1.104: "service/model" -> the time its limit is used up until (429): not asked before
         self.last_alert_img_path = None
         self.last_analysis = None  # last AI result, formatted; None again at the start and at the end of every print (1.25)
@@ -2630,15 +2657,18 @@ class LightDetector(FrameJudge):
                 ignore = self._machine_mask()
                 zone = self._zone_masks()
                 score, triggered = self.judge(frame, r.content, now, ignore, zone)
-                recorder.add_frame(frame, now, dict(self.meta, score=None if score is None else round(score, 2), trig=triggered))
+                ask = self._local_look(frame, now, triggered)   # 1.106: the local model's opinion and whether to ask online
+                recorder.add_frame(frame, now, dict(self.meta, score=None if score is None else round(score, 2), trig=triggered,
+                                                    local=self.local_state.get("score") if self.local_state.get("at") == now else None))
                 reviews.add_frame(frame, now, self.meta)  # a small picture a minute at most, for «how did it go?»
                 self._measure(time.time() - now + decode_seconds)  # decoding, judging and (when on) recording
-                if score is None:  # the comparison is not ready yet, or this check is to be ignored (light change)
+                if score is None and not ask:  # the comparison is not ready yet, or this check is to be ignored (light change)
                     self._nap(generation, self.check_interval)
                     continue
 
                 if triggered:
                     recorder.note_trigger(now)
+                if ask:
                     # save a full-resolution picture for the AI
                     try:
                         prune_alert_images(keep=20)  # old alert pictures do not pile up for ever (now + before)
@@ -2663,7 +2693,8 @@ class LightDetector(FrameJudge):
                             print(f"[OPENCV] Saved alert image {full_path}")
                             # call the AI analysis in the background (the loop does not wait)
                             ref_path, ref_age = self._save_reference(full_path)
-                            threading.Thread(target=self.call_ai_analysis, args=(full_path, ref_path, ref_age), daemon=True).start()
+                            local = {"score": self.local_state.get("score"), "why": self.local_state.get("why")} if self.local_state.get("at") == now else None
+                            threading.Thread(target=self.call_ai_analysis, args=(full_path, ref_path, ref_age), kwargs={"local": local}, daemon=True).start()
                     except Exception as e:
                         print(f"[OPENCV] save alert fail: {e}")
 
@@ -2672,6 +2703,83 @@ class LightDetector(FrameJudge):
             except Exception as e:
                 print(f"[OPENCV] loop error: {e}")
                 self._nap(generation, 3)
+
+    def _local_look(self, frame, now, triggered):
+        """The local model (1.106). It looks at every alarm of the motion detection and by itself every local_every
+        seconds; -> whether to ask the online AI now (the reason in self.local_state["why"]):
+          an alarm of the motion detection: when the model is at least «in doubt» (or always, with local_filter off);
+          by itself: two «sure» looks in a row, or three «in doubt» in a row.
+        Without a model (or switched off) only the motion detection decides, as before."""
+        state = self.local_state
+        due = triggered or now >= state.get("next", 0)
+        result = local_ai.predict(frame) if (self.local_enabled and due) else None
+        if result is None:
+            state["why"] = "motion" if triggered else None
+            return bool(triggered)
+        score = round(result[0] * 100, 1)
+        state.update(score=score, at=now, next=now + self.local_every, checks=state.get("checks", 0) + 1)
+        sure, doubt = score >= self.local_sure, score >= self.local_doubt
+        state["sure_run"] = state.get("sure_run", 0) + 1 if sure else 0
+        state["doubt_run"] = state.get("doubt_run", 0) + 1 if doubt else 0
+        self.stats["local"] = {k: state.get(k) for k in ("score", "checks", "filtered", "asked")}
+        why = None
+        if triggered:
+            if doubt or not self.local_filter:
+                why = "motion+local"
+            else:
+                state["filtered"] = state.get("filtered", 0) + 1
+                print("[LOCAL] alarm of the motion detection, the local model gives %.0f%%: the online AI is not asked" % score)
+        elif state["sure_run"] >= 2:
+            why = "local_sure"
+        elif state["doubt_run"] >= 3:
+            why = "local_doubt"
+        if why and why != "motion+local" and now < self.cooldown_until:
+            why = None   # resting after an alarm: the local model waits too
+        if why == "local_sure" and not self._online_ai_usable():
+            # no online AI can answer: with local_alone, three sure looks in a row propose a pause by themselves
+            if self.local_alone and state["sure_run"] >= 3:
+                state["sure_run"] = state["doubt_run"] = 0
+                self.cooldown_until = max(self.cooldown_until, now + self.cooldown_sec)
+                self._local_verdict(score, frame)
+            state["why"] = None
+            self.stats["local"] = {k: state.get(k) for k in ("score", "checks", "filtered", "asked")}
+            return False
+        if why:
+            state["asked"] = state.get("asked", 0) + 1
+            state["sure_run"] = state["doubt_run"] = 0
+            if why != "motion+local":
+                self.cooldown_until = max(self.cooldown_until, now + self.cooldown_sec)
+        state["why"] = why
+        self.stats["local"] = {k: state.get(k) for k in ("score", "checks", "filtered", "asked")}
+        return bool(why)
+
+    def _online_ai_usable(self):
+        try:
+            return bool(self._free_targets(ai_services.resolve_chain(_read_ai_file(), "monitor", self.ai_model)))
+        except ai_services.AiError:
+            return False
+
+    def _local_verdict(self, score, frame):
+        """No online AI can answer and the local model is sure (local_alone on): a pause proposed by the local model
+        alone, as the AI's verdicts are (the notifier and the automatic pause act on it)."""
+        language = shared_language()
+        summary = bt("The local model is sure there is a failure ({score}%) and no online AI can answer: check the print.", language, score="%.0f" % score)
+        path = f"/tmp/klippeye_alert_{int(time.time())}_local.jpg"
+        try:
+            cv2.imwrite(path, cv2.resize(frame, (AI_IMAGE_WIDTH, AI_IMAGE_HEIGHT), interpolation=cv2.INTER_AREA), [int(cv2.IMWRITE_JPEG_QUALITY), AI_IMAGE_QUALITY])
+        except Exception:
+            path = None
+        verdict = {"action": "PAUSE", "summary": summary, "observation": summary, "local_only": True,
+                   "spaghetti": {"detected": True, "confidence": int(score)}}
+        self.last_analysis = {"timestamp": time.strftime("%Y-%m-%d %H:%M:%S"), "model": "local:" + ((local_ai.model and local_ai.model.version) or ""),
+                              "progress": (self.meta or {}).get("progress"), "analysis": verdict, "raw": ""}
+        recorded = record_alert({"outcome": "local model", "action": "PAUSE", "confidence": int(score), "summary": summary,
+                                 "model": self.last_analysis["model"], "local_score": score, "trigger": "local_alone"}, path, None) if path else None
+        if recorded:
+            self.last_analysis["alert_id"] = recorded.get("id")
+            self.last_analysis["image"] = recorded.get("image")
+        self.stats["status"] = "local model: PAUSE proposed (%.0f%%), no online AI" % score
+        print("[LOCAL] sure (%.0f%%), no online AI: a pause proposed by the local model" % score)
 
     def _save_reference(self, adesso_path):
         """The "before" picture for the AI: the oldest of the background ones (~reference_seconds ago). -> (path, age in seconds) or (None, None)."""
@@ -2715,7 +2823,7 @@ class LightDetector(FrameJudge):
                 return float(value[2])
         return None
 
-    def _ask_ai(self, target, img_path, ref_path, ref_age, score, state, filename, progress, temp_h, language):
+    def _ask_ai(self, target, img_path, ref_path, ref_age, score, state, filename, progress, temp_h, language, local=None):
         """One question to the AI about a picture (and the one before it, if any).
         -> {"ok": True, "parsed": dict | None, "answer": text, "with_reference": bool} or {"ok": False, "status", "error"}."""
         def read(path):
@@ -2728,7 +2836,7 @@ class LightDetector(FrameJudge):
             return {"ok": False, "status": 0, "error": "picture not found"}
 
         def ask(with_reference):
-            prompt = build_ai_prompt(score, state, filename, progress, temp_h, ref_age if with_reference else None, language)
+            prompt = build_ai_prompt(score, state, filename, progress, temp_h, ref_age if with_reference else None, language, local)
             content = [{"type": "text", "text": prompt}]
             for b64 in ([ref_b64, img_b64] if with_reference else [img_b64]):
                 content.append({"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}})
@@ -2814,7 +2922,7 @@ class LightDetector(FrameJudge):
             print(f"[OPENCV] {target['name']} / {target['model']} could not answer ({result['status']}): the next service")
         return result, target, errors
 
-    def call_ai_analysis(self, img_path, ref_path=None, ref_age=None):
+    def call_ai_analysis(self, img_path, ref_path=None, ref_age=None, local=None):
         """Asks the AI to look at the picture (and, if there is one, at how it was before) when the monitor triggers, with
         nobody involved. 1.102: a stop it proposes is looked at again AI_CONFIRM_DELAY_S later on a new picture, and
         holds only if that look proposes a stop too. 1.104: the services of the chain (the monitor's, then its backups)
@@ -2862,7 +2970,7 @@ class LightDetector(FrameJudge):
             temp_h = telemetry.get("extruder", {}).get("temperature", 0)
 
             language = shared_language()
-            first, target, errors = self._ask_chain(free, img_path, ref_path, ref_age, score, state, filename, progress, temp_h, language)
+            first, target, errors = self._ask_chain(free, img_path, ref_path, ref_age, score, state, filename, progress, temp_h, language, local)
             final_model = target["model"] if target else ""
             if not first["ok"]:
                 record_alert({"outcome": f"AI error {first['status']}", "score": score, "model": final_model, "error": first["error"],
@@ -2898,7 +3006,7 @@ class LightDetector(FrameJudge):
                     # the first one if that cannot answer
                     others = [t for t in self._free_targets(chain) if t is not target]
                     order = (others + [target]) if (ai_cfg.get("second_opinion") is not False and others) else ([target] + others)
-                    look, second_target, _ = self._ask_chain(order, again, img_path, AI_CONFIRM_DELAY_S, score, state, filename, progress, temp_h, language)
+                    look, second_target, _ = self._ask_chain(order, again, img_path, AI_CONFIRM_DELAY_S, score, state, filename, progress, temp_h, language, local)
                     self.last_ai_call = time.time()
                     if look["ok"] and look["parsed"] is not None:
                         second = look["parsed"]
@@ -2930,6 +3038,7 @@ class LightDetector(FrameJudge):
                 "summary": parsed.get("summary"), "observation": parsed.get("observation"),
                 "with_reference": used_reference, "filter": self.persistent_filter,
                 "confirmed": parsed.get("confirmed"), "second_look": confirm,
+                "local_score": (local or {}).get("score"), "trigger": (local or {}).get("why") or "motion",
             }, img_path, ref_path if used_reference else None)
             if recorded:  # the dashboard asks the person about this alarm (right / false / ignore) with its picture
                 self.last_analysis["alert_id"] = recorded.get("id")
@@ -2944,6 +3053,62 @@ detector = LightDetector()
 detector.apply_config(brain_config.snapshot())  # the saved thresholds (or the defaults) apply from the first check
 recorder.configure(brain_config.snapshot()["record"], brain_config.snapshot()["record_max_mb"])
 from print_review import PrintReviews, PROBLEMS as REVIEW_PROBLEMS  # noqa: E402  (1.103: how each print went)
+import local_model  # noqa: E402  (1.106: the local model)
+
+LOCAL_MODEL_OWN_DIR = os.path.join(DATA_DIR, "model")             # a model trained by the person (ml/), if any
+LOCAL_MODEL_BASE_DIR = os.path.join(REPO_DIR, "models", "base")   # the model that comes with KlippEye
+
+
+class LocalAi:
+    """The local model in use (1.106): the person's own (data folder → model/) or the one that comes with KlippEye
+    (models/base/); none: the monitor works without. Loaded once, again with reload()."""
+
+    def __init__(self):
+        self.lock = threading.Lock()
+        self.model, self.source, self.error = None, None, ""
+        self.reload()
+
+    def reload(self):
+        with self.lock:
+            self.model, self.source, self.error = None, None, ""
+            if not HAS_CV2:
+                self.error = "OpenCV missing"
+                return
+            for source, folder in (("own", LOCAL_MODEL_OWN_DIR), ("base", LOCAL_MODEL_BASE_DIR)):
+                try:
+                    model = local_model.load(folder, cv2, np)
+                except local_model.ModelError as error:
+                    self.error = "%s: %s" % (folder, error)
+                    print("[LOCAL] model not usable: %s" % self.error)
+                    continue
+                if model is not None:
+                    self.model, self.source = model, source
+                    print("[LOCAL] model %s (%s) from %s" % (model.version, source, folder))
+                    return
+
+    def predict(self, frame):
+        """-> (score 0..1, embedding) or None (no model, or it failed: said once in the log)."""
+        with self.lock:
+            model = self.model
+        if model is None:
+            return None
+        try:
+            return model.predict(frame)
+        except Exception as error:  # noqa: BLE001 - the monitor goes on without it
+            if not self.error:
+                print("[LOCAL] the model failed: %s" % error)
+            self.error = str(error)[:200]
+            return None
+
+    def info(self):
+        model = self.model
+        if model is None:
+            return {"available": False, "error": self.error}
+        return {"available": True, "source": self.source, "version": model.version, "threshold": model.threshold, "size": model.size,
+                "trained_on": model.info.get("trained_on"), "measured": model.info.get("measured"), "error": self.error}
+
+
+local_ai = LocalAi()
 REVIEWS_DIR = os.path.join(DATA_DIR, "reviews")
 reviews = PrintReviews(REVIEWS_DIR, cv2 if HAS_CV2 else None)
 reviews.configure(brain_config.snapshot()["print_review"])
@@ -3519,6 +3684,18 @@ def _review_public(review):
     if not review:
         return None
     return {k: review.get(k) for k in ("id", "file", "started", "ended", "end_state", "thumbs", "answer")}
+
+
+@app.route("/api/local_model", methods=["GET", "POST"])
+def api_local_model():
+    """The local model (1.106): GET whether there is one (the person's own or KlippEye's), its version, how it was
+    measured, and its last look; POST {"reload": true} reads the model folders again (after copying a new model)."""
+    if request.method == "POST":
+        local_ai.reload()
+    state = detector.local_state
+    return _no_store(jsonify(dict(local_ai.info(), ok=True, enabled=detector.local_enabled,
+                                  last={k: state.get(k) for k in ("score", "at", "checks", "filtered", "asked", "why")},
+                                  folders={"own": LOCAL_MODEL_OWN_DIR, "base": LOCAL_MODEL_BASE_DIR})))
 
 
 @app.route("/api/print/review", methods=["GET"])
