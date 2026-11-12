@@ -45,6 +45,10 @@ python ml/datasets.py --auto ml/data --klippeye ./klippeye-data --out ml/work
 Dice quante foto ha trovato, fallite e buone. Le foto della stessa stampa restano insieme: una parte viene tenuta da parte
 per misurare il modello su foto che non ha mai visto.
 
+Le raccolte pubbliche hanno quasi solo stampe fallite: come esempi di stampa che va bene vengono presi pezzi delle stesse
+foto lontani dai riquadri del difetto; la foto intera resta solo se il difetto ne copre almeno un quinto. Da ogni
+raccolta al massimo 3000 foto (`--max-per-dataset`), così nessuna pesa troppo e l'addestramento resta rapido.
+
 Opzioni utili: `--fail-classes spaghetti,detached` per dire quali classi di una raccolta sono guasti (in automatico: tutte
 tranne quelle che si chiamano come ok / print / nozzle…); `--empty-is-ok` se nella raccolta le foto senza riquadri sono
 stampe andate bene.

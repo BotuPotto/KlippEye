@@ -30,15 +30,31 @@ paths = synthetic.make(root)
 
 check("data.yaml names: a list on one line", datasets._yaml_names("names: ['spaghetti', \"print\"]\n") == ["spaghetti", "print"])
 check("... a list on lines, a mapping", datasets._yaml_names("names:\n  - a\n  - b\nnc: 2\n") == ["a", "b"] and datasets._yaml_names("names:\n  0: x\n  1: y\n") == ["x", "y"])
+check("... a list on lines not indented, as Roboflow writes it (the next key ends it)",
+      datasets._yaml_names("names:\n- spaghetti\n- stringing\n- zits\nnc: 3\nroboflow:\n  workspace: x\n") == ["spaghetti", "stringing", "zits"])
 
 rows = datasets.from_yolo(paths["yolo"], os.path.join(root, "work"), set(), False, cv2)
 fails = [r for r in rows if r[1] == 1 and r[3] == "yolo"]
 crops = [r for r in rows if r[3] == "yolo-crop"]
-check("YOLO: a photo with a spaghetti box is failed, its box cut out; one with only a «print» box is a fine print",
-      len(fails) == 30 and len(crops) == 30 and all(os.path.isfile(r[0]) for r in crops) and len([r for r in rows if r[1] == 0]) == 30, (len(fails), len(crops), len(rows)))
+background = [r for r in rows if r[3] == "yolo-bg"]
+check("YOLO: a photo with a small spaghetti box: its box cut out (not kept whole); one with only a «print» box is a fine print",
+      len(fails) == 0 and len(crops) == 30 and all(os.path.isfile(r[0]) for r in crops) and len([r for r in rows if r[1] == 0 and r[3] == "yolo"]) == 30, (len(fails), len(crops), len(rows)))
+check("... pieces of the failed photos away from every box: fine examples at the same scale",
+      0 < len(background) <= 30 * datasets.BACKGROUND_CROPS and all(r[1] == 0 and os.path.isfile(r[0]) for r in background), len(background))
 check("... Roboflow's copies of one photo share a group", all(r[2].startswith("yolo:photo") and ".rf." not in r[2] for r in rows))
-check("... --fail-classes print: every photo failed",
-      len([r for r in datasets.from_yolo(paths["yolo"], os.path.join(root, "w2"), {"print"}, False, cv2) if r[3] == "yolo" and r[1] == 1]) == 60)
+every = datasets.from_yolo(paths["yolo"], os.path.join(root, "w2"), {"print"}, False, cv2)
+check("... --fail-classes print: every photo has a failure cut out, none is a whole fine print",
+      len({r[2] for r in every if r[3] == "yolo-crop"}) == len({r[2] for r in every}) and not [r for r in every if r[3] == "yolo" and r[1] == 0])
+big = os.path.join(root, "big")
+os.makedirs(os.path.join(big, "train", "images")); os.makedirs(os.path.join(big, "train", "labels"))
+open(os.path.join(big, "data.yaml"), "w").write("names:\n- spaghetti\nnc: 1\n")
+cv2.imwrite(os.path.join(big, "train", "images", "b.jpg"), synthetic.picture(True, __import__("random").Random(1))[0])
+open(os.path.join(big, "train", "labels", "b.txt"), "w").write("0 0.5 0.5 0.6 0.6\n")
+check("... a failure covering much of the photo: the photo is kept whole too",
+      [r[3] for r in datasets.from_yolo(big, os.path.join(root, "w4"), set(), False, cv2) if r[1] == 1].count("yolo") == 1)
+many = [("p%d" % i, i % 2, "g%d" % (i // 3), "x") for i in range(30)]
+kept = datasets.cap_groups(many, 10, 7)
+check("a cap per collection: whole groups, about the cap", 10 <= len(kept) < 13 and all(len([r for r in kept if r[2] == g]) == 3 for g in {r[2] for r in kept}), len(kept))
 kinds = {n: datasets.kind_of(n) for n in ("spaghetti", "Spagetti", "failure", "detached", "layer_shift", "Warping", "blob", "defect", "error", "stringing",
                                          "zits", "under_extrusion", "nozzle", "Print", "part", "good", "normal", "extruder", "weird")}
 check("class names: failures, defects of quality (left out), a normal print / the printer's parts",
@@ -56,7 +72,7 @@ os.makedirs(auto_root)
 os.symlink(paths["yolo"], os.path.join(auto_root, "a__yolo"))
 os.symlink(cls_root, os.path.join(auto_root, "b__cls"))
 rows = datasets.from_auto(auto_root, os.path.join(root, "w3"), set(), False, cv2)
-check("--auto: each downloaded dataset read as what it is (YOLO, class folders)", {r[3] for r in rows} == {"yolo", "yolo-crop", "classes"}, {r[3] for r in rows})
+check("--auto: each downloaded dataset read as what it is (YOLO, class folders)", {r[3] for r in rows} == {"yolo", "yolo-crop", "yolo-bg", "classes"}, {r[3] for r in rows})
 
 rows = datasets.from_folders(paths["sorted"])
 check("folders: ok/ fine, fail/ failed", len([r for r in rows if r[1] == 0]) == 20 and len([r for r in rows if r[1] == 1]) == 20)
@@ -77,7 +93,7 @@ groups = {}
 for row in manifest:
     groups.setdefault(row["group"], set()).add(row["split"])
 check("the manifest: every source, both kinds, a group never split between training and measuring",
-      code == 0 and {r["source"] for r in manifest} == {"yolo", "yolo-crop", "folders", "klippeye"} and all(len(s) == 1 for s in groups.values())
+      code == 0 and {r["source"] for r in manifest} == {"yolo", "yolo-crop", "yolo-bg", "folders", "klippeye"} and all(len(s) == 1 for s in groups.values())
       and {r["split"] for r in manifest} == {"train", "val"}, (code, len(manifest)))
 
 check("alarms: over the threshold for N pictures in a row, then quiet for the cooldown",

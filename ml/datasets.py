@@ -49,6 +49,12 @@ def kind_of(name, fail_classes=()):
 FAILED_AFTER = 60          # a failure is clear this many seconds after the moment the person chose
 OK_EVERY = 4               # of a fine recording, one picture in OK_EVERY (they are much alike)
 CROP_MARGIN = 0.6          # a box is cut out with this much of its size around it
+FAIL_CROPS = 2             # failure boxes cut out of one picture, at most
+BACKGROUND_CROPS = 2       # pieces of the same picture away from every box, as fine examples (the public collections have
+                           # almost only failed pictures: these teach what is not a failure, at the same scale as the boxes)
+WHOLE_IF_COVERS = 0.2      # a failed picture is also kept whole when its biggest failure covers this much of it: a smaller
+                           # one, seen whole, would teach «a whole picture of a printer is a failure»
+MAX_PER_DATASET = 3000     # pictures from one collection, at most (whole groups, picked at random): no collection drowns the others
 
 
 def images_in(folder):
@@ -70,7 +76,8 @@ def _yaml_names(text):
     match = re.search(r"^names:\s*\[(.*?)\]", text, re.M | re.S)
     if match:
         return [n.strip().strip("'\"") for n in match.group(1).split(",") if n.strip()]
-    match = re.search(r"^names:\s*\n((?:[ \t]+.*\n?)+)", text, re.M)
+    # a block list may be indented or not («names:\n- a\n- b», as Roboflow writes it), or a mapping «  0: a»
+    match = re.search(r"^names:[ \t]*\n((?:(?:[ \t]+\S.*|-[ \t].*)(?:\n|$))+)", text, re.M)
     names = []
     for line in (match.group(1).splitlines() if match else []):
         line = line.strip()
@@ -109,24 +116,77 @@ def from_yolo(root, work, fail_classes, empty_is_ok, cv2):
         fails = [b for c, b in boxes if c in failing]
         group = "yolo:" + os.path.basename(path).split(".rf.")[0]   # Roboflow's augmented copies of one photo stay together
         if fails:
-            rows.append((path, 1, group, "yolo"))
+            if max(bw * bh for _, _, bw, bh in fails) >= WHOLE_IF_COVERS:
+                rows.append((path, 1, group, "yolo"))
             image = cv2.imread(path) if cv2 is not None else None
             if image is not None:
                 h, w = image.shape[:2]
-                for k, (cx, cy, bw, bh) in enumerate(fails[:3]):
+                stem = re.sub(r"[^A-Za-z0-9_.-]+", "_", os.path.basename(path))[:80]
+                sides = []
+                for k, (cx, cy, bw, bh) in enumerate(fails[:FAIL_CROPS]):
                     side = max(bw * w, bh * h) * (1 + 2 * CROP_MARGIN)
-                    side = max(side, min(w, h) * 0.25)
+                    side = min(max(side, min(w, h) * 0.25), min(w, h))
                     x0, y0 = int(max(0, cx * w - side / 2)), int(max(0, cy * h - side / 2))
                     x1, y1 = int(min(w, cx * w + side / 2)), int(min(h, cy * h + side / 2))
                     if x1 - x0 > 16 and y1 - y0 > 16:
-                        out = os.path.join(crops, "%s_%d.jpg" % (re.sub(r"[^A-Za-z0-9_.-]+", "_", os.path.basename(path))[:80], k))
+                        out = os.path.join(crops, "%s_%d.jpg" % (stem, k))
                         cv2.imwrite(out, image[y0:y1, x0:x1])
                         rows.append((out, 1, group, "yolo-crop"))
+                        sides.append(side)
+                rows += _background_crops(image, boxes, sides, crops, stem, group, cv2)
         elif boxes and not [c for c, _ in boxes if c in quality]:
             rows.append((path, 0, group, "yolo"))   # only a normal print and the printer's parts
         elif not boxes and empty_is_ok:
             rows.append((path, 0, group, "yolo"))
     return rows
+
+
+def _background_crops(image, boxes, sides, crops, stem, group, cv2):
+    """Up to BACKGROUND_CROPS square pieces of the picture, as big as its failure crops, that touch no box (any class,
+    each grown by CROP_MARGIN): «fine» examples at the scale the model sees the failures at."""
+    h, w = image.shape[:2]
+    grown = []
+    for _, (cx, cy, bw, bh) in boxes:
+        mw, mh = bw * w * (1 + CROP_MARGIN), bh * h * (1 + CROP_MARGIN)
+        grown.append((cx * w - mw / 2, cy * h - mh / 2, cx * w + mw / 2, cy * h + mh / 2))
+    rng = random.Random(stem)
+    out = []
+    for k, wanted in enumerate(sides[:BACKGROUND_CROPS]):
+        found = None
+        for scale in (1.0, 0.75, 0.5):   # as big as the failure's crop, or smaller when the boxes leave no such room
+            side = int(min(wanted * scale, w, h))
+            if side < max(32, min(w, h) * 0.2):
+                break
+            for _ in range(25):
+                x0, y0 = rng.randint(0, w - side), rng.randint(0, h - side)
+                if all(x0 + side <= a or x0 >= c or y0 + side <= b or y0 >= d for a, b, c, d in grown):
+                    found = (x0, y0, side)
+                    break
+            if found:
+                break
+        if found:
+            x0, y0, side = found
+            path = os.path.join(crops, "%s_bg%d.jpg" % (stem, k))
+            cv2.imwrite(path, image[y0:y0 + side, x0:x0 + side])
+            out.append((path, 0, group, "yolo-bg"))
+    return out
+
+
+def cap_groups(rows, limit, seed):
+    """At most `limit` pictures, whole groups picked at random (the copies of one photo stay together)."""
+    if limit <= 0 or len(rows) <= limit:
+        return rows
+    by_group = {}
+    for row in rows:
+        by_group.setdefault(row[2], []).append(row)
+    groups = sorted(by_group)
+    random.Random(seed).shuffle(groups)
+    kept = []
+    for group in groups:
+        if len(kept) >= limit:
+            break
+        kept += by_group[group]
+    return kept
 
 
 def from_classes(root, fail_classes=()):
@@ -143,17 +203,21 @@ def from_classes(root, fail_classes=()):
     return rows
 
 
-def from_auto(root, work, fail_classes, empty_is_ok, cv2):
-    """Every dataset in `root` (one folder each, as ml/download.py writes them)."""
+def from_auto(root, work, fail_classes, empty_is_ok, cv2, limit=MAX_PER_DATASET, seed=7):
+    """Every dataset in `root` (one folder each, as ml/download.py writes them), each to at most `limit` pictures."""
     rows = []
     for name in sorted(os.listdir(root)):
         folder = os.path.join(root, name)
         if not os.path.isdir(folder):
             continue
         if glob.glob(os.path.join(folder, "**", "data.yaml"), recursive=True):
-            rows += from_yolo(folder, work, fail_classes, empty_is_ok, cv2)
+            found = from_yolo(folder, work, fail_classes, empty_is_ok, cv2)
         else:
-            rows += from_classes(folder, fail_classes)
+            found = from_classes(folder, fail_classes)
+        kept = cap_groups(found, limit, seed)
+        print("    %d pictures (%d failed, %d fine)%s" % (len(kept), sum(r[1] for r in kept), len(kept) - sum(r[1] for r in kept),
+                                                        " of %d" % len(found) if len(kept) < len(found) else ""))
+        rows += kept
     return rows
 
 
@@ -213,6 +277,7 @@ def main(argv=None):
     parser.add_argument("--klippeye", action="append", default=[])
     parser.add_argument("--fail-classes", default="")
     parser.add_argument("--empty-is-ok", action="store_true")
+    parser.add_argument("--max-per-dataset", type=int, default=MAX_PER_DATASET, help="pictures from one --auto collection, at most (0: all)")
     parser.add_argument("--out", default=os.path.join(os.path.dirname(os.path.abspath(__file__)), "work"))
     parser.add_argument("--val", type=float, default=0.15, help="the share of groups kept aside to measure the model")
     parser.add_argument("--seed", type=int, default=7)
@@ -232,7 +297,7 @@ def main(argv=None):
     for folder in args.classes:
         rows += from_classes(folder, fail_classes)
     for folder in args.auto:
-        rows += from_auto(folder, args.out, fail_classes, args.empty_is_ok, cv2)
+        rows += from_auto(folder, args.out, fail_classes, args.empty_is_ok, cv2, args.max_per_dataset, args.seed)
     for folder in args.klippeye:
         rows += from_klippeye(folder)
     if not rows:
