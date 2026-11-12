@@ -2761,12 +2761,17 @@ _lb.personal.layer = {"version": "test-1", "w": _lb.np.array([8.0] + [0.0] * 7),
 _det.local_state, _det.cooldown_until = {}, 0
 _det._local_look(_frame, 9500.0, False)
 _off = _det.local_state["score"]
+_trained_on = []
+_train_later = _lb.train_personal_later
+_lb.train_personal_later = lambda why="": _trained_on.append(why)   # (no real training here: it would remove the layer above)
 _lc.post("/api/backend/config", json={"personal_learning": True})
+_lb.train_personal_later = _train_later
 _det.local_state = {}
 _det._local_look(_frame, 9600.0, False)
 _on = _det.local_state["score"]
 check("1.107: switched on, the personal layer's rating is blended with the base model's (off: the base model's alone)",
       _lb.personal.enabled is True and _off == 20.0 and abs(_on - 59.98) < 0.1, (_off, _on))
+check("... switching it on starts a training", _trained_on == ["switched on"], _trained_on)
 _lb.personal.layer = None
 _r = _lc.get("/api/local_model/personal/export")
 import zipfile as _zf
