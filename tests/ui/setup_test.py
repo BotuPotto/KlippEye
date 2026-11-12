@@ -51,15 +51,26 @@ with sync_playwright() as p:
     # ------------------------------------------------------------------ a new installation
     P = open_page(b)
     ok("new installation: the guided set-up opens by itself on the welcome", wait_until(lambda: P.pg.locator(".setup").count() == 1) and step_id(P) == "welcome" and "Benvenuto in KlippEye" in P.pg.locator(".setup").inner_text())
-    ok("... it says how many steps there are, and has «Salta la guida»", "Passo 1 di 9" in P.pg.locator(".setup__head").inner_text() and P.pg.locator("[data-setup-skip-all]").count() == 1)
+    ok("... it says how many steps there are, and has «Salta la guida»", "Passo 1 di 10" in P.pg.locator(".setup__head").inner_text() and P.pg.locator("[data-setup-skip-all]").count() == 1)
+    ok("1.111: the welcome also offers the theme (dark, light, as the device)", "Come il dispositivo" in P.pg.locator(".setup").inner_text())
+    P.pg.locator(".setup").get_by_text("Chiaro", exact=True).click(); P.settle(400)
+    ok("... choosing «Chiaro» makes the page light at once", P.pg.evaluate("() => document.documentElement.getAttribute('data-mode')") == "light")
+    P.pg.locator(".setup").get_by_text("Scuro", exact=True).click(); P.settle(400)
     P.shot_vp(out + "/welcome.png")
     order = []
-    for _ in range(8):
+    for _ in range(9):
         P.pg.locator("[data-setup-next]").click(); P.settle(700)
         order.append(step_id(P))
-    ok("the steps, in order: name, camera, addresses, functions, notifications, AI, password, ready", order == ["printer", "camera", "network", "functions", "notifications", "ai", "access", "done"], order)
-    ok("the last step sums up each part (done / to do / optional) and offers «Fine»", P.pg.locator("[data-setup-summary]").count() == 7 and P.pg.locator('[data-setup-summary="functions"]').get_attribute("data-status") == "todo" and P.pg.locator('[data-setup-summary="network"]').get_attribute("data-status") == "optional" and P.pg.locator("[data-setup-finish]").count() == 1)
+    ok("the steps, in order (1.111: the optional ones last): name, camera, functions, notifications, AI, addresses, Home Assistant, password, ready",
+       order == ["printer", "camera", "functions", "notifications", "ai", "network", "homeauto", "access", "done"], order)
+    ok("the last step sums up each part (done / to do / optional) and offers «Fine»", P.pg.locator("[data-setup-summary]").count() == 8 and P.pg.locator('[data-setup-summary="homeauto"]').get_attribute("data-status") == "optional" and P.pg.locator('[data-setup-summary="functions"]').get_attribute("data-status") == "todo" and P.pg.locator('[data-setup-summary="network"]').get_attribute("data-status") == "optional" and P.pg.locator("[data-setup-finish]").count() == 1)
     P.shot_vp(out + "/summary.png")
+    P.pg.locator('[data-setup-summary="ai"]').click(); P.settle(1200)
+    text = P.pg.locator(".setup").inner_text()
+    ok("1.111: the AI step suggests Gemini and offers learning from the prints (the review and the personal layer)",
+       step_id(P) == "ai" and "Gemini" in text and "imparare dalle tue stampe" in text.lower() and "Chiedi com'è andata ogni stampa" in text and "Impara dalle stampe di questa stampante" in text, text.replace("\n", " | ")[-1500:])
+    for _ in range(4):
+        P.pg.locator("[data-setup-next]").click(); P.settle(500)
     P.pg.locator('[data-setup-summary="camera"]').click(); P.settle(600)
     ok("... a part of the summary leads back to its step", step_id(P) == "camera")
     ok("the camera step shows the preview over the camera settings", P.pg.locator(".setup-camera").count() == 1 and P.pg.locator(".setup .set-group").count() >= 3)

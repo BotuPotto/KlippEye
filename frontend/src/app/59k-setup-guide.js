@@ -54,7 +54,20 @@ function SetupAi({ onCalibrate }) {
     null,
     config.phase !== "ok" && h(BrainNotice, { phase: config.phase }),
     spec && config.values.enabled !== undefined && h("div", { className: "oui-list" }, h(BrainSettingControl, { spec, config })),
-    h(SettingsGroup, { title: tx("The AI service"), help: ["ai", "start"] }, h(AiServicesPanel, { use: "monitor", ai: aiServices }), h("p", { className: "set-group__note" }, tx("Groq and Google Gemini give a free key: open «Keys of the AI services», tap «Get a key» next to the service, create the key there, copy it and paste it here."))),
+    h(
+      SettingsGroup,
+      { title: tx("The AI service"), help: ["ai", "start"] },
+      h(AiServicesPanel, { use: "monitor", ai: aiServices }),
+      h("p", { className: "set-group__note" }, tx("Google Gemini (the one we suggest: its free plan allows many more checks a day) and Groq give a free key: open «Keys of the AI services», tap «Get a key» next to the service and follow the steps. With a second key, «Backup services» in Settings → AI monitor take over when the first one is used up.")),
+    ),
+    data &&
+      config.values.print_review !== undefined &&
+      h(
+        SettingsGroup,
+        { title: tx("Learning from your prints") },
+        h("div", { className: "oui-list" }, ["print_review", "personal_learning"].map((key) => data.spec.find((item) => item.key === key)).filter(Boolean).map((one) => h(BrainSettingControl, { key: one.key, spec: one, config }))),
+        h("p", { className: "set-group__note" }, tx("At the end of a print a card asks how it went: a second, and it is how the monitor gets better on your printer. Everything stays on the Raspberry.")),
+      ),
     h(
       SettingsGroup,
       { title: tx("Camera calibration"), help: ["camcal", "tap"] },
@@ -80,6 +93,7 @@ function useSetupStatus(active) {
   const aiKey = useAiKey(active);
   const calibration = useBackendJson("/api/camera/calibration", active, BRAIN_POLL_MS);
   const [access] = useAccessStatus(active);
+  const mqtt = useBackendJson("/api/mqtt", active, 30000);
   const phone = readAppNotifyState();
   const notifications = IN_APP_WEBVIEW && phone ? Boolean(phone.mode) : channels.phase === "ok" && (channels.data.ntfy.enabled || channels.data.firebase.on);
   return {
@@ -89,6 +103,7 @@ function useSetupStatus(active) {
     functions: settings.functions.reviewed ? "ok" : "todo",
     notifications: notifications ? "ok" : "todo",
     ai: aiKey.phase === "ok" && aiKey.configured ? (calibration.phase === "ok" && calibration.data.saved && calibration.data.usable ? "ok" : "todo") : "todo",
+    homeauto: mqtt.phase === "ok" && mqtt.data.enabled ? "ok" : "optional",
     access: access.info && access.info.enabled ? "ok" : "optional",
   };
 }
@@ -124,9 +139,21 @@ function SetupWelcome() {
     React.Fragment,
     null,
     h("div", { className: "setup-welcome" }, h(PrinterLogo, { id: "klippeye", className: "setup-welcome__logo" }), h("h2", null, tx("Welcome to KlippEye"))),
-    h(SetupIntro, null, tx("A few steps to set up what KlippEye needs: the name of the printer, the camera, the buttons that use your macros, the notifications on the phone and the AI monitor. Every step can be skipped and done later; nothing here can harm the printer.")),
+    h(SetupIntro, null, tx("A few steps to set up what KlippEye needs: the name of the printer, the camera, the buttons that use your macros, the notifications on the phone and the AI monitor; then, only if you need them, remote access, Home Assistant and a password. Every step can be skipped and done later; nothing here can harm the printer.")),
     h(SetupIntro, null, tx("The «?» buttons open a short guide wherever you are.")),
     h(SettingsGroup, { title: tx("Language of this device") }, h(SetupLanguage)),
+    h(SetupTheme),
+  );
+}
+
+/** 1.111: dark, light or as the device, from the first step. */
+function SetupTheme() {
+  const layout = useLayout();
+  const current = MODES.includes(layout.mode) ? layout.mode : "dark";
+  return h(
+    SettingsGroup,
+    { title: tx("Theme") },
+    h(ChipChoice, { label: tx("Theme"), options: MODES.map((id) => ({ id, label: modeLabel(id) })), value: current, onChange: (id) => layoutStore.setMode(id === "dark" ? null : id) }),
   );
 }
 
@@ -148,10 +175,11 @@ function setupSteps(menuTo, printing) {
       intro: tx("If the camera is already set up on the printer, «Import from the printer» at the bottom is the quickest way. The preview shows at once whether it is right."),
       body: () => h(React.Fragment, null, h(SetupCameraPreview), h(CameraPage)),
     },
-    { id: "network", title: tx("Addresses"), page: "network", intro: tx("Only if you open KlippEye from outside your home with ZeroTier, Tailscale or another VPN. Otherwise leave them empty and go on."), body: () => h(NetworkPage) },
     { id: "functions", title: tx("Printer functions"), page: "functions", intro: tx("What the buttons that use your macros do. KlippEye has looked for them by itself: check each one and press «All right» at the bottom."), body: () => h(PrinterFunctionsPage, { printing }) },
     { id: "notifications", title: tx("Notifications"), page: "notifications", intro: tx("Print finished, errors, filament run out, AI alarms: on the phone, also with the app closed."), body: () => h(SetupNotifications) },
     { id: "ai", title: tx("AI monitor"), page: "ai", intro: tx("It watches the print through the camera and warns you of a failure. It needs an AI key (free) and, to watch the whole bed, the camera calibrated."), body: () => h(SetupAi, { onCalibrate: () => menuTo("camcal") }) },
+    { id: "network", title: tx("Addresses"), page: "network", intro: tx("Only if you open KlippEye from outside your home with ZeroTier, Tailscale or another VPN. Otherwise leave them empty and go on."), body: () => h(NetworkPage) },
+    { id: "homeauto", title: "Home Assistant", page: "homeauto", intro: tx("Only if you use Home Assistant or another smart-home system: the printer appears there by itself. Otherwise go on."), body: () => h(HomeAutomationPage) },
     { id: "access", title: tx("Password"), page: "access", intro: tx("Optional: with a password, only who knows it can use the printer from the dashboard. Useful if other people use your network."), body: () => h(AccessPage, { active: true }) },
     { id: "done", title: tx("Ready"), page: "home" },
   ];
