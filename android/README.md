@@ -55,7 +55,7 @@ sta nel segreto `KLIPPEYE_CHIAVE_PASSWORD` (almeno 16 caratteri). Il file sta ne
 protezione è la password, quindi dev'essere una frase lunga e non va scritta da nessuna parte nel repository.
 
 * Il workflow rifiuta di pubblicare un APK firmato con una chiave **diversa** da quella dell'app già pubblicata (i telefoni non potrebbero
-  aggiornarsi): per cambiare chiave davvero si cancella `chiave/klippeye.p12` e si rilancia a mano con «nuova_chiave». Poi le app già
+  aggiornarsi): per cambiare chiave davvero si cancella `chiave/klippeye.p12` e si rilancia a mano con «new_key». Poi le app già
   installate vanno disinstallate e reinstallate una volta.
 * Per usare una chiave propria basta mettere il suo `.p12` (alias `klippeye`, stessa password per archivio e chiave) in `chiave/klippeye.p12`.
 * `app/build.gradle` firma la versione release solo se trova le variabili `KLIPPEYE_KEYSTORE` (percorso del file) e `KLIPPEYE_KEYSTORE_PASSWORD`.

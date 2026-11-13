@@ -728,7 +728,7 @@ public repositories.
    time and encrypts it with a password you choose: repository **Settings → Secrets and variables → Actions → New repository
    secret**, name **`KLIPPEYE_CHIAVE_PASSWORD`**, value a long sentence (at least 16 characters, on one line). Keep it safe.
 3. **Settings → Actions → General → Workflow permissions → Read and write permissions** (the workflow saves the app in `apk/`).
-4. **Actions → App Android → Run workflow**. After 5–10 minutes the app is in `apk/`; update KlippEye from the dashboard and install
+4. **Actions → Android app → Run workflow**. After 5–10 minutes the app is in `apk/`; update KlippEye from the dashboard and install
    the app from Settings → Updates → Android app (uninstall first an app signed with another key).
 5. **A new app version**: raise the number in `android/VERSION` (three numbers, e.g. `1.2.1`); GitHub builds it by itself.
 

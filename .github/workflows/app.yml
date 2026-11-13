@@ -1,10 +1,10 @@
-name: App Android
+name: Android app
 
-# Costruisce l'APK dell'app KlippEye sul computer di GitHub, lo firma e lo mette nella cartella apk/ del repository.
-# Il Raspberry lo riceve con il normale «Aggiorna» di KlippEye e la dashboard (Impostazioni → Aggiornamenti → App Android)
-# lo offre al telefono. Si mette in moto da solo quando in android/ cambia qualcosa E il numero in android/VERSION è nuovo;
-# oppure a mano da Actions → App Android → Run workflow.
-# Cosa serve e come si fa: docs/GUIDA.md, «L'app Android». I passi veri sono in ci/app_ci.py (provato a parte).
+# Builds the APK of the KlippEye app on GitHub's computer, signs it and puts it in the repository's apk/ folder.
+# The Raspberry receives it with KlippEye's normal update, and the dashboard (Settings → Updates → Android app) offers it
+# to the phone. It starts by itself when something changes in android/ AND the number in android/VERSION is new, or by
+# hand from Actions → Android app → Run workflow.
+# What is needed and how: docs/GUIDE.md, «Building your own Android app». The real steps are in ci/app_ci.py (tested apart).
 
 on:
   push:
@@ -15,107 +15,107 @@ on:
       - 'ci/app_ci.py'
   workflow_dispatch:
     inputs:
-      forza:
-        description: 'Ricostruisci anche se la versione in android/VERSION è già stata pubblicata'
+      force:
+        description: 'Build again even if the version in android/VERSION is already published'
         type: boolean
         default: false
-      nuova_chiave:
-        description: 'Ammetti una chiave di firma diversa da quella dell’app già pubblicata (i telefoni dovranno disinstallare e reinstallare l’app una volta)'
+      new_key:
+        description: 'Allow a signing key different from the published app''s (the phones will have to uninstall and install the app again, once)'
         type: boolean
         default: false
 
-# Serve per salvare l'APK nel repository alla fine
+# Needed to save the APK in the repository at the end
 permissions:
   contents: write
 
-# Un solo lavoro alla volta: due costruzioni insieme si pesterebbero i piedi
+# One run at a time: two builds together would get in each other's way
 concurrency:
   group: app-android
   cancel-in-progress: false
 
 jobs:
-  costruisci:
-    name: Costruisci e pubblica l'APK
+  build:
+    name: Build and publish the APK
     runs-on: ubuntu-latest
     timeout-minutes: 40
     env:
-      # La chiave di firma sta in android/chiave/klippeye.p12 (criptata); la password è il segreto che hai creato su GitHub
+      # The signing key is in android/chiave/klippeye.p12 (encrypted); its password is the secret created on GitHub.
+      # (The folder and the secrets keep their first names: renaming them would break the repositories that build the app.)
       KLIPPEYE_KEYSTORE: ${{ github.workspace }}/android/chiave/klippeye.p12
-      # (se hai ancora il vecchio segreto VZBOT_CHIAVE_PASSWORD va bene lo stesso: vale come password della nuova chiave)
       KLIPPEYE_KEYSTORE_PASSWORD: ${{ secrets.KLIPPEYE_CHIAVE_PASSWORD || secrets.VZBOT_CHIAVE_PASSWORD }}
-      # Facoltativo: il file di Firebase per le notifiche (senza, l'app si costruisce lo stesso ma senza notifiche)
+      # Optional: Firebase's file for the notifications (without it the app is built anyway, without notifications)
       GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
     steps:
-      - name: Scarica i file del repository
+      - name: Check out the repository
         uses: actions/checkout@v4
 
-      - name: Serve una nuova app?
-        id: decidi
+      - name: Is a new app needed?
+        id: decide
         env:
-          FORZA: ${{ inputs.forza }}
-          EVENTO: ${{ github.event_name }}
-        run: python3 ci/app_ci.py decidi --forza "$FORZA" --evento "$EVENTO"
+          FORCE: ${{ inputs.force }}
+          EVENT: ${{ github.event_name }}
+        run: python3 ci/app_ci.py decide --force "$FORCE" --event "$EVENT"
 
-      - name: Prepara Java
-        if: steps.decidi.outputs.build == 'true'
+      - name: Set up Java
+        if: steps.decide.outputs.build == 'true'
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
-      - name: Prepara l'SDK di Android
-        if: steps.decidi.outputs.build == 'true'
+      - name: Set up the Android SDK
+        if: steps.decide.outputs.build == 'true'
         uses: android-actions/setup-android@v3
         with:
           packages: 'platforms;android-34 build-tools;34.0.0'
 
-      - name: Prepara Gradle (con la memoria delle volte scorse)
-        if: steps.decidi.outputs.build == 'true'
+      - name: Set up Gradle (with the cache of the earlier runs)
+        if: steps.decide.outputs.build == 'true'
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Chiave di firma (la crea la prima volta)
-        if: steps.decidi.outputs.build == 'true'
-        run: python3 ci/app_ci.py chiave
+      - name: Signing key (made the first time)
+        if: steps.decide.outputs.build == 'true'
+        run: python3 ci/app_ci.py key
 
-      - name: Notifiche (google-services.json, se c'è)
-        if: steps.decidi.outputs.build == 'true'
+      - name: Notifications (google-services.json, if any)
+        if: steps.decide.outputs.build == 'true'
         run: python3 ci/app_ci.py google
 
-      - name: Costruisci l'APK
-        if: steps.decidi.outputs.build == 'true'
+      - name: Build the APK
+        if: steps.decide.outputs.build == 'true'
         working-directory: android
         run: |
           chmod +x gradlew
           ./gradlew --no-daemon --stacktrace assembleRelease
 
-      - name: Controlla l'APK e mettilo in apk/
-        if: steps.decidi.outputs.build == 'true'
+      - name: Check the APK and put it in apk/
+        if: steps.decide.outputs.build == 'true'
         env:
-          NUOVA_CHIAVE: ${{ inputs.nuova_chiave }}
-        run: python3 ci/app_ci.py pubblica --nuova-chiave "$NUOVA_CHIAVE" --sorgente "$GITHUB_SHA"
+          NEW_KEY: ${{ inputs.new_key }}
+        run: python3 ci/app_ci.py publish --new-key "$NEW_KEY" --source "$GITHUB_SHA"
 
-      - name: Salva nel repository
-        if: steps.decidi.outputs.build == 'true'
+      - name: Save in the repository
+        if: steps.decide.outputs.build == 'true'
         env:
-          RAMO: ${{ github.ref_name }}
-          VERSIONE: ${{ steps.decidi.outputs.version }}
-        run: python3 ci/app_ci.py salva --ramo "$RAMO" --messaggio "App Android $VERSIONE (APK costruito da GitHub) [skip ci]"
+          BRANCH: ${{ github.ref_name }}
+          VERSION: ${{ steps.decide.outputs.version }}
+        run: python3 ci/app_ci.py save --branch "$BRANCH" --message "Android app $VERSION (APK built by GitHub) [skip ci]"
 
-      - name: Riepilogo
+      - name: Summary
         if: always()
         env:
-          COSTRUITA: ${{ steps.decidi.outputs.build }}
-          VERSIONE: ${{ steps.decidi.outputs.version }}
-          MOTIVO: ${{ steps.decidi.outputs.motivo }}
-          ESITO: ${{ job.status }}
+          BUILT: ${{ steps.decide.outputs.build }}
+          VERSION: ${{ steps.decide.outputs.version }}
+          REASON: ${{ steps.decide.outputs.reason }}
+          OUTCOME: ${{ job.status }}
         run: |
           {
-            echo "### App Android"
-            if [ "$ESITO" = "success" ] && [ "$COSTRUITA" = "true" ]; then
-              echo "App **$VERSIONE** costruita e salvata in \`apk/\`. Sul Raspberry: dashboard → Impostazioni → Aggiornamenti → «Controlla», poi «Aggiorna KlippEye»; infine «Aggiorna l'app» sul telefono."
-            elif [ "$ESITO" = "success" ]; then
-              echo "Niente da costruire: $MOTIVO."
+            echo "### Android app"
+            if [ "$OUTCOME" = "success" ] && [ "$BUILT" = "true" ]; then
+              echo "App **$VERSION** built and saved in \`apk/\`. On the Raspberry: dashboard → Settings → Updates → «Check», then «Update KlippEye»; lastly «Update the app» on the phone."
+            elif [ "$OUTCOME" = "success" ]; then
+              echo "Nothing to build: $REASON."
             else
-              echo "Qualcosa non è andato: apri il passo con la X rossa qui sopra, il messaggio dice cosa fare."
+              echo "Something went wrong: open the step with the red X above, its message says what to do."
             fi
           } >> "$GITHUB_STEP_SUMMARY"

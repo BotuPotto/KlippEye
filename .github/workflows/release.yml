@@ -2,12 +2,12 @@ name: Release
 
 # Tags a release once its tests passed on main: the tag vX.Y.Z (from VERSION) is what the "stable" update channel of
 # Moonraker installs on the printers, and a GitHub release with the CHANGELOG section goes with it.
-# It runs after the "Tests" workflow and after the "App Android" one (which commits the new app after a merge); the
+# It runs after the "Tests" workflow and after the "Android app" one (which commits the new app after a merge); the
 # rules are in ci/release.py (tested by tests/app/release_test.py).
 
 on:
   workflow_run:
-    workflows: [Tests, App Android]
+    workflows: [Tests, Android app]
     types: [completed]
     branches: [main]
   workflow_dispatch:
