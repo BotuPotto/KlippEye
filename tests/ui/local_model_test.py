@@ -6,6 +6,7 @@ Usage: local_model_test.py <html> <outdir> <port>"""
 import json
 import os
 import sys
+import time
 import urllib.request
 from playwright.sync_api import sync_playwright
 from lib import *
@@ -26,6 +27,18 @@ def ok(name, cond, extra=""):
 
 def state():
     return json.loads(urllib.request.urlopen(mock.base + "/__mock/state").read())
+
+
+def wait_until(fn, seconds=6):
+    end = time.time() + seconds
+    while time.time() < end:
+        try:
+            if fn():
+                return True
+        except Exception:
+            pass
+        time.sleep(0.15)
+    return False
 
 
 def open_page(b, page, w=390, h=844, **st):
@@ -59,6 +72,8 @@ with sync_playwright() as p:
     ok("... what it did, its three switches, the way to its thresholds", "allarmi tenuti lontano dall'IA online: 9" in page and "Usa il modello locale" in page
        and "Ferma col solo modello locale" in page and P.pg.locator('[data-go="detector"]').count() >= 1, page[-900:])
     P.shot(os.path.join(out, "local_model_ai.png"))
+    ok("1.125: «False alarms it learned»: none yet, what teaches it", P.pg.locator('[data-false-alarms="0"]').count() == 1
+       and "Falso allarme" in P.pg.locator(".set-learned").inner_text() and P.pg.locator(".set-learned button").count() == 0, P.pg.locator(".set-learned").inner_text())
     P.pg.locator("[data-local-test]").click()
     P.settle(800)
     ok("1.124: «Try the local model now» on the AI monitor page: its score, its verdict, the views", "62,5%" in P.pg.locator("[data-local-try]").inner_text()
@@ -152,6 +167,19 @@ with sync_playwright() as p:
     P.settle(1200)
     wide = P.pg.evaluate("() => { const d = document.querySelector('.drawer__body'); return d.scrollWidth - d.clientWidth; }")
     ok("320 px: nothing sideways", wide <= 0, wide)
+    P.close()
+
+    # --- 1.125: the false alarms it learned, and «Forget»
+    P = open_page(b, "ai", local_model=model, false_alarms={"person": 3, "online": 1})
+    learned = P.pg.locator(".set-learned")
+    ok("1.125: it says how many it learned (yours, the online AI's) and that they are kept apart from the recordings",
+       "3 segnati da te" in learned.inner_text() and "1 giudicati a posto" in learned.inner_text() and "a parte" in learned.inner_text(), learned.inner_text())
+    learned.locator("button").click()
+    P.settle(300)
+    ok("... «Forget» asks first", P.pg.locator(".set-learned .set-confirm").count() == 1 and state().get("false_alarms_forgotten") is None)
+    P.pg.locator("[data-forget-false]").click()
+    ok("... confirmed: forgotten", wait_until(lambda: state().get("false_alarms_forgotten") == 1 and P.pg.locator('[data-false-alarms="0"]').count() == 1), state().get("false_alarms_forgotten"))
+    P.shot(os.path.join(out, "false_alarms.png"))
     P.close()
     b.close()
 

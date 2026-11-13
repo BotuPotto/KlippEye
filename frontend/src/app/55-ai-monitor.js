@@ -90,7 +90,8 @@ function describeDetector(json) {
     peak: Number(stats.peak_score) || 0, // 1.124: the highest of this print (the last one goes back to 0 once a change stays)
     boost: stats.boost === true,
     // 1.124: the local model, next to OpenCV: null = not in use (no model, or switched off)
-    local: json.local_available && json.local_enabled !== false ? { score: Number.isFinite(local.score) ? local.score : null, peak: Number(local.peak) || 0, best: local.best || "" } : null,
+    local: json.local_available && json.local_enabled !== false ? { score: Number.isFinite(local.score) ? local.score : null, peak: Number(local.peak) || 0, best: local.best || "", known: local.known || null } : null,
+    purge: Number(stats.purge) || 0, // 1.125: the share of the bed the purge marks take (hidden from the local model)
     localMissing: json.local_available === false,
     checks: stats.frames_checked || 0,
     dot: printing ? "active" : idle ? "idle" : "warming",
@@ -251,6 +252,7 @@ function LocalTry() {
       { className: cx("oui-caption monitor-try__result", score >= sure ? "is-sure" : score >= doubt && "is-doubt"), "data-local-try": score },
       h("strong", null, decimalText(score) + "%"),
       " · " + verdict + (parts.length > 1 ? " (" + parts.join(", ") + ")" : ""),
+      state.data.known && h("span", { "data-try-known": "" }, " · " + (state.data.known.source === "person" ? tx("a scene you marked as a false alarm: not counted") : tx("a scene the online AI found fine: not counted"))),
     );
   } else if (state.phase === "error") result = h("p", { className: "oui-caption monitor-try__result is-error", role: "alert" }, state.message || tx("the KlippEye service does not answer"));
   return h(
@@ -329,6 +331,16 @@ function AiMonitorCard({ monitor, bare }) {
       ),
     ),
     detector.boost && h("p", { className: "oui-caption", "data-boost": "" }, tx("The local model has a doubt: OpenCV raises an alarm sooner for a minute.")),
+    detector.local &&
+      detector.local.known &&
+      h(
+        "p",
+        { className: "oui-caption", "data-known": detector.local.known.source },
+        detector.local.known.source === "person"
+          ? tx("The local model recognises a scene you marked as a false alarm: it does not count it.")
+          : tx("The local model recognises a scene the online AI found fine: it does not count it."),
+      ),
+    detector.purge > 0 && h("p", { className: "oui-caption", "data-purge": "" }, tx("Purge recognised on the bed: the local model and OpenCV ignore it.")),
     detector.local && h(LocalTry),
     latest ? h(VerdictAlert, { latest }) : h("div", { className: "ai-alert hidden" }),
     latest && alarmPhoto(latest) && h(ZoomablePhoto, { src: alarmPhoto(latest), title: tx("What the AI monitor saw") + (latest.timestamp ? " • " + latest.timestamp : ""), className: "ai-panel__photo" }),

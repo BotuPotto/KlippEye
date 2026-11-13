@@ -183,6 +183,17 @@ print. OpenCV's score goes back to 0% once a change stops changing: a part that 
 of its background. That is normal, and it is why the local model keeps an eye on it. **Try the local model now** rates
 the camera's picture there and then: put something in front of the camera and see whether it recognises it.
 
+**It learns from its false alarms.** Mark an alarm as *False alarm* (on the print card or in the alarm list) and the local
+model remembers that scene: a picture like it, rated not much higher, no longer counts as a doubt or as sure, so no alarm,
+no pause and no online question. When the online AI finds nothing where the local model had a doubt, the scene is
+remembered for a few hours. What it learned is kept apart from the recordings (deleting them forgets nothing) and
+survives a new local model. *Real problem* on the same alarm forgets the scene; **Settings → AI monitor → Local model →
+Forget the false alarms it learned** forgets them all.
+
+**The purge is hidden.** With a calibrated camera, KlippEye compares the bed when the print starts with the bed when the
+real print starts. What appeared outside the parts (a purge line, also an adaptive one next to the print area, a blob)
+is covered with the empty bed before the local model looks, and OpenCV ignores it.
+
 What happens next depends on your choice in **Settings → AI monitor → The AI service → Who judges the pictures**:
 
 - **Online AI and local model** (the usual choice): when the local model has a doubt, or is sure there is a problem, the
@@ -296,6 +307,7 @@ prints and tells you how many alarms per hour you'd get, how many were false and
 | What happens | What to try |
 |---|---|
 | alarms when the toolhead passes | calibrate the camera; check the outline of toolhead and gantry; in *Monitor thresholds* choose *Few false alarms* |
+| the local model rates a fine print high (spaghetti) | mark its alarms *False alarm*: it learns the scene; calibrate the camera so the purge is hidden |
 | OpenCV shows 0% with an obvious failure | normal once the failure stops moving: look at *highest* and at the local model's tile, or press *Try the local model now* |
 | alarms when the light changes | fix the camera's exposure; soften a bright LED; leave *Light change* at 30 |
 | the AI reports doubtful problems | raise *Minimum AI confidence* from 70% to 80% |

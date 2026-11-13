@@ -199,8 +199,55 @@ function LocalModelGroup({ info, reload, control, config, menu, online }) {
     info.available && config.phase === "ok" && h("div", { className: "oui-list" }, control("local_enabled"), online && control("local_filter"), online && control("local_alone")),
     info.available && config.values && config.values.local_enabled !== false && h(LocalTry),
     info.available && h("button", { type: "button", className: "oui-btn oui-btn--quiet oui-btn--sm set-inline-btn", "data-go": "detector", onClick: () => menu.goTo("detector") }, h(Icons.Sliders, { size: 16 }), tx("Its thresholds: Monitor thresholds → Fine adjustments")),
+    info.available && h(FalseAlarmsPart, { learned: info.false_alarms, reload }),
     info.available && info.personal && config.phase === "ok" && h(PersonalLayerPart, { personal: info.personal, reload, control, on: config.values.personal_learning === true }),
     h("p", { className: "set-group__note" }, tx("A small image model that runs on the Raspberry, without internet: it looks at the print by itself and judges the alarms before the online AI is asked.")),
+  );
+}
+
+/**
+ * 1.125: what the local model learned live from false alarms: the ones the person marked (kept, also across updates of
+ * the model) and the online AI's «fine» (for some hours); «Forget» empties it.
+ */
+function FalseAlarmsPart({ learned, reload }) {
+  const [ask, setAsk] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const person = (learned && learned.person) || 0;
+  const online = (learned && learned.online) || 0;
+  const forget = async () => {
+    setBusy(true);
+    const reply = await backendPost("/api/local_model", { forget_false_alarms: true });
+    setBusy(false);
+    setAsk(false);
+    if (!reply.ok) toast.error(reply.message || tx("the KlippEye service does not answer"));
+    reload();
+  };
+  return h(
+    "div",
+    { className: "set-learned", "data-false-alarms": person + online },
+    h("div", { className: "set-learned__title" }, tx("False alarms it learned")),
+    h(
+      "p",
+      { className: "oui-caption" },
+      person || online
+        ? tx("{person} marked by you, {online} judged fine by the online AI (for a few hours). A picture like one of these, rated not much higher, is not an alarm.", { person, online })
+        : tx("None yet. When you mark an alarm as «False alarm», or the online AI finds nothing where the local model had a doubt, it remembers that scene and stops raising alarms for it."),
+    ),
+    h("p", { className: "oui-caption" }, tx("They are kept apart: deleting recordings or alarms does not forget them. Marking that alarm «Real problem» afterwards forgets the scene.")),
+    (person || online) > 0 &&
+      (ask
+        ? h(
+            "div",
+            { className: "set-confirm", role: "alertdialog", "aria-label": tx("Forget the false alarms it learned?") },
+            h("span", null, tx("The local model forgets every false alarm it learned. Confirm?")),
+            h(
+              "div",
+              { className: "set-confirm__buttons" },
+              h("button", { type: "button", className: "oui-btn", onClick: () => setAsk(false) }, tx("No")),
+              h("button", { type: "button", className: "oui-btn oui-btn--danger", disabled: busy, "data-forget-false": "", onClick: forget }, tx("Yes, forget")),
+            ),
+          )
+        : h("button", { type: "button", className: "oui-btn oui-btn--quiet oui-btn--sm set-inline-btn", onClick: () => setAsk(true) }, h(Icons.RotateCcw, { size: 16 }), tx("Forget the false alarms it learned"))),
   );
 }
 

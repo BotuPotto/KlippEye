@@ -186,6 +186,19 @@ diventa parte del suo sfondo. È normale, ed è per questo che il modello locale
 il modello locale** valuta la foto della telecamera in quel momento: metti qualcosa davanti alla telecamera e guarda se lo
 riconosce.
 
+**Impara dai falsi allarmi.** Segna un allarme come *Falso allarme* (sulla scheda della stampa o nell'elenco degli
+allarmi) e il modello locale si ricorda quella scena: una foto simile, con un voto non molto più alto, non conta più come
+dubbio o come certezza, quindi niente allarme, niente pausa e niente domanda all'IA online. Quando l'IA online non trova
+niente dove il modello locale aveva un dubbio, la scena viene ricordata per qualche ora. Quello che ha imparato è salvato a
+parte dalle registrazioni (cancellarle non fa dimenticare niente) e resta anche con un modello locale nuovo. *Problema
+reale* sullo stesso allarme dimentica la scena; **Impostazioni → Monitor IA → Modello locale → Dimentica i falsi allarmi
+imparati** li dimentica tutti.
+
+**Lo spurgo viene nascosto.** Con la telecamera calibrata, KlippEye confronta il piatto quando parte la stampa con il
+piatto quando comincia la stampa vera. Quello che è comparso fuori dai pezzi (una linea di spurgo, anche quella adattiva
+accanto all'area di stampa, un blob) viene coperto con il piatto vuoto prima che il modello locale guardi, e OpenCV lo
+ignora.
+
 Cosa succede dopo dipende dalla tua scelta in **Impostazioni → Monitor IA → Il servizio IA → Chi giudica le foto**:
 
 - **IA online e modello locale** (la scelta di partenza): quando il modello locale ha un dubbio, o è sicuro che ci sia un
@@ -301,6 +314,7 @@ monitor su quelle stampe e ti dice quanti allarmi all'ora avresti, quanti erano 
 | Cosa succede | Cosa provare |
 |---|---|
 | allarmi quando passa la testina | calibra la telecamera; controlla il contorno di testina e gantry; in *Soglie del monitor* scegli *Pochi falsi allarmi* |
+| il modello locale dà voti alti a una stampa riuscita (spaghetti) | segna i suoi allarmi *Falso allarme*: impara la scena; calibra la telecamera così lo spurgo viene nascosto |
 | OpenCV segna 0% con un guasto evidente | normale quando il guasto smette di muoversi: guarda il *massimo* e il riquadro del modello locale, oppure premi *Prova adesso il modello locale* |
 | allarmi quando cambia la luce | sistema l'esposizione della telecamera; attenua un LED troppo forte; lascia il cambio di luce a 30 |
 | l'IA segnala problemi dubbi | alza *Fiducia minima dell'IA* dal 70% all'80% |

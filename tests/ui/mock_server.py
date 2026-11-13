@@ -424,7 +424,7 @@ def mock_reset():
     S.clear(); S.update(default_state()); return jsonify(ok=True)
 @app.route("/__mock/state")
 def mock_state():
-    return jsonify({k: v for k, v in S.items() if k in ("light", "light_cmds", "light_reads", "actions", "webhooks", "webhooks_msg", "disconnected", "moonraker_down", "host_off", "services", "update_log", "brain_cfg_log", "backend_release", "brain_started", "klippeye_info", "pending_release", "logos", "app_apk_hits", "app_apk_downloads", "update_channel", "channel_posts", "rec_posts", "measure_starts", "measure_bodies", "ai_cfg", "ai_posts", "ai_model_reads", "excluded", "strip", "caselight", "mesh_profiles", "mesh_active", "mp", "mp_points", "tune", "speed_factor", "extrude_factor", "bs", "level_applied", "recordings", "alerts", "pm_macros", "pm_wraps", "pm_posts", "gcode_log", "ntfy", "ntfy_posts", "ntfy_tests", "ntfy_app_reads", "ai_answers", "ai_answer", "history_log", "queue", "queue_state", "queue_log", "power_devices", "power_log", "pins", "sensors", "timelapse_settings", "timelapse_log", "timelapse_conf_reads", "cfg", "timelapse_files", "spool_id", "spool_log", "webcams", "webcam_log", "peek_log", "schedule", "schedule_log", "metascan_log", "versions_log", "web", "web_log", "review", "review_answers", "personal_posts", "local_model", "local_tests")})
+    return jsonify({k: v for k, v in S.items() if k in ("light", "light_cmds", "light_reads", "actions", "webhooks", "webhooks_msg", "disconnected", "moonraker_down", "host_off", "services", "update_log", "brain_cfg_log", "backend_release", "brain_started", "klippeye_info", "pending_release", "logos", "app_apk_hits", "app_apk_downloads", "update_channel", "channel_posts", "rec_posts", "measure_starts", "measure_bodies", "ai_cfg", "ai_posts", "ai_model_reads", "excluded", "strip", "caselight", "mesh_profiles", "mesh_active", "mp", "mp_points", "tune", "speed_factor", "extrude_factor", "bs", "level_applied", "recordings", "alerts", "pm_macros", "pm_wraps", "pm_posts", "gcode_log", "ntfy", "ntfy_posts", "ntfy_tests", "ntfy_app_reads", "ai_answers", "ai_answer", "history_log", "queue", "queue_state", "queue_log", "power_devices", "power_log", "pins", "sensors", "timelapse_settings", "timelapse_log", "timelapse_conf_reads", "cfg", "timelapse_files", "spool_id", "spool_log", "webcams", "webcam_log", "peek_log", "schedule", "schedule_log", "metascan_log", "versions_log", "web", "web_log", "review", "review_answers", "personal_posts", "local_model", "local_tests", "false_alarms_forgotten")})
 @app.route("/__mock/print_actions")
 def mock_print_actions():
     return jsonify(S.get("print_actions", []))
@@ -1412,7 +1412,13 @@ def mock_local_model():
         if not S["local_model"].get("available"):
             return jsonify(ok=False, error="There is no local model in use"), 409
         return jsonify(ok=True, **S.get("local_test_result", {"score": 62.5, "views": {"whole": 18.0, "part": 62.5}, "best": "part", "doubt": 35, "sure": 80}))
-    return jsonify(dict(S["local_model"], ok=True, enabled=True, last=S["local_model"].get("last", {}), folders={}))
+    if request.method == "POST" and body.get("forget_false_alarms"):   # 1.125
+        S["local_tests"] = S.get("local_tests", 0)
+        S["false_alarms_forgotten"] = S.get("false_alarms_forgotten", 0) + 1
+        S["false_alarms"] = {"person": 0, "online": 0}
+        return jsonify(ok=True, forgotten=3, false_alarms=S["false_alarms"])
+    return jsonify(dict(S["local_model"], ok=True, enabled=True, last=S["local_model"].get("last", {}), folders={},
+                        false_alarms=S.get("false_alarms", {"person": 0, "online": 0})))
 
 
 @app.route("/api/local_model/personal", methods=["POST"])

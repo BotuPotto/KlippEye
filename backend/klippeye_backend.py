@@ -1728,6 +1728,7 @@ def api_logs_analyze():
 from monitor_core import HAS_CV2, cv2, np  # noqa: E402
 from recorder import Recorder  # noqa: E402  (the pictures of the prints, to measure the monitor)
 import print_zone  # noqa: E402  (phase 4c: where the objects of the print are)
+import purge_marks  # noqa: E402  (1.125: the marks of the purge, hidden from the local model)
 if not HAS_CV2:
     print("[OPENCV] cv2/numpy not installed, detector off - install with: sudo apt install python3-opencv")
 
@@ -2161,6 +2162,8 @@ class LightDetector(FrameJudge):
         self.generation = 0  # every start() opens a new one: an old loop still asleep understands by itself that it must end
         self.last_ai_call = 0
         self.local_state = {}  # 1.106: the local model's last look (score, when, runs of sure / doubtful looks, counts)
+        self.local_vec = None  # 1.125: how the model described the picture of its last look (the view that counted)
+        self.purge = None      # 1.125: {"before", "before_pos", "marks", "done", "share"} of this print
         self.ai_quota = {}  # 1.102/1.104: "service/model" -> the time its limit is used up until (429): not asked before
         self.last_alert_img_path = None
         self.last_analysis = None  # last AI result, formatted; None again at the start and at the end of every print (1.25)
@@ -2194,7 +2197,9 @@ class LightDetector(FrameJudge):
         printing = state in ("printing", "paused")
         if printing and not self.in_print:  # 1.124: the highest scores and the doubts belong to one print
             self.reset_peak()
-            for key in ("peak", "doubt_until", "views", "best", "change_seen"):
+            self.purge = None   # 1.125: each print has its purge
+            self.stats["purge"] = None
+            for key in ("peak", "doubt_until", "views", "best", "change_seen", "known", "known_looks"):
                 self.local_state.pop(key, None)
             self._local_stats()
         if printing != self.in_print:
@@ -2379,6 +2384,7 @@ class LightDetector(FrameJudge):
                     self.stats["total_duration"] = ps.get("total_duration") or 0
 
                     if not real_started:
+                        self._purge_before(live or position)   # 1.125: the empty bed, to find the purge later
                         self.stats["status"] = f"heating/mesh - waiting for the real print ({'; '.join(reasons)[:80]})"
                         self._nap(generation, 3)
                         continue
@@ -2414,6 +2420,10 @@ class LightDetector(FrameJudge):
                 now = time.time()
                 ignore = self._machine_mask()
                 zone = self._zone_masks()
+                self._purge_find(frame, zone)
+                marks = (self.purge or {}).get("marks")
+                if marks is not None:   # 1.125: the purge is no change for the motion detection either
+                    ignore = marks if ignore is None else cv2.bitwise_or(ignore, cv2.resize(marks, (ignore.shape[1], ignore.shape[0]), interpolation=cv2.INTER_NEAREST))
                 # 1.124: while the local model has a doubt, the motion detection raises an alarm sooner
                 self.boost = bool(self.local_enabled and now < self.local_state.get("doubt_until", 0))
                 self.stats["boost"] = self.boost
@@ -2437,7 +2447,8 @@ class LightDetector(FrameJudge):
                         full_path = write_ai_picture(frame, alert_picture_path())
                         self.last_alert_img_path = full_path
                         ref_path, ref_age = self._save_reference(full_path)
-                        local = {"score": self.local_state.get("score"), "why": self.local_state.get("why")} if self.local_state.get("at") == now else None
+                        local = ({"score": self.local_state.get("score"), "why": self.local_state.get("why"), "vector": self.local_vec,
+                                  "model": local_ai.model.version if local_ai.model is not None else None} if self.local_state.get("at") == now else None)
                         threading.Thread(target=self.call_ai_analysis, args=(full_path, ref_path, ref_age), kwargs={"local": local}, daemon=True).start()
                     except Exception as e:
                         print(f"[OPENCV] save alert fail: {e}")
@@ -2450,7 +2461,7 @@ class LightDetector(FrameJudge):
 
     def _local_stats(self):
         state = self.local_state
-        self.stats["local"] = {k: state.get(k) for k in ("score", "checks", "filtered", "asked", "peak", "views", "best")}
+        self.stats["local"] = {k: state.get(k) for k in ("score", "checks", "filtered", "asked", "peak", "views", "best", "known", "known_looks")}
 
     def _part_box(self):
         """Where the printed objects are in the picture (x, y, w, h in fractions), from the camera calibration; or None."""
@@ -2482,21 +2493,74 @@ class LightDetector(FrameJudge):
                 views.append((name, frame[rect[1]:rect[3], rect[0]:rect[2]]))
         return views
 
-    def local_judge(self, frame, now=None):
+    def local_judge(self, frame, now=None, cover=True):
         """The local model on local_views(): -> (score 0..100: the highest view, {view: score}, the view that gave it)
         or None (no model, or it failed on the whole picture)."""
         model = local_ai.model
         version = model.version if model is not None else None
-        scores = {}
-        for name, picture in self.local_views(frame, now):
+        scores, vectors = {}, {}
+        for name, picture in self.local_views(self._without_purge(frame) if cover else frame, now):
             result = local_ai.predict(picture)
             if result is None:
                 if name == "whole":
                     return None
                 continue
             scores[name] = round(personal.blend(result[0], result[1], version) * 100, 1)
+            vectors[name] = result[1]
         best = max(scores, key=scores.get)
+        self.local_vec = vectors.get(best)
         return scores[best], scores, best
+
+    def _without_purge(self, frame):
+        """1.125: the picture with the marks of this print's purge covered by the empty bed (unchanged without marks)."""
+        purge = self.purge or {}
+        if purge.get("marks") is None or purge.get("before") is None:
+            return frame
+        try:
+            return purge_marks.cover(cv2, np, frame, purge["before"], purge["marks"])
+        except Exception as error:  # a help only
+            print("[LOCAL] purge not covered: %s" % error)
+            return frame
+
+    def _purge_before(self, position):
+        """1.125: the bed at the start of the print (heating: the purge not printed yet), once per print, with a usable
+        calibration only (without it the part's first layer could not be told from a purge line)."""
+        if self.purge is not None or not self.expected_zone or not camera_cal.usable():
+            return
+        self.purge = {"done": False}
+        try:
+            r = requests.get(snapshot_url(), timeout=4)
+            frame = cv2.imdecode(np.frombuffer(r.content, np.uint8), cv2.IMREAD_COLOR) if r.ok else None
+        except Exception:
+            frame = None
+        if frame is not None:
+            self.purge.update(before=frame, before_pos=[round(float(v), 1) for v in position[:3]] if len(position or []) >= 3 else None)
+
+    def _purge_find(self, frame, zone):
+        """1.125: at the first check of the real print, the marks of the purge (purge_marks.py)."""
+        purge = self.purge
+        if not purge or purge.get("done") or purge.get("before") is None:
+            return
+        if zone is None:
+            if not self.zone.get("objects"):
+                return   # the objects are not known yet: the next check
+            purge["done"] = True
+            return
+        purge["done"] = True
+        try:
+            machine = camera_cal.monitor_mask([p for p in (purge.get("before_pos"), self.meta.get("live"), self.meta.get("live2")) if p],
+                                              OPENCV_WIDTH // 2, OPENCV_HEIGHT // 2)
+            marks = purge_marks.find(cv2, np, purge["before"], frame, zone[0], zone[1], machine)
+        except Exception as error:
+            print("[OPENCV] purge marks not found: %s" % error)
+            marks = None
+        purge["marks"] = marks
+        purge["share"] = round(purge_marks.share(np, marks, zone[0]) * 100, 2) if marks is not None else 0
+        self.stats["purge"] = purge["share"] or None
+        if marks is not None:
+            print("[OPENCV] purge marks found: %.1f%% of the bed, hidden from the local model and the motion detection" % purge["share"])
+        else:
+            purge.pop("before", None)   # nothing to cover: the picture is not kept
 
     def _local_look(self, frame, now, triggered):
         """The local model (1.106). It looks at every alarm of the motion detection and by itself every local_every
@@ -2520,6 +2584,12 @@ class LightDetector(FrameJudge):
         state.update(score=score, views=views, best=best, at=now, next=now + self.local_every, checks=state.get("checks", 0) + 1,
                      peak=max(state.get("peak") or 0, score))
         sure, doubt = score >= self.local_sure, score >= self.local_doubt
+        # 1.125: a scene already marked as a false alarm (by the person, or «fine» for the online AI) is no doubt
+        known = false_memory.match(self.local_vec, score, local_ai.model.version if local_ai.model is not None else None, now) if doubt else None
+        state["known"] = {"source": known["source"], "score": known["score"]} if known else None
+        if known:
+            sure = doubt = False
+            state["known_looks"] = state.get("known_looks", 0) + 1
         if doubt:
             state["doubt_until"] = now + LOCAL_BOOST_S
         state["sure_run"] = state.get("sure_run", 0) + 1 if sure else 0
@@ -2949,6 +3019,10 @@ class LightDetector(FrameJudge):
             if recorded:  # the dashboard asks the person about this alarm (right / false / ignore) with its picture
                 self.last_analysis["alert_id"] = recorded.get("id")
                 self.last_analysis["image"] = recorded.get("image")
+            # 1.125: the online AI sees no problem where the local model had a doubt: the local model learns it, for a while
+            if (normalize_action(parsed.get("action")) == "CONTINUE" and local and local.get("vector") is not None
+                    and (local.get("score") or 0) >= self.local_doubt):
+                false_memory.add(local["vector"], local["score"], "online", (recorded or {}).get("id") or round(time.time()), local.get("model"))
         except Exception as e:
             print(f"[OPENCV] AI call fail: {e}")
             traceback.print_exc()
@@ -3017,6 +3091,8 @@ class LocalAi:
 
 local_ai = LocalAi()
 personal = PersonalLayer(DATA_DIR, np, cv2 if HAS_CV2 else None)   # 1.107: what this printer learned (optional)
+from false_alarms import FalseAlarms  # noqa: E402  (1.125: the false alarms the local model learns live)
+false_memory = FalseAlarms(DATA_DIR, np, cv2 if HAS_CV2 else None)
 personal.configure(backend_config.snapshot()["personal_learning"])
 
 
@@ -3584,7 +3660,52 @@ def label_alert(alert_id, label, session=None):
         os.replace(log + ".tmp", log)
     if found.get("session"):
         recorder.label_alert(found["session"], alert_id, label)
+    _learn_from_label(found, label)
     return found
+
+
+def _learn_from_label(entry, label):
+    """1.125: the person's «false alarm» teaches the local model that scene (false_alarms.py) until forgotten; «right»
+    forgets it and the same scene; no label any more forgets that alarm."""
+    try:
+        alert_id = entry.get("id")
+        if label != "false":
+            vector = _alarm_vector(entry) if label == "right" else None
+            false_memory.forget(key=alert_id, near=vector, model=local_ai.model.version if local_ai.model is not None else None)
+            return
+        vector = _alarm_vector(entry)
+        if vector is not None:
+            score = entry.get("local_score")
+            if not isinstance(score, (int, float)) and entry.get("outcome") == "local model":
+                score = entry.get("confidence")   # an alarm of the local model alone: its score
+            if not isinstance(score, (int, float)):
+                score = detector.local_state.get("score") or detector.local_sure
+            false_memory.add(vector, max(float(score), float(detector.local_doubt)), "person", alert_id, local_ai.model.version,
+                             picture=cv2.imread(os.path.join(ALERT_HISTORY_DIR, os.path.basename(entry["image"]))))
+    except Exception as error:  # a help only
+        print("[LOCAL] false alarm not learned: %s" % error)
+
+
+def refresh_false_alarms():
+    """1.125: with a new base model, the person's false alarms are described again from their small pictures."""
+    model = local_ai.model
+    if model is None or not HAS_CV2:
+        return
+    try:
+        false_memory.refresh(model.version, lambda picture: detector.local_vec if detector.local_judge(picture, cover=False) is not None else None)
+    except Exception as error:  # a help only
+        print("[LOCAL] false alarms not described again: %s" % error)
+
+
+def _alarm_vector(entry):
+    """How the local model describes the alarm's picture (the view that counts), or None."""
+    if local_ai.model is None or not HAS_CV2 or not entry.get("image"):
+        return None
+    frame = cv2.imread(os.path.join(ALERT_HISTORY_DIR, os.path.basename(entry["image"])))
+    # the purge of the print running now is not the purge of that alarm's print: not covered
+    if frame is None or detector.local_judge(frame, cover=False) is None:
+        return None
+    return detector.local_vec
 
 
 @app.route("/api/print/alerts/<alert_id>/label", methods=["POST"])
@@ -3616,13 +3737,19 @@ def api_local_model():
     measured, and its last look; POST {"reload": true} reads the model folders again (after copying a new model)."""
     if request.method == "POST" and (request.get_json(silent=True) or {}).get("test"):
         return _local_model_test()
+    if request.method == "POST" and (request.get_json(silent=True) or {}).get("forget_false_alarms"):
+        gone = false_memory.forget()   # 1.125: what it learned from false alarms, forgotten
+        return jsonify({"ok": True, "forgotten": gone, "false_alarms": false_memory.info()})
     if request.method == "POST":
         local_ai.reload()
         model = local_ai.model
         if model is not None and personal.layer and personal.layer.get("version") != model.version:
             train_personal_later("new base model")   # the embeddings change with the model: computed again
+        refresh_false_alarms()
     state = detector.local_state
+    model = local_ai.model
     return _no_store(jsonify(dict(local_ai.info(), ok=True, enabled=detector.local_enabled, personal=personal.info(),
+                                  false_alarms=false_memory.info(model.version if model is not None else None),
                                   last={k: state.get(k) for k in ("score", "at", "checks", "filtered", "asked", "why")},
                                   folders={"own": LOCAL_MODEL_OWN_DIR, "base": LOCAL_MODEL_BASE_DIR})))
 
@@ -3643,7 +3770,9 @@ def _local_model_test():
     if result is None:
         return jsonify({"ok": False, "error": bt("The local model could not judge the picture", lang)}), 500
     score, views, best = result
+    known = false_memory.match(detector.local_vec, score, local_ai.model.version) if score >= detector.local_doubt else None
     return _no_store(jsonify({"ok": True, "score": score, "views": views, "best": best,
+                              "known": {"source": known["source"], "score": known["score"]} if known else None,
                               "doubt": detector.local_doubt, "sure": detector.local_sure}))
 
 
@@ -4936,6 +5065,7 @@ def serve_forever():
 if __name__ == "__main__":
     threading.Thread(target=_repair_at_startup, name="repair", daemon=True).start()
     threading.Thread(target=_schedule_loop, name="schedule", daemon=True).start()
+    threading.Thread(target=refresh_false_alarms, name="false-alarms", daemon=True).start()   # 1.125: a new base model came with an update
     _https_apply(_https_settings())  # 1.93: the encrypted entrance, when it was switched on
     _mqtt_apply(_mqtt_settings())  # 1.100: Home Assistant / MQTT, when set up
     print(f"KlippEye backend {RELEASE} (api {API_LEVEL}) - data in {DATA_DIR} - settings {'read from ' + MONITOR_CONFIG_PATH if backend_config.saved else 'default (no saved file)'}")

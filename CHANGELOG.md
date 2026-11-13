@@ -1,5 +1,24 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.125.0
+
+**The local model learns from its false alarms, live.**
+
+* Mark an alarm as *False alarm* and the local model remembers that scene: a picture like it, rated not much higher, no
+  longer counts as a doubt or as sure. No alarm, no pause, no online question for it. A worse picture of the same scene,
+  or another scene, still counts.
+* When the online AI finds nothing where the local model had a doubt, the scene is remembered for a few hours: no more
+  questions every minute for the same thing, and no more spent credits.
+* What it learned is kept apart from the recordings and the alarm list (deleting them forgets nothing), with a small copy
+  of each picture you marked, so it is described again when a new local model arrives. *Real problem* on the same alarm
+  forgets the scene; **Local model → Forget the false alarms it learned** forgets them all.
+* The AI monitoring panel says when the local model recognises a scene it learned, and so does *Try the local model now*.
+
+**The purge is hidden.** With a calibrated camera, KlippEye compares the bed when the print starts with the bed when the
+real print starts. What appeared outside the parts (a purge line, also an adaptive one next to the print area, a blob) is
+covered with the empty bed before the local model looks, and OpenCV ignores it, also if it is pulled off by hand. A change
+of the light is not taken for a purge.
+
 ## 1.124.0
 
 **OpenCV and the local model now help each other.**

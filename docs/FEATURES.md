@@ -399,7 +399,7 @@ Everything about the AI monitor, from top to bottom: on or off; how it looks at 
 calibration*, *Monitor thresholds* and *Recordings*); when it sees a problem (minimum confidence, defects, checks in a
 row, automatic pause and cancel); the AI service (who judges the pictures: online AI and local model, or the local model
 only; the service, the model, the keys, the backup services); the local model (its switches and learning from your
-prints, and *Try the local model now* on the camera's picture). The [guide](GUIDE.md#5-the-ai-monitor) explains how to
+prints, the false alarms it learned and how to forget them, and *Try the local model now* on the camera's picture). The [guide](GUIDE.md#5-the-ai-monitor) explains how to
 set it up.
 
 **Monitor thresholds** starts with *How watchful it is* (Few false alarms, Balanced, Notices more), which moves OpenCV and

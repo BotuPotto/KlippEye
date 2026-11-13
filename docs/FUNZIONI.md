@@ -407,7 +407,7 @@ Tutto il monitor IA, dall'alto in basso: acceso o spento; come guarda la stampa 
 telecamera*, *Soglie del monitor* e *Registrazioni*); quando vede un problema (fiducia minima, difetti, controlli di fila,
 pausa e annullamento automatici); il servizio IA (chi giudica le foto: IA online e modello locale, oppure solo il modello
 locale; il servizio, il modello, le chiavi, i servizi di riserva); il modello locale (i suoi interruttori e l'apprendimento
-dalle tue stampe, e *Prova adesso il modello locale* sulla foto della telecamera). La [guida](GUIDA.md#5-il-monitor-ia)
+dalle tue stampe, i falsi allarmi imparati e come dimenticarli, e *Prova adesso il modello locale* sulla foto della telecamera). La [guida](GUIDA.md#5-il-monitor-ia)
 spiega come configurarlo.
 
 **Soglie del monitor** comincia con *Quanto è attento* (Pochi falsi allarmi, Equilibrato, Nota di più), che regola insieme
