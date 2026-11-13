@@ -99,7 +99,7 @@ check("the manifest: every source, both kinds, a group never split between train
 check("alarms: over the threshold for N pictures in a row, then quiet for the cooldown",
       evaluate.alarms([(0, .9), (10, .9), (20, .2), (30, .95), (40, .95), (200, .99), (210, .99)], 0.8, 2, 120) == [10, 200]
       and evaluate.alarms([(0, .9), (10, .9)], 0.8, 1, 120) == [0])
-prints = evaluate.prints_of(paths["klippeye"])
+prints = evaluate.labelled_prints.prints_of(paths["klippeye"])
 check("evaluate: the labelled prints of a data folder (two recordings, one review)", sorted(p["kind"] for p in prints) == ["recording", "recording", "review"])
 
 check("local_model: no folder or no model.onnx: None (the monitor works without)", local_model.load("", cv2, np) is None and local_model.load(root, cv2, np) is None)

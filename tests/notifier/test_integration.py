@@ -3,17 +3,16 @@ klippeye_notifier.py against the real thing as far as it can be had here: the Mo
 tests, and a stand-in for Google (OAuth2 token endpoint that VERIFIES the RS256 signature of the sign-in, and the FCM
 send endpoint that checks the token). Usage: python3 test_integration.py <dashboard html for the mock> <port>
 """
-import base64, json, os, re, signal, subprocess, sys, tempfile, threading, time, io, contextlib
+import json, os, signal, subprocess, sys, tempfile, threading, time, io, contextlib
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import parse_qs
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "..", "notifier"))
 sys.path.insert(0, os.path.join(HERE, "..", "ui"))
 import klippeye_notifier as vn
 from lib import Mock
-from cryptography.hazmat.primitives.asymmetric import rsa, padding
-from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.hazmat.primitives import serialization
 
 html, port = sys.argv[1], int(sys.argv[2])
 GPORT = port + 1
@@ -26,7 +25,7 @@ NOW = 1760000000
 KEY = rsa.generate_private_key(public_exponent=65537, key_size=2048)
 PEM = KEY.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()).decode()
 
-from fake_google import Google, ISSUER
+from fake_google import Google
 
 google = Google(KEY, GPORT); google.start()
 mock = Mock(html, port)

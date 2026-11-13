@@ -2,7 +2,6 @@
 not turn (a browser that cannot lock landscape, an iPhone) gets the picture turned 90°; the turn button switches that off;
 the KlippEye app (1.5.0, KlippEyeApp/8) is asked to hide Android's bars and turn the screen itself. Against the mock.
 Usage: camera_full_test.py <html> <outdir> <port>"""
-import json
 import os
 import sys
 import time

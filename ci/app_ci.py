@@ -60,7 +60,7 @@ def leggi_versione(p):
         with open(p["versione_app"], encoding="utf-8") as f:
             testo = f.read().strip()
     except OSError:
-        raise Errore("Manca il file android/VERSION (dentro c'è scritto il numero della versione, per esempio 1.0.0).")
+        raise Errore("Manca il file android/VERSION (dentro c'è scritto il numero della versione, per esempio 1.0.0).") from None
     codice = codice_versione(testo)
     if codice is None:
         raise Errore("android/VERSION deve contenere tre numeri da 0 a 99 separati da punti (per esempio 1.0.1): trovato «%s»." % testo[:40])
@@ -180,7 +180,7 @@ def google(p, contenuto):
         clienti = dati["client"]
         pacchetti = [c["client_info"]["android_client_info"]["package_name"] for c in clienti]
     except (ValueError, KeyError, TypeError):
-        raise Errore("Il segreto GOOGLE_SERVICES_JSON non è un file google-services.json: incolla tutto il contenuto del file scaricato da Firebase, dalla prima all'ultima graffa.")
+        raise Errore("Il segreto GOOGLE_SERVICES_JSON non è un file google-services.json: incolla tutto il contenuto del file scaricato da Firebase, dalla prima all'ultima graffa.") from None
     if PACCHETTO not in pacchetti:
         raise Errore("Il google-services.json nel segreto GOOGLE_SERVICES_JSON è di un'altra app (%s): in Firebase aggiungi un'app Android chiamata %s, scarica il nuovo google-services.json e incolla il suo contenuto nel segreto GOOGLE_SERVICES_JSON."
                      % (", ".join(pacchetti) or "nessuna", PACCHETTO))
@@ -233,7 +233,7 @@ def pubblica(p, apk, aapt2, apksigner, ammetti_nuova_firma=False, sorgente="", a
         with zipfile.ZipFile(apk) as z:
             nomi = set(z.namelist())
     except zipfile.BadZipFile:
-        raise Errore("Il file costruito non è un APK valido.")
+        raise Errore("Il file costruito non è un APK valido.") from None
     if "AndroidManifest.xml" not in nomi or not any(n.endswith(".dex") for n in nomi):
         raise Errore("Il file costruito non è un APK valido (manca il manifest o il codice).")
     pacchetto, codice_apk, versione_apk = leggi_dati_apk(apk, aapt2)
@@ -288,7 +288,7 @@ def salva(radice, ramo, messaggio, cartelle, tentativi=4, utente=("KlippEye (Git
         return False
     git(radice, "commit", "-q", "-m", messaggio)
     ultimo = ""
-    for tentativo in range(tentativi):
+    for _ in range(tentativi):
         r = git(radice, "push", "origin", "HEAD:refs/heads/" + ramo, controlla=False)
         if r.returncode == 0:
             return True

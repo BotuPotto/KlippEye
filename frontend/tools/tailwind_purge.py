@@ -18,6 +18,11 @@ COMPILED = os.path.join(HERE, "..", "vendor", "tailwind-3.4.18.compiled.css")
 HEADER = ("/* Tailwind CSS v3.4.18 (compiled), reduced to the utilities this dashboard uses. */\n")
 
 
+def read(path):
+    with open(path, encoding="utf-8") as handle:
+        return handle.read()
+
+
 def split_top(text, sep):
     """Split on `sep` at brace/paren/bracket/quote depth 0 (ignores escaped chars)."""
     parts, depth, cur, i, quote = [], 0, [], 0, None
@@ -92,7 +97,7 @@ def unescape(text):
 def used_tokens():
     toks = set()
     for p in glob.glob(os.path.join(SRC_APP, "*.js")):
-        text = open(p, encoding="utf-8").read()
+        text = read(p)
         toks.update(re.findall(r"[^\s\"'`]+", text))
         # tokens glued to template placeholders: `foo ${x} bar` is split already; also cut on ${...}
         for t in list(toks):
@@ -200,7 +205,7 @@ def trim_custom_properties(items):
 
 def generate(compiled_path=COMPILED):
     """The reduced stylesheet as text."""
-    items = parse_blocks(open(compiled_path, encoding="utf-8").read())
+    items = parse_blocks(read(compiled_path))
     kept = trim_custom_properties(purge(items, used_tokens()))
     return HEADER + "\n".join(emit(kept)) + "\n"
 
@@ -208,6 +213,7 @@ def generate(compiled_path=COMPILED):
 if __name__ == "__main__":
     css = generate()
     if len(sys.argv) > 1:
-        open(sys.argv[1], "w", encoding="utf-8").write(css)
+        with open(sys.argv[1], "w", encoding="utf-8") as handle:
+            handle.write(css)
     else:
         sys.stdout.write(css)

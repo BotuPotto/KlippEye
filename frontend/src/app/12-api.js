@@ -49,7 +49,7 @@ const fireGcode = (script) => {
     sendGcode(script).catch(noop);
   } catch (e) {}
 };
-/** Sends G-code through the backend backend (/api/gcode). */
+/** Sends G-code through the backend (/api/gcode). */
 const sendBrainGcode = (script) => postGcodeTo("/api/gcode", script);
 
 /** Klipper's own words for a failed request: Moonraker's { error: { message } }, a plain { error }, or the raw text. */

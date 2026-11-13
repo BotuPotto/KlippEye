@@ -11,6 +11,8 @@ Thank you for helping! KlippEye is a dashboard, a notifier and an Android app fo
 | `notifier/` | push notifications to the phone (Firebase Cloud Messaging) |
 | `android/` | the Android app (a WebView around the dashboard + notifications) |
 | `scripts/`, `systemd/` | installer, `klippeye` command, self-repair, service files |
+| `ml/` | tools that train and measure the local model of the AI monitor (`models/`) |
+| `ci/` | what the GitHub workflows run (release, app build) |
 | `tests/` | automatic tests, see `tests/README.md` |
 
 ## Making a change
@@ -18,7 +20,8 @@ Thank you for helping! KlippEye is a dashboard, a notifier and an Android app fo
 1. Fork the repository and create a branch with a short English name (`fix-camera-timeout`).
 2. If you change the dashboard, edit `frontend/src` and rebuild: `python3 frontend/build.py`. Commit both the sources and
    `frontend/klippeye_frontend.html` (the Raspberry serves the built file; the tests check it matches the sources).
-3. Run the tests: `bash tests/run_all.sh` (add `--no-ui` to skip the browser tests). Add tests for what you change.
+3. Run the linter (`ruff check .`, settings in `pyproject.toml`) and the tests: `bash tests/run_all.sh` (add `--no-ui`
+   to skip the browser tests). Add tests for what you change.
    A change to `scripts/`, `systemd/` or the update path: also run the end-to-end test ([tests/e2e/README.md](tests/e2e/README.md)).
 4. Open a pull request in English: what changes, why, how you tested it. The *Tests* workflow runs on every pull request.
 

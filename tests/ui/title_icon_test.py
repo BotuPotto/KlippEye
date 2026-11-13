@@ -1,6 +1,6 @@
 """The browser tab: the name "KlippEye" and the KlippEye icon (embedded, three sizes), on every tab of the page.
 Usage: title_icon_test.py <html> <outdir> <port>"""
-import sys, os, re, io, base64
+import sys, os, io, base64
 from playwright.sync_api import sync_playwright
 from PIL import Image
 from lib import *

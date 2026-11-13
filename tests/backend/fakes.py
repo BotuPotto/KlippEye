@@ -1,5 +1,5 @@
 """A fake Moonraker + fake camera on one local port, controlled by the test (state dict)."""
-import json, threading, time, urllib.parse
+import json, threading, urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import cv2, numpy as np
 

@@ -1,7 +1,7 @@
 """One "back" for the dashboard (1.24.0, roadmap phase 5f): the menu's history, the phone's back button (window.klippeyeBack,
 KlippEye app 7), the swipe that closes the menu, sliders that do not move by themselves, links in the app, CPU every 5 s.
 Usage: back_test.py <html> <outdir> <port>"""
-import sys, os, json, time, urllib.request
+import sys, os, time
 from playwright.sync_api import sync_playwright
 from lib import *
 

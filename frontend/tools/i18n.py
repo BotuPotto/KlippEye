@@ -75,6 +75,11 @@ def load_it():
         return {}
 
 
+def read(path):
+    with open(path, encoding="utf-8") as f:
+        return f.read()
+
+
 def save_it(table):
     with open(IT, "w", encoding="utf-8") as f:
         json.dump(dict(sorted(table.items())), f, ensure_ascii=False, indent=1)
@@ -82,7 +87,7 @@ def save_it(table):
 
 
 def extract(path):
-    src = strip_comments(open(path, encoding="utf-8").read())
+    src = strip_comments(read(path))
     seen = {}
     for m in LITERAL.finditer(src):
         before = src[max(0, m.start() - 3):m.start()]
@@ -101,7 +106,7 @@ def js_string(text):
 def apply(path, mapping_path):
     with open(mapping_path, encoding="utf-8") as f:
         mapping = json.load(f)
-    src = open(path, encoding="utf-8").read()
+    src = read(path)
     table = load_it()
     done, missing = 0, []
     for original, english in mapping.items():
@@ -114,14 +119,15 @@ def apply(path, mapping_path):
         count = 0
         for quoted in (js_string(original), "'" + original.replace("'", "\\'") + "'"):
             pattern = re.compile(r'(?<![\w$.])' + re.escape(quoted))
-            src, n = pattern.subn(lambda m: call, src)
+            src, n = pattern.subn(lambda m, call=call: call, src)
             count += n
         if count == 0:
             missing.append(original)
             continue
         table[key] = original
         done += count
-    open(path, "w", encoding="utf-8").write(src)
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(src)
     save_it(table)
     print("%s: %d literals translated, %d texts in it.json" % (os.path.basename(path), done, len(table)))
     for text in missing:
@@ -131,7 +137,7 @@ def apply(path, mapping_path):
 def backend_texts():
     """The texts the backend sends for the dashboard to show (names and explanations of the monitor thresholds)."""
     try:
-        src = open(BACKEND, encoding="utf-8").read()
+        src = read(BACKEND)
     except OSError:
         return []
     start, end = src.find("CONFIG_GROUPS = ["), src.find("SPEC_BY_KEY")
@@ -153,7 +159,7 @@ def check():
         if key not in table:
             missing.append(("klippeye_backend.py", key))
     for path in sorted(glob.glob(os.path.join(ROOT, "src", "app", "*.js"))):
-        src = strip_comments(open(path, encoding="utf-8").read())
+        src = strip_comments(read(path))
         for m in CALL.finditer(src):
             key = unescape(m.group(1)) if m.group(1) is not None else unescape(m.group(2)) + "|" + unescape(m.group(3))
             used.add(key)

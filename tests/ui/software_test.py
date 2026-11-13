@@ -1,7 +1,7 @@
 """KlippEye release 1.0 in the dashboard: the thresholds of the AI monitor (the backend describes them, the menu draws them), the page
 "Aggiornamenti" (releases, check, update, rollback, recovery, restart) and the update dialog that waits for the backend to come back.
 Usage: software_test.py <html> <outdir> <port>"""
-import sys, os, io, re, json, time, urllib.request
+import sys, os, re, json, time, urllib.request
 from playwright.sync_api import sync_playwright
 from lib import *
 

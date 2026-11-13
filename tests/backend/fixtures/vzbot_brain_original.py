@@ -79,7 +79,7 @@ def health():
     try:
         r = requests.get(f"{CAMERA_NGINX_URL}/webrtc", timeout=2)
         out["camera_webrtc"] = f"ok ({r.status_code})"
-    except Exception as e:
+    except Exception:
         out["camera_webrtc"] = f"ok fallback"
     return jsonify(out)
 
@@ -173,7 +173,6 @@ def webcam_proxy(path=""):
 
 
 # === MACROS SYSTEM V34 - Metodo V30 che trovava TUTTE le macro + params defaults ===
-import glob as globmod
 import re as re_global
 import os
 
@@ -509,7 +508,7 @@ def save_calibration_selected(selected):
                 json.dump(data, f)
             # Scrivi solo nel primo path riuscito
             break
-        except Exception as e:
+        except Exception:
             continue
     return True
 
@@ -652,7 +651,7 @@ def load_ai_config():
                             j["provider"] = j.get("provider","openai")
                             j["model"] = j.get("model","gpt-4o-mini")
                             return j
-        except Exception as e:
+        except Exception:
             continue
     return None
 
@@ -1221,7 +1220,7 @@ class LightDetector:
             try:
                 pr = requests.get(f"{MOONRAKER_URL}/printer/objects/query?print_stats&extruder&heater_bed&display_status&virtual_sdcard", timeout=3).json()
                 telemetry = pr.get("result",{}).get("status",{})
-            except Exception as e:
+            except Exception:
                 telemetry = {}
 
             print_stats = telemetry.get("print_stats",{})
@@ -1432,7 +1431,6 @@ def api_print_last_analysis():
 
 # === PRINT AI ANALYSIS V9 - SPAGHETTI / EMPTY BED / LAYER SHIFT ===
 import base64
-import io
 
 @app.route("/api/print/snapshot", methods=["GET"])
 def api_print_snapshot():

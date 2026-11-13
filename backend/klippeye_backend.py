@@ -17,28 +17,36 @@ Groq's 404 and 413) with what release 1.0 and later added:
     offers it to the phone (/api/app/version says which version, /app/KlippEye.apk is the file);
   * texts for people are in English and translated with the dashboard's dictionaries (bt()).
 """
-from flask import Flask, request, Response, jsonify
-from flask import send_file as _flask_send_file
+import base64
+import copy
+import datetime
+import glob
 import gzip
+import hashlib
+import hmac
+import json
+import math
+import os
+import re
+import shutil
+import socket
+import subprocess
+import sys
+import tempfile
+import threading
+import time
+import traceback
+import urllib.parse
+from html import escape
+
+import requests
+from flask import Flask, Response, jsonify, redirect, request
+from flask import send_file as _flask_send_file
+
 try:  # optional since 1.2.0: only needed with KLIPPEYE_CORS (development)
     from flask_cors import CORS
 except ImportError:
     CORS = None
-import requests
-import os
-import re
-import sys
-import json
-import math
-import copy
-import hashlib
-import time
-import tempfile
-import shutil
-import threading
-import socket
-import subprocess
-import urllib.parse
 
 app = Flask(__name__)
 # CORS: no longer open to every site (1.2.0). The dashboard and the app talk to the backend from its own origin; see ACCESS.
@@ -132,7 +140,6 @@ def _adopt_old_files():
 
 _adopt_old_files()
 MONITOR_CONFIG_PATH = os.path.join(DATA_DIR, "monitor.json")   # the AI monitor thresholds (brain.json before 1.3.0)
-BRAIN_CONFIG_PATH = MONITOR_CONFIG_PATH   # old name of the variable, kept for code that still uses it
 
 
 def write_json_atomic(path, data, private=False):
@@ -166,8 +173,6 @@ def write_json_atomic(path, data, private=False):
 # With the password on, a request also needs the session cookie or the internal token of the services on the Raspberry.
 sys.path.insert(0, BRAIN_DIR)
 import access  # noqa: E402
-import hmac as _hmac  # noqa: E402
-from flask import redirect as _redirect  # noqa: E402
 
 ACCESS = access.Store(DATA_DIR)
 ACCESS_THROTTLE = access.Throttle()
@@ -446,7 +451,7 @@ def _is_internal():
     if not given:
         return False
     try:
-        return _hmac.compare_digest(given, ACCESS.internal_token())
+        return hmac.compare_digest(given, ACCESS.internal_token())
     except Exception:
         return False
 
@@ -493,7 +498,7 @@ def _access_guard():
     if role == "guest":  # 1.82: look, never command
         return None if access.guest_may(request.method, request.path, request.args) else _refuse(403, "guest", _text("guest"))
     if request.method == "GET" and request.path == "/":
-        return _redirect("/login", code=303)
+        return redirect("/login", code=303)
     return _refuse(401, "login", _text("login"))
 
 
@@ -506,7 +511,7 @@ def _set_access_cookie(response, settings, role="admin"):
 def _check_password_or_wait(settings, password, allow_guest=False):
     """(ok, error response or None); with `allow_guest` (logging in) ok is the role: "admin" or "guest" (1.82).
     Slows down whoever tries passwords in a row."""
-    ip = request.remote_addr or "?"
+    ip = request.remote_addr or "?"  # the browser's own address also behind the HTTPS entrance or nginx (serve_forever)
     wait = ACCESS_THROTTLE.wait_seconds(ip)
     if wait > 0:
         return False, _refuse(429, "wait", _text("wait", seconds=wait))
@@ -540,7 +545,6 @@ code{background:#0d0a17;padding:1px 5px;border-radius:6px}</style></head><body>
 
 
 def _login_page(error="", status=200):
-    from html import escape
     t = ACCESS_TEXT[_lang()]
     page = LOGIN_PAGE % {"lang": _lang(), "title": t["title"], "lead": escape(t["lead"]), "label": t["label"], "button": t["button"],
                          "hint": t["hint"], "error": escape(error)}
@@ -556,13 +560,13 @@ def _login_page(error="", status=200):
 def access_page():
     settings = _access_settings()
     if not settings.get("enabled"):
-        return _redirect("/", code=303)
+        return redirect("/", code=303)
     if request.method == "GET":
-        return _redirect("/", code=303) if _logged_in(settings) else _login_page()
+        return redirect("/", code=303) if _logged_in(settings) else _login_page()
     role, error = _check_password_or_wait(settings, request.form.get("password", ""), allow_guest=True)
     if not role:
         return _login_page(error.get_json().get("message", _text("password")), status=error.status_code)
-    return _set_access_cookie(_redirect("/", code=303), settings, role)
+    return _set_access_cookie(redirect("/", code=303), settings, role)
 
 
 @app.route("/api/auth/status", methods=["GET"])
@@ -797,7 +801,7 @@ def coerce_config_value(spec, raw):
         try:
             number = float(raw.strip().replace(",", ".")) if isinstance(raw, str) else float(raw)
         except ValueError:
-            raise ValueError("must be a number")
+            raise ValueError("must be a number") from None
         if not math.isfinite(number):
             raise ValueError("must be a number")
         if kind == "int":
@@ -831,7 +835,7 @@ def coerce_config_value(spec, raw):
     raise ValueError("unknown type")
 
 
-class backendConfig:
+class MonitorConfig:
     """The thresholds in use and the file where they stay. Everything goes through here, always under the lock."""
 
     def __init__(self, path):
@@ -913,44 +917,42 @@ class backendConfig:
             print("[CONFIG] cannot save %s: %s" % (self.path, error))
 
 
-brain_config = backendConfig(BRAIN_CONFIG_PATH)
+brain_config = MonitorConfig(MONITOR_CONFIG_PATH)
 
 
-def _git_info(_cache={"at": 0.0, "value": None}):
+_GIT_INFO = {"at": 0.0, "value": None}
+
+
+def _git_info():
     """Commit and branch of the repository (best effort, remembered for a minute). None when it is not a git repository."""
     now = time.time()
-    if now - _cache["at"] < 60 and _cache["at"]:
-        return _cache["value"]
-    value = None
-    try:
-        def run(*args):
-            return subprocess.run(["git", "-C", REPO_DIR] + list(args), capture_output=True, text=True, timeout=3).stdout.strip()
-        commit = run("rev-parse", "--short", "HEAD")
-        if commit:
-            value = {"commit": commit, "branch": run("rev-parse", "--abbrev-ref", "HEAD")}
-    except Exception:
-        value = None
-    _cache["at"], _cache["value"] = now, value
-    return value
-# === fine BASE =========================================================================================
+    if _GIT_INFO["at"] and now - _GIT_INFO["at"] < 60:
+        return _GIT_INFO["value"]
 
-# === IMAGE QUALITY CONFIG - V17 ===
+    def git(*args):
+        return subprocess.run(["git", "-C", REPO_DIR, *args], capture_output=True, text=True, timeout=3, check=False).stdout.strip()
+    try:
+        commit = git("rev-parse", "--short", "HEAD")
+        value = {"commit": commit, "branch": git("rev-parse", "--abbrev-ref", "HEAD")} if commit else None
+    except (OSError, subprocess.SubprocessError):
+        value = None
+    _GIT_INFO["at"], _GIT_INFO["value"] = now, value
+    return value
+# === end BASE ==========================================================================================================
+
+# The pictures sent to the AI: 1080x720, JPEG quality 85 (enough detail of the bed, a small upload).
 AI_IMAGE_WIDTH = 1080
 AI_IMAGE_HEIGHT = 720
-AI_IMAGE_QUALITY = 85  # jpeg quality
-from monitor_core import OPENCV_WIDTH, OPENCV_HEIGHT, REFERENCE_SAMPLES, FrameJudge  # noqa: E402  (the judging part of the monitor)
-# V18: everything at 1080x720 - more CPU but the most detail
+AI_IMAGE_QUALITY = 85
+from monitor_core import OPENCV_WIDTH, OPENCV_HEIGHT, FrameJudge  # noqa: E402  (the judging part of the monitor)
 
+FRONTEND_PATH = os.path.join(REPO_DIR, "frontend", "klippeye_frontend.html")
 
-FRONTEND_CANDIDATES = [
-    os.path.join(REPO_DIR, "frontend", "klippeye_frontend.html"),  # ~/klippeye/frontend/
-]
 
 def find_frontend():
-    for p in FRONTEND_CANDIDATES:
-        if os.path.exists(p):
-            return p
-    return None
+    """The dashboard's page, or None when the file is missing."""
+    return FRONTEND_PATH if os.path.exists(FRONTEND_PATH) else None
+
 
 # === SELF-REPAIR: after a power loss a program file can be left empty or half written ============================
 # scripts/repair.sh compares the files with the "good" copy git keeps on the Raspberry (no internet) and restores only the damaged
@@ -1100,20 +1102,35 @@ def moonraker_status(query, timeout=3):
 
 # The operations Moonraker answers only when the work is done (updates, service restarts): 10 seconds are not enough.
 LONG_MOONRAKER_PATHS = ("machine/update/", "machine/services/")
+# Headers that describe one connection, not the content: never copied from one side of a proxy to the other (RFC 9110).
+HOP_BY_HOP = {"connection", "keep-alive", "proxy-authenticate", "proxy-authorization", "te", "trailer", "transfer-encoding", "upgrade"}
+PROXY_REQUEST_SKIP = HOP_BY_HOP | {"host", "content-length", "x-api-key", "cookie", access.HEADER_INTERNAL.lower()}
+
+
+def relay(upstream):
+    """The answer of `upstream` (a requests response opened with stream=True) as ours, sent on as it arrives. requests
+    has already undone any compression, so the headers that described it (and the length that went with it) are left
+    out; the upstream connection is closed when ours ends, also when the browser goes away half way."""
+    encoded = "content-encoding" in {name.lower() for name in upstream.headers}
+    skip = HOP_BY_HOP | ({"content-encoding", "content-length"} if encoded else set())
+    headers = [(name, value) for name, value in upstream.headers.items() if name.lower() not in skip]
+    response = Response(upstream.iter_content(chunk_size=8192), status=upstream.status_code, headers=headers)
+    response.call_on_close(upstream.close)
+    return response
+
 
 def proxy_moonraker(path):
+    """The request, as it is, to Moonraker. Our own session cookie and internal token are not passed on."""
+    url = "%s/%s" % (MOONRAKER_URL, path)
+    if request.query_string:
+        url += "?" + request.query_string.decode()
+    headers = {name: value for name, value in request.headers if name.lower() not in PROXY_REQUEST_SKIP}
+    wait = (5, 600) if path.startswith(LONG_MOONRAKER_PATHS) else 10
     try:
-        url = f"{MOONRAKER_URL}/{path}"
-        if request.query_string:
-            url += "?" + request.query_string.decode()
-        # forward headers except host
-        headers = {k:v for k,v in request.headers if k.lower() not in ['host','content-length','connection','x-api-key']}
-        wait = (5, 600) if path.startswith(LONG_MOONRAKER_PATHS) else 10
-        r = requests.request(request.method, url, data=request.get_data(), headers=headers, timeout=wait, stream=True)
-        # copy content type
-        return Response(r.iter_content(chunk_size=8192), status=r.status_code, content_type=r.headers.get('Content-Type','application/json'), headers=dict(r.headers))
-    except Exception as e:
-        return jsonify({"error": str(e)}), 502
+        return relay(requests.request(request.method, url, data=request.get_data(), headers=headers, timeout=wait, stream=True))
+    except requests.RequestException as error:
+        return jsonify({"error": str(error)}), 502
+
 
 _PAGE_CACHE = {"key": None}
 
@@ -1155,25 +1172,16 @@ def index():
 
 @app.route("/api/health")
 def health():
-    out = {}
+    """Is the service up, and do Moonraker and the camera answer it?"""
+    def probe(url):
+        try:
+            with requests.get(url, timeout=2, stream=True) as answer:
+                return ("ok (%d)" if answer.ok else "fail %d") % answer.status_code
+        except requests.RequestException as error:
+            return "fail %s" % error
     live = live_status()
-    out["live"] = live.info() if live else "off"
-    try:
-        r = requests.get(f"{MOONRAKER_URL}/printer/info", timeout=2)
-        out["moonraker"] = f"ok ({r.status_code})" if r.ok else f"fail {r.status_code}"
-    except Exception as e:
-        out["moonraker"] = f"fail {e}"
-    try:
-        r = requests.get(snapshot_url(), timeout=2, stream=True)
-        out["camera_snapshot"] = f"ok ({r.status_code})"
-    except Exception as e:
-        out["camera_snapshot"] = f"fail {e}"
-    try:
-        r = requests.get(f"{CAMERA_NGINX_URL}/webrtc", timeout=2)
-        out["camera_webrtc"] = f"ok ({r.status_code})"
-    except Exception as e:
-        out["camera_webrtc"] = f"ok fallback"
-    return jsonify(out)
+    return jsonify({"live": live.info() if live else "off", "moonraker": probe(MOONRAKER_URL + "/printer/info"), "camera_snapshot": probe(snapshot_url())})
+
 
 @app.route("/api/printer")
 @app.route("/api/status")
@@ -1207,26 +1215,24 @@ def api_printer():
 
 @app.route("/api/gcode", methods=["POST", "OPTIONS"])
 def api_gcode():
-    """Takes {script: 'G28'} from the dashboard and sends it to Moonraker's POST /printer/gcode/script"""
+    """{script: "G28"} (or {gcode}, the body as plain text, ?script=) to Moonraker's POST /printer/gcode/script."""
     if request.method == "OPTIONS":
         return "", 200
+    body = request.get_json(force=True, silent=True)
+    body = body if isinstance(body, dict) else {}
+    script = body.get("script") or body.get("gcode") or ("" if body else request.get_data(as_text=True)) or request.args.get("script", "")
+    if not isinstance(script, str) or not script.strip():
+        return jsonify({"error": "no script"}), 400
     try:
-        body = request.get_json(force=True, silent=True)
-        body = body if isinstance(body, dict) else {}
-        # {script} or {gcode} as JSON, else the body as plain text, else ?script= (1.100.1 review: one reading, in this order)
-        script = body.get("script") or body.get("gcode") or ("" if body else request.get_data(as_text=True)) or request.args.get("script", "")
-        if not isinstance(script, str) or not script.strip():
-            return jsonify({"error": "no script"}), 400
-        # to Moonraker, which answers {"result": "ok"}
-        mr_url = f"{MOONRAKER_URL}/printer/gcode/script"
-        r = requests.post(mr_url, json={"script": script}, timeout=5)
-        try:
-            j = r.json()
-        except:
-            j = {"result": r.text}
-        return jsonify({"result": j.get("result", "ok"), "moonraker_status": r.status_code, "sent": script})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        answer = requests.post(MOONRAKER_URL + "/printer/gcode/script", json={"script": script}, timeout=5)
+    except requests.RequestException as error:
+        return jsonify({"error": str(error)}), 500
+    try:
+        result = answer.json().get("result", "ok")
+    except (ValueError, AttributeError):
+        result = answer.text
+    return jsonify({"result": result, "moonraker_status": answer.status_code, "sent": script})
+
 
 # 1.94: the slicers that send to "OctoPrint" (OrcaSlicer, PrusaSlicer...) reach Moonraker's OctoPrint-style API through
 # here too: its own paths go to Moonraker; /api/version and /api/printer, which KlippEye has as well, go there when the
@@ -1251,59 +1257,39 @@ def octoprint_compat(path=""):
     return proxy_moonraker(request.path.lstrip("/"))
 
 
-# Proxy Moonraker standard
-@app.route("/printer/<path:path>", methods=["GET","POST","PUT","DELETE"])
-@app.route("/server/<path:path>", methods=["GET","POST","PUT","DELETE"])
-@app.route("/machine/<path:path>", methods=["GET","POST","PUT","DELETE"])
-@app.route("/printer", methods=["GET","POST"])
-@app.route("/server", methods=["GET","POST"])
+# Moonraker's own API, through KlippEye (one address for the dashboard, also from outside the home network).
+@app.route("/printer/<path:path>", methods=["GET", "POST", "PUT", "DELETE"])
+@app.route("/server/<path:path>", methods=["GET", "POST", "PUT", "DELETE"])
+@app.route("/machine/<path:path>", methods=["GET", "POST", "PUT", "DELETE"])
+@app.route("/printer", methods=["GET", "POST"])
+@app.route("/server", methods=["GET", "POST"])
 def moonraker_proxy(path=""):
     full = request.path.lstrip("/")
     if request.method == "GET" and full == "printer/objects/query" and request.args:
         answer = live_query(moonraker_live.parse_query(request.args))
         if answer is not None:  # 1.92: answered from the live copy, Moonraker not asked
             return jsonify({"result": {"eventtime": _LIVE["live"].eventtime, "status": answer}})
-    # gcode/script has its own handler
     return proxy_moonraker(full)
 
-# Proxy Camera via nginx (FIX ZeroTier) - handles /webcam/, /webcam, and /webcam/<path>
+
+# The camera, through KlippEye too: /webcam/, /webcam and /webcam/<path> (the stream is sent on as it arrives).
 @app.route("/webcam/")
 @app.route("/webcam")
 @app.route("/webcam/<path:path>")
 def webcam_proxy(path=""):
+    url = "%s/%s" % (CAMERA_NGINX_URL, path)
+    if request.query_string:
+        url += "?" + request.query_string.decode()
     try:
-        url = f"{CAMERA_NGINX_URL}/{path}" if path else f"{CAMERA_NGINX_URL}/"
-        if request.query_string:
-            url += "?" + request.query_string.decode()
-        # For MJPEG stream, need stream=True and preserve content type
-        r = requests.get(url, timeout=15, stream=True)
-        # Copy headers
-        headers = {}
-        ct = r.headers.get('Content-Type')
-        if ct:
-            headers['Content-Type'] = ct
-        # For MJPEG, it's multipart/x-mixed-replace
-        return Response(r.iter_content(chunk_size=8192), status=r.status_code, content_type=r.headers.get('Content-Type'), headers=headers)
-    except Exception as e:
-        return jsonify({"error": str(e)}), 502
+        return relay(requests.get(url, timeout=15, stream=True))
+    except requests.RequestException as error:
+        return jsonify({"error": str(error)}), 502
 
 
-
-
-
-
-
-
-
-
-
-# === MACROS SYSTEM V34 - the V30 method that found ALL the macros + default params ===
-import glob as globmod
-import re as re_global
-import os
-
+# === MACROS: the printer's macros with their parameters (backend/macro_catalog.py) =====================================
 # Where the macro files, Shake&Tune and the logs are: asked to Moonraker (its file roots), never a fixed user folder
 # (printer_paths.py: any user, several printers, the old ~/klipper_config layout).
+import macro_catalog  # noqa: E402
 import printer_paths  # noqa: E402
 
 
@@ -1315,357 +1301,63 @@ def _logs_dir():
     return printer_paths.logs_dir(MOONRAKER_URL, requests)
 
 
-def _macro_dirs():
-    return printer_paths.macro_dirs(MOONRAKER_URL, requests)
-
-
-def _shaketune_dirs():
-    return printer_paths.shaketune_dirs(MOONRAKER_URL, requests)
-
-
-def extract_params_with_defaults(gcode_text):
-    params = []
-    default_re = re_global.compile(r'params\.([A-Za-z0-9_]+)[^\n]*?\|\s*default\s*\(\s*([^),\n]+)', re_global.IGNORECASE)
-    found_with_default = {}
-    for m in default_re.finditer(gcode_text):
-        name = m.group(1).upper()
-        default_val = m.group(2).strip().strip('"').strip("'")
-        found_with_default[name] = default_val
-    simple_re = re_global.compile(r'params\.([A-Za-z0-9_]+)', re_global.IGNORECASE)
-    seen = set()
-    for m in simple_re.finditer(gcode_text):
-        name = m.group(1).upper()
-        if name not in seen:
-            seen.add(name)
-            params.append({
-                'name': name,
-                'default': found_with_default.get(name, ''),
-                'type': 'text'
-            })
-    for p in params:
-        d = p['default']
-        if d:
-            try:
-                float(d)
-                p['type'] = 'float' if '.' in d else 'int'
-            except:
-                pass
-    return params
-
-def get_files_from_moonraker_config():
-    try:
-        import requests as req
-        r = req.get("http://127.0.0.1:7125/server/files/list?root=config", timeout=3)
-        if r.ok:
-            data = r.json()
-            files = data.get('result', [])
-            filtered = []
-            for f in files:
-                p = f.get('path','').split("/")[-1]
-                if p.lower().startswith('printer-') and p.lower().endswith('.cfg'):
-                    continue
-                if 'crowsnest.conf.' in p.lower() or 'crownest.conf.' in p.lower():
-                    continue
-                filtered.append(f)
-            return filtered, f"ok {len(files)}"
-        return [], "fail"
-    except Exception as e:
-        return [], str(e)
-
-def get_macros_from_moonraker_both():
-    macros_map = {}
-    status = []
-    try:
-        import requests as req
-        try:
-            r = req.get("http://127.0.0.1:7125/printer/objects/query?configfile", timeout=4)
-            if r.ok:
-                config = r.json().get('result', {}).get('status', {}).get('configfile', {}).get('config', {})
-                for key in config.keys():
-                    if key.lower().startswith('gcode_macro '):
-                        name = key[len('gcode_macro '):].strip()
-                        if name.startswith('_'):
-                            continue
-                        gcode = config[key].get('gcode','')
-                        params = extract_params_with_defaults(gcode)
-                        macros_map[name] = {
-                            "name": name,
-                            "file": config[key].get('filename','configfile'),
-                            "filepath": config[key].get('filename',''),
-                            "description": config[key].get('description',''),
-                            "gcode": gcode,
-                            "params": params,
-                            "has_params": len(params) > 0,
-                            "source": "configfile"
-                        }
-                status.append(f"configfile {len([k for k in config.keys() if k.lower().startswith('gcode_macro ')])}")
-        except Exception as e:
-            status.append(f"configfile fail {e}")
-        try:
-            r = req.get("http://127.0.0.1:7125/printer/objects/list", timeout=3)
-            if r.ok:
-                objs = r.json().get('result', [])
-                names = [o[len('gcode_macro '):].strip() for o in objs if o.lower().startswith('gcode_macro ')]
-                names = [n for n in names if not n.startswith('_')]
-                for name in names:
-                    if name not in macros_map:
-                        macros_map[name] = {
-                            "name": name,
-                            "file": "live (Shaketune?)",
-                            "filepath": "",
-                            "description": "from objects/list (injected live)",
-                            "gcode": "",
-                            "params": [],
-                            "has_params": False,
-                            "source": "objects/list"
-                        }
-                status.append(f"objects/list {len(names)}")
-        except Exception as e:
-            status.append(f"objects/list fail {e}")
-    except Exception as e:
-        status.append(f"exception {e}")
-    return macros_map, " | ".join(status)
-
-def parse_macros_from_file(filepath):
-    macros = []
-    try:
-        with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
-            lines = f.readlines()
-        for i, line in enumerate(lines):
-            s = line.strip()
-            if s.lower().startswith('[gcode_macro'):
-                try:
-                    inner = s[1:-1] if s.startswith('[') and s.endswith(']') else s[1:].split(']')[0]
-                    parts = inner.split(None, 1)
-                    if len(parts) < 2:
-                        continue
-                    name = parts[1].strip().split(']')[0].strip()
-                    if not name or name.startswith('_'):
-                        continue
-                    sec = ''.join(lines[i+1:i+300])
-                    next_sec = sec.find('\n[')
-                    if next_sec != -1:
-                        sec = sec[:next_sec]
-                    params = extract_params_with_defaults(sec)
-                    desc_m = re_global.search(r'description\s*:\s*(.+)', sec, re_global.IGNORECASE)
-                    desc = desc_m.group(1).strip()[:300] if desc_m else ""
-                    macros.append({
-                        "name": name,
-                        "file": os.path.basename(filepath),
-                        "filepath": filepath,
-                        "description": desc,
-                        "params": params,
-                        "has_params": len(params) > 0,
-                        "gcode": sec[:1000]
-                    })
-                except:
-                    continue
-    except:
-        pass
-    return macros
-
-def scan_shaketune_folders():
-    found = []
-    for base in _shaketune_dirs():
-        if not os.path.exists(base):
-            continue
-        for root, dirs, files in os.walk(base):
-            for fname in files:
-                low = fname.lower()
-                if low.endswith('.cfg') or low.endswith('.conf') or low.endswith('.py'):
-                    fp = os.path.join(root, fname)
-                    try:
-                        with open(fp, 'r', encoding='utf-8', errors='ignore') as f:
-                            content = f.read(200000)
-                            if 'AXES_SHAPER_CALIBRATION' in content or 'gcode_macro' in content.lower():
-                                found.extend(parse_macros_from_file(fp))
-                                if 'axes_shaper_calibration' in content.lower():
-                                    for name in ['AXES_SHAPER_CALIBRATION','AXES_MAP_CALIBRATION','COMPARE_BELTS_RESPONSES','CREATE_VIBRATIONS_PROFILE','EXCITATE_AXIS_AT_FREQ','MEASURE_AXES_NOISE','BELT_TUNING']:
-                                        if name not in [m['name'] for m in found]:
-                                            found.append({
-                                                "name": name,
-                                                "file": os.path.basename(fp),
-                                                "filepath": fp,
-                                                "description": "Shaketune (from the folder scan)",
-                                                "params": [],
-                                                "has_params": False,
-                                                "gcode": ""
-                                            })
-                    except:
-                        continue
-    return found
-
 @app.route("/api/macros/list", methods=["GET"])
 def api_macros_list():
     try:
-        moon_files, files_status = get_files_from_moonraker_config()
-        macros_map, moon_status = get_macros_from_moonraker_both()
-        
-        base_dir = _config_dir()
-        for bd in _macro_dirs():
-            if os.path.exists(bd):
-                base_dir = bd
-                break
+        macros = macro_catalog.catalog(MOONRAKER_URL, requests, _config_dir(), printer_paths.shaketune_dirs(MOONRAKER_URL, requests))
+    except OSError as error:
+        return jsonify({"ok": False, "error": str(error)}), 500
+    return jsonify({"ok": True, "count": len(macros), "macros": macros})
 
-        searched_files = []
-        all_from_files = []
-        files_with_keyword = []
-        
-        files_to_scan = set()
-        for f in moon_files:
-            fp = f.get('path','')
-            if fp.lower().endswith('.cfg') or fp.lower().endswith('.conf'):
-                full = os.path.join(base_dir, fp)
-                if os.path.exists(full):
-                    files_to_scan.add(full)
-        
-        for base in _shaketune_dirs():
-            if os.path.exists(base):
-                for root, dirs, files in os.walk(base):
-                    for fname in files:
-                        if fname.lower().endswith('.cfg') or fname.lower().endswith('.conf'):
-                            files_to_scan.add(os.path.join(root, fname))
-        
-        if len(files_to_scan) < 10:
-            for root, dirs, files in os.walk(base_dir):
-                if '.git' in root:
-                    continue
-                for fname in files:
-                    if fname.lower().endswith('.cfg') or fname.lower().endswith('.conf'):
-                        files_to_scan.add(os.path.join(root, fname))
-        
-        for fp in files_to_scan:
-            searched_files.append(fp)
-            try:
-                with open(fp, 'r', encoding='utf-8', errors='ignore') as f:
-                    content = f.read(200000)
-                    if '[gcode_macro' in content.lower():
-                        files_with_keyword.append(fp)
-                        all_from_files.extend(parse_macros_from_file(fp))
-            except:
-                continue
-        
-        for m in all_from_files:
-            if m["name"] not in macros_map:
-                macros_map[m["name"]] = {
-                    "name": m["name"],
-                    "file": m["file"],
-                    "filepath": m["filepath"],
-                    "description": m["description"],
-                    "gcode": m.get("gcode",""),
-                    "params": m.get("params",[]),
-                    "has_params": m.get("has_params", False),
-                    "source": "filesystem"
-                }
-        
-        shaketune_macros = scan_shaketune_folders()
-        for m in shaketune_macros:
-            if m["name"] not in macros_map:
-                macros_map[m["name"]] = {
-                    "name": m["name"],
-                    "file": m["file"],
-                    "filepath": m["filepath"],
-                    "description": m["description"],
-                    "gcode": "",
-                    "params": m.get("params",[]),
-                    "has_params": m.get("has_params", False),
-                    "source": "shaketune_scan"
-                }
-        
-        result = sorted(macros_map.values(), key=lambda x: x["name"].lower())
-        
-        return jsonify({
-            "ok": True,
-            "count": len(result),
-            "moonraker_status": moon_status,
-            "files_list_via_moonraker": len(moon_files),
-            "base_dir": base_dir,
-            "files_scanned": len(searched_files),
-            "files_with_macro_keyword": len(files_with_keyword),
-            "shaketune_found": len(shaketune_macros),
-            "macros": result
-        })
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        return jsonify({"ok": False, "error": str(e), "trace": traceback.format_exc()}), 500
 
 @app.route("/api/macros/run", methods=["POST"])
 def api_macros_run():
+    """{macro, params: {NAME: value}}: runs the macro with the parameters that have a value."""
+    body = request.get_json(force=True, silent=True)
+    body = body if isinstance(body, dict) else {}
+    macro, params = str(body.get("macro") or "").strip(), body.get("params")
+    if not macro:
+        return jsonify({"ok": False, "error": "macro name required"}), 400
+    given = ["%s=%s" % (str(name).upper(), value) for name, value in (params.items() if isinstance(params, dict) else []) if str(value).strip()]
+    gcode = " ".join([macro] + given)
     try:
-        body = request.get_json(force=True, silent=True) or {}
-        macro = body.get("macro", "").strip()
-        params = body.get("params", {})
-        if not macro:
-            return jsonify({"error": "macro name required"}), 400
-        if params:
-            param_str = " ".join([f"{k.upper()}={v}" for k,v in params.items() if str(v).strip()!=""])
-            gcode = f"{macro} {param_str}".strip()
-        else:
-            gcode = macro
-        r = requests.post(f"{MOONRAKER_URL}/printer/gcode/script", json={"script": gcode}, timeout=5)
-        return jsonify({"ok": True, "sent": gcode, "moonraker_status": r.status_code})
-    except Exception as e:
-        return jsonify({"ok": False, "error": str(e)}), 500
+        answer = requests.post(MOONRAKER_URL + "/printer/gcode/script", json={"script": gcode}, timeout=5)
+    except requests.RequestException as error:
+        return jsonify({"ok": False, "error": str(error)}), 502
+    return jsonify({"ok": True, "sent": gcode, "moonraker_status": answer.status_code})
 
 
-# === CALIBRATION SELECTED SYNC - cross-device ===
-import json
-
-# In the data folder (before release 1.0 it was elsewhere: _adopt_old_files() copies it here once).
+# === THE OLD "CALIBRATIONS" CHOICE (before 1.33) =====================================================================
+# The dashboard reads it once, turns it into a group of macros and empties it (57-calibration.js: useMacroMigration).
 CALIBRATION_SELECTED_FILE = os.path.join(DATA_DIR, "calibration_selected.json")
 
+
 def load_calibration_selected():
-    for fp in [CALIBRATION_SELECTED_FILE]:
-        try:
-            if os.path.exists(fp):
-                with open(fp, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-                    if isinstance(data, list):
-                        return data
-                    if isinstance(data, dict) and 'selected' in data:
-                        return data['selected']
-        except:
-            continue
-    return []
-
-def save_calibration_selected(selected):
-    data = {"selected": selected, "timestamp": __import__('time').time()}
-    for fp in [CALIBRATION_SELECTED_FILE]:
-        try:
-            dir_path = os.path.dirname(fp)
-            if not os.path.exists(dir_path):
-                os.makedirs(dir_path, exist_ok=True)
-            with open(fp, 'w', encoding='utf-8') as f:
-                json.dump(data, f)
-            # write only to the first path that works
-            break
-        except Exception as e:
-            continue
-    return True
-
-@app.route("/api/calibration/selected", methods=["GET"])
-def api_calibration_selected_get():
     try:
+        with open(CALIBRATION_SELECTED_FILE, encoding="utf-8") as handle:
+            data = json.load(handle)
+    except (OSError, ValueError):
+        return []
+    selected = data.get("selected") if isinstance(data, dict) else data
+    return selected if isinstance(selected, list) else []
+
+
+@app.route("/api/calibration/selected", methods=["GET", "POST"])
+def api_calibration_selected():
+    if request.method == "GET":
         selected = load_calibration_selected()
         return jsonify({"ok": True, "selected": selected, "count": len(selected)})
-    except Exception as e:
-        return jsonify({"ok": False, "error": str(e), "selected": []}), 500
-
-@app.route("/api/calibration/selected", methods=["POST"])
-def api_calibration_selected_post():
+    body = request.get_json(force=True, silent=True)
+    selected = body.get("selected", []) if isinstance(body, dict) else None
+    if not isinstance(selected, list):
+        return jsonify({"ok": False, "error": "selected must be a list"}), 400
+    selected = [str(name).strip() for name in selected if str(name).strip()]
     try:
-        body = request.get_json(force=True, silent=True) or {}
-        selected = body.get('selected', [])
-        if not isinstance(selected, list):
-            return jsonify({"ok": False, "error": "selected must be list"}), 400
-        # Pulisci
-        selected = [str(s).strip() for s in selected if str(s).strip()]
-        save_calibration_selected(selected)
-        return jsonify({"ok": True, "selected": selected, "count": len(selected)})
-    except Exception as e:
-        import traceback
-        return jsonify({"ok": False, "error": str(e), "trace": traceback.format_exc()}), 500
+        write_json_atomic(CALIBRATION_SELECTED_FILE, {"selected": selected, "timestamp": time.time()})
+    except OSError as error:
+        return jsonify({"ok": False, "error": str(error)}), 500
+    return jsonify({"ok": True, "selected": selected, "count": len(selected)})
+
 
 # === INPUT SHAPER GRAPHS (1.80) ===
 # The files Klipper's SHAPER_CALIBRATE leaves in /tmp, read for the graphs (backend/shaper_data.py).
@@ -1738,105 +1430,88 @@ def api_config_version(version_id):
         return jsonify({"ok": False, "error": str(error)}), 500
 
 
-# === LOGS SYSTEM V27 ===
+# === LOGS: the printer's log files (the System page) ===================================================================
+def _log_path(name):
+    """The path of the log `name` in the logs folder, or None when it is not a plain file name of that folder (a
+    path, a rotated copy such as klippy.log.2024-10-01)."""
+    if not name or "/" in name or "\\" in name or ".." in name or ".log." in name:
+        return None
+    return os.path.join(_logs_dir(), name)
+
+
+def _size_text(size):
+    return "%.1f KB" % (size / 1024) if size < 1024 * 1024 else "%.1f MB" % (size / 1024 / 1024)
 
 
 @app.route("/api/logs/list", methods=["GET"])
 def api_logs_list():
+    """The log files, newest first (the rotated copies are left out)."""
+    folder = _logs_dir()
     try:
-        if not os.path.exists(_logs_dir()):
-            return jsonify({"error": f"logs dir not found: {_logs_dir()}", "files": []}), 404
-        files = []
-        for name in os.listdir(_logs_dir()):
-            # ignora *.log.* (vecchi log rotati)
-            if ".log." in name:
+        names = os.listdir(folder)
+    except OSError:
+        return jsonify({"error": "logs dir not found: %s" % folder, "files": []}), 404
+    files = []
+    for name in names:
+        path = _log_path(name)
+        try:
+            if path is None or not os.path.isfile(path):
                 continue
-            full = os.path.join(_logs_dir(), name)
-            if not os.path.isfile(full):
-                continue
-            try:
-                stat = os.stat(full)
-                files.append({
-                    "name": name,
-                    "size": stat.st_size,
-                    "size_h": f"{stat.st_size/1024:.1f} KB" if stat.st_size<1024*1024 else f"{stat.st_size/1024/1024:.1f} MB",
-                    "modified": int(stat.st_mtime),
-                    "modified_str": __import__('datetime').datetime.fromtimestamp(stat.st_mtime).strftime("%d/%m %H:%M")
-                })
-            except Exception as e:
-                files.append({"name": name, "error": str(e)})
-        # sort by modified desc (newest first)
-        files.sort(key=lambda x: x.get("modified",0), reverse=True)
-        return jsonify({"dir": _logs_dir(), "files": files, "count": len(files)})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+            stat = os.stat(path)
+        except OSError as error:
+            files.append({"name": name, "error": str(error)})
+            continue
+        files.append({"name": name, "size": stat.st_size, "size_h": _size_text(stat.st_size), "modified": int(stat.st_mtime),
+                      "modified_str": datetime.datetime.fromtimestamp(stat.st_mtime).strftime("%d/%m %H:%M")})
+    files.sort(key=lambda entry: entry.get("modified", 0), reverse=True)
+    return jsonify({"dir": folder, "files": files, "count": len(files)})
+
 
 @app.route("/api/logs/content", methods=["GET"])
 def api_logs_content():
+    """?file=klippy.log&lines=2000: the last lines of a log (50 to 10000), read from its end."""
+    name = request.args.get("file") or request.args.get("name") or ""
+    if not name:
+        return jsonify({"error": "file param required"}), 400
+    path = _log_path(name)
+    if path is None:
+        return jsonify({"error": "invalid filename"}), 400
+    if not os.path.isfile(path):
+        return jsonify({"error": "file not found"}), 404
     try:
-        fname = request.args.get("file") or request.args.get("name") or ""
-        if not fname:
-            return jsonify({"error": "file param required"}), 400
-        # sicurezza: no path traversal
-        if "/" in fname or "\\" in fname or ".." in fname:
-            return jsonify({"error": "invalid filename"}), 400
-        if ".log." in fname:
-            return jsonify({"error": "rotated log not allowed"}), 400
-        full = os.path.join(_logs_dir(), fname)
-        if not os.path.exists(full):
-            return jsonify({"error": "file not found"}), 404
-        # read the last N lines
-        try:
-            max_lines = int(request.args.get("lines", "2000"))
-        except:
-            max_lines = 2000
-        max_lines = max(50, min(max_lines, 10000))
-        # read the file efficiently from the end
-        try:
-            lines = log_tail(full, max_lines)
-            content = "".join(lines)
-        except Exception as e:
-            return jsonify({"error": f"read error: {e}"}), 500
-        return jsonify({
-            "file": fname,
-            "path": full,
-            "lines": len(lines),
-            "total_lines_approx": len(lines),
-            "size": os.path.getsize(full),
-            "content": content
-        })
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        wanted = int(request.args.get("lines", "2000"))
+    except ValueError:
+        wanted = 2000
+    try:
+        lines = log_tail(path, max(50, min(wanted, 10000)))
+        size = os.path.getsize(path)
+    except OSError as error:
+        return jsonify({"error": "read error: %s" % error}), 500
+    return jsonify({"file": name, "path": path, "lines": len(lines), "size": size, "content": "".join(lines)})
+
 
 @app.route("/api/logs/download", methods=["GET"])
 def api_logs_download():
-    try:
-        fname = request.args.get("file") or ""
-        if not fname or "/" in fname or ".." in fname or ".log." in fname:
-            return jsonify({"error": "invalid"}), 400
-        full = os.path.join(_logs_dir(), fname)
-        if not os.path.exists(full):
-            return jsonify({"error": "not found"}), 404
-        return send_file(full, as_attachment=True, download_name=fname)
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-# === END LOGS ===
+    name = request.args.get("file") or ""
+    path = _log_path(name)
+    if path is None:
+        return jsonify({"error": "invalid"}), 400
+    if not os.path.isfile(path):
+        return jsonify({"error": "not found"}), 404
+    return send_file(path, as_attachment=True, download_name=name)
 
 
-# === AUTO AI ANALYSIS V4 - solution B ===
-import json
-
-AI_CONFIG_PATH = os.path.join(DATA_DIR, "ai.json")  # release 1.0: in the data folder, mode 600 (it is a password)
+# === THE AI SERVICE: its settings, and the logs read by it =============================================================
+AI_CONFIG_PATH = os.path.join(DATA_DIR, "ai.json")  # in the data folder, mode 600 (it holds the keys)
 
 import ai_services  # noqa: E402  (1.27: the AI services, their keys and models)
 
 
 def _read_ai_file():
     try:
-        with open(AI_CONFIG_PATH, "r") as f:
+        with open(AI_CONFIG_PATH, encoding="utf-8") as f:
             return json.load(f)
-    except Exception:
+    except (OSError, ValueError):
         return {}
 
 
@@ -1852,97 +1527,58 @@ def load_ai_config():
 
 AI_SETUP_HINT = btn("No AI service set up: enter a key in Settings → AI monitor → The AI service (or the gear of System logs).")
 
-def get_logs_combined(max_files=25, lines_per_file=400, max_chars=12000):
-    """Takes ALL the .log files (not *.log.*), klippy and moonraker first"""
-    if not os.path.exists(_logs_dir()):
-        return "", []
-    files=[]
+# What the AI is sent of each log when all of them are analysed together: (lines, characters) of its end. The whole
+# text stays within LOGS_PROMPT_CHARS (about 3000 tokens: the free plans of the AI services allow few per minute).
+LOG_SHARES = {"klippy": (1200, 4000), "moonraker": (800, 2500), "crowsnest": (500, 1500)}
+LOG_SHARE_OTHERS = (300, 1000)
+LOGS_PROMPT_CHARS = 12000
+LOGS_MAX_FILES = 20
+SINGLE_LOG_CHARS = 18000
+
+
+def _log_kind(name):
+    """"klippy" for klippy.log, "moonraker" for moonraker.log...; "" for the others."""
+    stem = name.lower().split(".")[0]
+    return stem if stem in LOG_SHARES else ""
+
+
+def get_logs_combined(max_files=LOGS_MAX_FILES, max_chars=LOGS_PROMPT_CHARS):
+    """The end of every log of the logs folder in one text for the AI, Klipper's and Moonraker's first (they always go
+    in; the others while there is room). -> (text, [file names])"""
+    folder = _logs_dir()
     try:
-        for name in os.listdir(_logs_dir()):
-            if ".log." in name:  # esclude rotati tipo klippy.log.2024-10-01
-                continue
-            if not name.endswith('.log'):
-                # files without the .log extension? no, only .log
-                # but also .log files with odd prefixes
-                if '.log' not in name:
-                    continue
-            full=os.path.join(_logs_dir(),name)
-            if not os.path.isfile(full):
-                continue
-            try:
-                stat=os.stat(full)
-                # priority: klippy and moonraker first
-                priority = 0
-                low = name.lower()
-                if 'klippy' in low:
-                    priority = 100
-                elif 'moonraker' in low and 'telegram' not in low:
-                    priority = 90
-                elif 'crowsnest' in low:
-                    priority = 80
-                elif 'mainsail' in low and 'error' in low:
-                    priority = 70
-                elif 'klipperscreen' in low:
-                    priority = 60
-                files.append((name,full,stat.st_mtime,stat.st_size,priority))
-            except:
-                pass
-        # sort by priority desc, then by mtime desc
-        files.sort(key=lambda x: (x[4], x[2]), reverse=True)
-        # take them ALL (max_files is high)
-        files=files[:max_files]
-    except Exception as e:
-        print(f"[LOGS] list error: {e}")
-        files=[]
-    combined=""
-    used=[]
-    total_chars=0
-    for name,full,mtime,size,priority in files:
+        names = [name for name in os.listdir(folder) if ".log" in name and _log_path(name) and os.path.isfile(os.path.join(folder, name))]
+    except OSError:
+        return "", []
+    order = list(LOG_SHARES)
+
+    def rank(name):
+        kind = _log_kind(name)
         try:
-            # lines by priority - FIX 413: cut down a lot for the Groq TPM limit
-            if 'klippy' in name.lower():
-                want_lines = 1200
-                want_chars = 4000
-            elif 'moonraker' in name.lower() and 'telegram' not in name.lower():
-                want_lines = 800
-                want_chars = 2500
-            elif 'crowsnest' in name.lower() or 'mainsail-error' in name.lower():
-                want_lines = 500
-                want_chars = 1500
-            else:
-                want_lines = 300
-                want_chars = 1000
+            modified = os.path.getmtime(os.path.join(folder, name))
+        except OSError:
+            modified = 0
+        return (order.index(kind) if kind else len(order), -modified)
 
-            lines = log_tail(full, want_lines)
-            chunk="".join(lines)
-            if len(chunk)>want_chars:
-                chunk=chunk[-want_chars:]
-            # an empty file is said so
-            if not chunk.strip():
-                chunk="(empty file - 0 bytes of useful content)"
-
-            header=f"\n\n===== FILE: {name} ({len(lines)} lines taken, {size} bytes in total, priority {priority}) =====\n"
-            entry=header+chunk
-            # controlla se superiamo max_chars totale
-            if total_chars+len(entry) > max_chars and 'klippy' not in name.lower() and 'moonraker' not in name.lower():
-                # a file that is not critical is skipped when over the limit,
-                # klippy and moonraker always go in
-                if total_chars > max_chars*0.8:
-                    continue
-            combined+=entry
-            total_chars+=len(entry)
-            used.append(name)
-        except Exception as e:
-            combined+=f"\n\n===== FILE: {name} READ ERROR: {e} =====\n"
-            used.append(name)
-
-    # still too long: cut, keeping the start (with the list of files) and the end
-    if len(combined)>max_chars:
-        # mantieni primi 500 char (lista) + ultimi max_chars-500
-        combined = combined[:800] + "\n...[CUT FOR LENGTH, KEEPING THE LAST LOGS]...\n" + combined[-(max_chars-800):]
-
-    print(f"[LOGS] Combinati {len(used)} file: {used} - tot chars {len(combined)}")
+    combined, used = "", []
+    for name in sorted(names, key=rank)[:max_files]:
+        kind = _log_kind(name)
+        want_lines, want_chars = LOG_SHARES.get(kind, LOG_SHARE_OTHERS)
+        path = os.path.join(folder, name)
+        try:
+            lines = log_tail(path, want_lines)
+            chunk = "".join(lines)[-want_chars:]
+            entry = "\n\n===== FILE: %s (%d lines taken, %d bytes in total) =====\n%s" % (name, len(lines), os.path.getsize(path), chunk if chunk.strip() else "(empty file)")
+        except OSError as error:
+            entry = "\n\n===== FILE: %s READ ERROR: %s =====\n" % (name, error)
+        if kind not in ("klippy", "moonraker") and len(combined) + len(entry) > max_chars and len(combined) > max_chars * 0.8:
+            continue
+        combined += entry
+        used.append(name)
+    if len(combined) > max_chars:  # still too long: the start (the first file's header) and the end are kept
+        combined = combined[:800] + "\n...[CUT FOR LENGTH, KEEPING THE LAST LINES]...\n" + combined[-(max_chars - 800):]
     return combined, used
+
 
 @app.route("/api/ai/config", methods=["GET", "POST"])
 def api_ai_config():
@@ -1992,47 +1628,11 @@ def api_ai_models():
     return _no_store(jsonify({"ok": True, "provider": provider, "models": models}))
 
 
-@app.route("/api/logs/analyze", methods=["POST","GET"])
-def api_logs_analyze():
-    try:
-        cfg = _read_ai_file()
-        try:
-            ai_services.resolve(cfg, "logs")
-        except ai_services.AiError:
-            return jsonify({"error": bt("API key not set", _lang()), "howto": bt(AI_SETUP_HINT, _lang()), "configured": False}), 400
-
-        # Supporto singolo file ?file=klippy.log
-        single_file = request.args.get('file') or (request.json.get('file') if request.is_json else None)
-        is_single = False
-        if single_file:
-            safe_name = os.path.basename(single_file)
-            full = os.path.join(_logs_dir(), safe_name)
-            if ".log." in safe_name or not os.path.isfile(full):
-                return jsonify({"error": bt("File {name} not found", _lang(), name=safe_name)}), 404
-            try:
-                lines = log_tail(full, 3500 if 'klippy' in safe_name.lower() else 2500)
-                content = "".join(lines)[-18000:]
-                if not content.strip():
-                    content = "(empty file)"
-                combined = f"===== FILE: {safe_name} ({len(lines)} lines, single analysis) =====\n" + content
-                used_files = [safe_name]
-                is_single = True
-            except Exception as e:
-                return jsonify({"error": bt("Cannot read {name}: {error}", _lang(), name=safe_name, error=e)}), 500
-        else:
-            # FIX 413 - cut from 30000 to 12000 characters to stay under Groq's 8000 tokens per minute (gpt-oss-120b)
-            # 12000 characters ~ 3000 tokens, leaving room for the prompt
-            combined, used_files = get_logs_combined(max_files=20, lines_per_file=400, max_chars=12000)
-            if not combined:
-                return jsonify({"error": bt("no log found", _lang())}), 404
-
-        language = _lang()
-        if is_single:
-            prompt = f"""You are an expert in Klipper and Moonraker.
-Analyse ONLY this single log file: {used_files[0]}
+LOGS_PROMPT_ONE = """You are an expert in Klipper and Moonraker.
+Analyse ONLY this single log file: {files}
 
 Content (last lines):
-{combined}
+{content}
 
 Task for a single file:
 1) Kind of log and what it records
@@ -2041,16 +1641,16 @@ Task for a single file:
 4) For each error: cause + immediate fix
 5) If there are no errors, say so clearly
 
-Answer in {LANGUAGE_NAMES.get(language, "English")}, short markdown, about this file only.
+Answer in {language}, short markdown, about this file only.
 """
-        else:
-            prompt = f"""You are an expert in Klipper, Moonraker and Crowsnest.
+
+LOGS_PROMPT_ALL = """You are an expert in Klipper, Moonraker and Crowsnest.
 Analyse these system logs taken from Klipper's logs folder (all the files, not only klippy.log).
 
-Files included: {', '.join(used_files)}
+Files included: {files}
 
 Content (last lines):
-{combined}
+{content}
 
 Task:
 1) Find relevant errors, warnings and stack traces (TMC, heater, probe, MCU, move out of range, crowsnest, moonraker, etc.)
@@ -2060,42 +1660,62 @@ Task:
 5) Give priorities: what to fix first
 6) End with a short "Conclusion" section
 
-Answer in {LANGUAGE_NAMES.get(language, "English")}, technical but clear, with bullet points and commands ready to copy. If you see no critical errors, say so explicitly.
+Answer in {language}, technical but clear, with bullet points and commands ready to copy. If you see no critical errors, say so explicitly.
 """
 
-        target = ai_services.resolve(cfg, "logs")   # 1.27: the service and model chosen for the logs
-        provider, final_model, endpoint = target["provider"], target["model"], target["endpoint"]
+
+@app.route("/api/logs/analyze", methods=["POST", "GET"])
+def api_logs_analyze():
+    """Asks the AI service chosen for the logs about one log (?file=klippy.log) or about all of them together."""
+    language = _lang()
+    try:
+        target = ai_services.resolve(_read_ai_file(), "logs")   # 1.27: the service and model chosen for the logs
+    except ai_services.AiError:
+        return jsonify({"error": bt("API key not set", language), "howto": bt(AI_SETUP_HINT, language), "configured": False}), 400
+
+    body = request.get_json(silent=True)
+    single = request.args.get("file") or (body.get("file") if isinstance(body, dict) else None)
+    if single:
+        name = os.path.basename(str(single))
+        path = _log_path(name)
+        if path is None or not os.path.isfile(path):
+            return jsonify({"error": bt("File {name} not found", language, name=name)}), 404
         try:
-            r = ai_services.chat(target, [
-                {"role": "system", "content": "You are an expert in Klipper, Moonraker and Crowsnest."},
-                {"role": "user", "content": prompt},
-            ], temperature=0.3, max_tokens=2000, timeout=60)
-            if not r.ok:
-                return jsonify({"error": f"{target['name']} API error {r.status_code}: {ai_services.error_detail(r) or r.text[:800]}", "used_files": used_files, "endpoint": endpoint, "model": final_model}), 500
-            answer = ai_services.answer_text(r)
-            return jsonify({
-                "ok": True,
-                "provider": provider,
-                "model": final_model,
-                "endpoint": endpoint,
-                "used_files": used_files,
-                "prompt_chars": len(prompt),
-                "analysis": answer
-            })
-        except Exception as e:
-            return jsonify({"error": f"{target['name']} call failed: {e}", "used_files": used_files, "endpoint": endpoint}), 500
+            lines = log_tail(path, 3500 if _log_kind(name) == "klippy" else 2500)
+        except OSError as error:
+            return jsonify({"error": bt("Cannot read {name}: {error}", language, name=name, error=error)}), 500
+        content = "".join(lines)[-SINGLE_LOG_CHARS:]
+        content = "===== FILE: %s (%d lines, single analysis) =====\n%s" % (name, len(lines), content if content.strip() else "(empty file)")
+        used_files, template = [name], LOGS_PROMPT_ONE
+    else:
+        content, used_files = get_logs_combined()
+        if not content:
+            return jsonify({"error": bt("no log found", language)}), 404
+        template = LOGS_PROMPT_ALL
+    prompt = template.format(files=", ".join(used_files), content=content, language=LANGUAGE_NAMES.get(language, "English"))
 
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    provider, model, endpoint = target["provider"], target["model"], target["endpoint"]
+    try:
+        answer = ai_services.chat(target, [
+            {"role": "system", "content": "You are an expert in Klipper, Moonraker and Crowsnest."},
+            {"role": "user", "content": prompt},
+        ], temperature=0.3, max_tokens=2000, timeout=60)
+    except requests.RequestException as error:
+        return jsonify({"error": "%s call failed: %s" % (target["name"], error), "used_files": used_files, "endpoint": endpoint}), 500
+    if not answer.ok:
+        return jsonify({"error": "%s API error %s: %s" % (target["name"], answer.status_code, ai_services.error_detail(answer) or answer.text[:800]),
+                        "used_files": used_files, "endpoint": endpoint, "model": model}), 500
+    try:
+        analysis = ai_services.answer_text(answer)
+    except ValueError:
+        return jsonify({"error": "%s: the answer could not be read" % target["name"], "used_files": used_files, "endpoint": endpoint, "model": model}), 500
+    return jsonify({"ok": True, "provider": provider, "model": model, "endpoint": endpoint, "used_files": used_files,
+                    "prompt_chars": len(prompt), "analysis": analysis})
 
-# === END AUTO AI ===
 
 
 
-# === OPENCV LIGHTWEIGHT SPAGHETTI DETECTOR V11 - 6-11% CPU (V18 1080p) - OPTIONAL IMPORT ===
-import threading
-import time
-from collections import deque
+# === THE PRINT MONITOR: the camera looked at while a print runs (OpenCV, optional) =====================================
 from monitor_core import HAS_CV2, cv2, np  # noqa: E402
 from recorder import Recorder  # noqa: E402  (the pictures of the prints, to measure the monitor)
 import print_zone  # noqa: E402  (phase 4c: where the objects of the print are)
@@ -2255,18 +1875,78 @@ def read_alert_history(limit=20):
         return []
 
 
-def prune_alert_images(keep=10, pattern="/tmp/klippeye_alert_*.jpg"):
-    """Keeps the last `keep` alert pictures in /tmp and removes the others (each is ~100 KB and they used to pile up)."""
+# The pictures on their way to the AI (now, before, the second look), until record_alert() copies them into the history.
+# In the data folder, which only the service user can read (they were in /tmp, open to every user, before the 1.116 review).
+ALERT_PENDING_DIR = os.path.join(ALERT_HISTORY_DIR, "pending")
+
+
+def prune_alert_images(keep=10, folder=None):
+    """Keeps the last `keep` pictures on their way to the AI and removes the others (each is ~100 KB)."""
     try:
-        import glob
-        files = sorted(glob.glob(pattern), key=os.path.getmtime, reverse=True)
-        for old in files[keep:]:
-            try:
-                os.remove(old)
-            except OSError:
-                pass
-    except Exception:
-        pass
+        files = sorted(glob.glob(os.path.join(folder or ALERT_PENDING_DIR, "klippeye_alert_*.jpg")), key=os.path.getmtime, reverse=True)
+    except OSError:
+        return
+    for old in files[keep:]:
+        try:
+            os.remove(old)
+        except OSError:
+            pass
+
+
+def alert_picture_path(suffix=""):
+    os.makedirs(ALERT_PENDING_DIR, exist_ok=True)
+    return os.path.join(ALERT_PENDING_DIR, "klippeye_alert_%d%s.jpg" % (int(time.time()), "_" + suffix if suffix else ""))
+
+
+def ai_jpeg(frame):
+    """`frame` at the size the AI gets it, as JPEG bytes."""
+    resized = cv2.resize(frame, (AI_IMAGE_WIDTH, AI_IMAGE_HEIGHT), interpolation=cv2.INTER_AREA)
+    done, encoded = cv2.imencode(".jpg", resized, [int(cv2.IMWRITE_JPEG_QUALITY), AI_IMAGE_QUALITY])
+    if not done:
+        raise ValueError("the picture could not be encoded")
+    return encoded.tobytes()
+
+
+def write_ai_picture(frame, path):
+    with open(path, "wb") as handle:
+        handle.write(ai_jpeg(frame))
+    return path
+
+
+def camera_frame(timeout=5):
+    """A picture from the camera, decoded (None when the camera does not answer with one)."""
+    answer = requests.get(snapshot_url(), timeout=timeout)
+    if not answer.ok or len(answer.content) < 1000:
+        return None
+    return cv2.imdecode(np.frombuffer(answer.content, np.uint8), cv2.IMREAD_COLOR)
+
+
+def real_print_check(status, min_progress, hotend_tol, warmup):
+    """Has the real print started (not the heating, the mesh, the purge)? -> (started, [what is still missing, notes]).
+    `status`: Klipper's print_stats, display_status, virtual_sdcard, extruder, heater_bed, toolhead."""
+    stats, sd = status.get("print_stats") or {}, status.get("virtual_sdcard") or {}
+    extruder, bed = status.get("extruder") or {}, status.get("heater_bed") or {}
+    progress = (status.get("display_status") or {}).get("progress") or 0  # 0-1
+    file_size = sd.get("file_size") or 0
+    file_progress = (sd.get("file_position") or 0) / file_size if file_size > 0 else 0
+    duration = stats.get("total_duration") or 0
+    started, reasons = True, []
+    if not started_by_progress(progress, file_progress, min_progress):
+        started = False
+        reasons.append("progress %.1f%% <%g%%" % (progress * 100, min_progress))
+    temperature, target = extruder.get("temperature") or 0, extruder.get("target") or 0
+    if target > 0 and abs(temperature - target) > hotend_tol:
+        started = False
+        reasons.append("hotend %.0f/%.0fC not at temperature" % (temperature, target))
+    if (bed.get("target") or 0) > 0 and abs((bed.get("temperature") or 0) - bed["target"]) > 10:
+        reasons.append("bed %.0f/%.0fC not at temperature" % (bed.get("temperature") or 0, bed["target"]))  # written down, it does not block
+    if duration < warmup:  # 90 s by default: heating and the mesh often take less than a minute
+        started = False
+        reasons.append("duration %.0fs <%ss" % (duration, warmup))
+    position = (status.get("toolhead") or {}).get("position") or []
+    if len(position) >= 3 and isinstance(position[2], (int, float)) and position[2] > 15:
+        reasons.append("Z=%.1fmm high (mesh?)" % position[2])  # written down too
+    return started, reasons
 
 
 AI_DEFECT_KEYS = ("spaghetti", "empty_bed", "layer_shift", "warping")
@@ -2411,8 +2091,7 @@ class LightDetector(FrameJudge):
             return
         self.next_cool_frame = now + self.check_interval
         try:
-            r = requests.get(snapshot_url(), timeout=4)
-            frame = cv2.imdecode(np.frombuffer(r.content, np.uint8), cv2.IMREAD_COLOR) if r.ok and len(r.content) >= 1000 else None
+            frame = camera_frame(timeout=4)
             if frame is not None:
                 recorder.add_frame(frame, now, dict(self.meta, score=None, trig=False, cool=True))
                 reviews.add_frame(frame, now, self.meta)
@@ -2542,17 +2221,11 @@ class LightDetector(FrameJudge):
                     self._record_during_cooldown()
                     self._nap(generation, 1)
                     continue
-                # Check if printing
-                # === SOLUTION 5 - HYBRID - IS THE REAL PRINT RUNNING ===
+                # is a print running, and has it really started?
                 try:
                     status = moonraker_status("print_stats&extruder&display_status&virtual_sdcard&toolhead&heater_bed&motion_report=live_position&exclude_object=objects")
-                    ps = status.get("print_stats",{})
-                    extr = status.get("extruder",{})
-                    disp = status.get("display_status",{})
-                    v_sd = status.get("virtual_sdcard",{})
-                    tool = status.get("toolhead",{})
-                    bed = status.get("heater_bed",{})
-                    state = ps.get("state","")
+                    ps = status.get("print_stats") or {}
+                    state = ps.get("state", "")
                     self._follow_print(state)
                     recorder.observe(state, ps.get("filename", ""), time.time(), brain_config.snapshot())
                     reviews.observe(state, ps.get("filename", ""), time.time())  # 1.103: «how did it go?» at the end
@@ -2560,7 +2233,7 @@ class LightDetector(FrameJudge):
 
                     if state != "printing":
                         self._reset_reference()  # a new print starts with a new background
-                        if state not in ("paused",):
+                        if state != "paused":
                             self.zone, self.zone_reading = {}, None  # the next print has its own objects
                         self.stats["status"] = f"idle (state={state})"
                         self.stats["real_print_started"] = False
@@ -2568,48 +2241,12 @@ class LightDetector(FrameJudge):
                         self._nap(generation, 5)
                         continue
 
-                    # has the real print started?
-                    progress = disp.get("progress",0)  # 0-1
-                    temp_h = extr.get("temperature",0)
-                    target_h = extr.get("target",0)
-                    temp_b = bed.get("temperature",0)
-                    target_b = bed.get("target",0)
-                    file_pos = v_sd.get("file_position",0)
-                    file_size = v_sd.get("file_size",1)
-                    file_progress = file_pos / file_size if file_size>0 else 0
-                    total_dur = ps.get("total_duration",0)
-
-                    # criteria of a real print
-                    reasons = []
-                    real_started = True
-
-                    # 1. progress above the threshold (2% by default; the file half of that)
-                    if not started_by_progress(progress, file_progress, self.min_progress):
-                        real_started = False
-                        reasons.append(f"progress {progress*100:.1f}% <{self.min_progress:g}%")
-                    # 2. hotend close to its target
-                    if target_h > 0 and abs(temp_h - target_h) > self.hotend_tol:
-                        real_started = False
-                        reasons.append(f"hotend {temp_h:.0f}/{target_h:.0f}C not at temperature")
-                    # 3. bed close to its target, if it has one
-                    if target_b > 0 and abs(temp_b - target_b) > 10:
-                        # the bed does not block, it is only written down
-                        reasons.append(f"bed {temp_b:.0f}/{target_b:.0f}C not at temperature")
-                    # 4. at least N seconds of printing (90 by default: heating + mesh often take < 60 s)
-                    if total_dur < self.warmup:
-                        real_started = False
-                        reasons.append(f"duration {total_dur:.0f}s <{self.warmup}s")
-                    # 5. toolhead Z: still high (>10 mm) probably means mesh/homing
-                    try:
-                        z_pos = tool.get("position",[0,0,0])[2] if tool.get("position") else 0
-                        if z_pos > 15:
-                            reasons.append(f"Z={z_pos:.1f}mm high (mesh?)")
-                    except:
-                        pass
-
+                    real_started, reasons = real_print_check(status, self.min_progress, self.hotend_tol, self.warmup)
+                    progress = (status.get("display_status") or {}).get("progress") or 0  # 0-1
+                    v_sd = status.get("virtual_sdcard") or {}
                     self.stats["real_print_started"] = real_started
                     info = ps.get("info") or {}
-                    position = tool.get("position") or []
+                    position = (status.get("toolhead") or {}).get("position") or []
                     live = (status.get("motion_report") or {}).get("live_position") or []
                     self.meta = {"layer": info.get("current_layer"), "layers": info.get("total_layer"),
                                  "pos": [round(float(v), 1) for v in position[:3]] if len(position) >= 3 else None,
@@ -2619,8 +2256,8 @@ class LightDetector(FrameJudge):
                     if self.expected_zone and camera_cal.usable():
                         self._update_zone(ps.get("filename", ""), status.get("exclude_object"))
                     self.stats["progress"] = progress
-                    self.stats["file_progress"] = file_progress
-                    self.stats["total_duration"] = total_dur
+                    self.stats["file_progress"] = (v_sd.get("file_position") or 0) / v_sd["file_size"] if (v_sd.get("file_size") or 0) > 0 else 0
+                    self.stats["total_duration"] = ps.get("total_duration") or 0
 
                     if not real_started:
                         self.stats["status"] = f"heating/mesh - waiting for the real print ({'; '.join(reasons)[:80]})"
@@ -2632,7 +2269,7 @@ class LightDetector(FrameJudge):
                     self._nap(generation, 3)
                     continue
 
-                # Get snapshot low-res
+                # the camera's picture
                 try:
                     calibrated = self._uses_calibration()
                     if calibrated:
@@ -2671,32 +2308,14 @@ class LightDetector(FrameJudge):
                 if triggered:
                     recorder.note_trigger(now)
                 if ask:
-                    # save a full-resolution picture for the AI
+                    # the picture just judged goes to the AI, in the background (the loop does not wait)
                     try:
-                        prune_alert_images(keep=20)  # old alert pictures do not pile up for ever (now + before)
-                        full_path = f"/tmp/klippeye_alert_{int(time.time())}.jpg"
-                        # download again and resize to 1080x720 for the AI - V17 against false positives
-                        r_full = requests.get(snapshot_url(), timeout=5)
-                        if r_full.ok:
-                            try:
-                                # resize to 1080x720, quality 85%, for the detail of the bed
-                                img_arr_full = np.frombuffer(r_full.content, np.uint8)
-                                frame_full = cv2.imdecode(img_arr_full, cv2.IMREAD_COLOR)
-                                if frame_full is not None:
-                                    resized = cv2.resize(frame_full, (AI_IMAGE_WIDTH, AI_IMAGE_HEIGHT), interpolation=cv2.INTER_AREA)
-                                    cv2.imwrite(full_path, resized, [int(cv2.IMWRITE_JPEG_QUALITY), AI_IMAGE_QUALITY])
-                                else:
-                                    with open(full_path, 'wb') as f:
-                                        f.write(r_full.content)
-                            except:
-                                with open(full_path, 'wb') as f:
-                                    f.write(r_full.content)
-                            self.last_alert_img_path = full_path
-                            print(f"[OPENCV] Saved alert image {full_path}")
-                            # call the AI analysis in the background (the loop does not wait)
-                            ref_path, ref_age = self._save_reference(full_path)
-                            local = {"score": self.local_state.get("score"), "why": self.local_state.get("why")} if self.local_state.get("at") == now else None
-                            threading.Thread(target=self.call_ai_analysis, args=(full_path, ref_path, ref_age), kwargs={"local": local}, daemon=True).start()
+                        prune_alert_images(keep=20)  # now + before of the last alarms
+                        full_path = write_ai_picture(frame, alert_picture_path())
+                        self.last_alert_img_path = full_path
+                        ref_path, ref_age = self._save_reference(full_path)
+                        local = {"score": self.local_state.get("score"), "why": self.local_state.get("why")} if self.local_state.get("at") == now else None
+                        threading.Thread(target=self.call_ai_analysis, args=(full_path, ref_path, ref_age), kwargs={"local": local}, daemon=True).start()
                     except Exception as e:
                         print(f"[OPENCV] save alert fail: {e}")
 
@@ -2767,9 +2386,8 @@ class LightDetector(FrameJudge):
         alone, as the AI's verdicts are (the notifier and the automatic pause act on it)."""
         language = shared_language()
         summary = bt("The local model is sure there is a failure ({score}%) and no online AI can answer: check the print.", language, score="%.0f" % score)
-        path = f"/tmp/klippeye_alert_{int(time.time())}_local.jpg"
         try:
-            cv2.imwrite(path, cv2.resize(frame, (AI_IMAGE_WIDTH, AI_IMAGE_HEIGHT), interpolation=cv2.INTER_AREA), [int(cv2.IMWRITE_JPEG_QUALITY), AI_IMAGE_QUALITY])
+            path = write_ai_picture(frame, alert_picture_path("local"))
         except Exception:
             path = None
         verdict = {"action": "PAUSE", "summary": summary, "observation": summary, "local_only": True,
@@ -2784,7 +2402,7 @@ class LightDetector(FrameJudge):
         self.stats["status"] = "local model: PAUSE proposed (%.0f%%), no online AI" % score
         print("[LOCAL] sure (%.0f%%), no online AI: a pause proposed by the local model" % score)
 
-    def _save_reference(self, adesso_path):
+    def _save_reference(self, now_path):
         """The "before" picture for the AI: the oldest of the background ones (~reference_seconds ago). -> (path, age in seconds) or (None, None)."""
         if not (self.ai_send_reference and self.persistent_filter and self.ref_jpegs):
             return None, None
@@ -2793,10 +2411,7 @@ class LightDetector(FrameJudge):
             frame = cv2.imdecode(np.frombuffer(raw, np.uint8), cv2.IMREAD_COLOR)
             if frame is None:
                 return None, None
-            path = adesso_path[:-4] + "_prima.jpg"
-            resized = cv2.resize(frame, (AI_IMAGE_WIDTH, AI_IMAGE_HEIGHT), interpolation=cv2.INTER_AREA)
-            cv2.imwrite(path, resized, [int(cv2.IMWRITE_JPEG_QUALITY), AI_IMAGE_QUALITY])
-            return path, int(time.time() - taken)
+            return write_ai_picture(frame, now_path[:-4] + "_before.jpg"), int(time.time() - taken)
         except Exception as error:
             print(f"[OPENCV] earlier picture not saved: {error}")
             return None, None
@@ -2804,16 +2419,8 @@ class LightDetector(FrameJudge):
     def _ai_picture(self, suffix):
         """A new camera picture, sized as the AI gets them, saved for the AI (1.102: the second look). -> path or None."""
         try:
-            r = requests.get(snapshot_url(), timeout=5)
-            if not r.ok or len(r.content) < 1000:
-                return None
-            frame = cv2.imdecode(np.frombuffer(r.content, np.uint8), cv2.IMREAD_COLOR)
-            if frame is None:
-                return None
-            path = f"/tmp/klippeye_alert_{int(time.time())}_{suffix}.jpg"
-            resized = cv2.resize(frame, (AI_IMAGE_WIDTH, AI_IMAGE_HEIGHT), interpolation=cv2.INTER_AREA)
-            cv2.imwrite(path, resized, [int(cv2.IMWRITE_JPEG_QUALITY), AI_IMAGE_QUALITY])
-            return path
+            frame = camera_frame()
+            return write_ai_picture(frame, alert_picture_path(suffix)) if frame is not None else None
         except Exception as error:
             print(f"[OPENCV] picture for the second look not taken: {error}")
             return None
@@ -2831,8 +2438,8 @@ class LightDetector(FrameJudge):
         -> {"ok": True, "parsed": dict | None, "answer": text, "with_reference": bool} or {"ok": False, "status", "error"}."""
         def read(path):
             if path and os.path.exists(path):
-                with open(path, 'rb') as f:
-                    return base64.b64encode(f.read()).decode('utf-8')
+                with open(path, "rb") as f:
+                    return base64.b64encode(f.read()).decode("ascii")
             return None
         img_b64, ref_b64 = read(img_path), read(ref_path)
         if not img_b64:
@@ -2982,13 +2589,10 @@ class LightDetector(FrameJudge):
             backup = target is not chain[0]
             parsed, answer, used_reference = first["parsed"], first["answer"], first["with_reference"]
             if parsed is None:
-                self.last_analysis = {
-                    "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
-                    "model": final_model,
-                    "progress": progress,
-                    "analysis": {"action": "PAUSE", "summary": answer[:200], "raw": True},
-                    "raw": answer
-                }
+                # An answer that is not the JSON asked for says nothing about the print: it is written in the history
+                # and no verdict comes of it. (Before the 1.116 review it counted as a PAUSE: the notifications said
+                # «defects found», and the automatic pause could stop a good print for a badly written answer.)
+                self.stats["status"] = "AI: the answer could not be read"
                 record_alert({"outcome": "AI answer not readable", "score": score, "model": final_model, "summary": answer[:200]}, img_path, ref_path)
                 return
 
@@ -3048,7 +2652,7 @@ class LightDetector(FrameJudge):
                 self.last_analysis["image"] = recorded.get("image")
         except Exception as e:
             print(f"[OPENCV] AI call fail: {e}")
-            import traceback; traceback.print_exc()
+            traceback.print_exc()
 
 RECORDINGS_DIR = os.path.join(DATA_DIR, "recordings")
 recorder = Recorder(RECORDINGS_DIR, cv2 if HAS_CV2 else None, RELEASE)
@@ -3391,7 +2995,7 @@ def app_apk():
     response = send_file(APK_PATH, mimetype=APK_MIMETYPE, as_attachment=True, download_name="KlippEye-%s.apk" % info["version"], conditional=True, max_age=0)
     response.headers["Cache-Control"] = "no-store"
     return response
-# === fine APP ANDROID ==================================================================================
+# === end ANDROID APP ===================================================================================================
 
 
 # === PRINTER LOGOS: the repository's logos/ folder ==================================================
@@ -3468,7 +3072,7 @@ def api_brain_config_get():
         defaults=config_defaults(),
         groups=CONFIG_GROUPS,
         spec=[{k: v for k, v in spec.items() if k != "pattern"} for spec in CONFIG_SPEC],
-        path=BRAIN_CONFIG_PATH,
+        path=MONITOR_CONFIG_PATH,
         running=detector.running,
         has_cv2=HAS_CV2,
     )
@@ -3562,21 +3166,15 @@ def api_detector_config():
 
 @app.route("/api/print/alerts", methods=["GET"])
 def api_print_alerts():
+    """The picture of the monitor's last alarm (base64), with the monitor's figures."""
+    path = detector.last_alert_img_path
     try:
-        path = detector.last_alert_img_path
-        if not path or not os.path.exists(path):
-            return jsonify({"ok": True, "has_alert": False, "stats": detector.stats})
-        with open(path, 'rb') as f:
-            b64 = base64.b64encode(f.read()).decode('utf-8')
-        return jsonify({
-            "ok": True,
-            "has_alert": True,
-            "stats": detector.stats,
-            "image_b64": b64,
-            "image_path": path
-        })
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        with open(path, "rb") as handle:
+            picture = base64.b64encode(handle.read()).decode("ascii")
+    except (OSError, TypeError):
+        return jsonify({"ok": True, "has_alert": False, "stats": detector.stats})
+    return jsonify({"ok": True, "has_alert": True, "stats": detector.stats, "image_b64": picture, "image_path": path})
+
 
 @app.route("/api/print/alerts/history", methods=["GET"])
 def api_alert_history():
@@ -4509,120 +4107,27 @@ def api_camera_check():
 # === end CAMERA CALIBRATION ===========================================================================================
 
 
-# === END OPENCV DETECTOR V10 ===
-
-
-# === PRINT AI ANALYSIS V9 - SPAGHETTI / EMPTY BED / LAYER SHIFT ===
-import base64
-import io
+# === THE CAMERA PICTURE AND THE AI'S ANALYSIS ASKED BY HAND =============================================================
 
 @app.route("/api/print/snapshot", methods=["GET"])
 def api_print_snapshot():
-    """Proxy snapshot raw"""
+    """The camera's picture, as the camera made it."""
     try:
-        r = requests.get(snapshot_url(), timeout=5, stream=True)
-        return Response(r.iter_content(chunk_size=8192), status=r.status_code, content_type=r.headers.get('Content-Type','image/jpeg'))
-    except Exception as e:
-        return jsonify({"error": str(e)}), 502
+        return relay(requests.get(snapshot_url(), timeout=5, stream=True))
+    except requests.RequestException as error:
+        return jsonify({"error": str(error)}), 502
 
-@app.route("/api/print/analyze", methods=["POST","GET"])
-def api_print_analyze():
-    """
-    Analyses the print in progress: camera snapshot + telemetry
-    (the same approach as the logs, with vision)
-    """
-    try:
-        try:
-            target = ai_services.resolve(_read_ai_file(), "monitor", detector.ai_model)   # 1.27: the monitor's service and model
-        except ai_services.AiError:
-            return jsonify({"error": bt("API key not set", _lang()), "howto": bt(AI_SETUP_HINT, _lang())}), 401
 
-        # 1. camera snapshot - V17: resized to 1080x720 for the detail of an empty bed
-        img_b64 = None
-        img_resized_bytes = None
-        try:
-            r = requests.get(snapshot_url(), timeout=6)
-            content = None
-            if r.ok and len(r.content) > 1000:
-                content = r.content
-            else:
-                r2 = requests.get(f"{CAMERA_NGINX_URL}/snapshot", timeout=6)  # camera-streamer's own path, as before 1.23.0
-                if r2.ok and len(r2.content) > 1000:
-                    content = r2.content
-            
-            if content:
-                try:
-                    if HAS_CV2:
-                        arr = np.frombuffer(content, np.uint8)
-                        frm = cv2.imdecode(arr, cv2.IMREAD_COLOR)
-                        if frm is not None:
-                            resized = cv2.resize(frm, (AI_IMAGE_WIDTH, AI_IMAGE_HEIGHT), interpolation=cv2.INTER_AREA)
-                            _, buf = cv2.imencode('.jpg', resized, [int(cv2.IMWRITE_JPEG_QUALITY), AI_IMAGE_QUALITY])
-                            img_resized_bytes = buf.tobytes()
-                            img_b64 = base64.b64encode(img_resized_bytes).decode('utf-8')
-                        else:
-                            img_b64 = base64.b64encode(content).decode('utf-8')
-                    else:
-                        img_b64 = base64.b64encode(content).decode('utf-8')
-                except:
-                    img_b64 = base64.b64encode(content).decode('utf-8')
-        except Exception as e:
-            print(f"[PRINT-AI] snapshot error: {e}")
+def _camera_jpeg():
+    """The camera's picture for the AI: at the AI's size when OpenCV is there, else as the camera made it. None: no picture."""
+    answer = requests.get(snapshot_url(), timeout=6)
+    if not answer.ok or len(answer.content) < 1000:
+        return None
+    frame = cv2.imdecode(np.frombuffer(answer.content, np.uint8), cv2.IMREAD_COLOR) if HAS_CV2 else None
+    return ai_jpeg(frame) if frame is not None else answer.content
 
-        if not img_b64:
-            return jsonify({"error": bt("Cannot take a camera snapshot: check the camera on the Home page", _lang())}), 500
 
-        # 2. print telemetry
-        telemetry = {}
-        try:
-            telemetry = moonraker_status("print_stats&extruder&heater_bed&display_status&toolhead&virtual_sdcard&gcode_move")
-        except Exception as e:
-            telemetry = {"error": str(e)}
-
-        print_stats = telemetry.get("print_stats",{})
-        display = telemetry.get("display_status",{})
-        extruder = telemetry.get("extruder",{})
-        bed = telemetry.get("heater_bed",{})
-        v_sd = telemetry.get("virtual_sdcard",{})
-
-        state = print_stats.get("state","unknown")
-        filename = print_stats.get("filename","")
-        progress = display.get("progress",0)*100
-        temp_h = extruder.get("temperature",0)
-        target_h = extruder.get("target",0)
-        temp_b = bed.get("temperature",0)
-
-        # 3. vision prompt - hybrid solution 5
-        # real_print_started is worked out here too, for the prompt
-        real_print_started = False
-        real_reason = ""
-        try:
-            file_pos = v_sd.get("file_position",0)
-            file_size = v_sd.get("file_size",1)
-            file_progress = file_pos / file_size if file_size>0 else 0
-            total_dur = print_stats.get("total_duration",0)
-            progress_frac = progress/100 if progress>1 else progress
-            # the same criteria as the detector
-            checks = []
-            if not started_by_progress(progress_frac, file_progress, detector.min_progress):
-                checks.append(f"progress {progress_frac*100:.1f}% low")
-            else:
-                real_print_started = True
-            if abs(temp_h - target_h) > detector.hotend_tol and target_h>0:
-                real_print_started = False
-                checks.append(f"hotend not at temperature {temp_h:.0f}/{target_h:.0f}")
-            if total_dur < detector.warmup:
-                real_print_started = False
-                checks.append(f"duration {total_dur:.0f}s <{detector.warmup}s")
-            if started_by_progress(progress_frac, file_progress, detector.min_progress) and abs(temp_h - target_h) <= detector.hotend_tol and total_dur >= detector.warmup:
-                real_print_started = True
-                checks = ["ok - real print started"]
-            real_reason = "; ".join(checks)
-        except Exception as e:
-            real_reason = f"real_print check failed: {e}"
-
-        language = _lang()
-        prompt_text = f"""You are a 3D printing expert, specialised in detecting failed prints.
+PRINT_ANALYSIS_PROMPT = """You are a 3D printing expert, specialised in detecting failed prints.
 
 Analyse this picture of the print in progress.
 
@@ -4630,11 +4135,11 @@ TELEMETRY:
 - State: {state}
 - File: {filename}
 - Progress: {progress:.1f}%
-- Hotend: {temp_h:.1f}°C / target {target_h:.1f}°C
-- Bed: {temp_b:.1f}°C
+- Hotend: {hotend:.1f}°C / target {hotend_target:.1f}°C
+- Bed: {bed:.1f}°C
 - Print stats: {print_stats}
-- REAL_PRINT_STARTED: {real_print_started} ({real_reason})
-- File position: {file_pos}/{file_size} ({file_progress*100:.1f}%)
+- REAL_PRINT_STARTED: {started} ({reason})
+- File position: {file_position}/{file_size}
 
 CRITICAL RULE AGAINST A FALSE EMPTY BED:
 - If REAL_PRINT_STARTED is False (heating, mesh, homing, calibration, purge not started yet):
@@ -4657,7 +4162,7 @@ TASK:
 6) Give a confidence % for each one
 7) Suggest an action: CONTINUE / PAUSE / CANCEL
 
-Write the texts in {LANGUAGE_NAMES.get(language, "English")}; keep the JSON keys and the action words in English.
+Write the texts in {language}; keep the JSON keys and the action words in English.
 Structured JSON + a short explanation:
 {{
   "spaghetti": {{"detected": true/false, "confidence": 0-100, "note": "..."}},
@@ -4670,44 +4175,62 @@ Structured JSON + a short explanation:
 Then add a markdown section with a detailed explanation.
 """
 
-        provider, final_model = target["provider"], target["model"]
-        messages = [
-            {"role": "system", "content": "You are an expert in detecting failed 3D prints. Always answer with JSON + markdown."},
-            {"role": "user", "content": [
-                {"type": "text", "text": prompt_text},
-                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img_b64}"}},
-            ]},
-        ]
 
-        # a model that cannot see pictures (or a service that refuses them): the telemetry only, saying so
-        try:
-            r = ai_services.chat(target, messages, temperature=0.2, max_tokens=1800, timeout=60)
-            if not r.ok and r.status_code not in (401, 403, 429):
-                print(f"[PRINT-AI] vision failed {r.status_code}: {r.text[:500]}")
-                r = ai_services.chat(target, [
-                    {"role": "system", "content": "3D printing expert"},
-                    {"role": "user", "content": f"{prompt_text}\n\n[NOTE: the picture could not be sent to this model: analyse the telemetry only and say that a model that sees pictures is needed (Settings > AI monitor > The AI service)]"},
-                ], temperature=0.3, max_tokens=1200, timeout=40)
-            if not r.ok:
-                return jsonify({"error": f"{target['name']} API error {r.status_code}: {ai_services.error_detail(r) or r.text[:1000]}", "model": final_model}), 500
-            answer = ai_services.answer_text(r)
-            return jsonify({
-                "ok": True,
-                "provider": provider,
-                "model": final_model,
-                "state": state,
-                "filename": filename,
-                "progress": progress,
-                "telemetry": telemetry,
-                "analysis": answer
-            })
-        except Exception as e:
-            return jsonify({"error": f"print analyze failed: {e}"}), 500
+@app.route("/api/print/analyze", methods=["POST", "GET"])
+def api_print_analyze():
+    """The AI's opinion on the print, asked by hand: a camera picture and what the printer is doing, to the monitor's
+    AI service. The answer is the AI's text (a JSON verdict and an explanation); the monitor's own alarms are not touched."""
+    language = _lang()
+    try:
+        target = ai_services.resolve(_read_ai_file(), "monitor", detector.ai_model)   # 1.27: the monitor's service and model
+    except ai_services.AiError:
+        return jsonify({"error": bt("API key not set", language), "howto": bt(AI_SETUP_HINT, language)}), 401
+    try:
+        picture = _camera_jpeg()
+    except Exception as error:  # noqa: BLE001 - the camera down, a picture that cannot be read
+        print(f"[PRINT-AI] snapshot error: {error}")
+        picture = None
+    if not picture:
+        return jsonify({"error": bt("Cannot take a camera snapshot: check the camera on the Home page", language)}), 500
 
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    try:
+        telemetry = moonraker_status("print_stats&extruder&heater_bed&display_status&toolhead&virtual_sdcard&gcode_move")
+    except Exception as error:  # noqa: BLE001
+        telemetry = {"error": str(error)}
+    print_stats, sd = telemetry.get("print_stats") or {}, telemetry.get("virtual_sdcard") or {}
+    extruder = telemetry.get("extruder") or {}
+    state, filename = print_stats.get("state", "unknown"), print_stats.get("filename", "")
+    progress = ((telemetry.get("display_status") or {}).get("progress") or 0) * 100
+    started, reasons = real_print_check(telemetry, detector.min_progress, detector.hotend_tol, detector.warmup)
+    prompt = PRINT_ANALYSIS_PROMPT.format(
+        state=state, filename=filename, progress=progress, hotend=extruder.get("temperature") or 0, hotend_target=extruder.get("target") or 0,
+        bed=(telemetry.get("heater_bed") or {}).get("temperature") or 0, print_stats=print_stats, started=started,
+        reason="; ".join(reasons) or "ok - real print started", file_position=sd.get("file_position", 0), file_size=sd.get("file_size", 0),
+        language=LANGUAGE_NAMES.get(language, "English"))
+    messages = [
+        {"role": "system", "content": "You are an expert in detecting failed 3D prints. Always answer with JSON + markdown."},
+        {"role": "user", "content": [
+            {"type": "text", "text": prompt},
+            {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + base64.b64encode(picture).decode("ascii")}},
+        ]},
+    ]
+    try:
+        answer = ai_services.chat(target, messages, temperature=0.2, max_tokens=1800, timeout=60)
+        if not answer.ok and answer.status_code not in (401, 403, 429):
+            # a model that cannot see pictures (or a service that refuses them): the telemetry only, saying so
+            print(f"[PRINT-AI] vision failed {answer.status_code}: {answer.text[:500]}")
+            answer = ai_services.chat(target, [
+                {"role": "system", "content": "3D printing expert"},
+                {"role": "user", "content": prompt + "\n\n[NOTE: the picture could not be sent to this model: analyse the telemetry only and say that a model that sees pictures is needed (Settings > AI monitor > The AI service)]"},
+            ], temperature=0.3, max_tokens=1200, timeout=40)
+        if not answer.ok:
+            return jsonify({"error": "%s API error %s: %s" % (target["name"], answer.status_code, ai_services.error_detail(answer) or answer.text[:1000]), "model": target["model"]}), 500
+        analysis = ai_services.answer_text(answer)
+    except (requests.RequestException, ValueError) as error:
+        return jsonify({"error": "print analyze failed: %s" % error}), 500
+    return jsonify({"ok": True, "provider": target["provider"], "model": target["model"], "state": state, "filename": filename,
+                    "progress": progress, "telemetry": telemetry, "analysis": analysis})
 
-# === END PRINT AI V9 ===
 
 
 # start the detector when cv2 is there (unless switched off in the menu: Monitor thresholds > Monitor on)
@@ -5089,5 +4612,5 @@ if __name__ == "__main__":
     threading.Thread(target=_schedule_loop, name="schedule", daemon=True).start()
     _https_apply(_https_settings())  # 1.93: the encrypted entrance, when it was switched on
     _mqtt_apply(_mqtt_settings())  # 1.100: Home Assistant / MQTT, when set up
-    print(f"KlippEye backend {RELEASE} (api {API_LEVEL}) - data in {DATA_DIR} - settings {'read from ' + BRAIN_CONFIG_PATH if brain_config.saved else 'default (no saved file)'}")
+    print(f"KlippEye backend {RELEASE} (api {API_LEVEL}) - data in {DATA_DIR} - settings {'read from ' + MONITOR_CONFIG_PATH if brain_config.saved else 'default (no saved file)'}")
     serve_forever()

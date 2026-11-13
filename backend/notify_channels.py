@@ -65,7 +65,7 @@ class NotifyChannels:
         except FileNotFoundError:
             return {}
         except (OSError, ValueError) as error:
-            raise ChannelError(MESSAGES[0], error=error)
+            raise ChannelError(MESSAGES[0], error=error) from error
         if not isinstance(data, dict):
             raise ChannelError(MESSAGES[0], error="not a JSON object")
         return data
