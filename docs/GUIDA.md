@@ -217,8 +217,11 @@ In **Quando vede un problema** (stessa pagina) scegli:
 
 Prima di mettere in pausa o annullare, l'IA guarda due volte: 40 secondi dopo le si chiede di nuovo su una foto nuova, e la
 stampa si ferma solo se vede di nuovo il problema. Un riflesso o la testina che passa nel frattempo sono spariti, un guasto
-vero è ancora lì. Nei primi 2 mm di stampa il solo «piatto vuoto» non la ferma mai, perché la telecamera vede a fatica un
-primo layer.
+vero è ancora lì. Il
+giudizio «piatto vuoto» (il pezzo si è staccato) è il più facile da sbagliare, quindi conta solo se l'IA ha visto il pezzo
+nella foto di prima e lo vede sparito in quella nuova, ne è sicura almeno all'85%, la stampa è già alta 2 mm e il pezzo misura
+almeno 2 cm. All'IA viene anche detto quanto è grande il pezzo e, con la telecamera calibrata, dove dovrebbe trovarsi
+nell'immagine.
 
 Quando l'IA dà un allarme, la card della stampa ti chiede: **Problema reale**, **Falso allarme** o **Ignora**. La tua
 risposta chiude l'allarme e aiuta a misurare il monitor.

@@ -1748,25 +1748,92 @@ def started_by_progress(progress, file_progress, minimum):
     return progress >= minimum / 100.0 or file_progress >= minimum / 200.0
 
 
-def distrust_low_empty_bed(parsed, z, minimum, language="en"):
-    """«Empty bed» is not trusted while the print is lower than EMPTY_BED_MIN_Z (1.102): a first layer, a calibration print
-    or a flat part is a film the camera hardly sees, and the AI took it for an empty bed (a false CANCEL at 76% of a
-    0.2 mm print). The other defects stay as they are. -> (verdict, changed)"""
-    if z is None or z >= EMPTY_BED_MIN_Z or not isinstance(parsed, dict):
+EMPTY_BED_MIN_CONFIDENCE = 85   # 1.121: «empty bed» needs this much at least, whatever the threshold of the other defects
+EMPTY_BED_SMALL_MM = 20.0       # 1.121: a part whose longest side is shorter than this is too small to be judged missing
+
+
+def largest_side(objects):
+    """The longest side (mm) of the box of the biggest object of the print, or None when the objects are not known."""
+    best = None
+    for item in objects or []:
+        points = item.get("polygon") or []
+        if len(points) < 3:
+            continue
+        xs, ys = [p[0] for p in points], [p[1] for p in points]
+        side = max(max(xs) - min(xs), max(ys) - min(ys))
+        best = side if best is None else max(best, side)
+    return best
+
+
+def empty_bed_doubt(z, with_reference, side, confidence, language="en"):
+    """Why «empty bed» is not trusted for this answer, or None when it is (1.121, before only the height counted).
+    A part that came off and a part the camera cannot see look the same on ONE picture: the AI must see it gone, so
+    the earlier picture is needed. A low or small part is hard to see at all; and the AI must be quite sure."""
+    if z is not None and z < EMPTY_BED_MIN_Z:
+        return bt("The print is still lower than {height} mm: the camera can hardly see it, «empty bed» is not trusted.", language, height="%g" % EMPTY_BED_MIN_Z)
+    if not with_reference:
+        return bt("With one picture the AI cannot tell a part that came off from one it cannot see: «empty bed» is not trusted.", language)
+    if side is not None and side < EMPTY_BED_SMALL_MM:
+        return bt("The part is smaller than {size} mm: too small for the camera to say it is gone, «empty bed» is not trusted.", language, size="%g" % EMPTY_BED_SMALL_MM)
+    if not isinstance(confidence, (int, float)) or isinstance(confidence, bool) or confidence < EMPTY_BED_MIN_CONFIDENCE:
+        return bt("The AI is not sure enough of an empty bed (it needs {threshold}%).", language, threshold=EMPTY_BED_MIN_CONFIDENCE)
+    return None
+
+
+def distrust_empty_bed(parsed, minimum, language="en", z=None, with_reference=True, side=None):
+    """«Empty bed» is the most frequent false alarm: a first layer or a flat part is a film the camera hardly sees, a small
+    or far part is a few pixels, the print head hides it... and the AI took it for an empty bed (1.102: a false CANCEL at
+    76% of a 0.2 mm print). When empty_bed_doubt has a reason, the defect is set to not detected (`distrusted`), and a stop
+    that rested on it alone becomes CONTINUE. The other defects stay as they are. -> (verdict, changed)"""
+    if not isinstance(parsed, dict):
         return parsed, False
     empty = parsed.get("empty_bed")
     if not (isinstance(empty, dict) and empty.get("detected") is True):
         return parsed, False
-    out = dict(parsed, empty_bed=dict(empty, detected=False, distrusted=True))
+    reason = empty_bed_doubt(z, with_reference, side, empty.get("confidence"), language)
+    if reason is None:
+        return parsed, False
+    out = dict(parsed, empty_bed=dict(empty, detected=False, distrusted=True, why_distrusted=reason))
     action = normalize_action(parsed.get("action"))
     others = [v for k, v in out.items() if k in AI_DEFECT_KEYS and isinstance(v, dict) and v.get("detected") is True
               and isinstance(v.get("confidence"), (int, float)) and v.get("confidence") >= minimum]
     if action in ("PAUSE", "CANCEL") and not others:
         out["original_action"] = out.get("original_action") or action
         out["action"] = "CONTINUE"
-        out["summary"] = bt("The print is still lower than {height} mm: the camera can hardly see it, «empty bed» is not trusted.", language, height="%g" % EMPTY_BED_MIN_Z) + " " + str(parsed.get("summary", ""))
-        return out, True
-    return out, False
+        out["summary"] = reason + " " + str(parsed.get("summary", ""))
+    return out, True
+
+
+def distrust_low_empty_bed(parsed, z, minimum, language="en"):
+    """The 1.102 rule alone (the height): kept for the callers that know nothing else."""
+    if z is None or z >= EMPTY_BED_MIN_Z:
+        return parsed, False
+    out, changed = distrust_empty_bed(parsed, minimum, language, z=z)
+    return out, changed and out.get("action") != parsed.get("action")
+
+
+def part_hint(objects, z, picture_places=None):
+    """One line for the AI about the part (1.121): how many objects, how big, how tall now, and where they are in the
+    picture when the camera is calibrated. Without it the AI judged «empty bed» without knowing what to look for."""
+    side = largest_side(objects)
+    parts = []
+    if objects and side is not None:
+        parts.append("%d object(s) on the bed, the biggest about %.0f mm across" % (len(objects), side))
+    if z is not None:
+        parts.append("printed up to about %.1f mm high now" % z)
+    if not parts:
+        return ""
+    text = "THE PART: " + "; ".join(parts) + "."
+    if picture_places:
+        names = []
+        for u, v in picture_places[:4]:
+            across = "left" if u < 0.36 else "right" if u > 0.64 else "middle"
+            down = "top" if v < 0.36 else "bottom" if v > 0.64 else "middle"
+            names.append("the %s %s" % (down, across) if across != down else "the middle")
+        text += " In the picture it should be in " + ", ".join(dict.fromkeys(names)) + " (from the camera calibration)."
+    if side is not None and side < EMPTY_BED_SMALL_MM or (z is not None and z < 5):
+        text += " It is small or low: it may be only a few pixels, or hidden by the print head."
+    return text
 
 
 def confirm_stop(first, second, language="en"):
@@ -1971,10 +2038,11 @@ def normalize_action(value):
     return ""
 
 
-def build_ai_prompt(score, state, filename, progress, hotend, ref_age=None, language="en", local=None):
+def build_ai_prompt(score, state, filename, progress, hotend, ref_age=None, language="en", local=None, part=""):
     """The text for the AI: neutral (it does not say "it is spaghetti"), it explains what the camera sees, what a defect is
     and what is not, and asks to describe before deciding. The free texts come back in `language`. `local` (1.106): the
-    local model's rating and why the AI is asked ({"score": %, "why": "motion+local" | "local_sure" | "local_doubt"})."""
+    local model's rating and why the AI is asked ({"score": %, "why": "motion+local" | "local_sure" | "local_doubt"}).
+    `part` (1.121): the line of part_hint about the size and the place of the part."""
     if local and local.get("score") is not None and local.get("why") in ("local_sure", "local_doubt"):
         noticed = ("A small image model on the printer rates this picture %.0f%% likely to show a failed print (it can be wrong both ways). "
                    "We do NOT know whether there is a problem." % local["score"])
@@ -1992,13 +2060,14 @@ def build_ai_prompt(score, state, filename, progress, hotend, ref_age=None, lang
 {pictures}
 
 TELEMETRY: state {state}; file {filename}; progress {progress:.1f}%; nozzle {hotend:.0f} C.
+{part}
 
 REAL PROBLEMS (only if you see them clearly):
 - spaghetti: tangled filament or filament detached from the part, strands in the air, a nest on the bed or around the nozzle;
 - part detached from the bed, moved or fallen;
 - layer shift (the part has a sharp sideways step);
 - obvious warping (corners lifted from the bed);
-- empty bed ONLY if progress is above 5% and no part can be seen.
+- empty bed (the part came off): ONLY when the part is clearly visible in the BEFORE picture and missing or moved in the NOW picture. A part you cannot see is NOT an empty bed: it may be small, low, far, out of the picture or behind the print head. With one picture, never report an empty bed.
 
 NOT PROBLEMS: the print head and its wiring, the gantry, skirt, brim and purge line, supports, visible infill, the part rising layer after layer, reflections, shadows, thin hairs (stringing).
 
@@ -2441,6 +2510,21 @@ class LightDetector(FrameJudge):
             print(f"[OPENCV] picture for the second look not taken: {error}")
             return None
 
+    def _part_places(self, objects, z):
+        """Where the objects are in the picture (centres, fractions 0..1), when the camera is calibrated; else None."""
+        try:
+            known = camera_cal.limits()
+            if not objects or z is None or not known or not camera_cal.usable() or not camera_cal.saved:
+                return None
+            places = []
+            for polygon in print_zone.outlines(camera_cal.saved, objects, z, known[0], known[1])["expected"]:
+                if polygon:
+                    places.append((sum(p[0] for p in polygon) / len(polygon), sum(p[1] for p in polygon) / len(polygon)))
+            return places or None
+        except Exception as error:  # a hint only: never in the way of the question
+            print("[OPENCV] where the part is in the picture: %s" % error)
+            return None
+
     def _height_now(self):
         """The nozzle's height (mm) at the last round, or None."""
         for key in ("live", "pos"):
@@ -2460,9 +2544,11 @@ class LightDetector(FrameJudge):
         img_b64, ref_b64 = read(img_path), read(ref_path)
         if not img_b64:
             return {"ok": False, "status": 0, "error": "picture not found"}
+        objects, z = self.zone.get("objects"), self._height_now()
+        part = part_hint(objects, z, self._part_places(objects, z))
 
         def ask(with_reference):
-            prompt = build_ai_prompt(score, state, filename, progress, temp_h, ref_age if with_reference else None, language, local)
+            prompt = build_ai_prompt(score, state, filename, progress, temp_h, ref_age if with_reference else None, language, local, part)
             content = [{"type": "text", "text": prompt}]
             for b64 in ([ref_b64, img_b64] if with_reference else [img_b64]):
                 content.append({"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}})
@@ -2525,7 +2611,7 @@ class LightDetector(FrameJudge):
             if "observation" not in parsed and "osservazione" in parsed:  # an answer the old way
                 parsed["observation"] = parsed.pop("osservazione")
             parsed, _ = apply_min_confidence(parsed, self.ai_min_confidence, language)
-            parsed, _ = distrust_low_empty_bed(parsed, self._height_now(), self.ai_min_confidence, language)
+            parsed, _ = distrust_empty_bed(parsed, self.ai_min_confidence, language, z=z, with_reference=used_reference, side=largest_side(objects))
         return {"ok": True, "parsed": parsed, "answer": answer, "with_reference": used_reference}
 
     def _free_targets(self, chain, now=None):
