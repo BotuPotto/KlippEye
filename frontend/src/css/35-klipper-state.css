@@ -63,7 +63,7 @@
 .klipper-state--compact .klipper-state__head { flex-wrap: wrap; gap: 8px 12px; }
 .klipper-state--compact .klipper-state__icon { width: 32px; height: 32px; }
 .klipper-state--compact .klipper-state__icon svg:not(.klipper-state__ring) { width: 18px; height: 18px; }
-.klipper-state__summary { flex: 1 1 260px; min-width: 0; }
+.klipper-state__summary { flex: 1 1 160px; min-width: 0; }
 .klipper-state--compact .klipper-state__title { font-size: 15px; }
 .klipper-state__line {
   overflow: hidden;
@@ -81,3 +81,5 @@
 .klipper-state__more[aria-expanded="true"] svg { transform: rotate(180deg); }
 .klipper-state--compact .klipper-state__message,
 .klipper-state--compact .klipper-state__text { max-height: 24vh; margin-top: 10px; }
+.klipper-state--compact .klipper-state__label { display: none; }
+.klipper-state--compact .klipper-state__log { padding: 0 10px; }

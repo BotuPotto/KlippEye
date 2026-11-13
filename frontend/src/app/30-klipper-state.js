@@ -399,8 +399,9 @@ function KlipperStateBanner({ state, compact = false }) {
         !disconnected && h("button", { className: "oui-btn oui-btn--primary oui-btn--sm", onClick: () => state.restartKlipper(true) }, h(Icons.RotateCw, { size: 16 }), tx("Firmware restart")),
         !disconnected && h("button", { className: "oui-btn oui-btn--sm", onClick: () => state.restartKlipper(false) }, h(Icons.RotateCw, { size: 16 }), tx("Klipper restart")),
         disconnected && h("button", { className: "oui-btn oui-btn--primary oui-btn--sm", onClick: () => state.serviceAction("restart", "klipper") }, h(Icons.RotateCw, { size: 16 }), tx("Restart the Klipper service")),
-        !disconnected && h("button", { className: "oui-btn oui-btn--sm", onClick: () => logsApi.download("klippy.log") }, h(Icons.Download, { size: 16 }), tx("Klipper log")),
-        h("button", { className: "oui-btn oui-btn--sm", onClick: () => logsApi.download("moonraker.log") }, h(Icons.Download, { size: 16 }), tx("Moonraker log")),
+        // compact: the two logs as icons (their name in the tooltip), so the panel stays on one line
+        !disconnected && h("button", { className: "oui-btn oui-btn--sm klipper-state__log", title: tx("Klipper log"), "aria-label": tx("Klipper log"), onClick: () => logsApi.download("klippy.log") }, h(Icons.Download, { size: 16 }), h("span", { className: "klipper-state__label" }, tx("Klipper log"))),
+        h("button", { className: "oui-btn oui-btn--sm klipper-state__log", title: tx("Moonraker log"), "aria-label": tx("Moonraker log"), onClick: () => logsApi.download("moonraker.log") }, h(Icons.Download, { size: 16 }), h("span", { className: "klipper-state__label" }, tx("Moonraker log"))),
       );
     }
   }

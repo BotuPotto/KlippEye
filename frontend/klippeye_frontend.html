@@ -1585,7 +1585,7 @@ body.is-pulling { overscroll-behavior-y: none; }
 .klipper-state--compact .klipper-state__head { flex-wrap: wrap; gap: 8px 12px; }
 .klipper-state--compact .klipper-state__icon { width: 32px; height: 32px; }
 .klipper-state--compact .klipper-state__icon svg:not(.klipper-state__ring) { width: 18px; height: 18px; }
-.klipper-state__summary { flex: 1 1 260px; min-width: 0; }
+.klipper-state__summary { flex: 1 1 160px; min-width: 0; }
 .klipper-state--compact .klipper-state__title { font-size: 15px; }
 .klipper-state__line {
   overflow: hidden;
@@ -1603,6 +1603,8 @@ body.is-pulling { overscroll-behavior-y: none; }
 .klipper-state__more[aria-expanded="true"] svg { transform: rotate(180deg); }
 .klipper-state--compact .klipper-state__message,
 .klipper-state--compact .klipper-state__text { max-height: 24vh; margin-top: 10px; }
+.klipper-state--compact .klipper-state__label { display: none; }
+.klipper-state--compact .klipper-state__log { padding: 0 10px; }
 
 /* ============================================================================
    Camera card and the case light button
@@ -11740,8 +11742,9 @@ function KlipperStateBanner({ state, compact = false }) {
         !disconnected && h("button", { className: "oui-btn oui-btn--primary oui-btn--sm", onClick: () => state.restartKlipper(true) }, h(Icons.RotateCw, { size: 16 }), tx("Firmware restart")),
         !disconnected && h("button", { className: "oui-btn oui-btn--sm", onClick: () => state.restartKlipper(false) }, h(Icons.RotateCw, { size: 16 }), tx("Klipper restart")),
         disconnected && h("button", { className: "oui-btn oui-btn--primary oui-btn--sm", onClick: () => state.serviceAction("restart", "klipper") }, h(Icons.RotateCw, { size: 16 }), tx("Restart the Klipper service")),
-        !disconnected && h("button", { className: "oui-btn oui-btn--sm", onClick: () => logsApi.download("klippy.log") }, h(Icons.Download, { size: 16 }), tx("Klipper log")),
-        h("button", { className: "oui-btn oui-btn--sm", onClick: () => logsApi.download("moonraker.log") }, h(Icons.Download, { size: 16 }), tx("Moonraker log")),
+        // compact: the two logs as icons (their name in the tooltip), so the panel stays on one line
+        !disconnected && h("button", { className: "oui-btn oui-btn--sm klipper-state__log", title: tx("Klipper log"), "aria-label": tx("Klipper log"), onClick: () => logsApi.download("klippy.log") }, h(Icons.Download, { size: 16 }), h("span", { className: "klipper-state__label" }, tx("Klipper log"))),
+        h("button", { className: "oui-btn oui-btn--sm klipper-state__log", title: tx("Moonraker log"), "aria-label": tx("Moonraker log"), onClick: () => logsApi.download("moonraker.log") }, h(Icons.Download, { size: 16 }), h("span", { className: "klipper-state__label" }, tx("Moonraker log"))),
       );
     }
   }
