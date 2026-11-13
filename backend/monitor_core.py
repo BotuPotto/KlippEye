@@ -64,6 +64,7 @@ class FrameJudge:
         self.global_change = 30.0
         self.ai_min_confidence = 70
         self.ai_send_reference = True
+        self.ai_online = True   # 1.119: off = the local model alone, no picture goes to an online service
         self.local_enabled, self.local_filter, self.local_alone = True, True, False   # 1.106: the local model
         self.local_every, self.local_doubt, self.local_sure = 15, 35, 80
         self.recent_masks = deque(maxlen=2 * 3)  # (changed, seen) of the last checks: twice persist_checks (see _persistent)
@@ -114,6 +115,7 @@ class FrameJudge:
         self.global_change = get("global_change", self.global_change)
         self.ai_min_confidence = get("ai_min_confidence", self.ai_min_confidence)
         self.ai_send_reference = get("ai_send_reference", self.ai_send_reference)
+        self.ai_online = get("ai_online", self.ai_online)
         self.local_enabled = get("local_enabled", self.local_enabled)
         self.local_filter = get("local_filter", self.local_filter)
         self.local_alone = get("local_alone", self.local_alone)

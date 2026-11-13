@@ -5,7 +5,7 @@
 .fn-wraps { flex-wrap: wrap; }
 .fn-phrases { min-height: 64px; resize: vertical; font-family: var(--oui-font-mono, ui-monospace, monospace); font-size: 13px; }
 .fn-now { color: var(--oui-text-2); }
-.fn-review .oui-btn, .fn-restart .oui-btn { margin-top: 6px; }
+.fn-review .oui-btn, .fn-restart .oui-btn { display: flex; width: fit-content; margin: 10px 0 0; } /* 1.119: under the text, not inside its last line */
 .set-field__hint--warn { color: var(--oui-warn, #f5b041); }
 .set-entry__badge--inline { display: inline-block; margin-top: 2px; }
 /* Settings → AI monitor (app/59h-ai-monitor-settings.js) */
@@ -54,6 +54,7 @@ body:has(.modal, .confirm-overlay, .sheet-overlay, .screen, .drawer) .nt-invite 
 /* ---- 1.37: the page in three parts; the lights list ---- */
 .fn-section { display: flex; align-items: center; gap: 10px; margin: 18px 4px 2px; font-size: 13px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--oui-accent-text); }
 .fn-light-add { display: flex; flex-wrap: wrap; gap: 8px; }
+.fn-light-add .oui-btn--quiet { justify-content: flex-start; text-align: left; } /* 1.119: a long label that wraps reads from the left, by its icon */
 
 /* ---- 1.56: every function a row that opens (FnFold) ---- */
 .fn-folds { display: flex; flex-direction: column; gap: 2px; overflow: hidden; border-radius: var(--oui-r-card); }

@@ -6,8 +6,9 @@
      1. is it on?                      the switch, the notification service, the AI key;
      2. how does it look at the print?  all the bed outside the parts (calibrated camera) or the old rectangle;
      3. what happens when it sees a problem?  ONE confidence threshold, the defects, checks in a row, automatic actions;
-     4. the AI service: which service and model (1.27: any of several, the model chosen from the service's own list),
-        the keys, the earlier picture (59l-ai-services.js);
+     4. the AI service: who judges the pictures (1.119: the online AI, or the local model alone), which service and
+        model (1.27: any of several, the model chosen from the service's own list), the keys, the earlier picture
+        (59l-ai-services.js);
    and leads to the three pages inside it: Camera calibration, Monitor thresholds (the fine numbers), Recordings.
    The values live where they are used: the backend's thresholds (monitor.json, useBackendConfig) and the dashboard's shared
    settings (automatic actions, defects, checks in a row: read by the notification service).
@@ -73,6 +74,7 @@ function AiPage({ active, menu }) {
   const confidence = config.values ? config.values.ai_min_confidence : undefined;
   const choices = [...new Set([...CONFIDENCE_CHOICES, ...(Number.isFinite(confidence) ? [confidence] : [])])].sort((a, b) => a - b);
   const pauseSeconds = config.values && config.values.ai_cooldown;
+  const online = !config.values || config.values.ai_online !== false; // 1.119: off = the local model alone
   return h(
     React.Fragment,
     null,
@@ -137,15 +139,45 @@ function AiPage({ active, menu }) {
     h(
       SettingsGroup,
       { title: tx("The AI service"), help: ["ai", "service"] },
-      h(AiServicesPanel, { use: "monitor", ai: aiServices }),
-      config.phase === "ok" && h("div", { className: "oui-list" }, control("ai_send_reference")),
+      config.phase === "ok" && h(JudgeChoice, { config, localModel }),
+      online && h(AiServicesPanel, { use: "monitor", ai: aiServices }),
+      online && config.phase === "ok" && h("div", { className: "oui-list" }, control("ai_send_reference")),
     ),
-    localModel.phase === "ok" && h(LocalModelGroup, { info: localModel.data, reload: localModel.reload, control, config, menu }),
+    localModel.phase === "ok" && h(LocalModelGroup, { info: localModel.data, reload: localModel.reload, control, config, menu, online }),
+  );
+}
+
+/**
+ * Who judges the pictures (1.119): the online AI (with the local model before it, when there is one) or the local model
+ * alone, so that no picture leaves the Raspberry. Saved as the backend's `ai_online`.
+ */
+function JudgeChoice({ config, localModel }) {
+  const online = config.values.ai_online !== false;
+  const model = localModel.phase === "ok" ? localModel.data : null;
+  const modelReady = Boolean(model && model.available) && config.values.local_enabled !== false;
+  let note;
+  if (online) note = tx("The pictures of an alarm go to the online AI service chosen below; the local model, when there is one, judges them first.");
+  else if (modelReady) note = tx("No picture leaves the Raspberry. The local model judges alone: when it is sure for three looks in a row it proposes a pause, and «Pause by itself» does it.");
+  else note = tx("No picture leaves the Raspberry, but there is no local model in use: the monitor cannot judge anything. Install the local model or use the online AI.");
+  return h(
+    React.Fragment,
+    null,
+    h("div", { className: "set-field__label" }, tx("Who judges the pictures")),
+    h(ChipChoice, {
+      label: tx("Who judges the pictures"),
+      options: [
+        { id: "online", label: tx("Online AI and local model") },
+        { id: "local", label: tx("Local model only") },
+      ],
+      value: online ? "online" : "local",
+      onChange: (id) => config.set({ ai_online: id === "online" }),
+    }),
+    h("p", { className: cx("set-group__note", !online && !modelReady && "set-group__note--warn"), "data-judge": online ? "online" : modelReady ? "local" : "nobody" }, note),
   );
 }
 
 /** The local model (1.106): which one is in use and its last look, the switches; its thresholds are in Monitor thresholds. */
-function LocalModelGroup({ info, reload, control, config, menu }) {
+function LocalModelGroup({ info, reload, control, config, menu, online }) {
   const last = info.last || {};
   const status = info.available
     ? tx("In use: {source} • version {version}", { source: info.source === "own" ? tx("your model") : tx("KlippEye's model"), version: info.version || "?" }) +
@@ -160,7 +192,7 @@ function LocalModelGroup({ info, reload, control, config, menu }) {
     { title: tx("Local model") },
     h("div", { className: cx("set-status", info.available ? "set-status--ok" : "set-status--warn"), "data-local-model": info.available ? info.source : "none" }, h("span", { className: "set-status__dot" }), status),
     counts && h("p", { className: "oui-caption" }, counts),
-    info.available && config.phase === "ok" && h("div", { className: "oui-list" }, control("local_enabled"), control("local_filter"), control("local_alone")),
+    info.available && config.phase === "ok" && h("div", { className: "oui-list" }, control("local_enabled"), online && control("local_filter"), online && control("local_alone")),
     info.available && h("button", { type: "button", className: "oui-btn oui-btn--quiet oui-btn--sm set-inline-btn", "data-go": "detector", onClick: () => menu.goTo("detector") }, h(Icons.Sliders, { size: 16 }), tx("Its thresholds: Monitor thresholds → Local model")),
     info.available && info.personal && config.phase === "ok" && h(PersonalLayerPart, { personal: info.personal, reload, control, on: config.values.personal_learning === true }),
     h("p", { className: "set-group__note" }, tx("A small image model that runs on the Raspberry, without internet: it looks at the print by itself and judges the alarms before the online AI is asked.")),

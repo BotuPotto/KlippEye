@@ -242,6 +242,7 @@ const HELP = {
         id: "service",
         title: tx("Service and model"),
         steps: [
+          tx("«Who judges the pictures»: «Local model only» sends nothing to the internet. Only the local model judges, so it must be installed; the online AI keys stay saved for when you switch back."),
           tx("«Service for the monitor»: the AI service that looks at the pictures. Every service needs its own key; the keys are one list, also used by the logs."),
           tx("«Model for the monitor»: the list is read from the service with your key. The monitor needs a model that sees pictures: they are listed first. «Default» is a model KlippEye knows works."),
           tx("With a free plan there are limits per minute and per day (the «AI error 429» of the alarms): a lighter model, a longer pause between two analyses or another service helps."),

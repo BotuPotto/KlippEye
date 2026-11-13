@@ -734,6 +734,8 @@ CONFIG_SPEC = [
     {"key": "ai_min_confidence", "type": "int", "default": 70, "min": 30, "max": 95, "step": 5, "unit": "%", "group": "ia",
      "label": "Minimum AI confidence to report a problem",
      "help": "The only confidence threshold of KlippEye. If the AI suggests PAUSE or CANCEL but no defect reaches it, the verdict becomes CONTINUE (it stays written in the history, in orange). Higher = fewer false alarms but a real failure may be let through: above 85% the AI rarely stops a print."},
+    {"key": "ai_online", "type": "bool", "default": True, "group": "ia", "label": "Use the online AI",
+     "help": "Off: no picture of the camera leaves the Raspberry. The local model judges alone: when it is sure for three looks in a row it proposes a pause (the automatic pause, if on, does it). Without a local model the monitor then cannot judge anything. The analysis of the logs is not affected."},
     {"key": "ai_send_reference", "type": "bool", "default": True, "group": "ia", "label": "Also send the earlier picture to the AI",
      "help": "The AI sees «before» and «now» and judges whether something serious changed: it makes fewer mistakes. It uses more data per call; if the service refuses two pictures, it sends one."},
     {"key": "local_enabled", "type": "bool", "default": True, "group": "local", "label": "Use the local model",
@@ -2336,8 +2338,8 @@ class LightDetector(FrameJudge):
         due = triggered or now >= state.get("next", 0)
         result = local_ai.predict(frame) if (self.local_enabled and due) else None
         if result is None:
-            state["why"] = "motion" if triggered else None
-            return bool(triggered)
+            state["why"] = "motion" if triggered and self.ai_online else None
+            return bool(triggered) and self.ai_online
         model = local_ai.model
         score = round(personal.blend(result[0], result[1], model.version if model is not None else None) * 100, 1)
         state.update(score=score, at=now, next=now + self.local_every, checks=state.get("checks", 0) + 1)
@@ -2345,6 +2347,14 @@ class LightDetector(FrameJudge):
         state["sure_run"] = state.get("sure_run", 0) + 1 if sure else 0
         state["doubt_run"] = state.get("doubt_run", 0) + 1 if doubt else 0
         self.stats["local"] = {k: state.get(k) for k in ("score", "checks", "filtered", "asked")}
+        if not self.ai_online:
+            # 1.119: the local model alone (the online AI switched off): three sure looks in a row propose a pause
+            if state["sure_run"] >= 3 and now >= self.cooldown_until:
+                state["sure_run"] = state["doubt_run"] = 0
+                self.cooldown_until = now + self.cooldown_sec
+                self._local_verdict(score, frame)
+            state["why"] = None
+            return False
         why = None
         if triggered:
             if doubt or not self.local_filter:
@@ -2377,16 +2387,21 @@ class LightDetector(FrameJudge):
         return bool(why)
 
     def _online_ai_usable(self):
+        if not self.ai_online:
+            return False
         try:
             return bool(self._free_targets(ai_services.resolve_chain(_read_ai_file(), "monitor", self.ai_model)))
         except ai_services.AiError:
             return False
 
     def _local_verdict(self, score, frame):
-        """No online AI can answer and the local model is sure (local_alone on): a pause proposed by the local model
-        alone, as the AI's verdicts are (the notifier and the automatic pause act on it)."""
+        """The local model is sure and no online AI can answer (local_alone on) or the online AI is switched off: a pause
+        proposed by the local model alone, as the AI's verdicts are (the notifier and the automatic pause act on it)."""
         language = shared_language()
-        summary = bt("The local model is sure there is a failure ({score}%) and no online AI can answer: check the print.", language, score="%.0f" % score)
+        if self.ai_online:
+            summary = bt("The local model is sure there is a failure ({score}%) and no online AI can answer: check the print.", language, score="%.0f" % score)
+        else:
+            summary = bt("The local model is sure there is a failure ({score}%): check the print.", language, score="%.0f" % score)
         try:
             path = write_ai_picture(frame, alert_picture_path("local"))
         except Exception:
@@ -2400,7 +2415,7 @@ class LightDetector(FrameJudge):
         if recorded:
             self.last_analysis["alert_id"] = recorded.get("id")
             self.last_analysis["image"] = recorded.get("image")
-        self.stats["status"] = "local model: PAUSE proposed (%.0f%%), no online AI" % score
+        self.stats["status"] = "local model: PAUSE proposed (%.0f%%)%s" % (score, ", no online AI" if self.ai_online else "")
         print("[LOCAL] sure (%.0f%%), no online AI: a pause proposed by the local model" % score)
 
     def _save_reference(self, now_path):
@@ -2539,6 +2554,8 @@ class LightDetector(FrameJudge):
         holds only if that look proposes a stop too. 1.104: the services of the chain (the monitor's, then its backups)
         are asked in order until one answers; the second look asks another of them when there is one (second opinion)."""
         score = self.stats.get("last_score", 0)
+        if not self.ai_online:  # switched off while the question was on its way: nothing leaves the Raspberry
+            return
         try:
             now = time.time()
             try:
@@ -4182,6 +4199,8 @@ def api_print_analyze():
     """The AI's opinion on the print, asked by hand: a camera picture and what the printer is doing, to the monitor's
     AI service. The answer is the AI's text (a JSON verdict and an explanation); the monitor's own alarms are not touched."""
     language = _lang()
+    if not detector.ai_online:
+        return jsonify({"error": bt("The online AI is switched off: only the local model judges the print (Settings → AI monitor → The AI service).", language), "online_off": True}), 409
     try:
         target = ai_services.resolve(_read_ai_file(), "monitor", detector.ai_model)   # 1.27: the monitor's service and model
     except ai_services.AiError:
