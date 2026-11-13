@@ -575,19 +575,19 @@ with sync_playwright() as p:
 
     P = fresh(b)
     open_menu(P); go(P, "network")
-    ok("browser: the note says the app takes these addresses (from mk218)", "mk218" in app_note(P) and "set-group__note--warn" not in P.pg.locator(".drawer__body .set-group__note").last.get_attribute("class"), app_note(P))
+    ok("browser: the note says the app takes these addresses", "si collega a questi stessi indirizzi" in app_note(P) and "set-group__note--warn" not in P.pg.locator(".drawer__body .set-group__note").last.get_attribute("class"), app_note(P))
     ok("browser: there is no bridge to talk to and no klippeyeSetAddresses", P.pg.evaluate("() => typeof window.KlippEyeApp + ' ' + typeof window.klippeyeSetAddresses") == "undefined undefined")
     P.close()
 
     P = fresh(b, init=app_init(3))
     open_menu(P); go(P, "network")
-    ok("an app older than mk218: the note says it has its own addresses, in amber", "ha gli indirizzi scritti dentro" in app_note(P) and "set-group__note--warn" in P.pg.locator(".drawer__body .set-group__note").last.get_attribute("class"), app_note(P))
+    ok("an old app with its own addresses: the note says it has its own addresses, in amber", "ha gli indirizzi scritti dentro" in app_note(P) and "set-group__note--warn" in P.pg.locator(".drawer__body .set-group__note").last.get_attribute("class"), app_note(P))
     ok("... and nothing is sent to it (no setAddresses, no klippeyeSetAddresses)", P.pg.evaluate("() => typeof window.KlippEyeApp.setAddresses + ' ' + typeof window.klippeyeSetAddresses") == "undefined undefined")
     P.close()
 
     P = fresh(b, init=app_init(4))
     pg = P.pg
-    ok("app mk218, first start (nothing stored yet, 1.22: no addresses set): the app is told the address it reached the dashboard at", wait_until(lambda: calls(P) == [["127.0.0.1", "127.0.0.1"]]), calls(P))
+    ok("an app that takes the addresses, first start (nothing stored yet, 1.22: no addresses set): the app is told the address it reached the dashboard at", wait_until(lambda: calls(P) == [["127.0.0.1", "127.0.0.1"]]), calls(P))
     open_menu(P); go(P, "network")
     ok("... and the menu says the app will use them (green)", wait_until(lambda: "userà questi indirizzi" in app_note(P)) and "set-status--ok" in pg.locator(".drawer__body .set-status").last.get_attribute("class"), app_note(P))
     inputs = pg.locator(".set-field__input")
