@@ -1,119 +1,84 @@
 # KlippEye
 
-A dashboard, a backend (the program that serves it and watches the print through the camera), push notifications and an
-Android app for 3D printers running **Klipper + Moonraker** on a Raspberry Pi. This repository is what runs on the
-Raspberry: Moonraker's update manager installs and updates it from here.
+**A dashboard for Klipper printers that also keeps an eye on your prints.**
 
-> Until release 1.0.x the project was called **VzBot**. The move of those installs to KlippEye was part of releases 1.1.0 to
-> 1.10.0 (tag `v1.10.0`): an install still on VzBot moves with that release first.
+KlippEye runs on the Raspberry Pi of your printer, next to Klipper and Moonraker. You open it in the browser of your phone
+or computer, and from there you control the printer, watch the camera and get a notification on your phone when a print
+finishes, fails or runs out of filament. While a print runs, an AI monitor looks at the camera and can pause the print
+when it sees spaghetti, a part torn off the bed or a layer shift.
 
-**Step-by-step guide: [docs/GUIDE.md](docs/GUIDE.md)** (in Italian: [docs/GUIDA.md](docs/GUIDA.md)). For scripts and home automation: [docs/API.md](docs/API.md).
-Security: [SECURITY.md](SECURITY.md) · Contributing: [CONTRIBUTING.md](CONTRIBUTING.md) · Changes: [CHANGELOG.md](CHANGELOG.md)
+*Leggi in italiano: [docs/GUIDA.md](docs/GUIDA.md).*
 
-## Features
+<p align="center">
+  <img src="docs/images/desktop-en.jpg" alt="The KlippEye dashboard on a computer during a print" width="72%">
+  &nbsp;
+  <img src="docs/images/phone-en.jpg" alt="The KlippEye dashboard on a phone" width="22%">
+</p>
+<p align="center"><sub>Screenshots with demo data.</sub></p>
 
-* Full printer control from phone or desktop: temperatures, fans, motion, Z-offset, files, console and macros, config
-  editor, bed mesh, calibrations, endstops, service and host restarts, software updates.
-* AI print monitor: motion detection and a small model run on the Raspberry itself, without internet; an online AI
-  (Groq, Gemini, OpenAI and others, with your own key) is optional and only judges the pictures that look doubtful.
-  Alerts are kept with their images.
-* Push notifications received by the KlippEye Android app itself (guided set-up, no account, no key) or by the free ntfy app (QR code, also iPhone), in English, Italian, Spanish, German, French, Portuguese (Brazil), Polish, Simplified Chinese, Russian or Ukrainian, with optional automatic pause/cancel.
-* Home Assistant and MQTT: the printer, the AI monitor and the lights appear in Home Assistant by itself (discovery), with pause, resume and the lights; plain topics for Node-RED, openHAB, ioBroker.
-* Self-repair after a power loss: damaged program files are restored from git at every start.
-* English, Italian, Spanish, German, French, Portuguese (Brazil), Polish, Simplified Chinese, Russian and Ukrainian dashboard (it follows the device's language; *Settings → Language* to choose).
-* Optional password, network checks (host name and origin of requests) and restricted permissions of the secrets.
+## What it does
+
+- **The whole printer at hand**: temperatures, fans, moves and Z-offset, files and print queue, console and macros,
+  configuration editor, bed mesh, calibrations, history, timelapse, Spoolman. It works on a phone as well as on a big screen.
+- **AI print monitor**: a small model runs on the Raspberry itself and works without internet. If you want, an online AI
+  (Google Gemini, Groq and others have a free plan) double-checks the doubtful pictures. You decide whether it only warns
+  you or also pauses the print.
+- **Notifications on your phone**: print finished, error, pause, filament run out, AI alarms. They arrive through the
+  KlippEye Android app or the free ntfy app (Android and iPhone), and you don't need to create an account or a key.
+- **Android app**: the dashboard full screen, with notifications and updates that install themselves from the dashboard.
+- **Home Assistant**: the printer shows up in Home Assistant by itself through MQTT.
+- **Updates in one tap**, with a way back if an update goes wrong. After a power cut it repairs its own files.
+- **In your language**: English, Italian, Spanish, German, French, Portuguese (Brazil), Polish, Russian, Ukrainian and
+  Simplified Chinese.
+
+## What you need
+
+- A printer with **Klipper and Moonraker** on a Raspberry Pi (or another Linux computer next to the printer). If you
+  already use another web interface for Klipper, keep it: KlippEye works alongside it.
+- **SSH access** to the Raspberry, just once, to install.
+- Optional: a **camera** (for the camera view and the AI monitor) and a **phone** (for notifications).
 
 ## Install
 
-On the Raspberry (SSH, with your user):
+Connect to the Raspberry with SSH and paste these three lines:
 
-```
+```bash
 sudo apt update && sudo apt install -y git
 git clone https://github.com/BotuPotto/KlippEye.git ~/klippeye
 bash ~/klippeye/scripts/install.sh
 ```
 
-The installer adds what is missing by itself (`python3-flask`, `python3-waitress`, `python3-requests`, `python3-numpy`, `python3-opencv`), then open
-`http://<address of the Raspberry>` (the address without a port; `:8085` when nginx is not installed) and follow the guided set-up. Step by step: [docs/GUIDE.md](docs/GUIDE.md)
-(Italian: [docs/GUIDA.md](docs/GUIDA.md)).
+The installer adds whatever is missing, sets up the services and connects KlippEye to Moonraker's update manager. Then
+open `http://<address of your Raspberry>` in a browser: a guided set-up takes you through the rest in a few minutes.
 
-## How updates work
+The [guide](docs/GUIDE.md) explains every step, with what to do if something does not go as expected.
 
-```
-  pull request                GitHub (this repository)                Raspberry
-  ────────────                ────────────────────────                ─────────
-  merged, tests pass    ───►  release tagged v1.10.0          ◄───┐
-                                                                  │ Moonraker (update manager) checks it
-  dashboard ► Settings ► Updates ► "Update KlippEye" ─────────────┘  and fetches only the differences into ~/klippeye,
-                                                                     then restarts the "klippeye" service.
-                                                                     The page reloads by itself.
-```
+## Documentation
 
-* The program lives in **one folder** (`~/klippeye`), **your data** (monitor thresholds, AI key, notifications, password)
-  in another (`~/printer_data/klippeye`): an update only touches the first one.
-* After a **power loss** damaged files are restored automatically at every start (guide, chapter 8).
-* If something goes wrong: **"Go back to the previous version"** on the same page (or `klippeye update --force` on the Raspberry).
-* It is Moonraker's update manager, so the printer's other web interfaces see the updates too.
+| | |
+|---|---|
+| **[User guide](docs/GUIDE.md)** | install, first start, AI monitor, notifications, updates, problems and answers |
+| **[The dashboard, page by page](docs/FEATURES.md)** | every card and every setting explained |
+| **[Guida in italiano](docs/GUIDA.md)** · [Il pannello, pagina per pagina](docs/FUNZIONI.md) | the same, in Italian |
+| [API for scripts and home automation](docs/API.md) | for those who want to talk to KlippEye from their own programs |
+| [Android app](android/README.md) · [Local AI model](ml/README.md) | how they are built |
+| [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md) · [Changes](CHANGELOG.md) | |
 
-## The Android app
+Each page of the dashboard also has a **?** button with a short explanation of that page.
 
-```
-  your PC / GitHub                                  Raspberry                              Phone
-  ────────────────                                  ─────────                              ─────
-  raise the number in android/VERSION
-  GitHub builds and signs the APK (workflow)  ───►  "Update KlippEye" brings apk/ here ───►  app dashboard ► Updates
-  and saves it in apk/ (+ version.json)            the backend offers it (/app/KlippEye.apk)  ► "Update the app" ► Android asks
-```
+## Updating
 
-The app has its own version (`android/VERSION`). The backend offers the APK only if its size and SHA-256 match
-`apk/version.json`; the app checks them again after downloading, and Android installs only an APK signed with the same
-key, after the user confirms. Setup (once) and steps: guide, appendix A. Technical details: [android/README.md](android/README.md).
+**Settings → Updates → Update KlippEye.** Your settings stay as they are, and if a new version does not work as you hoped,
+**Go back to the previous release** is on the same page. By default you get only the releases that passed all the
+automatic tests; the [list of releases](https://github.com/BotuPotto/KlippEye/releases) says what each one changed.
 
-## Repository layout
+## Getting help
 
-| Where | What | Changed by |
-|---|---|---|
-| `VERSION` | the release (one number for backend, dashboard and notifier) | each release |
-| `backend/` | the backend (`klippeye_backend.py`): serves the dashboard, bridges Moonraker, AI monitor (its judging in `monitor_core.py`, the recordings of the prints in `recorder.py`, the camera calibration in `camera_calibration.py`, `camera_model.py`, `camera_watch.py`), password and network checks (`access.py`) | updates |
-| `frontend/` | the dashboard: sources in `frontend/src`, built into `frontend/klippeye_frontend.html` ([frontend/README.md](frontend/README.md)) | updates |
-| `notifier/klippeye_notifier.py` | the push-notification service | updates |
-| `scripts/` | `install.sh` (run once), `repair.sh` (self-repair, runs by itself), `diagnose.py` (report for bug reports), `replay.py` (measures the AI monitor on the recorded prints), `klippeye` and `klippeye-notifiche` (rescue commands) | updates |
-| `systemd/` | templates of the `klippeye` and `klippeye-notifier` services | updates |
-| `android/` | the Android app sources (`android/VERSION` = app version) | new app releases |
-| `apk/` | `KlippEye.apk` and `version.json`: the latest app built by GitHub | GitHub (`.github/workflows/app.yml`) |
-| `ci/` | what the GitHub workflows run: `app_ci.py` (the app build), `release.py` (when a release gets its tag) | updates |
-| `models/base/` | the local model of the AI monitor, with the credits of its training pictures | updates |
-| `ml/` | the tools that train and measure that model ([ml/README.md](ml/README.md)); not needed on the Raspberry | contributors |
-| `docs/` | the guide (English and Italian) and the API for scripts and home automation | updates |
-| `tests/` | automatic tests ([tests/README.md](tests/README.md)), run on GitHub for every pull request | contributors |
-| `logos/` | official printer logos for the printer picker ([logos/README.md](logos/README.md)) | once |
-| `~/printer_data/klippeye/monitor.json` | AI monitor thresholds (changed from the dashboard) | the dashboard |
-| `~/printer_data/klippeye/ai.json` | the AI service key (mode 600) | the dashboard |
-| `~/printer_data/klippeye/access.json`, `internal.token` | optional password (hash only) and token of the local services (mode 600) | the dashboard / `klippeye password` |
-| `~/printer_data/klippeye/notifier.json`, `service-account.json` | notification settings (the private ntfy topic, made from the dashboard) | the dashboard |
-
-The services are **`klippeye`** (backend + dashboard, port 8085) and **`klippeye-notifier`** (notifications). Do not rename
-`klippeye`: it is the service Moonraker restarts after an update.
-
-## Versions
-
-`MAJOR.MINOR.PATCH`, one release for backend, dashboard and notifier, in `VERSION`; the dashboard shows it ("Release 1.2.0
-available"). Every release is described in [CHANGELOG.md](CHANGELOG.md). The **Android app** has its own number in
-`android/VERSION`, raised only for a new app.
-
-When a pull request that raises `VERSION` is merged and its tests pass on `main`, the *Release* workflow
-(`.github/workflows/release.yml`, rules in `ci/release.py`) tags the commit `vX.Y.Z` and publishes a GitHub release with
-its CHANGELOG section. Printers on the **stable** update channel (the default) install only these tagged releases; the
-**dev** channel installs every commit of `main`. A release with a new Android app is tagged after GitHub has built the app.
-
-## Never commit secrets
-
-This repository is public (Moonraker downloads it without a password). Keys, passwords and `service-account.json` live
-**only** in `~/printer_data/klippeye`, outside the repository. The only exceptions are the app signing key,
-`android/chiave/klippeye.p12`, stored here **encrypted** (its password is a GitHub secret), and the app's Firebase file,
-which is a GitHub secret.
+Open an [issue](https://github.com/BotuPotto/KlippEye/issues) and attach the diagnostic report: **Settings → Updates →
+Diagnostics → Download a diagnostic report** (or `klippeye diagnose --save` on the Raspberry). It contains no passwords,
+keys or tokens. Security problems: please report them privately, as explained in [SECURITY.md](SECURITY.md).
 
 ## License
 
-KlippEye is free software, released under the [GNU General Public License v3.0](LICENSE), like Klipper and Moonraker.
-Third-party components and their licenses: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+KlippEye is free software under the [GNU General Public License v3.0](LICENSE), like Klipper and Moonraker. Third-party
+components and their licenses are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

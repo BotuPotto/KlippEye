@@ -27,7 +27,7 @@ const RECORDING_ID = /^\d{8}-\d{6}(-[A-Za-z0-9._-]{1,40})?$/;
 function formatSpace(bytes) {
   const value = Number(bytes);
   if (!Number.isFinite(value)) return "?";
-  if (value >= 1024 ** 3) return (value / 1024 ** 3).toFixed(1).replace(".", ",") + " GB";
+  if (value >= 1024 ** 3) return decimalText((value / 1024 ** 3).toFixed(1)) + " GB";
   return Math.round(value / 1024 ** 2) + " MB";
 }
 

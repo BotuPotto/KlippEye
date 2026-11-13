@@ -65,6 +65,15 @@ function scrollPageToTop() {
 }
 
 /** Clock time as shown in the console, e.g. "10:53:21". */
+/** 1.120: the decimal separator of the dashboard's language ("," in Italian, "." in English...), for numbers shown as text. */
+const DECIMAL_SEPARATOR = (() => {
+  try {
+    return (1.5).toLocaleString(LOCALE).replace(/\d/g, "") || ".";
+  } catch (error) {
+    return ".";
+  }
+})();
+const decimalText = (value) => String(value).replace(".", DECIMAL_SEPARATOR);
 const localTimeString = () => new Date().toLocaleTimeString(LOCALE);
 
 /** Formats a Unix timestamp (seconds) as HH:MM:SS for the console. */

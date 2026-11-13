@@ -1,20 +1,21 @@
 # Printer logos
 
-In **Settings → Printer** the dashboard can show, in its top bar and as the browser tab icon, the logo of **KlippEye**
-(default), **VzBot**, **Voron** or **RatRig**.
+The dashboard can show the logo of your printer's brand in the top bar and as the icon of the browser tab: **Settings →
+Appearance → Logo**. The choices are KlippEye (the default), VzBot, Voron and RatRig.
 
-The KlippEye and VzBot logos are already inside the dashboard. For **Voron** and **RatRig** (and to replace the VzBot one)
-put the **official** logo file here, in this folder, with one of these exact names (all lower case):
+The KlippEye and VzBot logos are built into the dashboard. The others are read from this folder:
 
-| Brand  | Accepted names                          |
-|--------|-----------------------------------------|
-| VzBot  | `vzbot.svg`  `vzbot.png`  `vzbot.webp`  |
-| Voron  | `voron.svg`  `voron.png`  `voron.webp`  |
-| RatRig | `ratrig.svg` `ratrig.png` `ratrig.webp` |
+| Brand | File in this folder |
+|---|---|
+| Voron | `voron.svg` (included) |
+| RatRig | `ratrig.png` (included) |
+| VzBot | `vzbot.svg`, `vzbot.png` or `vzbot.webp`, only to replace the built-in one |
 
-* **SVG** is the best format; for PNG or WebP use a transparent background and at least 256 pixels of width.
-* At most 2 MB per file. When a brand has several formats, svg wins over png, png over webp.
-* Take the files from each project's official pages (website or repository) and use them as they are, without redrawing them:
-  the logos are their owners' trademarks.
-* Once the file is in the repository: dashboard → Settings → Updates → Check → Update KlippEye. The logo appears at once in
-  the Printer page (nothing is rebuilt). Until a file is there, the bar shows only the name for that brand.
+The file name must be the brand in lower case, with the extension `svg`, `png` or `webp`. If a brand has more than one
+file, SVG wins over PNG and PNG over WebP. Each file can be at most 2 MB; a PNG or WebP should have a transparent background
+and be at least 256 pixels wide.
+
+Use the official files from each project's website or repository, as they are: the logos are their owners' trademarks.
+
+A new file reaches the printers with the next update (*Settings → Updates → Update KlippEye*); the dashboard reads it at
+once, without being rebuilt. Without a file, the bar shows only the brand's name.

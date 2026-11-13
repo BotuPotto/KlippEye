@@ -16,7 +16,7 @@ const AREA_FIELDS = [
 ];
 const AREA_PROBLEM = tx("The area must be inside the picture and at least 10% wide and high.");
 const sameList = (a, b) => Array.isArray(a) && Array.isArray(b) && a.length === b.length && a.every((item, index) => item === b[index]);
-const formatNumber = (value) => String(value).replace(".", ",");
+const formatNumber = decimalText;
 
 /** The number in `text` if it is a valid value for `spec` (inside its bounds, whole for an int), otherwise null. */
 function parseSpecNumber(spec, text) {
