@@ -2886,7 +2886,7 @@ class LightDetector(FrameJudge):
                     still = (moonraker_status("print_stats").get("print_stats") or {}).get("state")
                 except Exception:
                     still = None
-                if still in ("complete", "cancelled", "standby", "error"):
+                if still in ("complete", "cancelled", "error"):
                     # 1.124: the print ended while waiting: there is nothing left to stop, no alarm is raised for it
                     print(f"[OPENCV] second look not made: the print is {still}")
                     record_alert({"outcome": "print ended before the second look", "score": score, "model": final_model,
