@@ -59,11 +59,34 @@ with sync_playwright() as p:
     ok("... what it did, its three switches, the way to its thresholds", "allarmi tenuti lontano dall'IA online: 9" in page and "Usa il modello locale" in page
        and "Ferma col solo modello locale" in page and P.pg.locator('[data-go="detector"]').count() >= 1, page[-900:])
     P.shot(os.path.join(out, "local_model_ai.png"))
+    P.pg.locator("[data-local-test]").click()
+    P.settle(800)
+    ok("1.124: «Try the local model now» on the AI monitor page: its score, its verdict, the views", "62,5%" in P.pg.locator("[data-local-try]").inner_text()
+       and "in dubbio" in P.pg.locator("[data-local-try]").inner_text() and "sul pezzo" in P.pg.locator("[data-local-try]").inner_text(), P.pg.locator(".monitor-try").inner_text())
     P.pg.locator('[data-go="detector"]').last.click()
     P.settle(1000)
     page = P.pg.locator(".drawer__body").inner_text()
-    ok("Monitor thresholds: the group «Local model» with its three thresholds (the switches are not repeated)",
+    ok("1.124: Monitor thresholds: «How watchful it is», Balanced chosen; the numbers folded under «Fine adjustments»",
+       "QUANTO È ATTENTO" in page.upper() and P.pg.locator('.set-chips .is-selected').inner_text() == "Equilibrato" and "In dubbio da" not in page
+       and P.pg.locator('[data-fine="closed"]').count() == 1, page[:900])
+    P.pg.locator("[data-fine]").click()
+    P.settle(600)
+    page = P.pg.locator(".drawer__body").inner_text()
+    ok("... opened: the group «Local model» with its three thresholds (the switches are not repeated)",
        "MODELLO LOCALE" in page.upper() and "In dubbio da" in page and "Sicuro da" in page and "Ogni quanto guarda da solo" in page and "Usa il modello locale" not in page, page[-1200:])
+    doubt = P.pg.locator('.set-num:has(#set-num-local_doubt) .set-num__bounds').inner_text()
+    sure = P.pg.locator('.set-num:has(#set-num-local_sure) .set-num__bounds').inner_text()
+    ok("... «In doubt from» ends below «Sure from» (75% with 80%), «Sure from» starts above «In doubt from» (36%)", "75" in doubt and "36" in sure, (doubt, sure))
+    P.pg.locator('.set-chips .oui-chip', has_text="Nota di più").first.click()
+    P.settle(1600)
+    sent = [c for c in state()["brain_cfg_log"] if "local_doubt" in c]
+    ok("1.124: «Notices more»: OpenCV and the local model set together in one change",
+       sent and sent[-1].get("local_doubt") == 25 and sent[-1].get("score_threshold") == 1.5 and sent[-1].get("trigger_count") == 2, sent[-1:])
+    P.pg.fill("#set-num-sensitivity", "33")
+    P.settle(1600)
+    ok("... a number changed by hand: «Custom», the fine adjustments stay open", P.pg.locator('.set-chips .is-selected').inner_text() == "Personalizzato"
+       and P.pg.locator("#set-num-sensitivity").count() == 1 and P.pg.locator("[data-fine]").count() == 0)
+    P.shot(os.path.join(out, "local_model_thresholds.png"))
     P.close()
 
     personal = {"enabled": False, "trained": False, "training": False, "error": "", "imported": [], "have": {"failed": 2, "fine": 8}, "needed": {"failed": 5, "fine": 20}}

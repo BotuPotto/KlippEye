@@ -1,5 +1,36 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.124.0
+
+**OpenCV and the local model now help each other.**
+
+* When OpenCV sees a change, the local model looks at once, closer at that spot, and keeps looking there for five
+  minutes: a part that came off and lies still is no longer forgotten once it stops moving.
+* With a calibrated camera the local model also looks closer at the printed part, not only at the whole picture, where
+  a small defect was too small for it to see.
+* When the local model has a doubt, OpenCV raises an alarm sooner for a minute: 60% of the usual change is enough, and
+  one suspicious check fewer.
+
+**The AI monitoring panel shows both scores.** The local model's tile was missing, and OpenCV's score alone looked broken:
+it goes back to 0% once a change stops changing. Now each tile has the last score and the highest of the print, and
+**Try the local model now** rates the camera's picture there and then, to see whether it recognises a defect.
+
+**Monitor thresholds, simpler.** The page starts with *How watchful it is*: Few false alarms, Balanced or Notices more,
+which moves OpenCV and the local model together. The single numbers are under *Fine adjustments*, grouped by what they
+do; a number that does nothing with your setup is hidden (the local model's without a local model, the pause between AI
+analyses without the online AI). *In doubt from* can no longer be set above *Sure from*. Some names and explanations were
+corrected: *Changed area for a suspicious check* replaces *Movement at the edges*, which was wrong with a calibrated
+camera.
+
+**Backup services and second opinion, checked.**
+
+* When the second opinion's answer cannot be read, the next service is asked, instead of letting the first verdict
+  stand unconfirmed.
+* A second opinion that sees nothing no longer lets a failure go when the local model is sure of it on the same new
+  picture.
+* The second look tells the AI the local model's opinion of the new picture, not of the first one.
+* A print that ends during the 40 seconds of the second look is not «stopped»: the alarm says it ended first.
+
 ## 1.123.0
 
 **The configuration editor keeps its height when Klipper is in error or starting.** On a computer, the Klipper panel

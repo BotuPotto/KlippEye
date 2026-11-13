@@ -89,7 +89,7 @@ function AiPage({ active, menu }) {
         "div",
         { className: "oui-list" },
         h(SubpageRow, { entry: AI_SUBPAGES[0], meta: cameraCalibrationSummary(calibration), menu }),
-        h(SubpageRow, { entry: AI_SUBPAGES[1], meta: tx("Sensitivity, persistence, pauses, when it starts"), menu }),
+        h(SubpageRow, { entry: AI_SUBPAGES[1], meta: config.phase === "ok" && config.values ? tx("How watchful: {level}", { level: watchLevelName(config.values) }) : tx("How watchful it is, fine adjustments"), menu }),
         h(SubpageRow, { entry: AI_SUBPAGES[2], meta: recordingsSummary(recordings), menu }),
       ),
     ),
@@ -98,7 +98,7 @@ function AiPage({ active, menu }) {
       { title: tx("When it sees a problem"), help: ["ai", "confidence"] },
       config.phase === "ok" &&
         !online &&
-        h("p", { className: "set-group__note", "data-confidence": "local" }, tx("With the local model alone, its own threshold decides: «Sure from», in Monitor thresholds → Local model.")),
+        h("p", { className: "set-group__note", "data-confidence": "local" }, tx("With the local model alone, its own threshold decides: «Sure from», in Monitor thresholds → Fine adjustments.")),
       config.phase === "ok" &&
         online &&
         Number.isFinite(confidence) &&
@@ -197,7 +197,8 @@ function LocalModelGroup({ info, reload, control, config, menu, online }) {
     h("div", { className: cx("set-status", info.available ? "set-status--ok" : "set-status--warn"), "data-local-model": info.available ? info.source : "none" }, h("span", { className: "set-status__dot" }), status),
     counts && h("p", { className: "oui-caption" }, counts),
     info.available && config.phase === "ok" && h("div", { className: "oui-list" }, control("local_enabled"), online && control("local_filter"), online && control("local_alone")),
-    info.available && h("button", { type: "button", className: "oui-btn oui-btn--quiet oui-btn--sm set-inline-btn", "data-go": "detector", onClick: () => menu.goTo("detector") }, h(Icons.Sliders, { size: 16 }), tx("Its thresholds: Monitor thresholds → Local model")),
+    info.available && config.values && config.values.local_enabled !== false && h(LocalTry),
+    info.available && h("button", { type: "button", className: "oui-btn oui-btn--quiet oui-btn--sm set-inline-btn", "data-go": "detector", onClick: () => menu.goTo("detector") }, h(Icons.Sliders, { size: 16 }), tx("Its thresholds: Monitor thresholds → Fine adjustments")),
     info.available && info.personal && config.phase === "ok" && h(PersonalLayerPart, { personal: info.personal, reload, control, on: config.values.personal_learning === true }),
     h("p", { className: "set-group__note" }, tx("A small image model that runs on the Raspberry, without internet: it looks at the print by itself and judges the alarms before the online AI is asked.")),
   );

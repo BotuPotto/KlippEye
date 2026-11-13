@@ -169,10 +169,19 @@ printer* again. If you open KlippEye from outside your home, see [8](#8-using-it
 While a print runs, KlippEye looks at the camera every few seconds, on the Raspberry itself. Two things look at each
 picture:
 
-- a motion detection that notices when something on the bed changes and stays changed (ignoring the light and the
-  toolhead going by);
+- a motion detection (OpenCV) that notices when something on the bed changes and stays changed (ignoring the light and
+  the toolhead going by);
 - a local model, a small image AI trained on photos of failed prints, which comes with KlippEye and runs without
-  internet. It rates the alarms of the motion detection and also looks by itself every 15 seconds.
+  internet. Every 15 seconds it rates how likely the picture shows a failed print. It looks at the whole picture and,
+  with a calibrated camera, closer at the part.
+
+The two help each other. When OpenCV sees a change, the local model looks at once, closer at that spot, and keeps
+looking there for five minutes. When the local model has a doubt, OpenCV raises an alarm sooner for a minute.
+
+In the AI monitoring panel (tap the **AI** badge) each one has its tile, with the last score and the highest of the
+print. OpenCV's score goes back to 0% once a change stops changing: a part that came off and lies still becomes part
+of its background. That is normal, and it is why the local model keeps an eye on it. **Try the local model now** rates
+the camera's picture there and then: put something in front of the camera and see whether it recognises it.
 
 What happens next depends on your choice in **Settings → AI monitor → The AI service → Who judges the pictures**:
 
@@ -214,7 +223,10 @@ Under **When it sees a problem** (same page) you choose:
   resumed, so start with notifications only and switch on the pause once you trust it.
 
 Before pausing or cancelling, the AI looks twice: 40 seconds later it is asked again on a new picture, and the print is
-stopped only if it sees the problem again. A reflection or the toolhead passing by is gone by then, while a real failure is still there. An
+stopped only if it sees the problem again. A reflection or the toolhead passing by is gone by then, while a real failure is still there.
+With a backup service, the second look goes to the other service, as a second opinion; if its answer can't be read, the
+next one is asked. If the second opinion sees nothing but the local model is sure of the failure on that same new picture,
+the stop holds. If the print ends during the wait, nothing is stopped. An
 "empty bed" verdict (the part came off) is the easiest one to get wrong, so it counts only when the AI saw the part on the
 earlier picture and sees it gone on the new one, is at least 85% sure, the print is already 2 mm high and the part is at least
 2 cm across. The AI is also told how big the part is and, with a calibrated camera, where it should be in the picture; and while the
@@ -224,6 +236,18 @@ When the AI raises an alarm, the print card asks you: **Real problem**, **False 
 the alarm and helps measure the monitor.
 
 <p align="center"><img src="images/ai-alarm-en.jpg" alt="The print card asks whether the AI's alarm is a real problem" width="340"></p>
+
+### How watchful it is
+
+**Settings → AI monitor → Monitor thresholds** starts with one choice that moves OpenCV and the local model together:
+
+- **Few false alarms**: only clear problems, a small defect may be noticed late;
+- **Balanced**: the usual values;
+- **Notices more**: problems are noticed sooner, with more false alarms (the online AI, when used, filters many).
+
+Each number is under **Fine adjustments**, grouped by what it does. Change one by hand and the choice shows *Custom*;
+pick a level again to put them back in step. The local model's numbers appear only when a local model is in use, and
+*In doubt from* always stays below *Sure from*.
 
 ### Calibrating the camera (recommended)
 
@@ -271,10 +295,11 @@ prints and tells you how many alarms per hour you'd get, how many were false and
 
 | What happens | What to try |
 |---|---|
-| alarms when the toolhead passes | calibrate the camera; check the outline of toolhead and gantry; in *Monitor thresholds* raise *Checks in a row the change must stay for* from 3 to 4 |
+| alarms when the toolhead passes | calibrate the camera; check the outline of toolhead and gantry; in *Monitor thresholds* choose *Few false alarms* |
+| OpenCV shows 0% with an obvious failure | normal once the failure stops moving: look at *highest* and at the local model's tile, or press *Try the local model now* |
 | alarms when the light changes | fix the camera's exposure; soften a bright LED; leave *Light change* at 30 |
 | the AI reports doubtful problems | raise *Minimum AI confidence* from 70% to 80% |
-| a real failure goes unnoticed | calibrate the camera; in *Recordings* look at the alarms: an orange one means the confidence was too high |
+| a real failure goes unnoticed | calibrate the camera; in *Monitor thresholds* choose *Notices more*; in *Recordings* look at the alarms: an orange one means the confidence was too high |
 | "AI error 429" on an alarm | the online service is refusing more requests (its limit per minute or per day). Raise *Pause between two AI analyses*, switch off *Also send the earlier picture*, add a backup service, or use *Local model only* |
 | the monitor never calls the AI | check the key and the model; check that OpenCV is installed (`sudo apt install python3-opencv`) and that *Monitor on* is switched on |
 

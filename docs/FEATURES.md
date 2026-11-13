@@ -29,7 +29,8 @@ You can move, hide and fold the cards: see [Cards](#cards-and-the-order-of-the-p
 
 - **The printer's name** (with the arrow): with more than one printer, a tap lists them and switches between them.
 - **AI**: the state of the AI monitor. Grey with no print, green when all is well, amber or red with an alarm. A tap opens
-  the AI monitoring panel, with the last picture and the last verdict.
+  the AI monitoring panel: the local model's and OpenCV's scores (the last and the highest of the print), the last
+  picture and the last verdict.
 - **The state of the printer**: printing, paused, ready, error.
 - **⏻ (power)**: restart Klipper (normal or firmware restart), restart, start or stop the services Moonraker manages
   (klipper, moonraker, crowsnest…), restart or shut down the Raspberry. It asks first while a print runs, and always before
@@ -398,10 +399,13 @@ Everything about the AI monitor, from top to bottom: on or off; how it looks at 
 calibration*, *Monitor thresholds* and *Recordings*); when it sees a problem (minimum confidence, defects, checks in a
 row, automatic pause and cancel); the AI service (who judges the pictures: online AI and local model, or the local model
 only; the service, the model, the keys, the backup services); the local model (its switches and learning from your
-prints). The [guide](GUIDE.md#5-the-ai-monitor) explains how to set it up.
+prints, and *Try the local model now* on the camera's picture). The [guide](GUIDE.md#5-the-ai-monitor) explains how to
+set it up.
 
-**Monitor thresholds** holds the fine numbers: sensitivity, how long a change must stay, light changes, pauses between
-analyses, when checking starts, the local model's thresholds, and the rectangle watched without a calibration.
+**Monitor thresholds** starts with *How watchful it is* (Few false alarms, Balanced, Notices more), which moves OpenCV and
+the local model together. Under *Fine adjustments* are the single numbers, grouped by what they do: what counts as a
+change, the background and the light, the local model, pauses, when checking starts, and the rectangle watched without a
+calibration. A number that does nothing with your setup is not shown.
 
 ### Notifications
 

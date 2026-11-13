@@ -22,7 +22,7 @@
 .ai-card-head { display: flex; flex-direction: column; gap: 2px; margin-bottom: 14px; }
 .ai-status { max-width: 100%; margin-bottom: 14px; padding: 6px 12px; white-space: normal; line-height: 1.3; }
 .ai-dot--pulse { animation: oui-pulse 1.4s ease-in-out infinite; }
-.monitor-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-bottom: 14px; }
+.monitor-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-bottom: 14px; }
 .monitor-tile { padding: 12px; min-width: 0; }
 .ai-metric { margin-top: 4px; font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; overflow-wrap: break-word; }
 
@@ -90,3 +90,10 @@ button.ai-header-badge { cursor: pointer; font: inherit; color: inherit; }
 .ai-panel__card { display: flex; flex-direction: column; gap: 12px; }
 .ai-panel__photo { width: 100%; aspect-ratio: 3 / 2; }
 .ai-panel__empty { margin: 0; }
+
+/* 1.124: under the number, what it means (the highest of this print) */
+.monitor-tile__foot { margin-top: 2px; font-size: 12px; line-height: 1.35; color: var(--oui-text-3); }
+.monitor-try { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 0 0 14px; }
+.monitor-try__result { margin: 0; }
+.monitor-try__result.is-doubt strong { color: var(--oui-warn); }
+.monitor-try__result.is-sure strong, .monitor-try__result.is-error { color: var(--oui-danger); }

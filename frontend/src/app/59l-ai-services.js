@@ -186,7 +186,10 @@ function AiKeyGuide({ service }) {
 
 /** The monitor's backup services (1.104): asked in order when the one before cannot answer (its limit used up, down, a
  * key refused); with the second opinion on, the second look before a stop is asked of another service. */
-function AiBackupRow({ index, backup, services, busy, onChange, onRemove }) {
+/** The model a service really uses: the one chosen, or its default. */
+const effectiveModel = (one) => (one && (one.model || one.default_model)) || "";
+
+function AiBackupRow({ index, backup, services, busy, onChange, onRemove, repeated }) {
   const service = services.find((s) => s.id === backup.provider) || null;
   const usable = Boolean(service && (service.key_set || service.key_optional));
   const models = useAiModels(usable ? backup.provider : "", usable);
@@ -213,6 +216,8 @@ function AiBackupRow({ index, backup, services, busy, onChange, onRemove }) {
           ordered.map((m) => h("option", { key: m.id, value: m.id }, m.id)),
         ),
       service && !usable && h("span", { className: "set-field__error", role: "alert" }, tx("No key saved for {name}: enter it below, in «Keys of the AI services».", { name: service.name })),
+      // 1.124: the same service and model as one before it is left out of the chain: said, not silently ignored
+      usable && repeated && h("span", { className: "set-field__error", role: "alert", "data-ai-backup-repeated": index }, tx("The same service and model as one above: it is not used. Choose another model or service.")),
     ),
     h("button", { type: "button", className: "header-btn ai-backup__remove", disabled: busy, title: tx("Remove"), "aria-label": tx("Remove"), "data-ai-backup-remove": index, onClick: onRemove }, h(Icons.Close, { size: 18 })),
   );
@@ -250,13 +255,18 @@ function AiBackupsSettings({ ai }) {
         backup,
         services,
         busy,
+        repeated: [data.monitor, ...backups.slice(0, index)].some((one) => one && one.provider === backup.provider && effectiveModel(one) === effectiveModel(backup)),
         onChange: (one) => save({ monitor_backups: plain(backups).map((b, i) => (i === index ? one : b)) }),
         onRemove: () => save({ monitor_backups: plain(backups).filter((b, i) => i !== index) }),
       }),
     ),
     backups.length < max && h("button", { type: "button", className: "oui-btn oui-btn--block ai-backups__add", disabled: busy, "data-ai-backup-add": "1", onClick: add }, h(Icons.Plus, { size: 18 }), tx("Add a backup service")),
     backups.length > 0 &&
-      h("div", { className: "oui-list" }, h(SwitchRow, { title: tx("Second opinion from another service"), detail: tx("Before a pause or a cancel, the second look is asked of a backup service: two different AIs must agree."), checked: data.second_opinion !== false, disabled: busy, onChange: (value) => save({ second_opinion: value }) })),
+      h("div", { className: "oui-list" }, h(SwitchRow, { title: tx("Second opinion from another service"), detail: tx("Before a pause or a cancel, the second look is asked of a backup service: the two AIs must agree, unless the local model is sure of the failure on the new picture. Off: the same service looks twice."), checked: data.second_opinion !== false, disabled: busy, onChange: (value) => save({ second_opinion: value }) })),
+    backups.length > 0 &&
+      data.second_opinion !== false &&
+      !backups.some((b) => b.usable) &&
+      h("p", { className: "set-group__note set-group__note--warn", "data-second-opinion": "none" }, tx("No backup service has a key: the second look is asked of the same service until one has.")),
     problem && h("p", { className: "set-field__error", role: "alert" }, problem),
   );
 }
