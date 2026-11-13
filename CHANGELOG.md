@@ -1,5 +1,12 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.123.0
+
+**The configuration editor keeps its height when Klipper is in error or starting.** On a computer, the Klipper panel
+used to take a large part of the Config page and left the editor only a few lines. With a file open it is now a single
+line with the state, the first line of Klipper's message and the restart and log buttons; «Whole message» shows the
+rest. Close the file and the full panel comes back.
+
 ## 1.122.0
 
 **«How did the print go?»: a big picture to choose from.** When you tell from when a problem can be seen, the picture is
