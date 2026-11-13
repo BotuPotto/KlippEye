@@ -2110,6 +2110,7 @@
  "The pictures of this print are deleted for good. Confirm?": "Зображення цього друку буде видалено назавжди. Підтвердити?",
  "The previous page ({name}): ": "Попередня сторінка ({name}): ",
  "The print failed": "Друк не вдався",
+ "The print head covers the part in this picture: «empty bed» is not trusted.": "На цьому знімку друкувальна голівка закриває деталь: «порожній стіл» не враховується.",
  "The print is fine": "З друком усе добре",
  "The print is still lower than {height} mm: the camera can hardly see it, «empty bed» is not trusted.": "Модель ще нижча за {height} мм: камера її майже не бачить, «порожній стіл» недостовірний.",
  "The print is {height} mm tall, the printer reaches {max} mm.": "Висота друку {height} мм, принтер дістає до {max} мм.",

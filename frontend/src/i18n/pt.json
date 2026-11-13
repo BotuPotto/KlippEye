@@ -2110,6 +2110,7 @@
  "The pictures of this print are deleted for good. Confirm?": "As imagens desta impressão serão apagadas de vez. Confirmar?",
  "The previous page ({name}): ": "A página anterior ({name}): ",
  "The print failed": "A impressão falhou",
+ "The print head covers the part in this picture: «empty bed» is not trusted.": "Nesta imagem o cabeçote cobre a peça: «mesa vazia» não é confiável.",
  "The print is fine": "A impressão está bem",
  "The print is still lower than {height} mm: the camera can hardly see it, «empty bed» is not trusted.": "A impressão ainda tem menos de {height} mm: a câmera mal a vê, «mesa vazia» não é confiável.",
  "The print is {height} mm tall, the printer reaches {max} mm.": "A impressão tem {height} mm de altura, a impressora alcança {max} mm.",

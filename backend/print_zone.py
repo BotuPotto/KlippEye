@@ -153,6 +153,21 @@ def outlines(calibration, objects, z, bed_min, bed_max):
     return {"watched": watched, "expected": expected, "settled": settled, "growing": growing}
 
 
+def part_mask(cv2, np, calibration, objects, z, width, height):
+    """The part already printed as the camera sees it (uint8, 255 = part) at `width` x `height`: each object's own outline
+    (no margin) from the bed up to the nozzle at Z = z. 1.123: to know when the toolhead hides it."""
+    bed, nozzle = heights(calibration.get("z_moves"), z)
+    out = np.zeros((height, width), np.uint8)
+    if nozzle <= bed:
+        return out
+    for item in objects or []:
+        polygon = prism_outline(calibration, item["polygon"], bed, nozzle)
+        if polygon:
+            pts = np.clip(np.array([[u * width, v * height] for u, v in polygon], np.float32), -4 * width, 5 * width).astype(np.int32)
+            cv2.fillPoly(out, [pts], 255)
+    return out
+
+
 def masks(cv2, np, calibration, objects, z, bed_min, bed_max, width, height):
     """The pictures (uint8, 255 = in) of outlines() at `width` x `height`: (watched, expected, settled). `settled` (1.70) is
     the part already printed as the camera sees it, without the slice being printed now: watched like the rest of the bed."""

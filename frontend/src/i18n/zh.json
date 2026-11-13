@@ -2110,6 +2110,7 @@
  "The pictures of this print are deleted for good. Confirm?": "本次打印的画面将被永久删除。确认？",
  "The previous page ({name}): ": "之前的页面（{name}）： ",
  "The print failed": "打印失败",
+ "The print head covers the part in this picture: «empty bed» is not trusted.": "这张图片里打印头挡住了零件：“热床为空”不可信。",
  "The print is fine": "打印正常",
  "The print is still lower than {height} mm: the camera can hardly see it, «empty bed» is not trusted.": "打印件仍低于 {height} mm：摄像头几乎看不到，「空热床」不可信。",
  "The print is {height} mm tall, the printer reaches {max} mm.": "打印件高 {height} mm，打印机最高可达 {max} mm。",

@@ -217,7 +217,8 @@ Before pausing or cancelling, the AI looks twice: 40 seconds later it is asked a
 stopped only if it sees the problem again. A reflection or the toolhead passing by is gone by then, while a real failure is still there. An
 "empty bed" verdict (the part came off) is the easiest one to get wrong, so it counts only when the AI saw the part on the
 earlier picture and sees it gone on the new one, is at least 85% sure, the print is already 2 mm high and the part is at least
-2 cm across. The AI is also told how big the part is and, with a calibrated camera, where it should be in the picture.
+2 cm across. The AI is also told how big the part is and, with a calibrated camera, where it should be in the picture; and while the
+print head is in front of the part, the AI is not asked at all until the head moves away.
 
 When the AI raises an alarm, the print card asks you: **Real problem**, **False alarm** or **Ignore**. Your answer clears
 the alarm and helps measure the monitor.

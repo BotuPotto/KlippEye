@@ -766,6 +766,28 @@ check("... nothing known: no line", b_ai.part_hint(None, None) == "")
 _prompt = b_ai.build_ai_prompt(10, "printing", "a.gcode", 50, 210, 60, "en", None, _hint)
 check("... the line is in the question, and «empty bed» asks for the part to be seen gone on the earlier picture",
       _hint in _prompt and "clearly visible in the BEFORE picture" in _prompt and "never report an empty bed" in _prompt)
+v, changed = de(_empty, 70, "en", z=8.0, with_reference=True, side=60, hidden=True)
+check("1.123: the print head in front of the part: «empty bed» not trusted", changed and v["action"] == "CONTINUE" and "print head" in v["summary"], v)
+print("== 1.123: a question to the online AI is put off while the toolhead hides the part")
+_d = b_ai.detector
+_d.ai_online, _d.ask_waiting = True, None
+_hide = {"on": True}
+_d._hides_part = lambda: _hide["on"]
+check("1.123: the part hidden: not asked now, the question waits", _d._put_off_when_hidden(True, 1000.0) is False and _d.ask_waiting == 1000.0)
+check("... still hidden at the next round: still waiting", _d._put_off_when_hidden(False, 1003.0) is False and _d.ask_waiting == 1000.0)
+_hide["on"] = False
+check("... the head moved away: asked at once, nothing waits any more", _d._put_off_when_hidden(False, 1006.0) is True and _d.ask_waiting is None)
+_hide["on"] = True
+_d._put_off_when_hidden(True, 2000.0)
+_hide["on"] = False
+check("... a question that waited longer than 90 s is dropped (the monitor asks again if the problem stays)", _d._put_off_when_hidden(False, 2000.0 + b_ai.HIDDEN_WAIT_S + 1) is False and _d.ask_waiting is None)
+check("... the part visible: asked as before; no question: nothing", _d._put_off_when_hidden(True, 3000.0) is True and _d._put_off_when_hidden(False, 3003.0) is False)
+_d.ai_online = False
+_hide["on"] = True
+check("... with the local model only nothing goes online anyway: untouched", _d._put_off_when_hidden(True, 4000.0) is True)
+_d.ai_online = True
+del _d._hides_part
+check("... without a calibration it cannot be known: asked as before", _d._part_hidden() is None and _d._put_off_when_hidden(True, 5000.0) is True)
 _stop = {"spaghetti": {"detected": True, "confidence": 90}, "action": "CANCEL", "summary": "nest"}
 v = b_ai.confirm_stop(_stop, {"action": "CONTINUE", "summary": "all fine"}, "it")
 check("1.102: confirm_stop: the second look sees nothing: CONTINUE, the proposal kept, why in the language",
@@ -1814,6 +1836,9 @@ check("objects from the G-code: one per printed object (6 pyramids), the skirt l
       and max(max(p[0] for p in o["polygon"]) - min(p[0] for p in o["polygon"]) for o in _objs) < 25, [o["polygon"] for o in _objs[:1]])
 check("... the same reading the file line by line (a big file is never held in memory)", _pz.objects_from_gcode(iter(_g6.splitlines())) == _objs)
 check("objects from Klipper's exclude_object (those with a polygon)", _pz.objects_from_exclude([{"name": "A", "polygon": [[1, 2], [3, 4], [5, 1]]}, {"name": "B"}, "x"]) == [{"name": "A", "polygon": [[1.0, 2.0], [3.0, 4.0], [5.0, 1.0]]}])
+_pm = _pz.part_mask(_core.cv2, _core.np, MCAM, [{"name": "p", "polygon": [[155, 155], [195, 155], [195, 195], [155, 195]]}], 5.0, 270, 180)
+check("1.123: the part as the camera sees it (to know when the toolhead hides it); nothing before the first layer",
+      _core.cv2.countNonZero(_pm) > 50 and _core.cv2.countNonZero(_pz.part_mask(_core.cv2, _core.np, MCAM, [{"name": "p", "polygon": [[155, 155], [195, 155], [195, 195]]}], 0.0, 270, 180)) == 0)
 _parts = _pz.outlines(MCAM, [{"name": "p", "polygon": [[155, 155], [195, 155], [195, 195], [155, 195]]}], 5.0, [0, 0], [350, 350])
 check("outlines: the watched bed (in pieces) and the expected zone of the object", len(_parts["watched"]) >= 12 and len(_parts["expected"]) == 1, (len(_parts["watched"]), len(_parts["expected"])))
 _fast = _mm.mask(_core.cv2, _core.np, MCAM, SET_SHAPE, [[60.0, 60.0, 5.0], [280.0, 280.0, 5.0]], 540, 360)

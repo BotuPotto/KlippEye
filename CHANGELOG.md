@@ -11,6 +11,9 @@ single picture a part that came off and a part the camera cannot see look the sa
   picture it is never trusted;
 * it needs the AI to be at least 85% sure (the other defects keep your threshold), the print to be at least 2 mm high and
   the part at least 2 cm across;
+* **fewer calls to the online AI**: with a calibrated camera KlippEye knows when the print head is in front of the part.
+  A question is then put off until the head moves away (within 90 seconds), the second look of a stop waits for it too,
+  and an «empty bed» seen through the head never counts;
 * when one of these is missing, «empty bed» does not count; if a pause or a cancel rested on it alone, the print goes on
   and the AI's panel says why. Spaghetti, layer shifts and warping are judged as before.
 
