@@ -2665,9 +2665,23 @@ try:
 except ValueError:
     _bad = True
 check("1.103: a time outside the print: refused", _bad)
+_first = os.path.join(_rv_root, _pend["id"], "%04d.jpg" % _pend["thumbs"][0]["n"])
+_shape = _core.cv2.imread(_first).shape
+check("1.122: while it waits for the answer, the pictures are big (960 wide) with the camera's own shape (1080 x 720 here)",
+      _shape[1] == 960 and _shape[0] == 640, _shape)
 _a = _rv.answer(_pend["id"], "failed", ["warping", "spaghetti", "made-up"], 1000.0 + 60 * 61)["answer"]
+_shape = _core.cv2.imread(_first).shape
+check("1.122: answered: made 320 wide (what the learning needs), marked small", _shape[1] == 320 and _shape[0] == 213 and _rv.load(_pend["id"]).get("small") is True, _shape)
 check("1.103: the answer: failed, the known kinds in their order, from when", _a["outcome"] == "failed" and _a["problems"] == ["spaghetti", "warping"] and _a["failed_at"] == 1000.0 + 60 * 61, _a)
 check("... answered: no longer asked", _rv.pending(1000.0 + 131 * 61) is None)
+_rv.observe("printing", "big.gcode", 15000.0)
+_rv.add_frame(fakes.frame(), 15010.0, {"progress": 1.0})
+_big = _rv.current["id"]
+_rv.observe("complete", "", 15000.0 + 600)
+_rv.observe("printing", "next.gcode", 16000.0)
+_bigpic = os.path.join(_rv_root, _big, "0001.jpg")
+check("1.122: a print never answered: its pictures made small when the next print starts", _core.cv2.imread(_bigpic).shape[1] == 320 and _rv.load(_big).get("small") is True)
+_rv.observe("complete", "", 16100.0)
 _rv.observe("printing", "short.gcode", 20000.0)
 _rv.observe("cancelled", "", 20060.0)
 check("1.103: a print of one minute (a test, a quick cancel): not asked about", _rv.pending(20070.0) is None)

@@ -1,5 +1,14 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.122.0
+
+**«How did the print go?»: a big picture to choose from.** When you tell from when a problem can be seen, the picture is
+now as wide as the card, with the slider and the ‹ › buttons right under it, and a label on the picture with its number,
+time, progress and layer. A tap opens it over the whole screen, to zoom on a small defect.
+
+The pictures of a print are kept three times as wide (960 pixels) until you answer; once answered, or when the next print
+starts, they are made small again, so the space they take on the Raspberry does not grow.
+
 ## 1.121.0
 
 **Far fewer false «empty bed» alarms.** The AI used to judge «empty bed» without knowing what to look for, and from a

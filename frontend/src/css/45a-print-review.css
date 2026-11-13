@@ -26,8 +26,15 @@
 .print-review__problem.is-selected .print-review__problem-icon { background: var(--oui-danger); color: #fff; }
 .print-review__problem-check { position: absolute; top: 6px; right: 6px; display: flex; color: var(--oui-danger); }
 @media (max-width: 359px) { .print-review__problems { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-.print-review__when { display: flex; flex-direction: column; gap: 6px; }
-.print-review__slider { width: 100%; accent-color: var(--oui-accent); }
+.print-review__when { display: flex; flex-direction: column; gap: 8px; }
+/* 1.122: the picture across the card, the slider right under it */
+.print-review__picture { position: relative; border-radius: var(--oui-r-field); overflow: hidden; background: var(--oui-inset); }
+.print-review__picture .print-review__photo { display: block; border-radius: 0; width: 100%; padding: 0; border: 0; background: none; cursor: zoom-in; }
+.print-review__picture .print-review__photo img { display: block; width: 100%; height: auto; max-height: 60vh; object-fit: contain; }
+.print-review__stamp { position: absolute; left: 8px; bottom: 8px; max-width: calc(100% - 16px); padding: 3px 8px; border-radius: 999px; background: rgba(0, 0, 0, 0.62); color: #fff; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; pointer-events: none; }
+.print-review__scrub { display: flex; align-items: center; gap: 6px; }
+.print-review__arrow { font-size: 26px; line-height: 1; }
+.print-review__slider { flex: 1; min-width: 0; height: 32px; accent-color: var(--oui-accent); }
 .print-review__actions { display: flex; gap: 8px; }
 .print-review__actions .oui-btn { flex: 1 1 0; }
 .print-review__more { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px; margin: -4px -8px -6px; }

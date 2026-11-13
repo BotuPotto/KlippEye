@@ -86,6 +86,21 @@ with sync_playwright() as p:
     P.settle(200)
     ok("... the slider shows the moment of that picture (progress, layer)", "43%" in card.inner_text() and "60" in card.inner_text(), card.inner_text())
     P.shot(os.path.join(out, "review_problem_390.png"), tall=False)
+    photo = card.locator(".print-review__picture img").bounding_box()
+    track = slider.bounding_box()
+    ok("1.122: the picture across the card, the slider right under it (not at the bottom), the small one at the top gone",
+       photo and track and photo["width"] > 300 and 0 <= track["y"] - (photo["y"] + photo["height"]) < 40
+       and card.locator("img.print-review__thumb").count() == 0, (photo, track))
+    card.locator('[data-review-step="1"]').click()
+    P.settle(200)
+    ok("... › steps to the next picture, the stamp on the picture says which", "7 di" in card.locator("[data-review-stamp]").inner_text(), card.locator("[data-review-stamp]").inner_text())
+    card.locator('[data-review-step="-1"]').click()
+    P.settle(200)
+    card.locator(".print-review__picture [data-zoom]").click()
+    P.settle(500)
+    ok("... a tap on the picture opens it over the whole screen", P.pg.locator(".photo-viewer").count() == 1)
+    P.pg.keyboard.press("Escape")
+    P.settle(300)
     save.click()
     ok("... saved: failed, the two kinds, from that picture's time", wait(P.pg, lambda: state()["review_answers"]), state()["review_answers"])
     a = state()["review_answers"][-1]

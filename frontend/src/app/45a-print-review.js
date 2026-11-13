@@ -56,6 +56,8 @@ function usePrintReview(printing) {
   return { ...state, reload: load, clear: () => setState((old) => ({ ...old, review: null })) };
 }
 
+const reviewPicture = (review, thumb) => "/api/print/review/" + encodeURIComponent(review.id) + "/" + thumb.n + ".jpg";
+
 const reviewClock = (seconds) => new Date(seconds * 1000).toLocaleTimeString(LOCALE, { hour: "2-digit", minute: "2-digit" });
 
 /** The card. `printing`: no question while a print runs. */
@@ -116,7 +118,7 @@ function PrintReviewCard({ printing }) {
     h(
       "div",
       { className: "print-review__head" },
-      shown && h("img", { className: "print-review__thumb", src: "/api/print/review/" + encodeURIComponent(review.id) + "/" + shown.n + ".jpg", alt: "" }),
+      shown && step !== "problem" && h("img", { className: "print-review__thumb", src: reviewPicture(review, shown), alt: "" }),
       h(
         "div",
         { className: "print-review__text" },
@@ -160,30 +162,7 @@ function PrintReviewCard({ printing }) {
             )
           );
         }),
-        thumbs.length > 1 &&
-          h(
-            "div",
-            { className: "print-review__when" },
-            h("div", { className: "rec-labels__question" }, tx("From when can it be seen? (optional)")),
-            h("input", {
-              type: "range",
-              className: "print-review__slider",
-              min: 0,
-              max: thumbs.length - 1,
-              step: 1,
-              value: picture === null ? thumbs.length - 1 : picture,
-              "aria-label": tx("From when can it be seen? (optional)"),
-              "data-review-when": "1",
-              onChange: (event) => setPicture(Number(event.target.value)),
-            }),
-            h(
-              "div",
-              { className: "oui-caption" },
-              picture === null
-                ? tx("Move the slider to the first picture where the problem shows.")
-                : [reviewClock(thumbs[picture].t), Number.isFinite(thumbs[picture].progress) ? Math.round(thumbs[picture].progress) + "%" : null, thumbs[picture].layer ? tx("layer {layer}", { layer: thumbs[picture].layer }) : null].filter(Boolean).join(" · "),
-            ),
-          ),
+        thumbs.length > 1 && h(ReviewWhen, { review, thumbs, picture, setPicture }),
         h(
           "div",
           { className: "print-review__actions" },
@@ -198,5 +177,47 @@ function PrintReviewCard({ printing }) {
       h("button", { type: "button", className: "oui-btn oui-btn--quiet oui-btn--sm", disabled: busy, "data-review": "skipped", onClick: () => send("skipped") }, tx("Skip")),
       h("button", { type: "button", className: "oui-btn oui-btn--quiet oui-btn--sm", disabled: busy, "data-review-never": "1", onClick: stopAsking }, tx("Don't ask again")),
     ),
+  );
+}
+
+/**
+ * «From when can it be seen?» (1.122): the picture big, across the card, with the slider and the ‹ › steps right under
+ * it, so that the eyes stay on the picture while choosing. A tap opens it over the whole screen, to zoom on a small
+ * defect. Until the slider is touched it shows the last picture and nothing is chosen.
+ */
+function ReviewWhen({ review, thumbs, picture, setPicture }) {
+  const index = picture === null ? thumbs.length - 1 : picture;
+  const thumb = thumbs[index];
+  const go = (to) => setPicture(Math.max(0, Math.min(thumbs.length - 1, to)));
+  const when = [reviewClock(thumb.t), Number.isFinite(thumb.progress) ? Math.round(thumb.progress) + "%" : null, thumb.layer ? tx("layer {layer}", { layer: thumb.layer }) : null].filter(Boolean).join(" · ");
+  return h(
+    "div",
+    { className: "print-review__when" },
+    h("div", { className: "rec-labels__question" }, tx("From when can it be seen? (optional)")),
+    h(
+      "div",
+      { className: "print-review__picture" },
+      h(ZoomablePhoto, { src: reviewPicture(review, thumb), title: (review.file || "") + " · " + when, className: "print-review__photo" }),
+      h("span", { className: "print-review__stamp", "data-review-stamp": "1" }, tx("{n} of {total}", { n: index + 1, total: thumbs.length }) + " · " + when),
+    ),
+    h(
+      "div",
+      { className: "print-review__scrub" },
+      h("button", { type: "button", className: "oui-btn oui-btn--icon", "aria-label": tx("Previous picture"), title: tx("Previous picture"), disabled: index === 0, "data-review-step": "-1", onClick: () => go(index - 1) }, h("span", { "aria-hidden": "true", className: "print-review__arrow" }, "‹")),
+      h("input", {
+        type: "range",
+        className: "print-review__slider",
+        min: 0,
+        max: thumbs.length - 1,
+        step: 1,
+        value: index,
+        "aria-label": tx("From when can it be seen? (optional)"),
+        "aria-valuetext": when,
+        "data-review-when": "1",
+        onChange: (event) => setPicture(Number(event.target.value)),
+      }),
+      h("button", { type: "button", className: "oui-btn oui-btn--icon", "aria-label": tx("Next picture"), title: tx("Next picture"), disabled: index === thumbs.length - 1, "data-review-step": "1", onClick: () => go(index + 1) }, h("span", { "aria-hidden": "true", className: "print-review__arrow" }, "›")),
+    ),
+    h("div", { className: "oui-caption" }, picture === null ? tx("Move the slider to the first picture where the problem shows. Tap the picture to enlarge it.") : tx("Tap the picture to enlarge it.")),
   );
 }

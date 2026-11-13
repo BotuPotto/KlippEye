@@ -78,8 +78,8 @@ Mentre quel file è in stampa, **Segui la stampa** mostra il layer corrente, cos
 
 ### Com'è andata la stampa?
 
-A fine stampa una card in cima alla Home chiede com'è andata: *Andata bene*, oppure *C'era un problema* (di che tipo e, con
-il cursore, da quale foto si vedeva). È facoltativa: *Salta*, oppure *Non chiedere più*. Le tue risposte aiutano il monitor IA
+A fine stampa una card in cima alla Home chiede com'è andata: *Andata bene*, oppure *C'era un problema* (di che tipo e da
+quale foto si vedeva: la foto è grande, con il cursore e ‹ › subito sotto, e un tocco la ingrandisce a tutto schermo). È facoltativa: *Salta*, oppure *Non chiedere più*. Le tue risposte aiutano il monitor IA
 a imparare e a misurarsi ([guida, capitolo 5](GUIDA.md#insegnargli-comè-la-tua-stampante)).
 
 ### Finestre aperte dalle macro
