@@ -21,7 +21,7 @@ A. [Costruire la propria app Android](#a-costruire-la-propria-app-android)
 **Da avere già:**
 
 * una stampante con **Klipper e Moonraker** su un Raspberry Pi (o un qualsiasi computer Linux accanto alla stampante), installati
-  con KIAUH, con un'immagine già pronta (come MainsailOS o FluiddPi) o a mano. Le altre interfacce web della stampante possono
+  con KIAUH, con un'immagine già pronta per stampanti o a mano. Le altre interfacce web della stampante possono
   restare: KlippEye lavora accanto a loro;
 * l'**accesso SSH** al Raspberry, **una volta**, per l'installazione (con il tuo utente: non serve che sia `pi`). Tutto il resto si
   fa dalla dashboard;
@@ -40,12 +40,12 @@ con l'app ntfy).
 | `python3-numpy` | la calibrazione della telecamera (e il monitor IA) |
 | `python3-opencv` | il monitor IA: guardare le foto della telecamera (si salta con `--no-ai`) |
 
-Funziona su Raspberry Pi OS e MainsailOS di ogni versione recente (Debian 11 «Bullseye», 12 «Bookworm», 13 «Trixie») con Python
+Funziona su Raspberry Pi OS e sulle immagini per stampanti basate su di esso, di ogni versione recente (Debian 11 «Bullseye», 12 «Bookworm», 13 «Trixie») con Python
 3.7 o più nuovo. Sul tuo computer non va installato niente: basta un browser.
 
 ## 2. Installazione
 
-Collegati al Raspberry con SSH (`ssh <utente>@<indirizzo del Raspberry>`; su MainsailOS l'utente di solito è `pi`) e incolla queste
+Collegati al Raspberry con SSH (`ssh <utente>@<indirizzo del Raspberry>`; sulle immagini già pronte per stampanti l'utente di solito è `pi`) e incolla queste
 righe, una alla volta:
 
 ```
@@ -54,7 +54,7 @@ git clone https://github.com/BotuPotto/KlippEye.git ~/klippeye
 bash ~/klippeye/scripts/install.sh
 ```
 
-La prima riga serve solo se `git` non c'è ancora (su MainsailOS c'è già: non fa danni). L'installazione controlla cosa manca e lo
+La prima riga serve solo se `git` non c'è ancora (sulle immagini già pronte per stampanti c'è già: non fa danni). L'installazione controlla cosa manca e lo
 installa da sola: la prima volta, con OpenCV, ci vogliono alcuni minuti; poi circa un minuto. Ogni passo dice `OK`; se qualcosa non va
 lo scrive in chiaro (`WARNING` o `ERROR`) e dice cosa fare (i messaggi dell'installazione sono in inglese). Alla fine mostra
 l'indirizzo della dashboard e `Moonraker sees KlippEye`.

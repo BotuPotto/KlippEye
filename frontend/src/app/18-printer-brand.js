@@ -35,7 +35,7 @@ const logoListeners = new Set();
 /** The logos folder of the repository as the backend lists it: { voron: "/logos/voron.svg", ... } ({} when there are none or the backend is older). */
 async function readLogoFiles() {
   try {
-    const response = await fetchFresh("/api/logos", { timeout: BRAIN_READ_TIMEOUT_MS });
+    const response = await fetchFresh("/api/logos", { timeout: BACKEND_READ_TIMEOUT_MS });
     if (!response.ok) return {};
     const data = await response.json();
     const found = {};

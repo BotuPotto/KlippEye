@@ -146,15 +146,15 @@ r = client.post("/api/backend/config", data="non json", content_type="text/plain
 check("un corpo che non e' JSON da' 400", r.status_code == 400)
 
 r = client.post("/api/backend/config", json={"values": {"roi": [10, 15.55, 70, 60.04]}})
-check("area: arrotondata a un decimale e convertita in pixel 1080x720", r.status_code == 200 and b.brain_config.snapshot()["roi"] == [10.0, 15.6, 70.0, 60.0]
-      and b.detector.roi == (108, 112, 756, 432), (b.brain_config.snapshot()["roi"], b.detector.roi))
+check("area: arrotondata a un decimale e convertita in pixel 1080x720", r.status_code == 200 and b.backend_config.snapshot()["roi"] == [10.0, 15.6, 70.0, 60.0]
+      and b.detector.roi == (108, 112, 756, 432), (b.backend_config.snapshot()["roi"], b.detector.roi))
 r = client.post("/api/backend/config", json={"values": {"border": 30, "warmup_seconds": 20, "min_progress": 0.5, "hotend_tolerance": 12, "ai_model": "qwen/qwen3.8-27b", "ai_cooldown": 300, "cooldown": 30}})
 check("tutte le altre soglie arrivano al rilevatore", r.status_code == 200 and b.detector.border == 0.30 and b.detector.warmup == 20 and b.detector.min_progress == 0.5
       and b.detector.hotend_tol == 12 and b.detector.ai_model == "qwen/qwen3.8-27b" and b.detector.ai_cooldown == 300 and b.detector.cooldown_sec == 30)
 
 # persistenza: un Brain nuovo che parte con la stessa cartella ritrova tutto
 b2 = load_brain(NEW_BRAIN, d, brain_json=None)
-v2 = b2.brain_config.snapshot()
+v2 = b2.backend_config.snapshot()
 check("persistenza: dopo un riavvio le soglie sono quelle salvate", v2["sensitivity"] == 41 and v2["border"] == 30 and v2["ai_model"] == "qwen/qwen3.8-27b" and v2["roi"] == [10.0, 15.6, 70.0, 60.0], v2)
 check("... e il rilevatore le usa subito", b2.detector.sensitivity == 41 and b2.detector.warmup == 20 and b2.detector.roi == (108, 112, 756, 432))
 b2.detector.stop()
@@ -168,20 +168,20 @@ check("reset di tutto: tornano i valori di sempre", r.status_code == 200 and j["
 # file mancante / rovinato / con valori strani
 d2 = tmp()
 b3 = load_brain(NEW_BRAIN, d2, brain_json={"formato": 1, "values": {"sensitivity": 9999, "trigger_count": "tre", "cooldown": 45, "roi": "tutto", "x": 1, "enabled": False}})
-v3 = b3.brain_config.snapshot()
+v3 = b3.backend_config.snapshot()
 check("valori strani nel file: ignorati uno per uno, gli altri restano", v3["sensitivity"] == 35 and v3["trigger_count"] == 3 and v3["cooldown"] == 45 and v3["roi"] == [20, 20, 60, 60], v3)
 d3 = tmp()
 os.makedirs(d3, exist_ok=True)
 open(os.path.join(d3, "brain.json"), "w").write("{ questo non e' json")
 os.environ["KLIPPEYE_DATA"] = d3
 b4 = load_brain(NEW_BRAIN, d3)
-check("file rovinato: il Brain parte lo stesso con i valori di sempre", b4.brain_config.snapshot() == b4.config_defaults())
+check("file rovinato: il Brain parte lo stesso con i valori di sempre", b4.backend_config.snapshot() == b4.config_defaults())
 check("... e il file rovinato viene messo da parte, non perso", any(f.startswith("monitor.json.damaged-") for f in os.listdir(d3)), os.listdir(d3))
 b4.detector.stop()
 d4 = tmp()
 open(os.path.join(d4, "brain.json"), "w").write("[1,2,3]")
 b5 = load_brain(NEW_BRAIN, d4)
-check("file con la forma sbagliata (una lista): valori di sempre", b5.brain_config.snapshot() == b5.config_defaults())
+check("file con la forma sbagliata (una lista): valori di sempre", b5.backend_config.snapshot() == b5.config_defaults())
 b5.detector.stop()
 
 # cartella non scrivibile: l'impostazione vale ma il Brain lo dice
@@ -199,9 +199,9 @@ os.chmod(d5, 0o700)
 # vecchi endpoint
 r = client.post("/api/print/detector/config", json={"sensitivity": 5000, "cooldown": 60, "roi": [100, 100, 500, 400]})
 check("vecchio /detector/config: limita la sensibilita' a 100, accetta cooldown e area in pixel", r.status_code == 200 and b.detector.sensitivity == 100 and b.detector.cooldown_sec == 60
-      and b.brain_config.snapshot()["roi"][0] == round(100 * 100 / 1080, 1), (b.detector.sensitivity, b.detector.cooldown_sec, b.brain_config.snapshot()["roi"]))
+      and b.backend_config.snapshot()["roi"][0] == round(100 * 100 / 1080, 1), (b.detector.sensitivity, b.detector.cooldown_sec, b.backend_config.snapshot()["roi"]))
 r = client.post("/api/print/detector/config", json={"roi": [0, 0, 5, 5], "sensitivity": 50})
-check("... un'area non valida viene lasciata com'era, il resto si applica", r.status_code == 200 and b.detector.sensitivity == 50 and b.brain_config.snapshot()["roi"][2] == round(500 * 100 / 1080, 1))
+check("... un'area non valida viene lasciata com'era, il resto si applica", r.status_code == 200 and b.detector.sensitivity == 50 and b.backend_config.snapshot()["roi"][2] == round(500 * 100 / 1080, 1))
 st = client.get("/api/print/detector/status").get_json()
 check("/detector/status ha ancora tutti i campi di prima", all(k in st for k in ("ok", "enabled", "running", "has_cv2", "stats", "real_print_started", "real_print_reason", "progress", "roi", "sensitivity", "last_alert_img")), list(st))
 client.post("/api/backend/config/reset")
@@ -266,7 +266,7 @@ mg = tmp(); os.makedirs(os.path.join(mg, "allarmi"), exist_ok=True)
 open(os.path.join(mg, "allarmi", "storico.jsonl"), "w").write(json.dumps({"id": "20260101-000000", "esito": "analizzato", "con_foto_di_prima": True, "osservazione": "x", "image": "20260101-000000-adesso.jpg"}) + "\n")
 open(os.path.join(mg, "allarmi", "20260101-000000-adesso.jpg"), "wb").write(b"\xff\xd8\xff\xd9")
 bmg = load_brain(NEW_BRAIN, mg, brain_json={"values": {"enabled": False, "sensitivity": 44}})
-check("1.3.0: brain.json diventa monitor.json (stesse soglie)", os.path.isfile(os.path.join(mg, "monitor.json")) and not os.path.exists(os.path.join(mg, "brain.json")) and bmg.brain_config.snapshot()["sensitivity"] == 44, os.listdir(mg))
+check("1.3.0: brain.json diventa monitor.json (stesse soglie)", os.path.isfile(os.path.join(mg, "monitor.json")) and not os.path.exists(os.path.join(mg, "brain.json")) and bmg.backend_config.snapshot()["sensitivity"] == 44, os.listdir(mg))
 check("... allarmi/ diventa alerts/ e storico.jsonl history.jsonl", os.path.isfile(os.path.join(mg, "alerts", "history.jsonl")) and not os.path.exists(os.path.join(mg, "allarmi")), os.listdir(mg))
 h_old = bmg.read_alert_history()
 check("... gli eventi vecchi si leggono con le chiavi inglesi", h_old and h_old[0]["outcome"] == "analizzato" and h_old[0]["with_reference"] is True and h_old[0]["observation"] == "x" and "esito" not in h_old[0], h_old)
@@ -381,7 +381,7 @@ def run_scenario(path, fake, frames, seconds, brain_json=None, state=None, inter
     m = load_brain(path, tmp(), fake, brain_json={"values": values} if path == NEW_BRAIN else None)
     m.detector.last_ai_call = time.time() + 99999  # niente chiamata all'IA: qui conta solo quando scatta
     if path == NEW_BRAIN and interval:
-        m.set_brain_config({"check_interval": interval})
+        m.set_backend_config({"check_interval": interval})
     if extra:
         extra(m)
     m.detector.enabled = True
@@ -626,7 +626,7 @@ for provider, expected_default in (("groq", "qwen/qwen3.8-27b"), ("openai", "gpt
     mm.detector.last_ai_call = 0
     mm.detector.call_ai_analysis(img)
     check("IA %s: senza modello scelto usa quello predefinito" % provider, cap.get("model") == expected_default, cap)
-    mm.set_brain_config({"ai_model": "mio/modello-nuovo"})
+    mm.set_backend_config({"ai_model": "mio/modello-nuovo"})
     mm.detector.last_ai_call = 0
     mm.detector.call_ai_analysis(img)
     check("IA %s: con ai_model scelto usa quello" % provider, cap.get("model") == "mio/modello-nuovo", cap)
@@ -702,7 +702,7 @@ b_ai, cur, prev = fresh_ai(ai_reply(defect_confidence=85))
 b_ai.detector.call_ai_analysis(cur, prev, 60)
 check("difetto con fiducia 85% sopra la soglia: resta PAUSE", b_ai.detector.last_analysis["analysis"]["action"] == "PAUSE" and "original_action" not in b_ai.detector.last_analysis["analysis"])
 b_ai, cur, prev = fresh_ai(ai_reply(defect_confidence=40))
-b_ai.set_brain_config({"ai_min_confidence": 30})
+b_ai.set_backend_config({"ai_min_confidence": 30})
 b_ai.detector.call_ai_analysis(cur, prev, 60)
 check("ai_min_confidence=30 (the lowest): a defect at 40% stays PAUSE", b_ai.detector.last_analysis["analysis"]["action"] == "PAUSE")
 b_ai, cur, prev = fresh_ai(ai_reply(defect_confidence=40, action="PAUSE", english=True))
@@ -712,7 +712,7 @@ check("1.6: risposta all'inglese (PAUSE, observation) e lingua delle notifiche i
       b_ai.detector.last_analysis["analysis"]["action"] == "CONTINUE" and b_ai.detector.last_analysis["analysis"]["original_action"] == "PAUSE"
       and "soglia 70%" in b_ai.detector.last_analysis["analysis"]["summary"] and b_ai.read_alert_history()[0]["observation"] == "the head", b_ai.detector.last_analysis)
 b_ai, cur, prev = fresh_ai(ai_reply(defect_confidence=40))
-b_ai.set_brain_config({"ai_send_reference": False})
+b_ai.set_backend_config({"ai_send_reference": False})
 del seen_calls[:]
 b_ai.detector.call_ai_analysis(cur, None, None)
 check("senza foto di prima (o con l'opzione spenta): una foto sola", seen_calls == [1], seen_calls)
@@ -902,7 +902,7 @@ b_ai.record_alert({"outcome": "x"}, cur, prev)
 check("cartella dello storico non scrivibile: nessuna eccezione (il monitor non si ferma)", True)
 
 check("impostazioni nuove: valori di serie (filtro acceso, 3 controlli, 60 s, 30%, fiducia 70%, foto di prima accesa)",
-      (lambda v: v["persistent_filter"] is True and v["persist_checks"] == 3 and v["reference_seconds"] == 60 and v["global_change"] == 30 and v["ai_min_confidence"] == 70 and v["ai_send_reference"] is True)(mm.brain_config.snapshot()))
+      (lambda v: v["persistent_filter"] is True and v["persist_checks"] == 3 and v["reference_seconds"] == 60 and v["global_change"] == 30 and v["ai_min_confidence"] == 70 and v["ai_send_reference"] is True)(mm.backend_config.snapshot()))
 r = mm.app.test_client().post("/api/backend/config", json={"values": {"persist_checks": 5, "reference_seconds": 90, "ai_min_confidence": 55, "persistent_filter": False}})
 check("... si cambiano dal menu e arrivano al rilevatore", r.status_code == 200 and mm.detector.persist_checks == 5 and mm.detector.recent_masks.maxlen == 10 and mm.detector.reference_seconds == 90
       and mm.detector.ai_min_confidence == 55 and mm.detector.persistent_filter is False, r.get_json())
@@ -1062,7 +1062,7 @@ check("anteprima della chiave IA: solo le ultime 4 lettere", g.get("key_preview"
 # nome di rete (DNS rebinding) e origine
 r = ca.get("/api/version", headers={"Host": "stampante-cattiva.example.com"})
 check("chiamato con un nome di internet: 403 'host' con il comando per ammetterlo", r.status_code == 403 and r.get_json()["error"] == "host" and "host-add" in r.get_json()["message"], (r.status_code, r.get_json()))
-for _h in ("192.168.1.17:8085", "172.25.170.177:8085", "klippeye.local:8085", "voron:8085", "[fe80::1]:8085", "localhost:8085", "stampante.lan"):
+for _h in ("192.168.1.17:8085", "172.25.10.20:8085", "klippeye.local:8085", "voron:8085", "[fe80::1]:8085", "localhost:8085", "stampante.lan"):
     if ca.get("/api/version", headers={"Host": _h}).status_code != 200:
         check("nome di rete ammesso: " + _h, False)
         break
@@ -1198,10 +1198,10 @@ check("diagnose.redact nasconde chiavi, password, token, cookie e credenziali ne
 
 # ---------------------------------------------------------------------------------------------------------------------
 print("== 1.10.0: canale degli aggiornamenti")
-CONF = "[server]\nhost: 0.0.0.0\n\n# KlippEye: updates\n[update_manager klippeye]\ntype: git_repo\npath: ~/klippeye\nchannel: dev\nmanaged_services: klippeye\n\n[update_manager mainsail]\ntype: web\nchannel: stable\n"
+CONF = "[server]\nhost: 0.0.0.0\n\n# KlippEye: updates\n[update_manager klippeye]\ntype: git_repo\npath: ~/klippeye\nchannel: dev\nmanaged_services: klippeye\n\n[update_manager webui]\ntype: web\nchannel: stable\n"
 check("update_channel_of: legge il canale della sola voce klippeye", bg.update_channel_of(CONF) == "dev" and bg.update_channel_of(CONF.replace("channel: dev\n", "")) == "dev" and bg.update_channel_of("[server]\n") is None)
 c2 = bg.with_update_channel(CONF, "stable")
-check("with_update_channel: cambia solo la riga della voce klippeye", bg.update_channel_of(c2) == "stable" and c2.count("channel: stable") == 2 and "[update_manager mainsail]\ntype: web\nchannel: stable" in c2, c2)
+check("with_update_channel: cambia solo la riga della voce klippeye", bg.update_channel_of(c2) == "stable" and c2.count("channel: stable") == 2 and "[update_manager webui]\ntype: web\nchannel: stable" in c2, c2)
 c3 = bg.with_update_channel(CONF.replace("channel: dev\n", ""), "stable")
 check("... e la aggiunge dopo 'type:' se manca", "type: git_repo\nchannel: stable\npath:" in c3, c3)
 __import__("requests").post = real_post
@@ -2439,7 +2439,7 @@ _ng = tmp()
 for _sub in ("sites-available", "sites-enabled", "conf.d"):
     os.makedirs(os.path.join(_ng, _sub))
 open(os.path.join(_ng, "conf.d", "upstreams.conf"), "w").write("upstream apiserver {\n    server 127.0.0.1:7125;\n}\nupstream mjpgstreamer1 {\n    server 127.0.0.1:8080;\n}\n")
-open(os.path.join(_ng, "sites-available", "mainsail"), "w").write("""server {
+open(os.path.join(_ng, "sites-available", "webui"), "w").write("""server {
     listen 80 default_server;
     listen [::]:80 default_server;
     root %s;
@@ -2457,8 +2457,8 @@ open(os.path.join(_ng, "sites-available", "mainsail"), "w").write("""server {
     }
 }
 """ % _ng)
-open(os.path.join(_ng, "sites-available", "fluidd"), "w").write("server {\n    listen 81;\n    root %s;\n}\n" % _ng)
-for _site in ("mainsail", "fluidd"):
+open(os.path.join(_ng, "sites-available", "webui2"), "w").write("server {\n    listen 81;\n    root %s;\n}\n" % _ng)
+for _site in ("webui", "webui2"):
     os.symlink(os.path.join(_ng, "sites-available", _site), os.path.join(_ng, "sites-enabled", _site))
 _nginx = shutil.which("nginx")
 _conf = os.path.join(_ng, "nginx.conf")
@@ -2475,12 +2475,12 @@ _wf = os.path.join(ROOT, "scripts", "web_front.py")
 _web = lambda *args: subprocess.run([sys.executable, _wf] + list(args), capture_output=True, text=True, env=_wenv, timeout=60)
 _r = _web("main")
 _st = json.loads(_web("status").stdout)
-_ms = open(os.path.join(_ng, "sites-available", "mainsail")).read()
+_ms = open(os.path.join(_ng, "sites-available", "webui")).read()
 _kpath = os.path.join(_ng, "sites-available", "klippeye")
 _ks = open(_kpath).read() if os.path.exists(_kpath) else ""
 check("1.94: «main»: the page on port 80 moved to the next free port (81 is taken), KlippEye on 80, a copy kept%s" % ("" if _nginx else " (nginx not installed here: its check skipped)"),
-      _r.returncode == 0 and "listen 82 default_server;" in _ms and "listen [::]:82 default_server;" in _ms and "listen 81;" in open(os.path.join(_ng, "sites-available", "fluidd")).read()
-      and _st["main"] is True and _st["moved"] == ["mainsail"] and os.path.islink(os.path.join(_ng, "sites-enabled", "klippeye")), _r.stdout + _r.stderr)
+      _r.returncode == 0 and "listen 82 default_server;" in _ms and "listen [::]:82 default_server;" in _ms and "listen 81;" in open(os.path.join(_ng, "sites-available", "webui2")).read()
+      and _st["main"] is True and _st["moved"] == ["webui"] and os.path.islink(os.path.join(_ng, "sites-enabled", "klippeye")), _r.stdout + _r.stderr)
 check("1.94: KlippEye's site: the camera as the previous page had it, Moonraker's WebSocket and uploads straight to Moonraker, the rest to the service",
       "proxy_pass http://mjpgstreamer1/;" in _ks and "location /websocket" in _ks and "location = /server/files/upload" in _ks and "location /api/files/" in _ks
       and "proxy_pass http://127.0.0.1:8085;" in _ks and "X-Forwarded-Proto $scheme" in _ks and "listen 443" not in _ks)
@@ -2489,15 +2489,15 @@ if _nginx:  # the real nginx checks the certificate files: a real one
     _hc_cert, _hc_key = _hr.ensure_certificate(os.path.join(_ng, "cert"), names=["printer"], addresses=[])
     _r2 = _web("main", "--https", _hc_cert, _hc_key)
 _ks = open(_kpath).read() if os.path.exists(_kpath) else ""
-check("1.94: with HTTPS: KlippEye also on 443 with the certificate; run again, nothing moves twice", _r2.returncode == 0 and "listen 443 ssl default_server;" in _ks and "listen 82 default_server;" in open(os.path.join(_ng, "sites-available", "mainsail")).read(), _r2.stdout + _r2.stderr)
+check("1.94: with HTTPS: KlippEye also on 443 with the certificate; run again, nothing moves twice", _r2.returncode == 0 and "listen 443 ssl default_server;" in _ks and "listen 82 default_server;" in open(os.path.join(_ng, "sites-available", "webui")).read(), _r2.stdout + _r2.stderr)
 _r3 = _web("restore")
 check("1.94: «restore»: the previous page back on port 80, KlippEye's site and the copies gone",
-      _r3.returncode == 0 and "listen 80 default_server;" in open(os.path.join(_ng, "sites-available", "mainsail")).read() and not os.path.exists(os.path.join(_ng, "sites-available", "klippeye"))
+      _r3.returncode == 0 and "listen 80 default_server;" in open(os.path.join(_ng, "sites-available", "webui")).read() and not os.path.exists(os.path.join(_ng, "sites-available", "klippeye"))
       and not os.path.lexists(os.path.join(_ng, "sites-enabled", "klippeye")) and not os.path.exists(os.path.join(_ng, "klippeye-backup")), _r3.stdout + _r3.stderr)
 _bad = dict(_wenv, KLIPPEYE_NGINX_TEST="false")
 _r4 = subprocess.run([sys.executable, _wf, "main"], capture_output=True, text=True, env=_bad, timeout=60)
 check("1.94: nginx refusing the new configuration: everything put back as it was",
-      _r4.returncode == 1 and "put back" in _r4.stdout and "listen 80 default_server;" in open(os.path.join(_ng, "sites-available", "mainsail")).read() and not os.path.exists(os.path.join(_ng, "sites-available", "klippeye")), _r4.stdout)
+      _r4.returncode == 1 and "put back" in _r4.stdout and "listen 80 default_server;" in open(os.path.join(_ng, "sites-available", "webui")).read() and not os.path.exists(os.path.join(_ng, "sites-available", "klippeye")), _r4.stdout)
 # the service's side: /api/web (the script run with sudo -n: replaced here) and the slicers' OctoPrint-style questions
 _wb = load_brain(NEW_BRAIN, tmp(), fake=fake, brain_json={"formato": 1, "values": {"enabled": False}})
 _wc = _wb.app.test_client()

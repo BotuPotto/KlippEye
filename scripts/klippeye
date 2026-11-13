@@ -8,7 +8,7 @@ if [ -n "${KLIPPEYE_DATA:-}" ]; then DATA="$KLIPPEYE_DATA"
 elif [ -d "$HOME/printer_data" ]; then DATA="$HOME/printer_data/klippeye"
 else DATA="$HOME/klippeye_data"; fi
 SVC=klippeye; NSVC=klippeye-notifier
-BACKEND_URL="${KLIPPEYE_BRAIN_URL:-http://127.0.0.1:8085}"
+BACKEND_URL="${KLIPPEYE_BACKEND_URL:-${KLIPPEYE_BRAIN_URL:-http://127.0.0.1:8085}}"   # KLIPPEYE_BRAIN_URL: its name before 1.118
 SUDO="${KLIPPEYE_SUDO-sudo}"
 SYSTEMCTL="${KLIPPEYE_SYSTEMCTL:-systemctl}"
 
@@ -83,7 +83,7 @@ PY
     $SUDO $SYSTEMCTL restart $svc && echo "Restarted: $svc"
     ;;
   update)
-    # What the dashboard's "Update" button does, by hand (needs internet and the repository).
+    # By hand, when the dashboard cannot be opened: the newest commit of the branch (as the dev channel), then a restart.
     branch="$(git -C "$REPO" rev-parse --abbrev-ref HEAD 2>/dev/null)"
     [ -n "$branch" ] || { echo "$REPO is not a git repository: nothing to update."; exit 1; }
     if [ -n "$(git -C "$REPO" status --porcelain -uno 2>/dev/null)" ]; then
@@ -167,7 +167,7 @@ klippeye version             the installed release
 klippeye log [notifier]      the last lines of the log (of the backend, or of the notifier)
 klippeye restart [backend|notifier|all]
 klippeye repair              check the program files and restore those damaged by a power loss   (repair log: what was done)
-klippeye update [--force]    download the latest release and restart (like the dashboard's Update button)
+klippeye update [--force]    download the newest version of the branch and restart (the dashboard's Update follows the update channel)
 klippeye notify test         send a test notification to the phone   (also: check)
 klippeye password [set|remove|status|logout-all]   optional dashboard password ("klippeye password" sets it)
 klippeye password guest-set|guest-remove          a second password for guests, who can look but not command

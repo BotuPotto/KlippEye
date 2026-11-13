@@ -25,7 +25,7 @@ const APP_EVENT_PHASES = { scarico: "downloading", permesso: "permission", insta
  */
 async function readAppRelease() {
   try {
-    const response = await fetchFresh("/api/app/version", { timeout: BRAIN_READ_TIMEOUT_MS });
+    const response = await fetchFresh("/api/app/version", { timeout: BACKEND_READ_TIMEOUT_MS });
     if (response.status === 404) return { state: "old" };
     if (!response.ok) return { state: "down" };
     const info = await response.json();

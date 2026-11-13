@@ -50,7 +50,7 @@ const fireGcode = (script) => {
   } catch (e) {}
 };
 /** Sends G-code through the backend (/api/gcode). */
-const sendBrainGcode = (script) => postGcodeTo("/api/gcode", script);
+const sendBackendGcode = (script) => postGcodeTo("/api/gcode", script);
 
 /** Klipper's own words for a failed request: Moonraker's { error: { message } }, a plain { error }, or the raw text. */
 async function errorMessageOf(response) {
@@ -196,7 +196,7 @@ const moonraker = {
 /* ---------------------------------------------------------------------------
    backend — KlippEye backend
    ------------------------------------------------------------------------- */
-const brain = {
+const backendApi = {
   /** Aggregated printer snapshot { heater_bed, extruder, raw: {...} }. */
   printer: () => fetchJson("/api/printer"),
 };

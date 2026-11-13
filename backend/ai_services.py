@@ -195,12 +195,10 @@ def resolve(cfg, use, fallback_model=""):
     base = base_of(cfg, provider)
     if not base:
         raise AiError("no_base", "no address for the OpenAI-compatible service")
-    default = spec[use]
-    model = one["model"] or fallback_model or default
-    if not model:
+    target = _target(cfg, provider, one["model"] or fallback_model, use)
+    if target is None:
         raise AiError("no_model", "choose a model for %s" % spec["name"])
-    return {"provider": provider, "name": spec["name"], "base": base, "key": key, "model": model, "default_model": default,
-            "endpoint": base + "/chat/completions"}
+    return target
 
 
 def headers_for(provider, key):
@@ -354,7 +352,7 @@ def apply(cfg, body):
     cfg = normalize(cfg)
     if body.get("delete") is True and "key" not in body:
         return normalize({}), None
-    if "api_key" in body or "key" in body and isinstance(body.get("key"), str):
+    if "api_key" in body or isinstance(body.get("key"), str):
         key = str(body.get("api_key") or body.get("key") or "").strip()
         if len(key) < 20 or not KEY_RE.match(key):
             return None, "key_short"

@@ -1,5 +1,21 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.118.0
+
+**A full review of the code, part 4: every module read line by line.** Nothing new to learn; a few fixes and a lot of
+tidying.
+
+* **Notifications**: the error of Firebase and one line of the service's log were still in Italian; the code that reads
+  the AI's verdict from its text is written once.
+* **Self-repair** (after a power cut) now also checks the files of the local AI model, and no longer a folder that has not
+  existed for a long time.
+* **Diagnostic report**: the hiding of keys and passwords is simpler and also hides the keys of one more AI service.
+* The old internal name of the KlippEye service ("brain") is gone from the code: it is called the backend everywhere. The
+  command `klippeye` also reads `KLIPPEYE_BACKEND_URL` (the old `KLIPPEYE_BRAIN_URL` still works).
+* `klippeye update` says what it really does: it installs the newest version of the branch, while the dashboard follows
+  the update channel.
+* Comments and documentation no longer name other printer interfaces.
+
 ## 1.117.0
 
 **Android app 1.8.0: in your language.** Update it from Settings → Updates → Android app once KlippEye is updated.
@@ -1449,7 +1465,7 @@ off, so the calibration homes again with six 10 mm pyramids on the bed).
   missing. Without flask, requests or numpy it stops before touching anything, with the command to type.
 * **numpy is really needed**, and the installer said it was optional: since the camera calibration (1.13.0) the backend did not
   start without it. Now the backend starts anyway (the calibration says what to install), and the installer installs it.
-* **Debian 11 "Bullseye"** (Raspberry Pi OS before 2023, MainsailOS 1.x): with its Flask 1.1 the downloads (configuration files,
+* **Debian 11 "Bullseye"** (Raspberry Pi OS before 2023 and the images built on it): with its Flask 1.1 the downloads (configuration files,
   the Android app, logos, recording pictures) failed; now they work there too.
 * **Snapshot address** (Settings → Camera → Snapshot), the single photo the AI monitor, the
   camera calibration and the recordings take (later also the timelapse). Empty = automatic from the camera's address

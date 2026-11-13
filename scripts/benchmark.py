@@ -187,7 +187,7 @@ def monitor_cost(repo, rounds=12):
     for i in range(rounds):
         frame = base.copy()
         cv2.circle(frame, (900 + i * 7, 500), 40, (255, 255, 255), -1)  # something that moves
-        ok, encoded = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
+        _, encoded = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
         raw = encoded.tobytes()
         started = time.perf_counter()  # as the monitor does: decode the camera's picture, then judge it
         decoded = cv2.imdecode(np.frombuffer(raw, np.uint8), cv2.IMREAD_COLOR)
@@ -218,7 +218,7 @@ def verdict(result):
         notes.append("The KlippEye service is not running: its figures are 0.")
     mon = result.get("monitor") or {}
     if mon.get("cpu_core_percent", 0) >= 50:
-        notes.append("The AI monitor's check takes %s ms every %s s: raise «Seconds between checks» (Settings → AI monitor)." % (mon["ms_per_check"], mon["interval_s"]))
+        notes.append("The AI monitor's check takes %s ms every %s s: raise «How often it looks at the camera» (Settings → Monitor thresholds)." % (mon["ms_per_check"], mon["interval_s"]))
     if not notes:
         notes.append("All fine: the Raspberry has room to spare.")
     return notes

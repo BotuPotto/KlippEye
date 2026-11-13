@@ -187,7 +187,7 @@ check("POST a key: saved in ai.json, mode 600, the answer is the summary", r.sta
       and json.load(open(bk.AI_CONFIG_PATH))["keys"]["groq"] == "gsk_" + "k" * 40, r.get_json())
 check("POST bad values: 400 with a reason", client.post("/api/ai/config", json={"key": {"provider": "groq", "api_key": "x"}}).status_code == 400
       and client.post("/api/ai/config", json={"logs": {"model": "no spaces allowed"}}).status_code == 400)
-bk.set_brain_config({"ai_model": "vecchio/modello"})
+bk.set_backend_config({"ai_model": "vecchio/modello"})
 check("the model chosen before 1.27 in Monitor thresholds is shown as the monitor's", client.get("/api/ai/config").get_json()["monitor"]["model"] == "vecchio/modello")
 client.post("/api/ai/config", json={"monitor": {"provider": "groq", "model": ""}})
 check("... choosing the monitor's model here clears it", bk.detector.ai_model == "" and client.get("/api/ai/config").get_json()["monitor"]["model"] == "")

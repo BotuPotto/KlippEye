@@ -8,7 +8,7 @@ interface installed with Klipper usually sits there. `main` puts KlippEye there 
   there, untouched otherwise; a copy of each file is kept first in <nginx>/klippeye-backup;
 - a site "klippeye" listens on 80 (and, with --https, on 443 with KlippEye's certificate) and hands everything to the
   KlippEye service (127.0.0.1:8085), except what goes straight to Moonraker (its WebSocket, the uploads of files, the
-  slicers' OctoPrint-style upload) and the camera, whose locations are copied from the site that had port 80;
+  slicers' upload through Moonraker's compatible API) and the camera, whose locations are copied from the site that had port 80;
 - nginx checks the new configuration (nginx -t) before reloading; on an error everything goes back as it was.
 
 `restore` puts the copies back and removes the site. `status` says what is in place (JSON).
@@ -224,8 +224,9 @@ def main(https=None):
         restore(reload=False)
         return False, "nginx refused the new configuration, everything was put back: " + message[-400:]
     ok, message = run(RELOAD)
-    if not ok:
-        return False, "nginx did not reload: " + message[-300:]
+    if not ok:  # the files on disk would otherwise disagree with what nginx serves: put the previous ones back
+        restore()
+        return False, "nginx did not reload, everything was put back: " + message[-300:]
     return True, "KlippEye is at the Raspberry's own address" + ("; moved: " + "; ".join(report) if report else "")
 
 

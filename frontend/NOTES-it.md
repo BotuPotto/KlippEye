@@ -82,10 +82,10 @@ I file di `src/app/` e `src/css/` condividono la numerazione, così l'area "vent
 | 14 | app Android (`14-native-app`): cosa sa fare l'app che ospita la pagina e `downloadFile()` |
 | 15 | dati in tempo reale (`15-live`): ritorno dallo standby o dal background, `startPolling`, `onResume`; vedi "Tempo reale, standby e background" |
 | 16 | impostazioni (`16-settings`): cosa si può cambiare dal menù laterale, dove si conserva (database di Moonraker + copia nel browser), pulizia dei valori, scelta dell'indirizzo della camera; vedi "Menù impostazioni" |
-| 17 | il backend (`17-brain`): chi è (`/api/version`), le soglie del monitor IA (`/api/backend/config`), l'attesa del suo ritorno dopo un riavvio (`waitForBrain`); vedi "Soglie del monitor e aggiornamenti" |
+| 17 | il backend (`17-backend`): chi è (`/api/version`), le soglie del monitor IA (`/api/backend/config`), l'attesa del suo ritorno dopo un riavvio (`waitForBackend`); vedi "Soglie del monitor e aggiornamenti" |
 | 18 | la stampante (`18-printer-brand`): nome e logo scelti (KlippEye, VzBot, Voron, RatRig), `PrinterLogo`, titolo e icona della scheda del browser; vedi "Nome e logo della stampante" |
 | 20-22 | componenti base (Card, SectionTitle, PageTitle, icone, ConfirmDialog, toast), icone dei tipi di file (`20a-file-icons`), menu a tendina (`21-dropdown`), movimento (`22-motion`: `Presence` e `Collapse`) |
-| 30-34 | stato di Klipper e riavvii (`30-klipper-state`: il pannello degli errori come in Mainsail), intestazione, menu alimentazione e servizi (`31a-power-menu`), SAVE_CONFIG, barra inferiore, pull-to-refresh |
+| 30-34 | stato di Klipper e riavvii (`30-klipper-state`: il pannello degli errori), intestazione, menu alimentazione e servizi (`31a-power-menu`), SAVE_CONFIG, barra inferiore, pull-to-refresh |
 | 40-49 | pagine Home, Controllo e Files: camera (`41-camera`: WebRTC, MJPEG, MJPEG adaptive, pagina web) e pulsante della luce, ventole, riscaldatori, movimento (`44-movement`; `44a-bed-tools`: menu Calibra; `44b-z-offset`: card Z-offset), avanzamento stampa, console, file, estrusore, menu azioni dei file (`49-file-actions`) |
 | 50-58 | pagine Config e Sistema: file di configurazione (`50` dati e API, `50a` operazioni su file e cartelle, `50b` scheda; `50c-text-history`: la cronologia di Annulla/Ripristina dell'editor), editor, visualizzatore immagini, viste AI (`53-ai-views`: verdetto di stampa; `53-ai-markdown`: rapporto dell'analisi log), log, monitor AI, aggiornamenti, calibrazione (`57-calibration`; `57a-endstops`: endstop e probe), bed mesh |
 | 59 | menù impostazioni: `59-settings` (il pannello laterale e le sue sette pagine), `59a-detector-settings` (le soglie del monitor), `59b-software-settings` (aggiornamenti KlippEye), `59c-app-update` (il blocco «App Android» della pagina Aggiornamenti) |
@@ -252,10 +252,10 @@ Il test `tests/ui/live_test.py` controlla: ritorno dallo standby con e senza i s
 Files; niente letture in background e lettura immediata al ritorno; salto dell'orologio (prove di connessione, camera
 ricaricata, console riaperta); un'assenza breve non smonta niente; pulsante luce dopo lo standby.
 
-## Stato di Klipper e riavvii (come Mainsail)
+## Stato di Klipper e riavvii
 
-Il pannello in cima alla pagina (`src/app/30-klipper-state.js`, stile in `35-klipper-state.css`) fa ciò che fa
-quello di Mainsail quando Klipper non è "ready":
+Il pannello in cima alla pagina (`src/app/30-klipper-state.js`, stile in `35-klipper-state.css`) dice cosa succede
+quando Klipper non è "ready":
 
 - **Legge lo stato** con `GET /printer/info` (`state` e `state_message`): ogni 4 s se va tutto bene, ogni 2 s se
   non va; una riga di shutdown nella console o il tasto di emergenza lo fanno leggere subito.
@@ -276,8 +276,7 @@ Il test `tests/ui/klipper_state_test.py` simula tutti i casi con il Moonraker fi
 
 ## Menu alimentazione e servizi
 
-Il tasto a forma di interruttore nell'intestazione (`src/app/31a-power-menu.js`) apre un pannello come quello in alto a
-destra di Mainsail:
+Il tasto a forma di interruttore nell'intestazione (`src/app/31a-power-menu.js`) apre un pannello con:
 
 | Sezione | Contenuto | Chiamata |
 |---|---|---|
@@ -285,7 +284,7 @@ destra di Mainsail:
 | Servizi | tutti i servizi che Moonraker gestisce (`available_services` di `/machine/system_info`, senza `klipper_mcu`), con il loro stato; riavvia (o avvia, se è fermo) e ferma; Moonraker non si può fermare da qui | `POST /machine/services/restart\|start\|stop?service=NOME` |
 | Raspberry | Riavvia, Spegni | `POST /machine/reboot`, `POST /machine/shutdown` |
 
-Come in Mainsail chiede conferma **solo mentre si stampa** (un riavvio rovinerebbe la stampa); il riavvio e lo
+Chiede conferma **solo mentre si stampa** (un riavvio rovinerebbe la stampa); il riavvio e lo
 spegnimento del Raspberry chiedono sempre conferma. Se si riavvia il servizio della camera (`crowsnest`, ...) il
 flusso della camera viene ricaricato dopo 7 s. La sezione Klipper sparisce quando Moonraker non ha un Klipper.
 
@@ -314,8 +313,7 @@ continua a leggere ogni 0,5 s come prima.
 
 ## Layout per schermi larghi (PC)
 
-Da **1100 px di larghezza** in su la dashboard usa un secondo layout, ispirato alla pagina Dispositivo di
-Bambu Studio; sotto quella soglia (telefoni, anche in orizzontale) **non cambia nulla**: il telefono ha lo
+Da **1100 px di larghezza** in su la dashboard usa un secondo layout a più colonne; sotto quella soglia (telefoni, anche in orizzontale) **non cambia nulla**: il telefono ha lo
 stesso albero di elementi e gli stessi stili di prima (verificato confrontando le schermate automatiche).
 
 - La scelta è fatta in JavaScript da `useIsDesktop()` (`src/app/70-desktop-shell.js`), che segue il ridimensionamento
@@ -388,8 +386,7 @@ Durante una stampa (non a riposo, non in pausa) la card **Z-offset** prende il p
 ## Calibrazioni: endstop e probe
 
 In fondo alla card Calibrazioni, una sezione che si apre e chiude (`src/app/57a-endstops.js`) mostra lo stato di
-ogni endstop (`GET /printer/query_endstops/status`) e del probe (`QUERY_PROBE`), come il pannello Endstops di
-Mainsail. **Non legge niente da sola**: né quando si apre la pagina Controllo (anche con la sezione lasciata aperta),
+ogni endstop (`GET /printer/query_endstops/status`) e del probe (`QUERY_PROBE`). **Non legge niente da sola**: né quando si apre la pagina Controllo (anche con la sezione lasciata aperta),
 né quando si apre la sezione. Gli endstop e il probe si interrogano solo premendo **Aggiorna**; prima dice "Non ancora
 letti" e dopo "Aggiornato alle HH:MM". La sezione è spenta durante una stampa, perché interrogare la MCU rallenterebbe
 la coda dei movimenti.
@@ -397,7 +394,7 @@ la coda dei movimenti.
 ## File di configurazione: gestione
 
 Nella card "File di configurazione" (`src/app/50-config-files.js`, `50a-config-file-manager.js`,
-`50b-config-files-card.js`). Le chiamate sono le stesse di Mainsail e Fluidd; il backend Brain inoltra già
+`50b-config-files-card.js`). Le chiamate sono quelle standard dell'API di Moonraker; il backend inoltra già
 GET, POST e DELETE di `/server/*`, quindi non è stato modificato.
 
 | Azione | Chiamata a Moonraker |
@@ -560,7 +557,7 @@ Mobileraker. Ha sette pagine (`src/app/59-settings.js`, stili `src/css/65-settin
 
 | Pagina | Cosa si sceglie |
 |---|---|
-| Camera | il metodo, come nella pagina Webcam di Mainsail: **WebRTC** (la pagina di camera-streamer, come prima), **MJPEG** (flusso continuo in un `<img>`, che si riprova da solo se si interrompe), **MJPEG adaptive** (una foto dopo l'altra, da 1 a 30 al secondo, con due immagini sovrapposte che si scambiano così non sfarfalla; ferma quando la pagina è in background), **Pagina web** (qualsiasi indirizzo in un iframe). Un indirizzo per metodo (un percorso sulla stampante tipo `/webcam/?action=stream` oppure un indirizzo completo `http://…`; `javascript:`, `data:` e simili non entrano), specchia / capovolgi, "Ricarica la camera", e **Importa da Mainsail** (legge `/server/webcams/list`: servizi `mjpegstreamer`, `uv4l-mjpeg`, `ipstream` → MJPEG, `mjpegstreamer-adaptive` → adaptive, `webrtc-camerastreamer` → WebRTC, `iframe` → pagina web; gli altri compaiono spenti con "non supportato qui") |
+| Camera | il metodo: **WebRTC** (la pagina di camera-streamer, come prima), **MJPEG** (flusso continuo in un `<img>`, che si riprova da solo se si interrompe), **MJPEG adaptive** (una foto dopo l'altra, da 1 a 30 al secondo, con due immagini sovrapposte che si scambiano così non sfarfalla; ferma quando la pagina è in background), **Pagina web** (qualsiasi indirizzo in un iframe). Un indirizzo per metodo (un percorso sulla stampante tipo `/webcam/?action=stream` oppure un indirizzo completo `http://…`; `javascript:`, `data:` e simili non entrano), specchia / capovolgi, "Ricarica la camera", e **Importa dalla stampante** (legge le telecamere che Moonraker conosce, `/server/webcams/list`: servizi `mjpegstreamer`, `uv4l-mjpeg`, `ipstream` → MJPEG, `mjpegstreamer-adaptive` → adaptive, `webrtc-camerastreamer` → WebRTC, `iframe` → pagina web; gli altri compaiono spenti con "non supportato qui") |
 | Indirizzi | IP locale (rete di casa) e IP esterno (ZeroTier, VPN) del Raspberry, e quale usare per la camera: **Automatico** (quello della rete da cui è aperta la dashboard: stesso indirizzo, poi stessa rete /16, poi `192.168.*` → locale, il resto → esterno), Sempre locale, Sempre esterno (`pickCameraHost`) |
 | Z-offset | i passi della card (vedi sopra) |
 | Notifiche | quali delle sette notifiche ricevere (con il loro testo esatto) e se il servizio sul Raspberry è vivo |
@@ -617,7 +614,7 @@ Dalla release 1.0 il backend (`backend/klippeye_backend.py`, prima `brain/vzbot_
 una soglia aggiunta al Brain compare nel menù senza una dashboard nuova, e un tipo che la dashboard non conosce viene saltato.
 `POST /api/brain/config {values: {...}}` salva (il Brain controlla ogni valore: se uno non va risponde 400 con `errors` per chiave e non
 cambia niente), `POST /api/brain/config/reset {keys?}` torna ai valori di sempre. Sul disco finisce solo quello che differisce
-(`brain.json` nella cartella dei dati). `useBrainConfig` (`17-brain.js`) mostra la modifica subito, la manda 0,6 s dopo (più modifiche
+(`brain.json` nella cartella dei dati). `useBackendConfig` (`17-backend.js`) mostra la modifica subito, la manda 0,6 s dopo (più modifiche
 vicine in una richiesta sola) e rilegge la risposta del Brain; un numero fuori dai limiti non parte, uscendo dal campo torna l'ultimo
 buono; se il Brain rifiuta o non risponde il valore torna quello di prima e la pagina lo dice.
 
@@ -627,7 +624,7 @@ raw.githubusercontent.com (solo per scrivere "Disponibile la release X": se non 
 "Controlla" chiede a Moonraker `/machine/update/refresh`. "Aggiorna KlippEye", "Torna alla versione precedente" e "Ripristina i file del
 programma" usano la finestra di aggiornamento di `56-system.js`; Moonraker riavvia il servizio `klippeye` (`vzbot` prima del passaggio) e **la risposta HTTP viene
 tagliata** (la pagina è servita dal Brain che sta per essere ucciso): il TypeError del browser è il risultato atteso, non un errore.
-`waitForBrain` aspetta che `/api/version` risponda con un `started` o una release diversi; se il Brain è rimasto acceso 25 s dopo la fine
+`waitForBackend` aspetta che `/api/version` risponda con un `started` o una release diversi; se il Brain è rimasto acceso 25 s dopo la fine
 del lavoro (Moonraker non lo ha riavviato) la dashboard lo riavvia da sé (`/machine/services/restart?service=klippeye`). Poi ricarica la
 pagina. Il riavvio dal menù (anche quello della finestra Alimentazione e servizi) segue lo stesso schema (`RESTART_KINDS.brain`).
 

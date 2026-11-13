@@ -407,16 +407,16 @@ with sync_playwright() as p:
     # which address for which page (the rule, tried on addresses the browser could be at)
     PICK_SRC = pick_host_fn()
     PICK = "([src, host, local, ext, route]) => { const pick = new Function(src + '; return pickCameraHost;')(); const r = pick({ network: { localIp: local, externalIp: ext, route } }, host); return r.side + ' ' + r.host; }"
-    cases = [("192.168.1.17", "192.168.1.17", "172.25.170.177", "auto", "local 192.168.1.17"), ("172.25.170.177", "192.168.1.17", "172.25.170.177", "auto", "external 172.25.170.177"),
-             ("192.168.77.5", "192.168.1.17", "172.25.170.177", "auto", "local 192.168.1.17"), ("172.25.9.9", "192.168.1.17", "172.25.170.177", "auto", "external 172.25.170.177"),
-             ("10.0.0.5", "10.0.0.5", "172.25.170.177", "auto", "local 10.0.0.5"), ("10.0.3.9", "10.0.0.5", "172.25.170.177", "auto", "local 10.0.0.5"),
-             ("klippeye.local", "klippeye.local", "172.25.170.177", "auto", "local klippeye.local"), ("klippeye.local", "192.168.1.17", "172.25.170.177", "auto", "external 172.25.170.177"),
-             ("KLIPPEYE.LOCAL", "klippeye.local", "172.25.170.177", "auto", "local klippeye.local"), ("localhost", "192.168.1.17", "172.25.170.177", "auto", "external 172.25.170.177"),
-             ("203.0.113.9", "192.168.1.17", "172.25.170.177", "auto", "external 172.25.170.177"), ("172.25.170.177", "192.168.1.17", "172.25.170.177", "local", "local 192.168.1.17"),
-             ("192.168.1.17", "192.168.1.17", "172.25.170.177", "external", "external 172.25.170.177"), ("192.168.1.17", "192.168.1.17:8080", "172.25.170.177", "auto", "local 192.168.1.17:8080"),
+    cases = [("192.168.1.17", "192.168.1.17", "172.25.10.20", "auto", "local 192.168.1.17"), ("172.25.10.20", "192.168.1.17", "172.25.10.20", "auto", "external 172.25.10.20"),
+             ("192.168.77.5", "192.168.1.17", "172.25.10.20", "auto", "local 192.168.1.17"), ("172.25.9.9", "192.168.1.17", "172.25.10.20", "auto", "external 172.25.10.20"),
+             ("10.0.0.5", "10.0.0.5", "172.25.10.20", "auto", "local 10.0.0.5"), ("10.0.3.9", "10.0.0.5", "172.25.10.20", "auto", "local 10.0.0.5"),
+             ("klippeye.local", "klippeye.local", "172.25.10.20", "auto", "local klippeye.local"), ("klippeye.local", "192.168.1.17", "172.25.10.20", "auto", "external 172.25.10.20"),
+             ("KLIPPEYE.LOCAL", "klippeye.local", "172.25.10.20", "auto", "local klippeye.local"), ("localhost", "192.168.1.17", "172.25.10.20", "auto", "external 172.25.10.20"),
+             ("203.0.113.9", "192.168.1.17", "172.25.10.20", "auto", "external 172.25.10.20"), ("172.25.10.20", "192.168.1.17", "172.25.10.20", "local", "local 192.168.1.17"),
+             ("192.168.1.17", "192.168.1.17", "172.25.10.20", "external", "external 172.25.10.20"), ("192.168.1.17", "192.168.1.17:8080", "172.25.10.20", "auto", "local 192.168.1.17:8080"),
              # 1.22: addresses not set -> the address of the page
              ("192.168.3.4", "", "", "auto", "same 192.168.3.4"), ("pi.local", "", "", "auto", "same pi.local"), ("10.1.1.1", "", "", "local", "local 10.1.1.1"),
-             ("172.25.9.9", "192.168.1.17", "", "auto", "same 172.25.9.9"), ("192.168.1.17", "", "172.25.170.177", "auto", "external 172.25.170.177")]
+             ("172.25.9.9", "192.168.1.17", "", "auto", "same 172.25.9.9"), ("192.168.1.17", "", "172.25.10.20", "auto", "external 172.25.10.20")]
     got = [pg.evaluate(PICK, [PICK_SRC] + list(c[:4])) for c in cases]
     bad = [(c, g) for c, g in zip(cases, got) if g != c[4]]
     ok("which address the camera is asked at, for %d addresses the browser could be at" % len(cases), not bad, bad)
@@ -563,7 +563,7 @@ with sync_playwright() as p:
         """What the app is to the page: its user agent, and the bridge (here it only records what it is told)."""
         agent = "Object.defineProperty(navigator,'userAgent',{get:()=>%s});" % json.dumps(WV + (" KlippEyeApp/%d" % version if version else ""))
         if version >= 4:
-            bridge = ("window.__app = { calls: [], pair: { local: '192.168.1.17', external: '172.25.170.177' } };"
+            bridge = ("window.__app = { calls: [], pair: { local: '192.168.1.17', external: '172.25.10.20' } };"
                       "window.KlippEyeApp = { saveUrl() {}, setAddresses(l, e) { window.__app.calls.push([l, e]); const refuse = %s; if (refuse) return refuse; window.__app.pair = { local: l, external: e }; return 'ok'; },"
                       " getAddresses() { return JSON.stringify(window.__app.pair); } };") % json.dumps(refuse)
         else:
@@ -575,19 +575,19 @@ with sync_playwright() as p:
 
     P = fresh(b)
     open_menu(P); go(P, "network")
-    ok("browser: the note says the app takes these addresses (from mk218)", "mk218" in app_note(P) and "set-group__note--warn" not in P.pg.locator(".drawer__body .set-group__note").last.get_attribute("class"), app_note(P))
+    ok("browser: the note says the app takes these addresses", "si collega a questi stessi indirizzi" in app_note(P) and "set-group__note--warn" not in P.pg.locator(".drawer__body .set-group__note").last.get_attribute("class"), app_note(P))
     ok("browser: there is no bridge to talk to and no klippeyeSetAddresses", P.pg.evaluate("() => typeof window.KlippEyeApp + ' ' + typeof window.klippeyeSetAddresses") == "undefined undefined")
     P.close()
 
     P = fresh(b, init=app_init(3))
     open_menu(P); go(P, "network")
-    ok("an app older than mk218: the note says it has its own addresses, in amber", "ha gli indirizzi scritti dentro" in app_note(P) and "set-group__note--warn" in P.pg.locator(".drawer__body .set-group__note").last.get_attribute("class"), app_note(P))
+    ok("an old app with its own addresses: the note says it has its own addresses, in amber", "ha gli indirizzi scritti dentro" in app_note(P) and "set-group__note--warn" in P.pg.locator(".drawer__body .set-group__note").last.get_attribute("class"), app_note(P))
     ok("... and nothing is sent to it (no setAddresses, no klippeyeSetAddresses)", P.pg.evaluate("() => typeof window.KlippEyeApp.setAddresses + ' ' + typeof window.klippeyeSetAddresses") == "undefined undefined")
     P.close()
 
     P = fresh(b, init=app_init(4))
     pg = P.pg
-    ok("app mk218, first start (nothing stored yet, 1.22: no addresses set): the app is told the address it reached the dashboard at", wait_until(lambda: calls(P) == [["127.0.0.1", "127.0.0.1"]]), calls(P))
+    ok("an app that takes the addresses, first start (nothing stored yet, 1.22: no addresses set): the app is told the address it reached the dashboard at", wait_until(lambda: calls(P) == [["127.0.0.1", "127.0.0.1"]]), calls(P))
     open_menu(P); go(P, "network")
     ok("... and the menu says the app will use them (green)", wait_until(lambda: "userà questi indirizzi" in app_note(P)) and "set-status--ok" in pg.locator(".drawer__body .set-status").last.get_attribute("class"), app_note(P))
     inputs = pg.locator(".set-field__input")

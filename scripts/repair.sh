@@ -96,7 +96,7 @@ while IFS= read -r -d '' ENTRY; do
   [ "$TYPE" = blob ] && [ "$MODE" != 120000 ] || continue
   if [ ! -f "$REPO/$FILE" ]; then BAD+=("$FILE"); continue; fi
   [ "$(git -C "$REPO" hash-object --no-filters -- "$REPO/$FILE" 2>/dev/null)" = "$SHA" ] || BAD+=("$FILE")
-done < <(git -C "$REPO" ls-tree -r -z HEAD -- backend frontend notifier scripts systemd brain apk VERSION 2>/dev/null)
+done < <(git -C "$REPO" ls-tree -r -z HEAD -- backend frontend notifier scripts systemd models apk VERSION 2>/dev/null)
 
 if [ "${#BAD[@]}" = 0 ]; then
   [ "$QUIET" = 1 ] || echo "All program files are intact."

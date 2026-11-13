@@ -223,7 +223,7 @@ const HELP = {
         ],
       },
       { id: "how", title: tx("How they arrive"), figure: "notifications", text: [tx("The Raspberry sends the notifications through ntfy, a free service, to a private address that only your phones know. No account, no key.")] },
-      { id: "app", title: tx("On Android: the KlippEye app"), text: [tx("Open this page in the KlippEye app and follow «This phone»: five steps, and the app receives the notifications by itself, also when closed. A small fixed notification «KlippEye in ascolto» keeps the connection open: hold it to hide it.")] },
+      { id: "app", title: tx("On Android: the KlippEye app"), text: [tx("Open this page in the KlippEye app and follow «This phone»: five steps, and the app receives the notifications by itself, also when closed. A small fixed notification «KlippEye is listening» keeps the connection open: hold it to hide it.")] },
       { id: "ntfy", title: tx("iPhone and other phones: the ntfy app"), text: [tx("Install the free ntfy app, scan the QR code with the camera and send a test notification. Several phones can scan the same code.")] },
       { id: "which", title: tx("Which notifications"), text: [tx("Choose which events to be told about and in which language: the same for every phone.")] },
       { id: "privacy", title: tx("Keep the address private"), text: [tx("Whoever knows the address can read the notifications. «New address» makes another one: the phones with the ntfy app must scan the new code; the KlippEye app takes it by itself.")] },

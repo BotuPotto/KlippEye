@@ -230,7 +230,7 @@ async function syncAppNotifications(extra) {
   const bridge = nativeBridge();
   if (!APP_CAN_NOTIFY || !bridge || typeof bridge.notifySetup !== "function") return null;
   try {
-    const response = await fetchFresh("/api/notifications/app", { timeout: BRAIN_READ_TIMEOUT_MS });
+    const response = await fetchFresh("/api/notifications/app", { timeout: BACKEND_READ_TIMEOUT_MS });
     const data = await response.json();
     if (!response.ok || !data.ok) return null;
     return JSON.parse(bridge.notifySetup(JSON.stringify({ ntfy: data.ntfy || null, firebaseTopic: data.firebaseTopic || "", ...(extra || {}) })));
@@ -397,7 +397,7 @@ function PhoneNotifications({ store }) {
           step(
             "battery",
             tx("Let KlippEye stay awake"),
-            h("p", { className: "set-group__note" }, tx("To receive at once KlippEye keeps a connection open, shown by a small fixed notification «KlippEye in ascolto» (hold it to hide it). Android puts still apps to sleep: allow KlippEye to run without battery limits.")),
+            h("p", { className: "set-group__note" }, tx("To receive at once KlippEye keeps a connection open, shown by a small fixed notification «KlippEye is listening» (hold it to hide it). Android puts still apps to sleep: allow KlippEye to run without battery limits.")),
             !state.battery && h("button", { type: "button", className: "oui-btn oui-btn--primary oui-btn--sm", "data-phone-action": "battery", onClick: () => nativeBridge().askBatteryExemption() }, tx("Allow")),
           ),
         step(

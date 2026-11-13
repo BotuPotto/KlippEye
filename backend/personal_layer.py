@@ -39,6 +39,8 @@ MAX_EXAMPLES = 3000     # at most this many in one training (every failed one, t
                         # training of a Raspberry 4 with many recordings takes a minute or two, the next ones a few seconds
 EXPORT_MAX = 600        # pictures in an export (the failed ones first, then the fine ones)
 EXPORT_WIDTH = 320      # their width (the recordings' pictures are made smaller)
+IMPORT_MAX = 2 * EXPORT_MAX         # an import keeps at most this many pictures ...
+IMPORT_PICTURE_MAX = 2 * 1024 * 1024  # ... each at most this big (a crafted zip cannot fill the Raspberry's card)
 ORIGIN_RE = re.compile(r"[^A-Za-z0-9_.-]+")
 
 
@@ -303,13 +305,17 @@ class PersonalLayer:
         os.makedirs(folder, exist_ok=True)
         kept = {}
         for name, label in pictures.items():
+            if len(kept) >= IMPORT_MAX:
+                break
             if not re.match(r"^\d{5}\.jpg$", name) or label not in (0, 1):
                 continue
             try:
+                if archive.getinfo(name).file_size > IMPORT_PICTURE_MAX:  # its declared size, before unpacking it
+                    continue
                 content = archive.read(name)
-            except KeyError:
+            except (KeyError, zipfile.BadZipFile, OSError):
                 continue
-            if content[:2] != b"\xff\xd8" or len(content) > 2 * 1024 * 1024:
+            if content[:2] != b"\xff\xd8" or len(content) > IMPORT_PICTURE_MAX:
                 continue
             with open(os.path.join(folder, name), "wb") as handle:
                 handle.write(content)

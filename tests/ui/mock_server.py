@@ -154,7 +154,7 @@ def default_state():
         # --- KlippEye backend release 1.0: /api/version, thresholds of the AI monitor, update manager entry "klippeye"
         "brain": "ok",              # ok | old (no /api/version, no /api/backend/*: a backend before release 1.0)
         "brain_down": False,        # the backend does not answer at all (restarting)
-        "brain_release": "1.0.0", "brain_started": 1760000000,
+        "backend_release": "1.0.0", "brain_started": 1760000000,
         "brain_restart_s": 2.5,     # seconds the backend is away when it restarts
         "brain_cfg": None,          # {key: value} of the thresholds (None: the usual ones)
         "recordings": [],           # session.json of the recorded prints (backend/recorder.py), oldest first
@@ -424,7 +424,7 @@ def mock_reset():
     S.clear(); S.update(default_state()); return jsonify(ok=True)
 @app.route("/__mock/state")
 def mock_state():
-    return jsonify({k: v for k, v in S.items() if k in ("light", "light_cmds", "light_reads", "actions", "webhooks", "webhooks_msg", "disconnected", "moonraker_down", "host_off", "services", "update_log", "brain_cfg_log", "brain_release", "brain_started", "klippeye_info", "pending_release", "logos", "app_apk_hits", "app_apk_downloads", "update_channel", "channel_posts", "rec_posts", "measure_starts", "measure_bodies", "ai_cfg", "ai_posts", "ai_model_reads", "excluded", "strip", "caselight", "mesh_profiles", "mesh_active", "mp", "mp_points", "tune", "speed_factor", "extrude_factor", "bs", "level_applied", "recordings", "alerts", "pm_macros", "pm_wraps", "pm_posts", "gcode_log", "ntfy", "ntfy_posts", "ntfy_tests", "ntfy_app_reads", "ai_answers", "ai_answer", "history_log", "queue", "queue_state", "queue_log", "power_devices", "power_log", "pins", "sensors", "timelapse_settings", "timelapse_log", "timelapse_conf_reads", "cfg", "timelapse_files", "spool_id", "spool_log", "webcams", "webcam_log", "peek_log", "schedule", "schedule_log", "metascan_log", "versions_log", "web", "web_log", "review", "review_answers", "personal_posts", "local_model")})
+    return jsonify({k: v for k, v in S.items() if k in ("light", "light_cmds", "light_reads", "actions", "webhooks", "webhooks_msg", "disconnected", "moonraker_down", "host_off", "services", "update_log", "brain_cfg_log", "backend_release", "brain_started", "klippeye_info", "pending_release", "logos", "app_apk_hits", "app_apk_downloads", "update_channel", "channel_posts", "rec_posts", "measure_starts", "measure_bodies", "ai_cfg", "ai_posts", "ai_model_reads", "excluded", "strip", "caselight", "mesh_profiles", "mesh_active", "mp", "mp_points", "tune", "speed_factor", "extrude_factor", "bs", "level_applied", "recordings", "alerts", "pm_macros", "pm_wraps", "pm_posts", "gcode_log", "ntfy", "ntfy_posts", "ntfy_tests", "ntfy_app_reads", "ai_answers", "ai_answer", "history_log", "queue", "queue_state", "queue_log", "power_devices", "power_log", "pins", "sensors", "timelapse_settings", "timelapse_log", "timelapse_conf_reads", "cfg", "timelapse_files", "spool_id", "spool_log", "webcams", "webcam_log", "peek_log", "schedule", "schedule_log", "metascan_log", "versions_log", "web", "web_log", "review", "review_answers", "personal_posts", "local_model")})
 @app.route("/__mock/print_actions")
 def mock_print_actions():
     return jsonify(S.get("print_actions", []))
@@ -1192,7 +1192,7 @@ def brain_restart(release=None):
     def back():
         S["brain_down"] = False
         S["brain_started"] += 17
-        if release: S["brain_release"] = release
+        if release: S["backend_release"] = release
     later(S["brain_restart_s"], back)
 
 def cut_response():
@@ -1268,7 +1268,7 @@ def brain_cfg_reply(ok=True, status=200, **extra):
 def api_version():
     if S["brain"] == "old":
         return Response("<!doctype html><title>404 Not Found</title>", status=404, mimetype="text/html")
-    return jsonify(ok=True, release=S["brain_release"], api=2, git={"commit": "a1b2c3d", "branch": "main"}, started=S["brain_started"], uptime=int(time.time()) % 5000 + 600,
+    return jsonify(ok=True, release=S["backend_release"], api=2, git={"commit": "a1b2c3d", "branch": "main"}, started=S["brain_started"], uptime=int(time.time()) % 5000 + 600,
                    python="3.11.2", has_cv2=S["brain_has_cv2"], data_dir="/home/pi/printer_data/klippeye", frontend="/home/pi/klippeye/frontend/klippeye_frontend.html")
 
 @app.route("/api/https", methods=["GET", "POST"])
@@ -1289,16 +1289,16 @@ def mock_mqtt():
 @app.route("/api/web", methods=["GET", "POST"])
 def mock_web():
     """1.94: KlippEye at the Raspberry's own address (scripts/web_front.py is tested by the backend tests)."""
-    web = S.setdefault("web", {"nginx": True, "main": False, "https": False, "moved": [], "sites": {"mainsail": [80], "fluidd": [81]}})
+    web = S.setdefault("web", {"nginx": True, "main": False, "https": False, "moved": [], "sites": {"webui": [80], "webui2": [81]}})
     if request.method == "POST":
         body = request.get_json(force=True) or {}
         S.setdefault("web_log", []).append(bool(body.get("main")))
         if S.get("web_sudo") is False:
             return jsonify(ok=False, error="Servono i permessi di amministratore: sul Raspberry esegui  klippeye web main", command="klippeye web main", **web), 409
         if body.get("main"):
-            web.update(main=True, moved=["mainsail"], sites={"mainsail": [82], "fluidd": [81]})
+            web.update(main=True, moved=["webui"], sites={"webui": [82], "webui2": [81]})
         else:
-            web.update(main=False, moved=[], sites={"mainsail": [80], "fluidd": [81]})
+            web.update(main=False, moved=[], sites={"webui": [80], "webui2": [81]})
     return jsonify(ok=True, port=8085, **web)
 
 
@@ -1544,7 +1544,7 @@ def api_brain_config():
     return brain_cfg_reply(changed=changed)
 
 @app.route("/api/backend/config/reset", methods=["POST"])
-def api_brain_config_reset():
+def api_backend_config_reset():
     if S["brain"] == "old":
         return Response("<!doctype html><title>404 Not Found</title>", status=404, mimetype="text/html")
     body = request.get_json(silent=True) or {}
@@ -1690,7 +1690,7 @@ def logs_analyze():
         return jsonify(analysis="Conclusione rapida: tutto ok, nessun errore critico.\n- klippy.log: avvio normale\n- Warning: fallback camera\n- Error: TMC error su driver", used_files=["klippy.log", "moonraker.log"], model="llama-3", provider="groq")
     if request.args.get("file"):
         return jsonify(analysis=SINGLE_MD, used_files=[request.args.get("file")], model="openai/gpt-oss-20b", provider="groq")
-    return jsonify(analysis=ALL_MD, used_files=["klippy.log", "moonraker.log", "crowsnest.log", "telegram.log", "mainsail.log", "KlipperScreen.log", "webrtc.log", "sonar.log"], model="openai/gpt-oss-20b", provider="groq")
+    return jsonify(analysis=ALL_MD, used_files=["klippy.log", "moonraker.log", "crowsnest.log", "telegram.log", "webui.log", "KlipperScreen.log", "webrtc.log", "sonar.log"], model="openai/gpt-oss-20b", provider="groq")
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "backend"))
 import ai_services  # noqa: E402  (the same rules as the real backend)
 

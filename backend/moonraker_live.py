@@ -144,6 +144,7 @@ class MoonrakerLive:
         self.ws = None
         self.next_id = 1
         self.subscribe_id = None
+        self.pending_subscription = set()   # the objects of the subscription waiting for its answer
         self.resubscribe_at = 0.0
         self.thread = None
         self.stopped = False
@@ -231,7 +232,7 @@ class MoonrakerLive:
             if isinstance(result, dict):
                 with self.lock:
                     self.status = {name: dict(fields) for name, fields in (result.get("status") or {}).items()}
-                    self.subscribed = set(getattr(self, "pending_subscription", set()))
+                    self.subscribed = set(self.pending_subscription)
                     self.eventtime = result.get("eventtime", self.eventtime)
                     self.ready = True
             else:  # Klipper not ready: try again in a moment

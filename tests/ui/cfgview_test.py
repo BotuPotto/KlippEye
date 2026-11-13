@@ -54,7 +54,7 @@ TREE = {"dirs": {"macros": NOW - 5000, "img": NOW - 100, ".git": NOW - 50}, "fil
     "moonraker.conf": {"size": 4100, "modified": NOW - 3000, "content": None},
     "printer-20240101_101010.cfg": {"size": 51000, "modified": NOW - 900000, "content": None},
     "notes.txt": {"size": 77, "modified": NOW - 20, "content": None},
-    "mainsail.cfg.bak": {"size": 900, "modified": NOW - 400, "content": None},
+    "webui.cfg.bak": {"size": 900, "modified": NOW - 400, "content": None},
     ".moonraker.conf.bkp": {"size": 4000, "modified": NOW - 500, "content": None},
     "README": {"size": 10, "modified": NOW - 9000, "content": None},
     "macros/park.cfg": {"size": 1200, "modified": NOW - 5000, "content": None}}}
@@ -81,7 +81,7 @@ with sync_playwright() as p:
     choose(P, "size")
     ok("Più grandi prima (folders by name)", wait_until(lambda: names(P) == ["img", "macros", "printer.cfg", "moonraker.conf", "notes.txt", "README"]), names(P))
     choose(P, "backups")
-    ok("File di backup: SAVE_CONFIG's printer-….cfg and the .bak, tagged", wait_until(lambda: "printer-20240101_101010.cfg" in names(P) and "mainsail.cfg.bak" in names(P)) and P.pg.locator('[data-tag="backup"]').count() == 2, names(P))
+    ok("File di backup: SAVE_CONFIG's printer-….cfg and the .bak, tagged", wait_until(lambda: "printer-20240101_101010.cfg" in names(P) and "webui.cfg.bak" in names(P)) and P.pg.locator('[data-tag="backup"]').count() == 2, names(P))
     choose(P, "hidden")
     ok("File nascosti: .git and the hidden backup", wait_until(lambda: ".git" in names(P) and ".moonraker.conf.bkp" in names(P)) and P.pg.locator('[data-tag="hidden"]').count() == 2, names(P))
     ok("nothing left out: no line about it", P.pg.locator(".cfg-left").count() == 0)

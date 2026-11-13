@@ -21,11 +21,11 @@ def ok(name, cond, extra=""):
 EXPECTED = {
     "macros": "warn", "img": "warn",
     "printer.cfg": "accent", "moonraker.conf": "accent", "crowsnest.conf": "accent", "KlipperScreen.conf": "accent",
-    "mainsail.cfg": "accent", "macros.cfg": "accent", "adxl.cfg": "accent", "config.json": "neutral", "backup.sh": "cool",
+    "webui.cfg": "accent", "macros.cfg": "accent", "adxl.cfg": "accent", "config.json": "neutral", "backup.sh": "cool",
     "notes.txt": "neutral", "README": "neutral", "old.cfg.bak": "neutral", "bed.png": "ok", "test.gcode": "accent",
     "moonraker.conf.bkp": "neutral", ".moonraker.conf.bkp": "neutral", "printer.cfg.bkp": "neutral", "telegram.log": "neutral", "klippy.log": "neutral", "moonraker.log.1": "neutral",
 }
-SAME_AS = {"printer.cfg": ["moonraker.conf", "crowsnest.conf", "KlipperScreen.conf", "mainsail.cfg", "macros.cfg", "adxl.cfg"],
+SAME_AS = {"printer.cfg": ["moonraker.conf", "crowsnest.conf", "KlipperScreen.conf", "webui.cfg", "macros.cfg", "adxl.cfg"],
            "README": ["moonraker.conf.bkp", ".moonraker.conf.bkp", "printer.cfg.bkp"],
            "telegram.log": ["klippy.log", "moonraker.log.1"]}
 FILES = {n: {"size": 100 + 37 * i, "modified": NOW - 5000 * i, "content": None} for i, n in enumerate(n for n in EXPECTED if n not in ("macros", "img"))}

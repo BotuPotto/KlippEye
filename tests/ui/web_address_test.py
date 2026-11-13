@@ -64,7 +64,7 @@ with sync_playwright() as p:
         pg = P.pg
         ok("%d: the Address group: KlippEye at port 8085 for now" % w, wait_until(lambda: pg.locator('[data-web-status="port"]').count() == 1 and "127.0.0.1:8085" in pg.locator('[data-web-status]').inner_text()), pg.locator(".set-group").all_inner_texts()[:6])
         pg.locator("[data-web-main]").click()
-        ok("%d: «Open KlippEye at http://…»: done, the previous page at its new port" % w, wait_until(lambda: pg.locator('[data-web-status="main"]').count() == 1 and "http://127.0.0.1:82" in pg.locator('[data-web-moved="mainsail"]').inner_text() and state()["web_log"] == [True]))
+        ok("%d: «Open KlippEye at http://…»: done, the previous page at its new port" % w, wait_until(lambda: pg.locator('[data-web-status="main"]').count() == 1 and "http://127.0.0.1:82" in pg.locator('[data-web-moved="webui"]').inner_text() and state()["web_log"] == [True]))
         ok("%d: HTTPS then at the address without a port (no port field)" % w, wait_until(lambda: "All'indirizzo del Raspberry" in pg.locator(".set-switch", has_text="Ingresso cifrato").inner_text()) or pg.locator("[data-https-port]").count() == 0)
         if w == 390:
             pg.locator('[data-web-status]').scroll_into_view_if_needed()

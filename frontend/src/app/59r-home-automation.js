@@ -15,7 +15,7 @@ function HomeAutomationPage() {
   const [result, setResult] = useState(null);
   const load = React.useCallback(async () => {
     try {
-      const response = await fetchFresh("/api/mqtt", { timeout: BRAIN_READ_TIMEOUT_MS });
+      const response = await fetchFresh("/api/mqtt", { timeout: BACKEND_READ_TIMEOUT_MS });
       if (response.status === 403) return setInfo({ guest: true });
       if (!response.ok) return setInfo((old) => old || { missing: true });
       const json = await response.json();
