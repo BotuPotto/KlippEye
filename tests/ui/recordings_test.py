@@ -131,7 +131,10 @@ with sync_playwright() as p:
     P.settle(700)
     P.pg.click('.set-entry[data-page="detector"]')
     P.settle(1200)
-    ok("'Soglie del monitor' does not show the recording group (it has its own page)", "Sensibilità" in body(P) or "Soglia" in body(P) and "Registra le stampe" not in body(P), body(P)[:400])
+    P.pg.click("[data-fine]")   # 1.124: the numbers are under «Fine adjustments»
+    P.settle(500)
+    ok("'Soglie del monitor' does not show the recording group (it has its own page)",
+       "QUANTO È ATTENTO" in body(P).upper() and "Soglia di cambiamento" in body(P) and "Registra le stampe" not in body(P), body(P)[:400])
     ok("... really not", "Registra le stampe" not in body(P))
     P.ctx.close()
 
