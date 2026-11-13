@@ -1,5 +1,18 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.117.0
+
+**Android app 1.8.0: in your language.** Update it from Settings → Updates → Android app once KlippEye is updated.
+
+* The app's own screens (the splash, the «Addresses» window, its messages, the names of the notification channels) follow
+  the phone's language, in the same ten languages as the dashboard; they were in Italian only. The errors of the app's own
+  update shown in the dashboard follow it too.
+* Safer: the app's window no longer opens the phone's own files as pages, and it no longer carries two fixed home
+  addresses that were left in its network settings.
+* The back key uses Android's current method (ready for the «predictive back» gesture of the newest phones).
+* Under the hood: the app's code is in English like the rest of the project, and its tests run on GitHub with every pull
+  request. The addresses, the printers and the notification choices stored on the phone are kept.
+
 ## 1.116.0
 
 **A full review of the code, part 1: the backend.** Nothing new to learn: the oldest parts of the backend were rewritten

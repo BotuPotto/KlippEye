@@ -45,7 +45,7 @@ python3 tests/e2e/e2e_test.py -k update    # only the scenarios whose name conta
 
 `ui` and `app` need Playwright with Chromium (`pip install playwright` and `playwright install chromium`); without it
 they are skipped and the summary says so. The Kotlin checks of `app` (`AppDownload.kt` with the app's
-`Aggiornamento.kt`) also need `kotlinc` and `java` (`KOTLINC_HOME`, or `kotlinc` on the `PATH`).
+`AppUpdate.kt`) also need `kotlinc` and `java` (`KOTLINC_HOME`, or `kotlinc` on the `PATH`).
 
 Every check prints `PASS` or `FAIL`; the end lists the failed ones and the test exits with 1 if there are any. The output
 of the installer and the logs of the fake services stay in `tests/e2e/.work/worlds/<scenario>/` for a look afterwards.

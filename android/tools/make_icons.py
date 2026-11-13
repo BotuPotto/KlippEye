@@ -1,23 +1,23 @@
 #!/usr/bin/env python3
 """
-Genera le immagini dell'app (icona, icona adattiva, splash) nello stile della dashboard One UI 9.
+Makes the app's pictures (icon, adaptive icon, splash) in the style of the dashboard.
 
-    python3 tools/genera_icone.py            (serve Pillow e numpy)
+    python3 tools/make_icons.py            (needs Pillow and numpy)
 
-Il logo KlippEye NON viene ridisegnato: è quello di assets/logo_klippeye.png (sorgente: assets/klippeye_g4.svg),
-con i suoi colori; la sagoma per le icone a un solo colore è assets/logo_klippeye_mono.png (la pupilla ha un
-anello vuoto attorno). Cambia solo quello che gli sta intorno:
-    icona        il riquadro viola scuro che sfuma verso il nero (fondo dell'icona)
-    splash       il fondo della dashboard (src/css/10-base.css: base #040507 con il viola in alto), senza riquadro
+The KlippEye logo is NOT redrawn: it is assets/logo_klippeye.png (source: assets/klippeye_g4.svg), with its own
+colours; the shape for the one-colour icons is assets/logo_klippeye_mono.png (source: assets/klippeye_g4_mono.svg;
+the pupil has an empty ring around it). Only what surrounds it is made here:
+    icon         the dark violet tile fading to black (the icon's background)
+    splash       the dashboard's background (src/css/10-base.css: #040507 with the violet at the top), without a tile
 
-Scrive in app/src/main/res/:
-    drawable-nodpi/ic_launcher_background.png   fondo dell'icona adattiva (432 px = 108 dp a xxxhdpi)
-    drawable-nodpi/ic_launcher_foreground.png   logo, nella zona sicura dell'icona adattiva
-    drawable-nodpi/ic_launcher_monochrome.png   sagoma del logo (icone tematiche di Android 13)
-    drawable-nodpi/ic_splash_icon.png           logo per la splash di sistema (Android 12+)
-    drawable-nodpi/splash_logo.png              logo della splash dell'app, della stessa misura di quello di sistema
-    drawable-nodpi/splash_bg.png                fondo della splash dell'app
-    mipmap-*/ic_launcher.png, ic_launcher_round.png   icone per Android 7.x (senza icone adattive)
+Writes in app/src/main/res/:
+    drawable-nodpi/ic_launcher_background.png   background of the adaptive icon (432 px = 108 dp at xxxhdpi)
+    drawable-nodpi/ic_launcher_foreground.png   the logo, inside the adaptive icon's safe zone
+    drawable-nodpi/ic_launcher_monochrome.png   the logo's shape (themed icons of Android 13)
+    drawable-nodpi/ic_splash_icon.png           the logo of the system splash (Android 12+)
+    drawable-nodpi/splash_logo.png              the logo of the app's splash, the same size as the system's
+    drawable-nodpi/splash_bg.png                the background of the app's splash
+    mipmap-*/ic_launcher.png, ic_launcher_round.png   icons for Android 7.x (no adaptive icons)
 """
 import os
 import numpy as np
@@ -29,9 +29,9 @@ RES = os.path.join(ROOT, "app", "src", "main", "res")
 LOGO = os.path.join(HERE, "assets", "logo_klippeye.png")
 LOGO_MONO = os.path.join(HERE, "assets", "logo_klippeye_mono.png")
 
-BASE = np.array([4, 5, 7], float)  # --oui-bg, il fondo della dashboard
-TILE_BASE = np.array([8, 11, 17], float)  # #080b11, il nero del riquadro
-VIOLET = np.array([122, 92, 255], float)  # #7a5cff, il viola scuro del riquadro e del fondo
+BASE = np.array([4, 5, 7], float)  # --oui-bg, the dashboard's background
+TILE_BASE = np.array([8, 11, 17], float)  # #080b11, the black of the tile
+VIOLET = np.array([122, 92, 255], float)  # #7a5cff, the dark violet of the tile and of the background
 rng = np.random.default_rng(7)
 
 
@@ -42,13 +42,13 @@ def to_image(img, dither=True):
 
 
 def load_logo(path=LOGO):
-    """Il logo con i suoi colori, ritagliato sul contenuto."""
+    """The logo with its colours, cropped to its content."""
     im = Image.open(path).convert("RGBA")
     return im.crop(im.getchannel("A").getbbox())
 
 
 def place(logo, size, width_fraction):
-    """Logo largo `width_fraction` della tela quadrata `size`, al centro."""
+    """The logo, `width_fraction` of the square canvas `size` wide, in the middle."""
     w = int(size * width_fraction)
     h = int(w * logo.height / logo.width)
     layer = Image.new("RGBA", (size, size), (0, 0, 0, 0))
@@ -57,7 +57,7 @@ def place(logo, size, width_fraction):
 
 
 def cropped(logo, content_px, pad_fraction=0.07):
-    """Il logo largo `content_px`, con attorno un margine trasparente (così la misura nel layout resta quella della splash di sistema)."""
+    """The logo `content_px` wide, with a transparent margin around it (so its size in the layout stays that of the system splash)."""
     w = content_px
     h = int(w * logo.height / logo.width)
     pad = int(w * pad_fraction)
@@ -67,7 +67,7 @@ def cropped(logo, content_px, pad_fraction=0.07):
 
 
 def squircle_mask(size, n=5.0, scale=4):
-    """Maschera "squircle" (superellisse), come le icone One UI; con anti-alias."""
+    """A "squircle" mask (superellipse), anti-aliased."""
     s = size * scale
     y, x = np.mgrid[0:s, 0:s]
     u = (x + 0.5) / s * 2 - 1
@@ -84,15 +84,15 @@ def circle_mask(size, scale=4):
 
 
 def icon_background(size=432):
-    """Il riquadro: viola scuro che sfuma verso il nero, come CSS radial-gradient(circle at 50% 36%, rgba(122,92,255,.42), transparent 64%) su #080b11."""
+    """The tile: dark violet fading to black, like CSS radial-gradient(circle at 50% 36%, rgba(122,92,255,.42), transparent 64%) on #080b11."""
     y, x = np.mgrid[0:size, 0:size]
-    d = np.hypot((x + 0.5) / size - 0.5, (y + 0.5) / size - 0.36) / np.hypot(0.5, 0.64)  # "circle": fino all'angolo più lontano
+    d = np.hypot((x + 0.5) / size - 0.5, (y + 0.5) / size - 0.36) / np.hypot(0.5, 0.64)  # "circle": up to the farthest corner
     a = (np.clip(1 - d / 0.64, 0, 1) * 0.42)[..., None]
     return to_image(TILE_BASE * (1 - a) + VIOLET * a)
 
 
 def glow(img, color, cx, cy, rx, ry, alpha, stop=0.7):
-    """Come radial-gradient(rx ry at cx cy, color, transparent stop) di CSS; misure in frazioni di larghezza/altezza."""
+    """Like CSS radial-gradient(rx ry at cx cy, color, transparent stop); sizes as fractions of the width/height."""
     h, w, _ = img.shape
     y, x = np.mgrid[0:h, 0:w]
     d = np.sqrt(((x / w - cx) / rx) ** 2 + ((y / h - cy) / ry) ** 2)
@@ -104,14 +104,14 @@ def save(im, *parts):
     path = os.path.join(RES, *parts)
     os.makedirs(os.path.dirname(path), exist_ok=True)
     im.save(path, optimize=True)
-    print("scritto", os.path.relpath(path, ROOT), im.size)
+    print("written", os.path.relpath(path, ROOT), im.size)
 
 
 def main():
     logo = load_logo()
     mono_logo = load_logo(LOGO_MONO)
 
-    # ---- icona adattiva: 108 dp, solo i 66 dp centrali sono sempre visibili; il logo (largo 60 dp) ci sta tutto ----
+    # ---- adaptive icon: 108 dp, only the 66 dp in the middle are always visible; the logo (60 dp wide) fits in them ----
     background = icon_background(432)
     foreground = place(logo, 432, 0.56)
     mono = Image.new("RGBA", (432, 432), (255, 255, 255, 0))
@@ -120,19 +120,19 @@ def main():
     save(foreground, "drawable-nodpi", "ic_launcher_foreground.png")
     save(mono, "drawable-nodpi", "ic_launcher_monochrome.png")
 
-    # ---- splash di sistema (Android 12+): logo su trasparente, deve stare in un cerchio di 192 dp su una tela di 288 dp
-    #      (432 px => 1,5 px per dp). Il logo è largo 0,56 della tela = 161 dp: nell'app il logo ha la stessa misura,
-    #      così il passaggio dalla splash di sistema a quella dell'app non "salta". ----
+    # ---- system splash (Android 12+): the logo on transparent, inside a 192 dp circle on a 288 dp canvas
+    #      (432 px => 1.5 px per dp). The logo is 0.56 of the canvas = 161 dp wide: the app's splash uses the same size,
+    #      so going from the system splash to the app's does not "jump". ----
     SPLASH_LOGO_FRACTION = 0.56
     save(place(logo, 432, SPLASH_LOGO_FRACTION), "drawable-nodpi", "ic_splash_icon.png")
-    save(cropped(logo, int(432 * SPLASH_LOGO_FRACTION * 2.4)), "drawable-nodpi", "splash_logo.png")  # 2,4 px per px: resta nitido fino a xxxhdpi
+    save(cropped(logo, int(432 * SPLASH_LOGO_FRACTION * 2.4)), "drawable-nodpi", "splash_logo.png")  # 2.4 px per px: sharp up to xxxhdpi
 
-    # ---- icone per Android 7.x: stessa composizione, con maschera e un filo di bordo "vetro" ----
+    # ---- icons for Android 7.x: the same picture, with a mask and a thin "glass" rim ----
     master = 768
     legacy = icon_background(432).convert("RGBA")
     legacy.alpha_composite(foreground)
     legacy = legacy.resize((master, master), Image.LANCZOS)
-    zoomed = legacy.crop((int(master * 0.09), int(master * 0.09), int(master * 0.91), int(master * 0.91))).resize((master, master), Image.LANCZOS)  # logo al ~68%
+    zoomed = legacy.crop((int(master * 0.09), int(master * 0.09), int(master * 0.91), int(master * 0.91))).resize((master, master), Image.LANCZOS)  # logo at about 68%
     for density, px in (("mdpi", 48), ("hdpi", 72), ("xhdpi", 96), ("xxhdpi", 144), ("xxxhdpi", 192)):
         for name, mask_fn, base in (("ic_launcher.png", squircle_mask, zoomed), ("ic_launcher_round.png", circle_mask, zoomed)):
             out = base.resize((px, px), Image.LANCZOS)
@@ -145,12 +145,12 @@ def main():
             out.putalpha(mask)
             save(out, "mipmap-" + density, name)
 
-    # ---- fondo della splash dell'app: lo stesso della dashboard (10-base.css: viola in alto su #040507), 720x1600 ----
+    # ---- background of the app's splash: the dashboard's (10-base.css: violet at the top on #040507), 720x1600 ----
     w, h = 720, 1600
     img = np.ones((h, w, 3)) * BASE
-    glow(img, VIOLET, 0.5, -0.04, 0.95, 0.46, 0.34)  # più deciso che nella pagina: sul display di un telefono i toni bassi si perdono
+    glow(img, VIOLET, 0.5, -0.04, 0.95, 0.46, 0.34)  # stronger than on the page: dark tones get lost on a phone's display
     glow(img, VIOLET, 0.5, 1.08, 0.80, 0.34, 0.14)
-    glow(img, VIOLET, 0.5, 0.44, 0.60, 0.20, 0.14)  # un velo dietro il logo
+    glow(img, VIOLET, 0.5, 0.44, 0.60, 0.20, 0.14)  # a veil behind the logo
     save(to_image(img), "drawable-nodpi", "splash_bg.png")
 
 

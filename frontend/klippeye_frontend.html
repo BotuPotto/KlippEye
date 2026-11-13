@@ -9987,7 +9987,7 @@ function usePrinterFunctions() {
    ========================================================================== */
 
 /** Written by build.py from the VERSION file of the release; stays as it is when the page is built by hand. */
-const DASHBOARD_RELEASE = "1.116.0";
+const DASHBOARD_RELEASE = "1.117.0";
 const dashboardRelease = () => (DASHBOARD_RELEASE.startsWith("__") ? "sviluppo" : DASHBOARD_RELEASE);
 
 /** The interface level this page needs from the backend (the backend says its own in /api/version). */
@@ -33457,7 +33457,7 @@ function NotificationChannels({ store }) {
 const NOTIFY_INVITE_KEY = "ke_notify_invite_closed";
 const PROOF_WAIT_MS = 30000;
 
-/** What the app says about the notifications of this phone (Ascolto.stato in the app), or null outside the app. */
+/** What the app says about the notifications of this phone (PushSettings.state in the app), or null outside the app. */
 function readAppNotifyState() {
   const bridge = nativeBridge();
   if (!APP_CAN_NOTIFY || !bridge || typeof bridge.notifyState !== "function") return null;

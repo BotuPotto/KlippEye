@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Android 12+: la splash di sistema è fondo scuro e logo; l'app prosegue con la sua splash, con il logo della stessa misura. -->
+    <!-- Android 12+: the system splash is a dark background and the logo; the app goes on with its own splash, with a logo of the same size. -->
     <style name="Theme.KlippEye" parent="Theme.KlippEye.Base">
-        <item name="android:windowSplashScreenBackground">@color/vz_bg</item>
+        <item name="android:windowSplashScreenBackground">@color/ke_bg</item>
         <item name="android:windowSplashScreenAnimatedIcon">@drawable/ic_splash_icon</item>
     </style>
 </resources>

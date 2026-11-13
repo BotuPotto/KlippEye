@@ -1,166 +1,186 @@
-# KlippEye — app Android
+# KlippEye — Android app
 
-L'app è una finestra a tutto schermo (WebView) sulla dashboard che gira sul Raspberry, con icona e splash KlippEye, notifiche
-push, download dei file e **aggiornamento da sola**. Versione attuale: il numero scritto in [`VERSION`](VERSION).
+The app is a full-screen window (WebView) on the dashboard that runs on the Raspberry, with the KlippEye icon and splash,
+push notifications, file downloads and **updates by itself**. Current version: the number in [`VERSION`](VERSION).
 
 ```
 android/
-  VERSION                 il numero di versione: l'UNICO posto dove si cambia
-  build.gradle, settings.gradle, gradle.properties, gradlew, gradle/   progetto Gradle (gradlew = sempre lo stesso Gradle, 8.5)
-  app/build.gradle        ricava versionName e versionCode da VERSION; firma se trova la chiave (vedi "Firma")
+  VERSION                 the version number: the ONLY place where it changes
+  build.gradle, settings.gradle, gradle.properties, gradlew, gradle/   the Gradle project (gradlew = always the same Gradle, 8.5)
+  app/build.gradle        versionName and versionCode come from VERSION; signs when it finds the key (see "Signing")
   app/src/main/java/com/klippeye/app/
-      MainActivity.kt     la finestra, il ponte con la dashboard (KlippEyeApp), download, aggiornamento
-      Aggiornamento.kt    controlli, scaricamento e verifica dell'APK (solo Java: si prova da sola)
-      AggiornamentoAndroid.kt   versione installata, permesso "Installa app sconosciute", installazione
-      Indirizzi.kt        gli indirizzi del Raspberry (rete di casa, ZeroTier)
-      Notifiche.kt, KlippEyeMessagingService.kt   notifiche push (Firebase)
-  app/src/main/res/       icone, splash, colori, temi, file_paths.xml (cartella condivisa con l'installazione)
-  chiave/klippeye.p12        la chiave di firma, CIFRATA (la crea GitHub la prima volta; vedi "Firma")
-  tools/                  prove (AggiornamentoTest.kt, IndirizziTest.kt) e script per le icone
+      MainActivity.kt     the window, the bridge with the dashboard (KlippEyeApp), downloads, the update
+      Addresses.kt        the Raspberry's addresses (home network, ZeroTier/VPN)
+      Printers.kt         the other printers opened in the app
+      Certificates.kt     the Raspberry's own HTTPS certificate (pinning)
+      AppUpdate.kt        checks, download and verification of the update's APK (plain Java)
+      AppInstaller.kt     installed version, "Install unknown apps" permission, Android's installer
+      PushSettings.kt     how the notifications reach this phone (Firebase or ntfy, with NtfyListenerService)
+      Notifications.kt, KlippEyeMessagingService.kt   channels and the notifications shown
+  app/src/main/res/       icons, splash, colours, themes, texts (values*/strings.xml), file_paths.xml
+  app/src/test/           tests of the parts that need no phone (JUnit)
+  chiave/klippeye.p12     the signing key, ENCRYPTED (GitHub makes it the first time; see "Signing")
+  tools/                  scripts for the icons and for the texts
 ```
 
-## Nome dell'app
+## Name
 
-Il nome interno è `com.klippeye.app` e il ponte con la dashboard si chiama `KlippEyeApp` (`KlippEyeApp/5` nell'user agent).
-Dalla 1.3.0 l'app non contiene più nessun argomento delle notifiche (vedi «Notifiche push»).
+The internal name is `com.klippeye.app` and the bridge with the dashboard is `KlippEyeApp` (`KlippEyeApp/9` in the user agent).
 
-## Versione
+## Languages
 
-`VERSION` contiene tre numeri da 0 a 99 (`1.0.0`, `1.0.1`, `1.2.0`...). Da lì Gradle ricava:
+The app's own screens (splash, the "Addresses" window, messages, the names of the notification channels) are in the
+dashboard's ten languages and follow the phone's language; English is the default. The texts are written in
+`tools/strings_source.py`, which writes `app/src/main/res/values*/strings.xml`:
 
-* `versionName` = il testo (`1.0.0`);
-* `versionCode` = `maggiore × 10000 + minore × 100 + correzione` (`1.0.0` → 10000, `1.2.3` → 10203): cresce a ogni versione, ed è quello
-  che Android confronta per sapere se un APK è più nuovo.
+```
+python3 tools/strings_source.py
+```
 
-Per fare una versione nuova **basta alzare il numero in `VERSION`**. Con un numero più basso di quello già pubblicato il workflow si ferma e lo dice
-(Android non installa mai una versione più vecchia sopra una più nuova). Un formato sbagliato ferma la costruzione con un messaggio.
+## Version
 
-## Come nasce l'APK
+`VERSION` holds three numbers from 0 to 99 (`1.0.0`, `1.0.1`, `1.2.0`...). Gradle derives from it:
 
-**Da GitHub (il modo normale).** Quando in `android/` cambia qualcosa *e* il numero in `VERSION` è nuovo, il workflow
-`.github/workflows/app.yml` compila l'APK sul computer di GitHub, lo firma e lo mette in `apk/KlippEye.apk` con `apk/version.json`
-(versione, grandezza, impronta SHA-256, firma). Il Raspberry lo riceve con il normale «Aggiorna KlippEye», il backend lo offre al telefono
-(`/api/app/version`, `/app/KlippEye.apk`) e la dashboard dell'app mostra «Aggiorna l'app». Passo per passo: [`docs/GUIDA.md`](../docs/GUIDA.md), parte C.
+* `versionName` = the text (`1.0.0`);
+* `versionCode` = `major × 10000 + minor × 100 + patch` (`1.0.0` → 10000, `1.2.3` → 10203): it grows with every version, and it is what
+  Android compares to know whether an APK is newer.
 
-**Da Android Studio (come prima, per provare).** *File → Open* e scegli questa cartella (`android`); *Build → Build APK(s)*. Senza chiave
-l'APK è quello di prova (debug), firmato con la chiave di Android Studio: **non** si può sovrapporre a quello costruito da GitHub (firme diverse):
-va disinstallata l'altra app. `app/google-services.json` (da scaricare dalla console Firebase) serve solo per le notifiche; senza, l'app funziona ma all'avvio dice
-«Notifiche non attive». Non va caricato su GitHub (è nel `.gitignore`): per l'APK di GitHub si usa il segreto `GOOGLE_SERVICES_JSON`.
+For a new version **raise the number in `VERSION`**. With a number lower than the published one the workflow stops and says so
+(Android never installs an older version over a newer one). A wrong format stops the build with a message.
 
-## Firma
+## How the APK is made
 
-Android installa un aggiornamento solo se è firmato con la **stessa chiave** dell'app che sostituisce. La chiave dell'app di GitHub è
-`chiave/klippeye.p12` (formato PKCS12, alias `klippeye`, RSA 4096, valida 100 anni): la crea il workflow la prima volta e **la cifra con la password** che
-sta nel segreto `KLIPPEYE_CHIAVE_PASSWORD` (almeno 16 caratteri). Il file sta nel repository (pubblico) perché serve a ogni costruzione: la
-protezione è la password, quindi dev'essere una frase lunga e non va scritta da nessuna parte nel repository.
+**On GitHub (the normal way).** When something changes in `android/` *and* the number in `VERSION` is new, the workflow
+`.github/workflows/app.yml` builds the APK on GitHub's computer, signs it and puts it in `apk/KlippEye.apk` with `apk/version.json`
+(version, size, SHA-256 fingerprint, signature). The Raspberry receives it with the normal «Update KlippEye», the backend offers it to
+the phone (`/api/app/version`, `/app/KlippEye.apk`) and the dashboard in the app shows «Update the app». Step by step:
+[`docs/GUIDE.md`](../docs/GUIDE.md), appendix A.
 
-* Il workflow rifiuta di pubblicare un APK firmato con una chiave **diversa** da quella dell'app già pubblicata (i telefoni non potrebbero
-  aggiornarsi): per cambiare chiave davvero si cancella `chiave/klippeye.p12` e si rilancia a mano con «new_key». Poi le app già
-  installate vanno disinstallate e reinstallate una volta.
-* Per usare una chiave propria basta mettere il suo `.p12` (alias `klippeye`, stessa password per archivio e chiave) in `chiave/klippeye.p12`.
-* `app/build.gradle` firma la versione release solo se trova le variabili `KLIPPEYE_KEYSTORE` (percorso del file) e `KLIPPEYE_KEYSTORE_PASSWORD`.
+**With Android Studio (to try a change).** *File → Open* and choose this folder (`android`); *Build → Build APK(s)*. Without the key the
+APK is a debug one, signed with Android Studio's key: it **cannot** be installed over the one built by GitHub (different signatures),
+so that one must be uninstalled first. `app/google-services.json` (from the Firebase console) is needed only for Firebase notifications;
+it must not be committed (it is in `.gitignore`): GitHub's APK uses the secret `GOOGLE_SERVICES_JSON`.
 
-## L'app si aggiorna da sola
+## Signing
 
-La dashboard dentro l'app (Impostazioni → Aggiornamenti → *App Android*) confronta la versione installata con quella che il backend offre.
-Il ponte che l'app mette a disposizione della pagina (`window.KlippEyeApp`, user agent **`KlippEyeApp/5`**):
+Android installs an update only when it is signed with the **same key** as the app it replaces. The key of GitHub's app is
+`chiave/klippeye.p12` (PKCS12, alias `klippeye`, RSA 4096, valid 100 years): the workflow makes it the first time and **encrypts it with the
+password** in the secret `KLIPPEYE_CHIAVE_PASSWORD` (at least 16 characters). The file is in the (public) repository because every build
+needs it: the password is what protects it, so it must be a long sentence and must never be written in the repository. The folder and the
+secret keep their first names: renaming them would break the repositories that already build the app.
 
-| Chiamata | Cosa fa |
+* The workflow refuses to publish an APK signed with a key **different** from the published app's (the phones could not update): to
+  really change key, delete `chiave/klippeye.p12` and start the workflow by hand with «new_key». The installed apps must then be
+  uninstalled and installed again, once.
+* To use your own key, put its `.p12` (alias `klippeye`, the same password for the store and the key) in `chiave/klippeye.p12`.
+* `app/build.gradle` signs the release build only when it finds the variables `KLIPPEYE_KEYSTORE` (the file's path) and `KLIPPEYE_KEYSTORE_PASSWORD`.
+
+## The app updates itself
+
+The dashboard in the app (Settings → Updates → *Android app*) compares the installed version with the one the backend offers.
+The bridge the app gives the page (`window.KlippEyeApp`):
+
+| Call | What it does |
 |---|---|
-| `appInfo()` | restituisce `{"version":"1.0.0","code":10000,"canInstall":true}` (`canInstall`: Android ha già dato il permesso «Installa app sconosciute») |
-| `updateApp(path, version, sha256, size)` | scarica `/app/KlippEye.apk` dal backend e apre l'installazione di Android. Tutti i valori sono quelli annunciati dal backend, in testo |
-| `window.klippeyeAppUpdate({stato, ...})` | la risposta, chiamata dall'app: `scarico` (`fatto`, `totale` in byte), `permesso`, `installazione`, `errore` (`messaggio`) |
+| `appInfo()` | answers `{"version":"1.0.0","code":10000,"canInstall":true}` (`canInstall`: Android already allows «Install unknown apps») |
+| `updateApp(path, version, sha256, size)` | downloads `/app/KlippEye.apk` from the backend and opens Android's installer; all values are the backend's, as text |
+| `window.klippeyeAppUpdate({stato, ...})` | the answer, called by the app: `scarico` (downloading, `fatto` and `totale` in bytes), `permesso` (waiting for the permission), `installazione` (installer open), `errore` (`messaggio`, in the phone's language) |
 
-Cosa controlla l'app **prima** di installare (`Aggiornamento.kt`, provato da `tools/AggiornamentoTest.kt`):
+The names of the bridge (calls, fields, values) are shared with every dashboard version, old and new: they never change.
 
-1. l'indirizzo è quello del backend a cui è collegata (stesso protocollo, indirizzo e porta) e il percorso è esattamente `/app/KlippEye.apk`;
-2. la versione è più nuova di quella installata;
-3. il file scaricato ha la grandezza e l'impronta SHA-256 annunciate; un file diverso, troncato o più grande del previsto si butta (niente file a metà);
-4. un file già scaricato e identico (per esempio mentre si concede il permesso) si riusa.
+What the app checks **before** installing (`AppUpdate.kt`, tested by `AppUpdateTest`):
 
-E poi decide Android: chiede **sempre** conferma, e installa solo se la firma è quella dell'app attuale. Il permesso «Installa app sconosciute»
-(`REQUEST_INSTALL_PACKAGES`) si concede una volta: l'app apre la pagina giusta di Android e, tornando, riparte da sola. Con l'Auto Blocker di Samsung attivo il
-permesso non si può dare (va spento prima). L'APK scaricato sta in `cache/aggiornamenti/` (la sola cartella condivisa con l'installazione, `res/xml/file_paths.xml`)
-e si cancella all'apertura successiva. Dopo l'installazione Android chiude l'app: si riapre dall'icona.
+1. the address is the backend it is connected to (same protocol, address and port) and the path is exactly `/app/KlippEye.apk`;
+2. the version is newer than the installed one;
+3. the downloaded file has the announced size and SHA-256 fingerprint; a different, cut or bigger file is thrown away (nothing half-written);
+4. a file already downloaded and identical (while the permission was being granted, say) is used again.
 
-Una dashboard aperta in un'app più vecchia (`KlippEyeApp/3` o `/4`) non ha `updateApp`: il blocco «App Android» offre il download dell'APK nella cartella Download,
-da installare a mano, una volta sola.
+Then Android decides: it **always** asks to confirm, and installs only when the signature is the current app's. The «Install unknown apps»
+permission (`REQUEST_INSTALL_PACKAGES`) is granted once: the app opens the right Android page and, back from it, goes on by itself.
+With Samsung's Auto Blocker on the permission cannot be granted (switch it off first). The downloaded APK is in `cache/updates/` (the only
+folder shared with the installer, `res/xml/file_paths.xml`) and is deleted at the next start. After the installation Android closes the
+app: open it again from its icon.
 
-## Indirizzi del Raspberry
+A dashboard opened in an older app (`KlippEyeApp/3` or `/4`) has no `updateApp`: the «Android app» block offers the APK in the Download
+folder, to install by hand, once.
 
-Dalla 1.4.0 non ci sono indirizzi «di fabbrica»: al primo avvio l'app chiede l'IP locale del Raspberry (lo stesso di Mainsail) e, facoltativo, quello esterno
-(ZeroTier, VPN). Poi prova due giri, locale ed esterno alternati (2,5 s a tentativo); il primo che risponde vince, altrimenti mostra «Riprova» e «Indirizzi». Gli indirizzi si
-scelgono anche dal menu Impostazioni → *Indirizzi* della dashboard (che li comunica all'app con `setAddresses`). `setAddresses` accetta solo reti private (10.x, 172.16-31.x, 192.168.x, 100.64-127.x, nomi `.local`/`.lan`...): una pagina qualsiasi in un riquadro della dashboard
-(la camera «Pagina web») non deve poter dirottare l'app su un sito esterno.
+## The Raspberry's addresses
 
-Dalla 1.7.0, per ogni indirizzo l'app cerca KlippEye in quest'ordine: `https://indirizzo/` (solo se conosce il certificato del
-Raspberry), `http://indirizzo/` (senza porta: KlippEye 1.94 con nginx) e `http://indirizzo:8085/`, che c'è sempre. Un indirizzo vale solo
-se `api/auth/status` risponde come KlippEye (un JSON con `enabled`): all'indirizzo senza porta potrebbe esserci un'altra pagina.
-Le altre stampanti senza porta scritta si cercano allo stesso modo.
+There are no built-in addresses: at the first start the app asks for the Raspberry's local IP (the same address used to open the printer's
+web page in the browser) and, optionally, the external one (ZeroTier, VPN). Then it tries two rounds, local and external in turn (2.5 s
+per attempt); the first that answers wins, otherwise it shows «Try again» and «Addresses». The addresses can also be chosen in the
+dashboard's Settings menu, which passes them to the app with `setAddresses`. `setAddresses` accepts only private networks (10.x,
+172.16-31.x, 192.168.x, 100.64-127.x, `.local`/`.lan` names...): a page shown in a frame of the dashboard (the «Web page» camera) must
+not be able to send the app to an outside site.
 
-## HTTPS (app 1.7.0, `Certificati.kt`)
+For each address the app looks for KlippEye in this order: `https://address/` (only when it knows the Raspberry's certificate),
+`http://address/` (without a port: KlippEye 1.94 with nginx) and `http://address:8085/`, which is always there. An address counts only
+when `api/auth/status` answers as KlippEye (a JSON with `enabled`): another page may be at the address without a port. The other
+printers without a written port are looked for the same way.
 
-Il certificato HTTPS di KlippEye (1.93) lo crea il Raspberry e nessuna autorità lo firma. La dashboard, appena aperta nell'app,
-passa l'impronta SHA-256 del certificato con `setCertificate` ("" se l'HTTPS è spento); l'app la ricorda per quell'indirizzo e
-da lì in poi apre la dashboard in https accettando **solo** quel certificato: nel WebView (`onReceivedSslError`), per i file
-scaricati e per l'aggiornamento dell'app. Un certificato diverso viene rifiutato e l'app ripiega su http.
+## HTTPS (`Certificates.kt`)
 
-## Collegamenti esterni e tasto indietro (app 7)
+KlippEye's HTTPS certificate (1.93) is made by the Raspberry and no authority signs it. The dashboard, as soon as it opens in the app,
+passes the certificate's SHA-256 fingerprint with `setCertificate` ("" when HTTPS is off); the app remembers it for that address and from
+then on opens the dashboard over https accepting **only** that certificate: in the WebView (`onReceivedSslError`), for downloaded files and
+for the app's update. Another certificate is refused and the app falls back to http.
 
-* Solo le pagine del Raspberry restano nella finestra: un collegamento a un altro sito, a uno store, a `ntfy://` o `intent://` si apre
-  nell'app di Android giusta (`shouldOverrideUrlLoading`, solo per la pagina principale: la camera nei riquadri resta dentro).
-* Il tasto indietro del telefono chiede prima alla dashboard (`window.klippeyeBack()`): chiude la guida o il dialogo aperto, torna alla
-  pagina precedente del menu o al passo precedente della configurazione guidata; solo se non c'è niente da chiudere torna indietro nel
-  WebView o esce.
-* `allowBackup="false"`: i dati dell'app (indirizzi, cookie di accesso) non finiscono nei backup di Google.
+## Links and the back key
 
-## Scelta e salvataggio dei file
+* Only the Raspberry's pages stay in the window: a link to another site, to a store, to `ntfy://` or `intent://` opens in the right
+  Android app (`shouldOverrideUrlLoading`, for the main page only: a camera in a frame stays inside).
+* The phone's back key asks the dashboard first (`window.klippeyeBack()`): it closes the open guide or dialog, goes back to the previous
+  page of the menu or step of the guided set-up; only when there is nothing to close does it go back in the WebView or leave the app.
+* `allowBackup="false"`: the app's data (addresses, login cookie) do not end up in Google's backups. The WebView does not open the
+  phone's own files as pages (`allowFileAccess` off).
 
-* **Carica file**: il selettore di file di Android (`onShowFileChooser`, nessun permesso in più).
-* **Download**: `window.KlippEyeApp.saveUrl(indirizzo, nome)` scarica dal Raspberry a cui l'app è collegata (niente altri siti, `blob:` o `data:`) e salva in **Download** (Android 10+ con MediaStore,
-  senza permessi; un nome già presente diventa `nome (1).ext`). Prima di Android 10 va in `Android/data/com.klippeye.app/files/Download`.
+## Choosing and saving files
 
-## Notifiche push
+* **Upload file**: Android's file picker (`onShowFileChooser`, no extra permission).
+* **Download**: `window.KlippEyeApp.saveUrl(address, name)` downloads from the Raspberry the app is connected to (no other sites, `blob:`
+  or `data:`) and saves in **Download** (Android 10+ through MediaStore, no permission; a name already taken becomes `name (1).ext`).
+  Before Android 10 it goes into `Android/data/com.klippeye.app/files/Download`.
 
-Dalla 1.3.0 l'app non ha **nessun argomento scritto dentro**: chiede al Raspberry a cui è collegata come riceverle
-(`GET /api/notifications/app`, dalla dashboard, ponte `KlippEyeApp.notifySetup`) e la persona lo sceglie con la procedura guidata
-della dashboard (Impostazioni → Notifiche → Questo telefono). Tutto in `Ascolto.kt`:
+## Push notifications
 
-* **ntfy** (tutti): `AscoltoNtfy` è un servizio in primo piano (`specialUse`, notifica fissa «KlippEye in ascolto» sul canale
-  `ascolto`, il meno visibile) che legge `<server>/<argomento>/json` riga per riga, si ricollega da solo (5 s → 60 s) e recupera i
-  messaggi persi con `since=<ultimo id>`. Riparte all'accensione del telefono e dopo un aggiornamento (`RiavvioAscolto`). Il canale
-  Android viene dalla priorità ntfy (5 allarmi, 4 avvisi, 3 stampa: la stessa tabella di `KIND_NTFY` nel notifier).
-* **Firebase** (solo l'installazione di chi mantiene il progetto): il Raspberry dà l'argomento Firebase **solo se ha la chiave**
-  (`service-account.json`); l'app vi si iscrive (anche prima della procedura, come con la 1.2.0) e se ne cancella quando non c'è più.
-  L'argomento scritto nelle app fino alla 1.2.0 era pubblico: l'app se ne cancella sempre e il Raspberry lo sostituisce con uno
-  segreto (`klippeye-fb-…`) la prima volta che una app 1.3.0 lo chiede.
-  Per chi mantiene il progetto: `google-services.json` del progetto Firebase (app Android `com.klippeye.app`) nel segreto
-  `GOOGLE_SERVICES_JSON`; la chiave del service account dello stesso progetto è `~/printer_data/klippeye/service-account.json` sul
-  proprio Raspberry, con `"topic"` in `notifier.json`. Senza Firebase l'app si costruisce lo stesso e usa ntfy.
-* Ponte (app 6): `notifySetup(json)`, `notifyState()`, `askNotificationPermission()`, `askBatteryExemption()`,
-  `openNotificationSettings()`; l'app avvisa la pagina con `window.klippeyeNotifyState(stato)`.
-* Canali (Impostazioni → App → KlippEye → Notifiche): `allarmi`, `avvisi`, `stampa`, `ascolto`. Con l'app aperta le notifiche
-  Firebase le mostra `KlippEyeMessagingService`.
+The app has **no topic written inside**: it asks the Raspberry it is connected to how to receive them (`GET /api/notifications/app`,
+from the dashboard, bridge `KlippEyeApp.notifySetup`) and the person chooses with the dashboard's guided set-up (Settings →
+Notifications → This phone). All in `PushSettings.kt`:
 
-## Icona e splash
+* **ntfy** (everyone): `NtfyListenerService` is a foreground service (`specialUse`, the ongoing notification «KlippEye is listening» on
+  the `ascolto` channel, the least visible) that reads `<server>/<topics>/json` line by line, reconnects by itself (5 s → 60 s) and gets
+  the missed messages with `since=<last id>`. It starts again with the phone and after an update (`BootReceiver`). The Android channel
+  comes from the ntfy priority (5 alarms, 4 warnings, 3 print: the same table as `KIND_NTFY` in the notifier).
+* **Firebase** (only the installation of whoever maintains the project): the Raspberry gives the Firebase topic **only when it has the
+  key** (`service-account.json`); the app subscribes to it and leaves it when it is gone. The topic written in the apps up to 1.2.0 was
+  public: the app always leaves it, and the Raspberry replaces it with a secret one (`klippeye-fb-…`).
+  For the maintainer: `google-services.json` of the Firebase project (Android app `com.klippeye.app`) in the secret
+  `GOOGLE_SERVICES_JSON`; the service account key of the same project is `~/printer_data/klippeye/service-account.json` on their own
+  Raspberry, with `"topic"` in `notifier.json`. Without Firebase the app is built anyway and uses ntfy.
+* Bridge: `notifySetup(json)`, `notifyState()`, `askNotificationPermission()`, `askBatteryExemption()`, `openNotificationSettings()`;
+  the app tells the page with `window.klippeyeNotifyState(state)`.
+* Channels (Settings → Apps → KlippEye → Notifications): `allarmi`, `avvisi`, `stampa`, `ascolto`. Their ids are those of the
+  notifier and Android keeps the person's settings under them, so they never change; their names follow the phone's language.
+  With the app open, Firebase notifications are shown by `KlippEyeMessagingService`.
 
-Stile One UI 9 con i colori del logo KlippEye: accento viola chiaro `#b79cff`, fondo `#040507` con il viola scuro `#7a5cff` che sfuma verso il nero (come la dashboard), «pillola» di vetro per lo stato.
-L'icona adattiva ha per fondo il riquadro viola scuro del logo e, sopra, il logo su un livello separato (anche la versione tematica di Android 13+, a un solo colore); la splash e la notifica usano il logo senza riquadro.
-Le immagini si rigenerano con `python3 tools/genera_icone.py` e `python3 tools/genera_icona_notifica.py` (Pillow e numpy; il logo è in `tools/assets/`: `klippeye_g4.svg` è il sorgente, `logo_klippeye.png` a colori e `logo_klippeye_mono.png` a un colore).
-Colori in `res/values/colors.xml`, temi in `res/values/` e `res/values-v31/`.
+The preferences the app stores keep the names of its first versions (`ip_locale`, `ricevi`, `argomento`...), so an update keeps
+the addresses and the choices of the phone.
 
-## Prove
+## Icon and splash
 
-Senza telefono né Gradle, da questa cartella (servono `kotlinc` e `android.jar` dell'SDK):
+The KlippEye logo's colours: light violet accent `#b79cff`, background `#040507` with the dark violet `#7a5cff` fading to black (as in
+the dashboard), a glass «pill» for the status. The adaptive icon has the logo's dark violet tile as background and the logo on its own
+layer above (also the themed version of Android 13+, in one colour); the splash and the notification use the logo without the tile.
+The pictures are made again with `python3 tools/make_icons.py` and `python3 tools/make_notification_icon.py` (Pillow and numpy; the logo
+is in `tools/assets/`: `klippeye_g4.svg` and `klippeye_g4_mono.svg` are the sources, `logo_klippeye.png` in colour and
+`logo_klippeye_mono.png` in one colour). Colours in `res/values/colors.xml`, themes in `res/values/` and `res/values-v31/`.
+
+## Tests
 
 ```
-kotlinc app/src/main/java/com/klippeye/app/Aggiornamento.kt tools/AggiornamentoTest.kt -d prova
-java -cp prova:kotlin-stdlib.jar com.klippeye.app.AggiornamentoTestKt
-
-kotlinc -cp android.jar app/src/main/java/com/klippeye/app/Indirizzi.kt tools/IndirizziTest.kt -d prova2
-java -cp prova2:kotlin-stdlib.jar:android.jar com.klippeye.app.IndirizziTestKt
+./gradlew testDebugUnitTest
 ```
 
-`AggiornamentoTest.kt` avvia un piccolo server che fa da backend (anche quando sbaglia: file rovinato, troncato, più grande, 404, 500) e prova controlli e scaricamento.
-Il resto del codice (finestra, ponte, installazione) è stato compilato con Kotlin 1.9.10 contro `android.jar` (API 34), ma **non provato su un telefono** e la costruzione con Gradle non
-è stata eseguita nell'ambiente di sviluppo: al primo giro conviene guardare il workflow su GitHub e provare l'aggiornamento una volta con il Raspberry acceso.
+`AppUpdateTest` starts a small server that stands in for the backend (also when it goes wrong: damaged, cut or bigger file, 404, 500) and
+tests the checks and the download; `AddressesTest` the addresses, the other printers, the certificate fingerprints and how the
+notifications arrive. GitHub runs them, and builds the app, on every pull request (the *Tests* workflow).

@@ -651,7 +651,7 @@ Il blocco cambia secondo dove è aperta la dashboard:
 Il numero di versione dell'app (`android/VERSION`, tre numeri 0–99) diventa `versionCode = maggiore*10000 + minore*100 + correzione`
 (1.0.0 → 10000), con la stessa formula in Gradle, nell'app, in `ci/app_ci.py` e nel Brain. Prove: `tests/ui/app_test.py` (tutti i casi del
 blocco, con un Brain finto e un'app finta), `tests/app/app_ci_test.py` (le decisioni e i controlli del workflow) e
-`android/tools/AggiornamentoTest.kt` (la parte dell'app che scarica e controlla, provata con un server vero).
+`android/app/src/test/.../AppUpdateTest.kt` (la parte dell'app che scarica e controlla, provata con un server vero).
 
 - Prove: `tests/ui/software_test.py` (soglie, pagina Aggiornamenti, tutti i percorsi dell'aggiornamento con il Brain finto che si riavvia),
   `vzrepo/` con `e2e/e2e_test.py` (installatore e aggiornamenti con un Moonraker vero e systemd finto) e `brain_tests/test_brain.py`.

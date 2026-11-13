@@ -3,25 +3,25 @@ plugins {
     id 'org.jetbrains.kotlin.android'
 }
 
-// La versione dell'app e' scritta in UN posto solo: il file android/VERSION ("1.0.0"). Da li' si ricavano il nome e il numero
-// interno che Android confronta per sapere se un APK e' piu' nuovo di quello installato:
-//   versionCode = maggiore * 10000 + minore * 100 + correzione   (1.0.0 -> 10000, 1.2.3 -> 10203)
-// Ogni numero va da 0 a 99. Per fare una versione nuova basta alzare il numero in android/VERSION.
+// The app's version is written in ONE place: android/VERSION ("1.0.0"). From it come the name and the internal number
+// Android compares to know whether an APK is newer than the installed one:
+//   versionCode = major * 10000 + minor * 100 + patch   (1.0.0 -> 10000, 1.2.3 -> 10203)
+// Each number goes from 0 to 99. For a new version, raise the number in android/VERSION.
 def versionText = rootProject.file('VERSION').text.trim()
 def versionMatch = (versionText =~ /^(\d{1,2})\.(\d{1,2})\.(\d{1,2})$/)
 if (!versionMatch.matches()) {
-    throw new GradleException("android/VERSION deve contenere tre numeri da 0 a 99 separati da punti (per esempio 1.0.1): trovato '${versionText}'")
+    throw new GradleException("android/VERSION must hold three numbers from 0 to 99 separated by dots (for example 1.0.1): found '${versionText}'")
 }
 def appVersionCode = versionMatch.group(1).toInteger() * 10000 + versionMatch.group(2).toInteger() * 100 + versionMatch.group(3).toInteger()
 
-// Firma dell'APK. La mette il computer di GitHub (vedi docs/GUIDA.md, "L'app Android"): passa il file della chiave e la
-// password con queste variabili. Sul proprio computer, senza variabili, la versione "release" resta non firmata (come prima)
-// e la versione "debug" di Android Studio si firma da sola con la chiave di prova.
+// The APK's signature. GitHub's computer adds it (see docs/GUIDE.md, "Building your own Android app"): it passes the key file
+// and its password in these variables. On your own computer, without them, the "release" build stays unsigned and the
+// "debug" build of Android Studio is signed with its own test key.
 def keystoreFile = System.getenv('KLIPPEYE_KEYSTORE')
 def keystorePassword = System.getenv('KLIPPEYE_KEYSTORE_PASSWORD')
 
-// Notifiche push: Firebase legge la sua configurazione da app/google-services.json (scaricato dalla console Firebase).
-// Se il file non c'e' l'app si costruisce lo stesso e funziona come prima, ma senza notifiche: all'avvio lo dice con un messaggio.
+// Push notifications: Firebase reads its configuration from app/google-services.json (downloaded from the Firebase console).
+// Without the file the app is built anyway and receives the notifications through ntfy only.
 if (file('google-services.json').exists()) {
     apply plugin: 'com.google.gms.google-services'
 }
@@ -66,7 +66,7 @@ android {
         jvmTarget = '1.8'
     }
     lint {
-        // Gli avvisi di "lint" non devono fermare la costruzione dell'APK sul computer di GitHub
+        // lint's warnings must not stop the build of the APK on GitHub's computer
         checkReleaseBuilds false
         abortOnError false
     }
@@ -79,4 +79,7 @@ dependencies {
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
     implementation platform('com.google.firebase:firebase-bom:33.1.2')
     implementation 'com.google.firebase:firebase-messaging'
+
+    // the tests of the parts that need no phone (app/src/test): ./gradlew testDebugUnitTest
+    testImplementation 'junit:junit:4.13.2'
 }
