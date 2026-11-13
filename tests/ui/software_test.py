@@ -156,11 +156,15 @@ with sync_playwright() as p:
     ok("Monitor IA page: a row leads to the thresholds", pg.locator('.set-entry[data-page="detector"]').count() == 1)
     pg.click('.set-entry[data-page="detector"]'); P.settle(600)
     ok("the thresholds page opens with its title", pg.locator(".drawer__title").inner_text() == "Soglie del monitor")
-    wanted = ["rilevamento del movimento", "falsi allarmi", "pause e consumi", "quando comincia a controllare", "modello locale", "senza calibrazione della telecamera: il rettangolo controllato"]
-    ok("the groups are the ones the backend declares", wait_until(lambda: [t.lower() for t in pg.locator(".set-group__label").all_inner_texts()] == wanted), pg.locator(".set-group__label").all_inner_texts())
+    wait_until(lambda: pg.locator("[data-fine]").count() == 1)
+    pg.click("[data-fine]"); P.settle(400)   # 1.124: the numbers are under «Fine adjustments»
+    # 1.124: how watchful it is, then the numbers grouped by what they do (no local model here: its group is not shown)
+    wanted = ["quanto è attento", "opencv: cosa conta come cambiamento", "opencv: lo sfondo e la luce", "pause", "quando comincia a controllare", "senza calibrazione della telecamera: il rettangolo controllato"]
+    labels = lambda: [t.split("\n")[0].strip().lower() for t in pg.locator(".set-group__label").all_inner_texts()]
+    ok("the groups: how watchful it is, then the fine adjustments", wait_until(lambda: labels() == wanted), labels())
     ok("a line says the monitor is on", "Il monitor è acceso" in pg.locator(".set-status").first.inner_text(), pg.locator(".set-status").first.inner_text())
     ok("a number shows its usual value in its box", num_box(P, "Soglia di cambiamento").input_value() == "35" and num_box(P, "Controlli sospetti prima dell'allarme").input_value() == "3")
-    ok("a decimal is shown with a comma", num_box(P, "Movimento ai bordi").input_value() == "2,5", num_box(P, "Movimento ai bordi").input_value())
+    ok("a decimal is shown with a comma", num_box(P, "Area cambiata per un controllo sospetto").input_value() == "2,5", num_box(P, "Area cambiata per un controllo sospetto").input_value())
     ok("nothing was written to the backend by merely looking", cfg_log() == [])
     ok("the reset button is off while nothing differs", pg.locator("button", has_text="Ripristina i valori predefiniti").is_disabled())
     P.shot(out + "/detector_top.png")
@@ -198,6 +202,8 @@ with sync_playwright() as p:
     ok("1.27: no free-text model field any more on the AI monitor page", pg.locator("input[placeholder='predefinito']").count() == 0 and pg.locator('[data-ai-use="monitor"]').count() == 1)
     pg.locator(".drawer__title").click(); P.settle(300)
     pg.click('.set-entry[data-page="detector"]'); P.settle(900)
+    if pg.locator("[data-fine='closed']").count():
+        pg.click("[data-fine]"); P.settle(400)
 
     # the area
     area_inputs = tile(P, "Area controllata").locator(".set-grid input")
