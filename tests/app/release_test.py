@@ -82,6 +82,12 @@ ok("after the app commit (only apk/ changed since the tested merge): tag v1.2.0 
 d = release.decide(w, "0" * 40)
 ok("an unknown tested commit: no tag", not d["tag"], d)
 
+# --- a minor of three digits (1.119.0) is a release number: until 1.120.0 it was refused, and no tag followed 1.94.0
+w = world()
+y = commit(w, {"VERSION": "1.119.0\n", "CHANGELOG.md": "# Changelog\n\n## 1.119.0\n\n* Three digits.\n"}, "1.119.0")
+d = release.decide(w, y)
+ok("VERSION 1.119.0: tagged, with its notes", d["tag"] and d["version"] == "1.119.0" and d["notes"] == "* Three digits.", d)
+
 # --- a broken VERSION is never tagged
 w = world()
 x = commit(w, {"VERSION": "sviluppo\n"}, "x")

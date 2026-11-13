@@ -1,8 +1,11 @@
 # Il modello locale del monitor IA
 
-Un piccolo modello che gira **sul Raspberry**, senza internet e senza costi, e dice quanto è probabile che una foto mostri
-una stampa fallita (spaghetti, pezzo staccato…). Lo addestri **una volta** su un computer o su Google Colab con foto
-pubbliche e, se vuoi, con le tue; poi lo misuri sulle tue stampe prima di usarlo.
+*In English: [README.md](README.md).*
+
+Il modello locale è un piccolo modello per immagini che gira sul Raspberry, senza internet e senza costi, e dice quanto è
+probabile che una foto mostri una stampa fallita (spaghetti, pezzo staccato…). KlippEye ne ha già uno (`models/base/`):
+questa cartella contiene gli strumenti che lo creano. Ti servono solo per addestrarne uno tuo, su un computer o su Google
+Colab, con foto pubbliche e, se vuoi, con le tue; poi lo misuri sulle tue stampe prima di usarlo.
 
 Il modello è MobileNetV3-Small (licenza BSD), parte da ciò che sa già sulle immagini (ImageNet) e impara solo com'è una
 stampa fallita. Sul Raspberry lo esegue OpenCV, già installato con KlippEye: non serve nient'altro.

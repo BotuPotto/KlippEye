@@ -1,7 +1,11 @@
-# KlippEye — Android app
+# KlippEye Android app
+
+To install and use the app, see the [user guide, chapter 7](../docs/GUIDE.md#7-the-android-app). This page is for those who
+build or change it.
 
 The app is a full-screen window (WebView) on the dashboard that runs on the Raspberry, with the KlippEye icon and splash,
-push notifications, file downloads and **updates by itself**. Current version: the number in [`VERSION`](VERSION).
+push notifications, file downloads and updates that install from the dashboard. Its version is the number in
+[`VERSION`](VERSION).
 
 ```
 android/
@@ -54,7 +58,7 @@ For a new version **raise the number in `VERSION`**. With a number lower than th
 `.github/workflows/app.yml` builds the APK on GitHub's computer, signs it and puts it in `apk/KlippEye.apk` with `apk/version.json`
 (version, size, SHA-256 fingerprint, signature). The Raspberry receives it with the normal «Update KlippEye», the backend offers it to
 the phone (`/api/app/version`, `/app/KlippEye.apk`) and the dashboard in the app shows «Update the app». Step by step:
-[`docs/GUIDE.md`](../docs/GUIDE.md), appendix A.
+[`docs/GUIDE.md`](../docs/GUIDE.md#a-building-your-own-android-app), appendix A.
 
 **With Android Studio (to try a change).** *File → Open* and choose this folder (`android`); *Build → Build APK(s)*. Without the key the
 APK is a debug one, signed with Android Studio's key: it **cannot** be installed over the one built by GitHub (different signatures),

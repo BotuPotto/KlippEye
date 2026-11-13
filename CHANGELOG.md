@@ -1,5 +1,19 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.120.0
+
+**New guides, written from scratch for whoever uses the printer.** The [user guide](https://github.com/BotuPotto/KlippEye/blob/main/docs/GUIDE.md) goes from installing to
+everyday use, with what to do when something goes wrong and the questions people ask; the dashboard has its own reference,
+[page by page](https://github.com/BotuPotto/KlippEye/blob/main/docs/FEATURES.md). Both are in Italian too ([GUIDA](https://github.com/BotuPotto/KlippEye/blob/main/docs/GUIDA.md), [FUNZIONI](https://github.com/BotuPotto/KlippEye/blob/main/docs/FUNZIONI.md)), with
+pictures of the dashboard. The README, the contributing and security pages and the other READMEs were rewritten as well.
+
+**GitHub releases again.** The releases stopped at 1.94.0 because a release number with three digits in the middle
+(1.100.0 and later) was not recognised. They are tagged again, and this one gets its own release page.
+
+* Numbers in English (and the other languages that use a point) are written with a point: «6.3 mm³/s», not «6,3».
+* «KlippEye found 1 lights» is now «KlippEye found one light».
+* The guided set-up says that the online AI is optional: without a key the local model judges alone.
+
 ## 1.119.0
 
 **The AI monitor can do without the online AI.** Settings → AI monitor → The AI service → «Who judges the pictures»:

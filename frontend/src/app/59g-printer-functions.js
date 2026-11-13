@@ -287,7 +287,9 @@ function LightsSettings({ settings, resolved, capabilities, update, editor, crea
         lights.configured
           ? tx("Your list of lights ({count}). The round button on the camera switches the ones marked; its arrow opens them all, with brightness, colour and scenes.", { count: items.length })
           : items.length
-            ? tx("KlippEye found {count} lights on your printer (pairs of light macros, LED outputs, pins named as lights). Change anything and the list stays as you leave it.", { count: items.length })
+            ? items.length === 1
+              ? tx("KlippEye found one light on your printer (pairs of light macros, LED outputs, pins named as lights). Change anything and the list stays as you leave it.")
+              : tx("KlippEye found {count} lights on your printer (pairs of light macros, LED outputs, pins named as lights). Change anything and the list stays as you leave it.", { count: items.length })
             : tx("KlippEye found no light on your printer: add one, or create the two macros."),
       ),
       lights.configured && h("button", { type: "button", className: "oui-btn oui-btn--quiet oui-btn--sm set-inline-btn", "data-refind": "1", onClick: () => setRefinding(true) }, h(Icons.Refresh, { size: 16 }), tx("Find the lights again")),

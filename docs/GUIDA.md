@@ -1,704 +1,510 @@
 # Guida di KlippEye
 
-KlippEye è una dashboard, un servizio e un monitor IA della stampa per stampanti 3D con **Klipper + Moonraker** su un Raspberry Pi
-(o un qualsiasi computer Linux accanto alla stampante), con notifiche push e un'app Android. Questa guida va dall'installazione
-all'uso di tutti i giorni. *English version: [GUIDE.md](GUIDE.md) (è quella di riferimento: questa ne è la traduzione).*
+Questa guida ti porta da una stampante con Klipper a una stampante che puoi guardare e comandare dal telefono, con un'IA
+che tiene d'occhio le stampe. Non serve conoscere Linux: quando c'è da scrivere un comando, lo trovi già pronto da copiare.
 
-**Avvio rapido (circa 15 minuti):** installa con le due righe del [capitolo 2](#2-installazione), apri
-`http://<indirizzo del Raspberry>` (senza porta; `:8085` se nginx non è installato) e segui la **configurazione guidata** che si apre da sola ([capitolo 3](#3-prime-impostazioni)).
-Il resto di questa guida c'è quando ti serve; ogni pagina della dashboard ha anche il suo **?**.
+Non serve leggerla tutta: i capitoli da 1 a 3 bastano per partire, il resto è qui per quando ti serve. Per sapere cosa fa
+ogni card e ogni impostazione della dashboard c'è [Il pannello, pagina per pagina](FUNZIONI.md).
 
-**Indice:** 1. [Cosa serve](#1-cosa-serve) · 2. [Installazione](#2-installazione) · 3. [Prime impostazioni](#3-prime-impostazioni) ·
-4. [Aggiornamenti](#4-aggiornamenti) · 5. [Monitor IA](#5-monitor-ia) · 6. [App Android e notifiche](#6-app-android-e-notifiche) ·
-7. [Password e sicurezza](#7-password-e-sicurezza) · 8. [Dopo un blackout](#8-dopo-un-blackout) ·
-9. [Dove stanno le cose](#9-dove-stanno-le-cose) · 10. [Se qualcosa non va](#10-se-qualcosa-non-va) ·
-A. [Costruire la propria app Android](#a-costruire-la-propria-app-android)
+Le immagini mostrano la dashboard con dati di prova. *This guide is also available in English: [GUIDE.md](GUIDE.md).*
 
----
+**Indice**
 
-## 1. Cosa serve
+1. [Prima di cominciare](#1-prima-di-cominciare)
+2. [Installazione](#2-installazione)
+3. [Il primo avvio](#3-il-primo-avvio)
+4. [La telecamera](#4-la-telecamera)
+5. [Il monitor IA](#5-il-monitor-ia)
+6. [Le notifiche sul telefono](#6-le-notifiche-sul-telefono)
+7. [L'app Android](#7-lapp-android)
+8. [Usarla fuori casa](#8-usarla-fuori-casa)
+9. [Aggiornamenti](#9-aggiornamenti)
+10. [Password e sicurezza](#10-password-e-sicurezza)
+11. [Home Assistant e MQTT](#11-home-assistant-e-mqtt)
+12. [Più di una stampante](#12-più-di-una-stampante)
+13. [Quando qualcosa non va](#13-quando-qualcosa-non-va)
+14. [Domande frequenti](#14-domande-frequenti)
+15. [Togliere KlippEye](#15-togliere-klippeye)
 
-**Da avere già:**
+Appendici: [A. Compilare la tua app Android](#a-compilare-la-tua-app-android) ·
+[B. Dove KlippEye tiene i suoi file](#b-dove-klippeye-tiene-i-suoi-file) · [C. Comandi del terminale](#c-comandi-del-terminale)
 
-* una stampante con **Klipper e Moonraker** su un Raspberry Pi (o un qualsiasi computer Linux accanto alla stampante), installati
-  con KIAUH, con un'immagine già pronta per stampanti o a mano. Le altre interfacce web della stampante possono
-  restare: KlippEye lavora accanto a loro;
-* l'**accesso SSH** al Raspberry, **una volta**, per l'installazione (con il tuo utente: non serve che sia `pi`). Tutto il resto si
-  fa dalla dashboard;
-* internet sul Raspberry (per installare, per gli aggiornamenti, per le notifiche e per il monitor IA).
+## 1. Prima di cominciare
 
-**Facoltativi:** una **telecamera** con crowsnest (le immagini già pronte e KIAUH lo installano già), la **chiave di un
-servizio IA** per il monitor IA (Groq è gratis), un **telefono** per le notifiche (Android con l'app KlippEye, o qualsiasi telefono
-con l'app ntfy).
+Ti serve:
 
-**Cosa installa KlippEye da solo** (con `apt`, chiedendo la password una volta, solo se manca):
+- una stampante con Klipper e Moonraker su un Raspberry Pi o un altro computer Linux accanto alla stampante. Non importa
+  come li hai installati (un'immagine già pronta, KIAUH o a mano). Se usi già un'interfaccia web per Klipper, lasciala dov'è:
+  KlippEye le sta accanto e non la cambia;
+- l'accesso SSH al Raspberry, solo per l'installazione. SSH è il modo di scrivere comandi sul Raspberry dal tuo computer:
+  su Windows, macOS e Linux apri un terminale e scrivi `ssh <utente>@<indirizzo del Raspberry>`;
+- internet sul Raspberry, per installare e aggiornare.
+
+Utili ma non obbligatori:
+
+- una telecamera sulla stampante, per guardare la stampa e per il monitor IA. Se la vedi già nella tua interfaccia
+  attuale, KlippEye la trova;
+- un telefono per le notifiche: Android con l'app KlippEye, oppure qualsiasi telefono (anche iPhone) con l'app gratuita
+  ntfy.
+
+Cosa aggiunge da solo l'installatore, solo se manca (ti chiede la password una volta):
 
 | Pacchetto | A cosa serve |
 |---|---|
-| `git` | aggiornamenti e autoriparazione dopo un blackout |
-| `python3-flask`, `python3-waitress`, `python3-requests` | il servizio KlippEye e la dashboard |
-| `python3-numpy` | la calibrazione della telecamera (e il monitor IA) |
-| `python3-opencv` | il monitor IA: guardare le foto della telecamera (si salta con `--no-ai`) |
+| `git` | gli aggiornamenti, e la riparazione dopo un calo di corrente |
+| `python3-flask`, `python3-waitress`, `python3-requests` | il servizio KlippEye che fa funzionare la dashboard |
+| `python3-numpy` | la calibrazione della telecamera e il monitor IA |
+| `python3-opencv` | il monitor IA, per guardare le foto della telecamera (non viene installato con `--no-ai`) |
 
-Funziona su Raspberry Pi OS e sulle immagini per stampanti basate su di esso, di ogni versione recente (Debian 11 «Bullseye», 12 «Bookworm», 13 «Trixie») con Python
-3.7 o più nuovo. Sul tuo computer non va installato niente: basta un browser.
+KlippEye funziona su Raspberry Pi OS e sulle immagini per stampanti basate su di esso (Debian 11, 12 e 13), con Python 3.7 o
+più recente. Sul telefono e sul computer non si installa niente: basta il browser.
 
 ## 2. Installazione
 
-Collegati al Raspberry con SSH (`ssh <utente>@<indirizzo del Raspberry>`; sulle immagini già pronte per stampanti l'utente di solito è `pi`) e incolla queste
-righe, una alla volta:
+1. Collegati al Raspberry da un terminale del tuo computer:
 
-```
-sudo apt update && sudo apt install -y git
-git clone https://github.com/BotuPotto/KlippEye.git ~/klippeye
-bash ~/klippeye/scripts/install.sh
-```
+   ```bash
+   ssh pi@192.168.1.20
+   ```
 
-La prima riga serve solo se `git` non c'è ancora (sulle immagini già pronte per stampanti c'è già: non fa danni). L'installazione controlla cosa manca e lo
-installa da sola: la prima volta, con OpenCV, ci vogliono alcuni minuti; poi circa un minuto. Ogni passo dice `OK`; se qualcosa non va
-lo scrive in chiaro (`WARNING` o `ERROR`) e dice cosa fare (i messaggi dell'installazione sono in inglese). Alla fine mostra
-l'indirizzo della dashboard e `Moonraker sees KlippEye`.
+   Usa il tuo utente e il tuo indirizzo. Sulle immagini già pronte per stampanti l'utente di solito è `pi`. L'indirizzo è
+   quello che scrivi oggi nel browser per aprire la stampante.
 
-Cosa fa l'installazione:
+2. Incolla queste righe, una alla volta, premendo Invio dopo ognuna:
 
-* controlla **Python, git e i moduli** che servono e **installa quelli che mancano** (tabella qui sopra). Senza `flask`, `requests`
-  o `numpy` si ferma prima di toccare qualunque cosa e dice il comando da scrivere;
-* crea la **cartella dei dati** `~/printer_data/klippeye` (impostazioni, chiave dell'IA, notifiche): gli aggiornamenti non la
-  toccano mai. Va bene qualunque utente, non solo `pi`: le cartelle della stampante (config, log, `printer_data` o
-  `printer_1_data` con più stampanti, la vecchia `~/klipper_config`) vengono chieste a Moonraker. Per scegliere la cartella a mano:
-  `KLIPPEYE_PRINTER_DATA=~/printer_2_data bash ~/klippeye/scripts/install.sh`;
-* installa i servizi **`klippeye`** (il servizio KlippEye con la dashboard, porta **8085**) e **`klippeye-notifier`** (notifiche push e
-  pausa automatica), che partono a ogni accensione. Se il servizio KlippEye nuovo non risponde rimette tutto com'era;
-* aggiunge due comandi da terminale, `klippeye` e `klippeye-notifiche`;
-* collega KlippEye all'**update manager di Moonraker** (una voce `[update_manager klippeye]` in `moonraker.conf` e due righe in
-  `moonraker.asvc`, con copie di sicurezza) e riavvia Moonraker, a meno che stia stampando.
+   ```bash
+   sudo apt update && sudo apt install -y git
+   git clone https://github.com/BotuPotto/KlippEye.git ~/klippeye
+   bash ~/klippeye/scripts/install.sh
+   ```
 
-Si può rilanciare quando si vuole: ripara senza rompere niente. Opzioni:
+   La prima riga installa `git` se manca (se c'è già, non fa danni). La seconda scarica KlippEye nella cartella `klippeye`
+   del tuo utente. La terza lo installa.
 
-* `--no-ai`: non installa OpenCV (il monitor IA resta spento; si aggiunge dopo rilanciando senza `--no-ai`);
-* `--no-packages`: non installa niente con `apt`, dice solo cosa manca;
-* `--no-moonraker`: non tocca la configurazione di Moonraker;
-* `--channel=dev`: ogni modifica invece delle versioni provate (vedi 4);
-* `--undo`: toglie servizi, comandi e voce di Moonraker (le cartelle e i pacchetti restano);
-* `--help`.
+3. Aspetta la fine. La prima volta ci vuole qualche minuto, per via di OpenCV. Ogni passo scrive `OK`. Se qualcosa non
+   va compare `WARNING` o `ERROR`, con la spiegazione di cosa fare. Alla fine leggi l'indirizzo della dashboard e
+   `Moonraker sees KlippEye`.
 
-Apri la dashboard: **`http://<indirizzo del Raspberry>`**, senza porta: l'installazione mette KlippEye all'indirizzo del Raspberry e sposta la pagina che c'era sulla porta 81 (o la prima libera; `klippeye web restore` le ridà l'indirizzo). Anche la porta 8085 continua a funzionare, ed è l'indirizzo quando nginx non è installato. Si apre la
-**configurazione guidata** (capitolo 3).
+4. Apri la dashboard: scrivi nel browser `http://<indirizzo del Raspberry>`, per esempio `http://192.168.1.20`.
 
-**La telecamera e il monitor IA.** Il monitor IA e la calibrazione prendono una foto alla volta dalla telecamera (lo *snapshot*). Di solito
-non c'è niente da fare: con crowsnest l'indirizzo è `/webcam/?action=snapshot` e KlippEye lo ricava da solo. Per controllarlo:
-**Impostazioni → Telecamera → Snapshot → Prova: scatta una foto** mostra la foto esattamente come la riceve il Raspberry. Con un'altra
-telecamera scrivi lì l'indirizzo della sua foto singola (lo snapshot).
+   KlippEye prende l'indirizzo principale del Raspberry (la porta 80) e la pagina web che c'era si sposta sulla porta **81**
+   (o sulla prima libera dopo; l'installatore ti dice quale): la raggiungi ancora da `http://192.168.1.20:81`. Se preferisci
+   lasciare la pagina di prima all'indirizzo principale, scrivi `klippeye web restore`: KlippEye resta allora sulla porta
+   **8085** (`http://192.168.1.20:8085`), che funziona sempre in ogni caso.
 
-## 3. Prime impostazioni
+In breve, l'installatore controlla cosa manca e lo installa; crea la cartella dei tuoi dati (`~/printer_data/klippeye`), che
+gli aggiornamenti non toccano mai; crea due servizi, `klippeye` (la dashboard) e `klippeye-notifier` (le notifiche), che
+partono insieme al Raspberry; aggiunge il comando `klippeye` al terminale; collega KlippEye al gestore degli aggiornamenti di
+Moonraker (una sezione `[update_manager klippeye]` in `moonraker.conf`, con una copia di sicurezza del file) e riavvia
+Moonraker, a meno che non ci sia una stampa in corso.
 
-**La prima volta che apri la dashboard parte la configurazione guidata**: un benvenuto (lingua e tema), poi nome e logo,
-telecamera, funzioni della stampante, notifiche, monitor IA (la chiave gratuita, consigliato Google Gemini, e l'apprendimento
-dalle tue stampe) e, solo se ti servono, indirizzi, Home Assistant e password, con due righe di spiegazione ciascuno. Ogni passo
-si può saltare, e l'ultimo dice cosa è fatto e cosa resta da fare. Si ripete quando vuoi da **Impostazioni → Configurazione guidata**.
+Puoi rilanciare l'installatore quando vuoi: ripara quello che è rotto e lascia stare il resto.
 
-Ogni pagina ha un pulsante **?** nella barra del titolo che apre una breve guida (con un disegno dove serve: dove toccare l'ugello
-nella calibrazione, a cosa servono gli indirizzi, come arrivano le notifiche); alcuni gruppi hanno un loro piccolo **?**.
+Le opzioni si scrivono dopo `install.sh`:
 
-Tutto sta nel menu **☰ (Impostazioni)**, in quattro gruppi; la **ricerca** in cima trova qualsiasi pagina, anche quelle
-dentro un'altra (scrivi «soglie», «scuro», «password»…). Le impostazioni restano sul Raspberry e valgono su tutti i
-dispositivi (tranne quelle segnate «su questo dispositivo»). Sul telefono ogni pagina occupa tutto lo schermo; sul computer le
-impostazioni sono un pannello al centro, con l'elenco a sinistra.
-
-* **La stampante**
-  * **Le tue stampanti**: le altre stampanti con KlippEye nella tua rete (vedi più avanti).
-  * **Funzioni della stampante** (segnata *Da controllare* finché non la confermi): cosa fanno i pulsanti che usano le macro della
-    tua stampante, vedi sotto.
-  * **Macro**: come mostrare le macro (vedi più avanti).
-  * **Movimento e Z-offset**: cosa muove Z, i passi del movimento e quelli della card Z-offset.
-  * **Materiali**: i materiali della finestra della temperatura (nome, ugello e piatto), modificabili; con Spoolman la bobina in uso viene proposta per prima.
-* **Telecamera, monitor e notifiche**
-  * **Telecamera**: il metodo (WebRTC, MJPEG, MJPEG adattivo o una pagina web qualsiasi) e il suo indirizzo. **Importa dalla
-    stampante** li prende dalle telecamere già configurate sulla stampante (le tiene Moonraker). Ogni telecamera della stampante ha
-    la sua pagina; c'è anche **Timelapse** (vedi più avanti) e il collegamento alla calibrazione della telecamera per il monitor IA.
-  * **Monitor IA**: tutto il monitor IA (soglie, calibrazione della telecamera, registrazioni), vedi 5.
-  * **Notifiche**: dove arrivano (l'app KlippEye o l'app ntfy), quali ricevere e in che lingua (vedi 6).
-* **Aspetto e lingua**
-  * **Aspetto**: nome e logo, tema, colore, stile, card (vedi più avanti).
-  * **Lingua**: italiano, inglese, spagnolo, tedesco, francese, portoghese (Brasile), polacco, cinese semplificato, russo o ucraino, scelta su ogni dispositivo (*Automatica* segue la lingua del dispositivo).
-* **Rete e sistema**
-  * **Indirizzi**: servono solo se apri KlippEye da fuori casa con ZeroTier, Tailscale o un'altra VPN: l'IP locale del Raspberry e
-    quello esterno. Vuoti, la telecamera usa l'indirizzo da cui hai aperto la dashboard. In fondo, **Da fuori casa con
-    ZeroTier: la guida**: sei passi, con i comandi da copiare, per configurare ZeroTier (gratis fino a 10 dispositivi);
-    seguono la guida di [Pi My Life Up](https://pimylifeup.com/raspberry-pi-zerotier/).
-  * **Accesso**: la password facoltativa (vedi 7).
-  * **Home Assistant / MQTT**: la stampante in Home Assistant o in un altro sistema per la casa intelligente.
-  * **Aggiornamenti**: versione, nuove versioni, ritorno alla versione precedente, riavvio dei servizi, app Android.
-
-### Funzioni della stampante
-
-Ogni stampante parcheggia, pulisce l'ugello, carica il filamento o accende la luce con le sue macro (oppure non può farlo).
-**Impostazioni → Funzioni della stampante** dice cosa fa ogni pulsante della dashboard, e la prima volta KlippEye la compila da
-solo: cerca in Klipper i nomi più comuni (`PARK`, `CLEAN_NOZZLE`, `LOAD_FILAMENT`/`FILAMENT_LOAD`/`M701`,
-`UNLOAD_FILAMENT`/`M702`, una coppia come `LIGHTS_ON`/`LIGHTS_OFF`) e un'uscita per la luce. Controllala una volta e premi **Va
-tutto bene**. Per ogni funzione:
-
-* **Automatico**: quello che KlippEye ha trovato (la pagina dice cosa, oppure che non ha trovato niente e il pulsante non compare);
-* **Macro**: una delle tue macro (il campo suggerisce quelle che Klipper ha);
-* **G-code**: qualche riga scritta nell'editor della dashboard, che si apre sopra la pagina;
-* **Non usata**: il pulsante non compare;
-* **Crea una macro per questo**: KlippEye ne propone una (parcheggio in fondo, scalda e carica, scalda e scarica, pulizia su una
-  spazzola di cui imposti la posizione), si apre nell'editor e quando salvi finisce in **`klippeye_macros.cfg`**, un file di
-  KlippEye accanto a `printer.cfg`. La prima volta `printer.cfg` riceve `[include klippeye_macros.cfg]` in fondo (con una copia di
-  sicurezza nella cartella dei dati). Klipper lo legge dopo un riavvio: la pagina propone **Riavvia Klipper adesso** (non durante
-  una stampa). Una macro che esiste già nella tua configurazione non si può ricreare con lo stesso nome.
-
-**La luce** si può anche comandare direttamente sulla sua uscita (**Uscita**: un `[output_pin]`, `[led]`, `[neopixel]`...).
-Chiunque la cambi, il pulsante legge l'uscita stessa (e gli effetti di *klipper-led_effect* che ci girano sopra), quindi è sempre
-giusto, anche quando la luce viene cambiata da un altro programma, da uno schermo sulla stampante, dalla console o da una macro. Con le macro o il G-code
-scegli da dove il pulsante legge lo stato (oppure nessuna: mostra l'ultima richiesta).
-
-**Luci** (1.37): tutte quelle che ha la stampante. KlippEye le trova da solo — ogni coppia di macro delle luci (`LUCI_ON` /
-`LUCI_OFF`…), ogni uscita LED (`[led]`, `[neopixel]`, `[dotstar]`…) e i pin il cui nome dice luce — e le elenca sotto
-**Luci**: rinominane una, cambia come si comanda (un'uscita, due macro, G-code) e da dove si legge il suo stato, rimuovila o
-aggiungine altre; dalla prima modifica l'elenco è tuo (*Cerca di nuovo le luci* torna a quello che trova KlippEye). Il
-pulsante tondo sulla telecamera accende e spegne insieme le luci segnate *Comandata dal pulsante tondo*; la freccia accanto
-apre tutte le luci — un interruttore ciascuna, la **luminosità** (LED, pin PWM), il **colore** (LED RGB) — e le **scene**:
-*Salva come scena* tiene com'è la luce adesso con un nome, un tocco la richiama.
-
-**Notifica di cambio filamento**: il telefono riceve *Filamento esaurito* quando
-* un **sensore del filamento** (`[filament_switch_sensor]`, `[filament_motion_sensor]`) dice che il filamento è finito durante
-  una stampa;
-* parte una delle **macro che scegli** (`M600` nel G-code, la tua macro di fine filamento...): KlippEye aggiunge in
-  `klippeye_macros.cfg` un piccolo involucro con lo stesso nome (`rename_existing`) che scrive `KlippEye: filament change` nella
-  console e poi esegue la tua macro esattamente come prima. Si possono scegliere solo macro che Klipper ha davvero (una sbagliata
-  impedirebbe a Klipper di partire);
-* compare una **riga della console** che scrivi tu (*Printer paused due to filament runout!* è sempre riconosciuta).
-
-### Movimento
-
-**Impostazioni → Movimento**: **cosa muove Z** (il piatto o la testina: *Automatico* lo legge da Klipper) decide il verso
-delle frecce di Z — col piatto, ↑ lo alza verso l'ugello; con la testina, ↑ la alza. Il cerchio X/Y e i pulsanti Z hanno
-sempre i passi da 1 e 10 mm; si possono aggiungere 50 e 100 mm (una corona in più nel cerchio, due pulsanti Z in più per
-ognuno).
-
-**Calibra** (card Movimento) ha anche i **livellamenti** che Klipper offre sulla tua stampante: **Z tilt adjust**
-(`[z_tilt]`), **Quad gantry level** (`[quad_gantry_level]`) e, sulle stampanti senza probe, **Bed screws adjust**
-(`[bed_screws]`): l'ugello si ferma sopra ogni vite e una scheda dice cosa fare (la prova del foglio); rispondi *Regolata* se
-hai girato la vite, *Accetta* se era già giusta. Klipper rifà il giro finché un giro intero va bene. L'**Axis twist
-compensation** usa la calibrazione automatica del Cartographer quando c'è; altrimenti quella di Klipper, con la stessa prova
-del foglio in alcuni punti (− / + muovono l'ugello, *Accetta* passa al successivo), poi SAVE_CONFIG.
-
-### Mappa dell'altezza (bed mesh)
-
-La card **Mappa dell'altezza / mesh** (pagina Controllo sul telefono, pagina Calibrazione sul computer):
-**2D** (vista dall'alto, il retro del piatto in alto, il valore di ogni punto; un tocco dice dov'è un punto) o **3D**
-(trascina per girare, pizzica o rotellina per lo zoom, ↻ per tornare); i punti **misurati** o la mesh **interpolata** che
-Klipper usa; minimo, massimo, escursione e numero di punti. **Calibra mesh** chiede il nome del profilo (e *Adattiva*:
-solo dove ci sono gli oggetti della stampa). **Salva come…** salva come profilo la mesh in uso, **Rimuovi** smette di usarla.
-Sotto **Profili**: quelli di `printer.cfg`, con la loro escursione — *Carica*, rinomina, rimuovi. Salvataggi, nomi nuovi e
-profili rimossi si confermano con SAVE_CONFIG (il pulsante di salvataggio in alto).
-
-### Telecamera a schermo intero
-
-Il pulsante ⛶ della telecamera (la sua card sul telefono, il riquadro della telecamera sul computer) la mostra su tutto lo schermo.
-Nell'app KlippEye (1.5.0 o più nuova) le barre di Android spariscono e lo schermo si gira in orizzontale da solo. In un
-browser che non può girare lo schermo (per esempio un iPhone) è l'immagine a girarsi, così riempie lo schermo tenuto di
-lato; il pulsante ↻ lo spegne. Un tocco fa ricomparire i pulsanti; ⤡, Esc o il tasto indietro del telefono escono.
-
-### Notifiche: testi e notifiche tue
-
-**Impostazioni → Notifiche**: sotto ogni notifica *Cambia il testo* ti fa scrivere il tuo; le parole tra graffe si
-riempiono quando parte — `{file}`, `{progress}`, `{layer}`, `{total_layers}`, `{elapsed}`, `{remaining}`, `{message}`
-(il motivo di Klipper per un errore), `{printer}`… Vuoto: il testo predefinito. La pausa si può avvisare subito o dopo
-qualche secondo (se un filamento esaurito la spiega parte quella notifica). La notifica di **errore** ora porta il messaggio
-di Klipper (perché si è fermato, l'errore della stampa, l'ultima riga `!!`).
-
-**Le tue notifiche** ne aggiunge altre: *Stampa avviata*, *Avanzamento raggiunto* (una percentuale), *Manca poco*
-(minuti), *Layer raggiunto*, *Una riga nella console* (parole che la tua macro scrive con `M118` / `RESPOND`),
-*Temperatura raggiunta* (piatto o ugello). Ognuna ha il suo testo e può essere *Importante* (arriva come un allarme).
-Avanzamento, tempo e layer partono una volta per stampa.
-
-### Console
-
-La console (pagina Controllo sul telefono, la barra in basso sul computer: la sua freccia apre tutto il registro) ha, nella
-barra del titolo: **pulisci** (svuota la vista; Klipper tiene le sue righe, la vista mostra quelle che arrivano dopo), le
-**opzioni** — *Scorrimento automatico* (segue l'ultima riga), *Più recenti in alto*, *Mostra le temperature* (i messaggi
-delle temperature, nascosti di solito), salvate su questo dispositivo — e lo **schermo intero**. Un tocco su un comando lo
-rimette nel campo di invio.
-
-### Macro
-
-Le card delle macro (pagina Controllo sul telefono, pagina Calibrazione sul computer) sono le tue scorciatoie.
-**Impostazioni → Macro** (o l'ingranaggio di una card) sceglie come:
-* **Tutte le macro**: una card con ogni macro della stampante; spegni quelle che non usi mai (le macro il cui nome comincia
-  con `_` non vengono mai mostrate);
-* **Gruppi**: card tue, ognuna con un **nome**, un **colore** (quelli pronti, o qualsiasi colore sulla ruota di *Personalizzato*), le **macro** che scegli nell'ordine che vuoi, e **quando
-  compare**: inattiva, in stampa, in pausa (per esempio le macro del filamento anche in pausa, le calibrazioni solo da inattiva).
-
-Una macro con parametri ha un ⚙ accanto al nome: apre un modulo con i valori da inviare. La scelta sta nelle impostazioni
-condivise, uguale su ogni telefono e computer. Le macro scelte nella vecchia card *Calibrazioni* diventano un gruppo con quel
-nome. *Endstop e probe* ora è una card a sé.
-
-### Regolazioni
-
-La card **Regolazioni** (pagina Controllo sul telefono, pagina Dispositivo sul computer) cambia, anche durante una stampa:
-i fattori di **velocità** e **flusso** (M220 / M221), il **pressure advance** e il suo smooth time, i **limiti della
-macchina** (velocità, accelerazione, velocità negli angoli, minimum cruise ratio) e la **retrazione firmware** (se c'è
-`[firmware_retraction]`). Usa − / + o scrivi un valore; sotto ognuno c'è il valore di `printer.cfg`, e la freccia tonda
-torna a quello. Niente viene scritto in `printer.cfg`: un riavvio di Klipper riporta i suoi valori.
-
-### File di stampa
-
-La card **File di stampa** (pagina File) ha la **ricerca** per nome (anche per cartella) e l'**ordine** a scelta: più
-recenti o più vecchi prima, nome A→Z / Z→A, stampa più breve o più lunga, più filamento, più grandi, stampati più di recente
-(resta su questo dispositivo). Tenendo premuto un file si apre il suo menu: **Dettagli** mostra
-cartella, dimensione, ultima modifica, ultima stampa, slicer, tempo stimato, altezza layer e primo layer, altezza
-dell'oggetto, layer, filamento (tipo, lunghezza, peso), ugello, temperature del primo layer — con *Avvia stampa*; poi
-l'editor ed *Elimina*. Sul computer anche il riquadro accanto all'elenco ha il pulsante *Dettagli*.
-
-### Temperature
-
-La card **Temperature** (Home sul telefono, sotto la telecamera e la stampa sul computer) elenca tutti i riscaldatori e i
-sensori di Klipper — ugelli, piatto, `heater_generic`, `temperature_fan`, `temperature_sensor` (quelli che iniziano con
-`_` restano nascosti) — con temperatura, target e potenza. Il **grafico** mostra gli ultimi 5, 10 o 20 minuti: una linea
-per ognuno, il target tratteggiato dello stesso colore; parte da quello che Moonraker ha già registrato e si aggiorna ogni
-2 secondi. Passando il dito o il puntatore sul grafico si leggono ora e valori di quel momento. Tocca un **nome** per
-nascondere o mostrare le sue linee, un **target** per cambiarlo (ugello e piatto con la solita finestra, gli altri con
-`SET_HEATER_TEMPERATURE` o `SET_TEMPERATURE_FAN_TARGET`, fino al loro `max_temp`).
-
-### Dispositivi
-
-La card **Dispositivi** (pagina Controllo sul telefono, sotto le ventole sul computer) compare quando c'è qualcosa da
-mostrare: i dispositivi `[power]` di Moonraker (prese smart, relè, GPIO), da accendere e spegnere — lo spegnimento chiede
-conferma, perché può essere l'alimentazione della stampante; le uscite `[output_pin]` di Klipper, con un interruttore o,
-per un pin PWM, uno slider; i **sensori filamento**, con lo stato (filamento presente o no) e l'interruttore che li
-attiva o disattiva. I nomi che iniziano con `_` restano nascosti.
-
-### Timelapse
-
-Con moonraker-timelapse installato, la pagina File ha una terza parte, **Timelapse**: i **video** (anteprima, data,
-dimensione; toccandone uno si guarda a schermo intero, *Scarica*, elimina), le **foto** dell'ultima stampa non ancora
-diventate un video con **Crea il video**, e le **impostazioni** (anche in Impostazioni → Telecamera → Timelapse): attivo o
-no, quale telecamera, una foto a ogni layer oppure a intervalli, parcheggia la testina per la foto e dove, crea il video a
-fine stampa, fotogrammi al secondo o durata del video, ripeti l'ultima foto, qualità, anteprima, conserva le foto.
-**Avanzate** mostra le altre: posizione personalizzata e altezza del parcheggio, velocità, retrazione, attesa, ritardo della
-telecamera, rotazione e specchiatura del video, formato dei pixel, data nel nome del file, opzioni di ffmpeg.
-
-Le modifiche non partono una alla volta: **Salva e riavvia Moonraker** le scrive in `moonraker.conf`, sezione
-`[timelapse]` (solo quelle diverse dai valori predefiniti, o già presenti; il resto del file non cambia), e riavvia
-Moonraker perché le legga. Durante una stampa non si può salvare; *Annulla modifiche* le scarta. Se in `printer.cfg` manca
-`[include timelapse.cfg]` (la macro `TIMELAPSE_TAKE_FRAME`), la pagina lo dice. Senza moonraker-timelapse la parte
-Timelapse spiega come installarlo.
-
-### Bobine (Spoolman)
-
-Se Moonraker ha `[spoolman]`, la card **Bobina** (Home sul telefono, con le ventole sul computer) mostra la bobina in uso
-nel suo colore, con marca, nome, materiale e quanto ne resta (peso, lunghezza, una barra e la percentuale). **Cambia
-bobina** elenca le bobine di Spoolman, le ultime usate prima, con la ricerca: toccandone una diventa quella in uso, e
-Moonraker scala da lei il filamento di ogni stampa; **Nessuna bobina** non ne lascia nessuna. Se Spoolman non risponde,
-la card lo dice.
-
-### Più telecamere
-
-Oltre alla telecamera delle impostazioni (quella che guarda il monitor IA), la dashboard usa le altre telecamere configurate
-sulla stampante (le tiene Moonraker): se ce n'è più di una, la card della telecamera (e il riquadro della telecamera sul
-computer) ha un **menu** per scegliere quale guardare, e lo schermo intero la segue. Ogni webcam mantiene il suo modo di
-essere mostrata e i suoi ribaltamenti; la scelta resta su questo dispositivo.
-
-### Più stampanti
-
-Ogni stampante ha il suo KlippEye. In **Impostazioni → Le tue stampanti** aggiungi le altre con il loro indirizzo nella tua
-rete (*Prova* controlla che rispondano e legge il nome che si danno); poi un tocco sul nome in alto le elenca e passa da una
-all'altra (nell'app nella stessa finestra), e la **Panoramica** le mostra tutte insieme, con lo stato e le temperature.
-L'elenco è lo stesso su ogni dispositivo di questa stampante.
-
-### Visualizzatore G-code
-
-**Vedi i layer** (nel menu di un file, *Layer* nel riquadro del file sul computer, e sulla card della stampa) disegna il
-file dall'alto, un layer alla volta: lo slider, i tasti ‹ › o le frecce scelgono il layer (con numero e altezza), le
-linee hanno il colore del tipo indicato dallo slicer (pareti esterne e interne, superiori / inferiori, riempimento,
-ponti, supporti, skirt / brim), il layer sotto è in grigio e gli spostamenti si mostrano a richiesta; toccando un tipo
-nella legenda lo nascondi. Pizzica o usa la rotella per lo zoom, trascina per spostarti. Durante la stampa di quel file,
-**Segui la stampa** mostra il layer dell'ugello, cosa è già stampato e cosa no, e l'ugello stesso.
-
-### Card richiudibili e ordine delle pagine
-
-Le card principali hanno una **freccia** in alto a destra che le richiude lasciando solo il titolo (resta così su questo
-dispositivo). In **Impostazioni → Aspetto → Card** c'è un piccolo disegno di ogni pagina: **trascina** una card dalla sua
-maniglia (o usa le frecce) per spostarla, anche nell'altra colonna; l'interruttore la mostra o la nasconde. Telefono, tablet
-e computer hanno ognuno la sua disposizione. La card della stampa resta sempre al suo posto; *Ordine predefinito, tutto
-visibile* torna all'inizio.
-
-In **Impostazioni → Aspetto → Mostra i suggerimenti** puoi nascondere su questo dispositivo i testi piccoli che spiegano
-come usare la pagina (*Tocca per modificare*, *Tieni premuto un file…* e simili).
-
-In **Impostazioni → Aspetto → Colore** scegli il colore di pulsanti, interruttori ed evidenziazioni: il viola del logo,
-blu, verde acqua, verde, ambra, rosa o **il tuo** dalla ruota dei colori (un colore troppo scuro o troppo chiaro viene
-adattato perché si legga sulla pagina). Resta su questo dispositivo.
-
-In **Impostazioni → Aspetto → Tema** scegli **Scuro** (predefinito), **Chiaro** o **Come il dispositivo**, che segue la modalità
-scura del telefono o del computer, anche quando cambia da sola la sera. L'editor del codice e la telecamera restano scuri.
-
-In **Impostazioni → Aspetto → Stile** la stessa pagina si veste come un'altra app famosa: **One UI** (predefinito),
-**Liquid Glass**, **Material 3 Expressive**, **HyperOS 4**, **Studio** (piatto, linee sottili, angoli piccoli), **Soft** (card
-grandi e morbide, pulsanti sfumati), **Fluent** (Windows 11) o **Aurora** (un bagliore del tuo colore che si muove lento),
-sempre con il colore e il tema scelti.
-
-### Coda di stampa
-
-Se `moonraker.conf` ha `[job_queue]`, il menu di un file (tenendolo premuto; sul computer il pulsante *Coda* nel riquadro
-del file) ha **Aggiungi alla coda**, con il numero di copie: le stampe partono una dopo l'altra. La finestra dice cosa
-succede: va dopo quelle in attesa, parte quando la stampante è libera, oppure parte subito (*Aggiungi e stampa*) se la
-stampante è libera e la coda è attiva. Finché qualcosa aspetta, in cima alla pagina File c'è la card **Coda di stampa**:
-l'ordine con anteprima e tempo stimato, il totale; sposta una stampa su, giù o in testa, rimuovila; **Avvia la coda** o
-**Metti in pausa la coda**; **Svuota**.
-
-### Cronologia delle stampe
-
-In cima alla pagina **File** un interruttore passa da *File di stampa* a **Cronologia** (la scelta resta su questo
-dispositivo). Le **statistiche** vengono dal `[history]` di Moonraker: stampe, tempo di stampa, filamento usato, stampa più
-lunga e media, quante completate; una barra dice come sono finite (completate, annullate, non riuscite) e un grafico mostra gli
-**ultimi 14 giorni**, tempo di stampa o filamento per giorno (tocca una barra per il valore). *Azzera* riporta a zero i
-totali di Moonraker. Sotto, l'**elenco** delle stampe con anteprima, esito, data, tempo e filamento, con ricerca (anche
-nelle note) e filtri. Toccando una stampa si vedono i dettagli, si scrive una **nota** (salvata sul Raspberry, la vedono
-tutti i dispositivi), si **ristampa** il file se c'è ancora o la si **rimuove** dalla cronologia. Se Moonraker non ha
-`[history]` in `moonraker.conf`, la pagina dice di aggiungerlo.
-
-### File di configurazione
-
-La card **File di configurazione** (pagina Config) mostra prima le cartelle, poi i file. Il pulsante ⇅ accanto alla ricerca
-sceglie l'**ordine** (nome A→Z o Z→A, ultima modifica prima o più vecchia prima, più grandi prima) e se mostrare i **file
-di backup** (i `printer-AAAAMMGG_HHMMSS.cfg` scritti da SAVE_CONFIG, `.bak`, `.bkp`…) e i **file nascosti** (nomi che
-iniziano con un punto). La scelta resta su questo dispositivo; una riga sotto l'elenco dice quanti ne restano fuori, e
-toccandola li mostra.
-
-### L'editor di testo
-
-I file di configurazione e di G-code si aprono nell'editor della dashboard, fatto con **CodeMirror 6**: numeri di riga, colori (sezioni, chiavi, pin, valori, commenti, G-code e Jinja2 delle macro), la riga del
-cursore evidenziata, le parentesi abbinate. La freccia accanto a una `[sezione]` la **chiude e la riapre**; il pulsante
-**Sezioni del file** le elenca tutte (toccane una per andarci) e le chiude o apre tutte insieme. Il pulsante con il
-foglio apre la **documentazione** della sezione dove si trova il cursore: il Config Reference di Klipper per i `.cfg`
-(`[stepper_x]` porta a `[stepper]`), la pagina di configurazione di Moonraker per `moonraker.conf`. La lente (o Ctrl+F)
-apre **Trova e sostituisci**: successivo / precedente, tutti, maiuscole/minuscole, regex, parola intera, sostituisci, sostituisci
-tutti. Restano **Annulla / Ripeti** (Ctrl+Z / Ctrl+Y), **Commenta / Decommenta** (Ctrl+/; `#` nei file di
-configurazione, `;` nel G-code), Ctrl+S per salvare e *Salva e riavvia* (SAVE_CONFIG).
-
-### Durante la stampa
-
-La **card della stampa** (Home) mostra file, avanzamento, tempo, quanto manca e il layer; sotto, **a che ora finisce**,
-la **velocità** e il **flusso volumetrico** del momento. **Più dettagli** apre le stime una per una (secondo il file, il
-filamento e lo slicer), il tempo totale con le pause, il filamento usato (m e g), l'altezza, la velocità richiesta e i
-fattori di velocità e di flusso.
-
-**Escludi un oggetto**: quando lo slicer etichetta gli oggetti (PrusaSlicer, OrcaSlicer, SuperSlicer «Etichetta oggetti»,
-Cura con un plugin) e Klipper ha `[exclude_object]`, la card offre **Escludi un oggetto**: una mappa del piatto con gli
-oggetti (quello in stampa adesso in blu) e il loro elenco; scegline uno e **Escludilo**. Non viene più stampato, gli
-altri vanno avanti; in quella stampa non si può rimettere.
-
-## 4. Aggiornamenti
-
-**Impostazioni → Aggiornamenti → Controlla se c'è una versione nuova → Aggiorna KlippEye.** Il servizio KlippEye si riavvia per qualche
-secondo e la pagina si ricarica da sola. Impostazioni, chiave dell'IA e notifiche restano. Durante una stampa il pulsante è spento.
-
-L'aggiornamento passa dall'update manager di Moonraker (voce `klippeye`): lo vedono anche le altre interfacce web della stampante.
-
-**Canale degli aggiornamenti** (stessa pagina): **Versioni stabili** (predefinito) installa solo le versioni che hanno superato tutti
-i test automatici su GitHub, con l'etichetta `v1.10.0`, `v1.11.0`…; **Ogni modifica** installa ogni modifica appena arriva su
-GitHub, per provare le novità. Quando lo cambi, Moonraker si riavvia per qualche secondo.
-
-**Nuove versioni da sole**: una volta al giorno (mai durante una stampa) la dashboard chiede a Moonraker se ci sono versioni
-nuove di KlippEye, Klipper, Moonraker e degli altri programmi. Se ci sono, un numero compare sulla scheda **Sistema** e un
-messaggio dice quali; non viene installato niente da solo. Si spegne in **Impostazioni → Aggiornamenti → Cerca da solo le
-nuove versioni** (per ogni browser o telefono).
-
-| Se… | allora |
+| Opzione | Cosa fa |
 |---|---|
-| la versione nuova non va come speravi | Impostazioni → Aggiornamenti → **Torna alla versione precedente** |
-| la pagina dice che i file del programma sono stati modificati a mano | Impostazioni → Aggiornamenti → **Ripristina i file del programma** (impostazioni e chiavi non si toccano) |
-| la dashboard non si apre più | da SSH: `klippeye status`, `klippeye restart`, `klippeye log`; per rimettere i file com'erano su GitHub: `klippeye update --force` |
+| `--no-ai` | non installa OpenCV. Il monitor IA resta spento; rilancia l'installatore senza l'opzione per aggiungerlo dopo |
+| `--no-packages` | non installa niente con `apt`, ti dice solo cosa manca |
+| `--no-moonraker` | non tocca la configurazione di Moonraker |
+| `--no-web` | lascia l'indirizzo principale del Raspberry alla pagina che ce l'ha ora (KlippEye sulla porta 8085) |
+| `--channel=dev` | installa ogni modifica appena pubblicata, invece delle versioni collaudate (vedi [9](#9-aggiornamenti)) |
+| `--undo` | toglie KlippEye (vedi [15](#15-togliere-klippeye)) |
 
-## 5. Monitor IA
+Con più stampanti sullo stesso Raspberry, scegli tu la cartella dei dati:
+`KLIPPEYE_PRINTER_DATA=~/printer_2_data bash ~/klippeye/scripts/install.sh`.
 
-Durante una stampa il servizio KlippEye guarda la telecamera ogni pochi secondi con **OpenCV**, sul Raspberry, senza internet. Confronta ogni
-foto con uno *sfondo* fatto dalle ultime foto, ignora i cambi di luce e la testina che passa, e conta solo i cambiamenti che
-**restano**. Quando qualcosa di sospetto resta per alcuni controlli, manda la foto (e com'era prima) a un'**IA online**, che giudica
-se c'è un problema vero: spaghetti, pezzo staccato, layer shift, warping.
+## 3. Il primo avvio
 
-Tutto sta in **Impostazioni → Monitor IA**, una pagina sola, dall'alto in basso:
+La prima volta che apri la dashboard parte la **configurazione guidata**. Passa in rassegna le impostazioni importanti una
+alla volta, con un paio di righe di spiegazione ciascuna:
 
-1. **Monitor attivo** e se il servizio delle notifiche funziona.
-2. **Come guarda la stampa**: una riga dice cosa guarda adesso il monitor: **tutto il piatto fuori dai pezzi** (con la telecamera
-   calibrata) oppure solo la **fascia esterna di un rettangolo** (senza). Da qui: **Calibrazione della telecamera** (sotto), **Soglie del
-   monitor** (i numeri fini: sensibilità, quanto deve restare un cambiamento, pause, quando comincia; c'è anche il rettangolo,
-   usato solo senza calibrazione) e **Registrazioni** (per misurare il monitor).
-3. **Quando vede un problema**: la **fiducia minima dell'IA** (l'unica: 70% è il valore consigliato; sopra l'85% una stampa
-   fallita potrebbe non essere fermata), quali difetti contano, quante analisi dell'IA di fila, e le **azioni automatiche**
-   (*Metti in pausa da solo* e *Annulla da solo*, spente all'inizio: l'IA può sbagliare e una stampa annullata non si recupera).
-4. **Il servizio IA**: il **servizio** e il **modello** del monitor e le **chiavi** dei servizi IA. KlippEye funziona con
-   Groq, Google Gemini, OpenAI, Anthropic (Claude), Mistral, OpenRouter, Meta Llama, Together, Fireworks e qualsiasi altro
-   server compatibile con OpenAI (per esempio un modello sulla tua rete: il suo indirizzo, una chiave solo se la chiede).
-   Groq, Google Gemini e Mistral hanno un piano gratuito: in **Chiavi dei servizi IA** tocca **Ottieni una chiave** accanto
-   al servizio, creala lì e incollala. L'elenco dei modelli viene letto dal servizio con la tua chiave; il monitor ha bisogno
-   di un modello che **veda le immagini** (elencati per primi; **Predefinito** è uno che KlippEye sa che funziona). Le chiavi
-   restano in `~/printer_data/klippeye/ai.json`, leggibile solo dal servizio; la pagina ne mostra solo gli ultimi 4
-   caratteri. Qui c'è anche se mandare la foto di prima. L'**analisi dei log** ha il suo servizio e modello: l'ingranaggio
-   accanto ad **Analisi errori e suggerimenti** nella scheda Log di sistema (pagina Sistema); le chiavi sono le stesse.
+1. **Benvenuto**: la lingua e il tema (scuro o chiaro).
+2. **Nome e logo** della stampante.
+3. **Telecamera**: KlippEye la prende dalle impostazioni della stampante; tu controlli di vederla.
+4. **Funzioni della stampante**: cosa fanno i pulsanti che usano le tue macro (parcheggio, pulizia dell'ugello, carico del
+   filamento, la luce). KlippEye le cerca da solo: controllale e premi **Va tutto bene**.
+5. **Notifiche**: su questo telefono con l'app, o su qualsiasi telefono con ntfy (vedi [6](#6-le-notifiche-sul-telefono)).
+6. **Monitor IA**: la chiave gratuita di un'IA online, se la vuoi, e l'apprendimento dalle tue stampe (vedi
+   [5](#5-il-monitor-ia)).
+7. **Indirizzi**, **Home Assistant** e **Password**: solo se ti servono. Altrimenti salta.
+8. **Pronta**: cosa è fatto e cosa resta.
 
-**Durante la stampa.** Il badge **AI** nella barra in alto è grigio senza stampa, verde quando va tutto bene, arancione o rosso con
-un allarme; toccandolo si apre il **pannello del monitoraggio IA** (stato, punteggio, ultimo giudizio con la foto da ingrandire). Quando
-l'IA vede un problema, la **card della stampa** mostra cosa ha visto e chiede: **Problema reale**, **Falso allarme** o **Ignora**.
-«Falso allarme» e «Ignora» rimettono il badge verde fino al prossimo allarme; «Problema reale» e «Falso allarme» restano anche
-nell'allarme, e servono a misurare il monitor (Registrazioni → Misura adesso). Gli allarmi di una stampa si chiudono quando ne
-parte un'altra.
+Ogni passo si può saltare. La rifai quando vuoi da **Impostazioni → Configurazione guidata**.
 
-L'IA scrive le sue osservazioni nella lingua delle notifiche; ogni allarme resta con le sue foto (pannello del monitor IA, allarmi in
-Registrazioni e `~/printer_data/klippeye/alerts/`). Quando l'IA ha proposto pausa o annullamento ma nessun difetto arrivava alla
-fiducia minima, l'allarme lo dice in arancione («Pausa proposta, sotto la soglia»).
+<p align="center">
+  <img src="images/setup-it.jpg" alt="Il primo passo della configurazione guidata" width="300">
+  &nbsp;
+  <img src="images/settings-it.jpg" alt="Il menu delle impostazioni su un telefono" width="300">
+</p>
 
-Con un **modello locale** installato (Impostazioni → Monitor IA → Modello locale), un piccolo modello di immagini sul Raspberry
-valuta ogni allarme del rilevamento del movimento e guarda anche da solo ogni 15 secondi: l'IA online viene interpellata quando ha
-un dubbio o è sicuro, così gli allarmi che giudica innocui non costano chiamate e un guasto che il rilevamento del movimento non
-vede viene preso lo stesso.
+### Orientarsi
 
-Il modello locale è uguale per tutti. Con **Impara dalle stampe di questa stampante** attivo (stessa pagina, spento all'inizio)
-impara anche dalla tua stampante: ogni risposta a *Com'è andata la stampa?* e ogni registrazione etichettata addestrano, sul
-Raspberry e in pochi secondi, un piccolo strato tutto suo che conta di più man mano che gli esempi crescono (almeno 5 foto di
-stampe fallite e 20 di riuscite). Le foto non lasciano mai la stampante; **Esporta gli esempi** le salva (piccole, con cosa
-mostra ciascuna) in un file che **Importa esempi** aggiunge a un'altra tua stampante.
+- Sul telefono le pagine sono in basso: **Home** (telecamera, stampa, temperature), **Controllo** (movimenti, ventole, macro,
+  console), **File**, **Config** (i file di configurazione) e **Sistema** (log, servizi, aggiornamenti).
+- Sul computer le stesse cose stanno su pagine più larghe, con le schede in alto.
+- **☰** in alto a sinistra apre le impostazioni. La ricerca in cima trova qualsiasi impostazione: prova a scrivere
+  «password» o «scuro».
+- **?** nel titolo di ogni pagina spiega quella pagina.
+- Le impostazioni si salvano sul Raspberry, quindi sono uguali su ogni telefono e computer. Le poche che riguardano un solo
+  dispositivo (lingua, colore, disposizione delle card) lo dicono: *su questo dispositivo*.
 
-**A fine stampa** una card in cima alla Home chiede **Com'è andata la stampa?**: *Andata bene*, oppure *C'era un problema*
-(quale, e col cursore da quale foto si vede). Richiede un secondo ed è facoltativo: *Salta*, oppure *Non chiedere più*
-(Impostazioni → Registrazioni → «Chiedi com'è andata ogni stampa» la riattiva). La risposta giudica gli allarmi della stampa non
-ancora giudicati, e le piccole foto che tiene di ogni stampa sono ciò da cui il monitor IA imparerà.
+## 4. La telecamera
 
-Prima di una pausa o di un annullamento l'IA **guarda due volte**: 40 secondi dopo, su una foto nuova, le si chiede di nuovo, e lo
-stop vale solo se anche quella volta vede un problema (un riflesso, un'ombra o la testina di passaggio non restano; un guasto vero
-sì). Le notifiche e la pausa automatica aspettano quel secondo sguardo. Finché la stampa è più bassa di 2 mm, «piatto vuoto» da
-solo non la ferma: un primo strato la telecamera lo vede appena. Puoi aggiungere fino a tre **servizi di riserva** (Impostazioni → Monitor IA → Il servizio IA): quando il servizio del monitor non
-può rispondere (limite del giorno esaurito, non raggiungibile), si chiede al successivo. Con **Secondo parere da un altro servizio**
-il secondo sguardo prima di uno stop è chiesto a un servizio diverso: due IA diverse devono essere d'accordo. Sotto ogni servizio
-con piano gratuito, **Come avere una chiave gratuita** mostra i passaggi. Quando il limite giornaliero del servizio IA è finito, KlippEye
-non lo interroga più fino all'ora che il servizio indica (piano gratuito di Groq: circa 40 analisi al giorno).
+Se la stampante mostra già una telecamera in un'altra interfaccia, KlippEye la usa: **Impostazioni → Telecamera → Importa
+dalla stampante** prende le telecamere che Moonraker conosce.
 
-| Se… | prova a… |
+Il monitor IA non usa il video: scatta una foto alla volta (lo *snapshot*). Per controllare che la riceva, apri
+**Impostazioni → Telecamera → Snapshot (foto singola) → Prova: scatta una foto**. Vedi la foto esattamente come la riceve il
+Raspberry. Con crowsnest, il programma della telecamera più usato sulle stampanti Klipper, l'indirizzo si trova da solo. Con
+un'altra telecamera, scrivi lì l'indirizzo della sua foto singola.
+
+Con più telecamere, la card della telecamera ha un menu per scegliere quale guardare. Il monitor IA guarda sempre quella di
+**Impostazioni → Telecamera**.
+
+Se la telecamera resta nera, controlla metodo e indirizzo in **Impostazioni → Telecamera**, oppure premi di nuovo *Importa
+dalla stampante*. Se apri KlippEye da fuori casa, vedi il capitolo [8](#8-usarla-fuori-casa).
+
+## 5. Il monitor IA
+
+### Come funziona
+
+Durante una stampa KlippEye guarda la telecamera ogni pochi secondi, sul Raspberry stesso. Ogni foto la guardano in due:
+
+- un rilevamento del movimento, che si accorge quando qualcosa sul piatto cambia e resta cambiato (senza badare alla luce
+  e alla testina che passa);
+- un modello locale, una piccola IA per immagini addestrata su foto di stampe fallite, che arriva con KlippEye e funziona
+  senza internet. Dà un voto agli allarmi del rilevamento del movimento e guarda anche da solo ogni 15 secondi.
+
+Cosa succede dopo dipende dalla tua scelta in **Impostazioni → Monitor IA → Il servizio IA → Chi giudica le foto**:
+
+- **IA online e modello locale** (la scelta di partenza): quando il modello locale ha un dubbio, o è sicuro che ci sia un
+  problema, la foto va a un'IA online (Google Gemini, Groq, OpenAI e altre) che dà l'ultima parola. È più precisa, e con
+  una chiave gratuita non costa niente. Partono solo le foto di un allarme, mai tutta la stampa.
+- **Solo il modello locale**: nessuna foto esce dal Raspberry. Decide da solo il modello locale: quando è sicuro per tre
+  sguardi di fila, propone una pausa.
+
+<p align="center"><img src="images/ai-service-it.jpg" alt="Impostazioni, Monitor IA, Il servizio IA: chi giudica le foto" width="340"></p>
+
+L'indicatore **IA** in alto nella dashboard ti dice come va: grigio senza stampa, verde se è tutto a posto, arancione o rosso
+con un allarme. Toccalo per vedere l'ultima foto e il giudizio dell'IA.
+
+### Una chiave gratuita per l'IA online
+
+Serve solo con *IA online e modello locale*. Google Gemini, Groq e Mistral hanno un piano gratuito.
+
+1. Apri **Impostazioni → Monitor IA → Il servizio IA**.
+2. In *Chiavi dei servizi IA* tocca **Ottieni una chiave** accanto al servizio (Google Gemini va bene per cominciare).
+3. Accedi al sito del servizio, crea una chiave e copiala.
+4. Incollala in KlippEye e salva. La pagina mostra solo gli ultimi 4 caratteri.
+5. Scegli il modello: *Predefinito* è uno che KlippEye sa che funziona. Al monitor serve un modello che *vede le immagini*
+   (sono in cima all'elenco).
+
+La chiave resta sul Raspberry, in un file che può leggere solo il servizio KlippEye. I piani gratuiti hanno un limite al
+giorno: quando è finito, KlippEye aspetta che il servizio lo permetta di nuovo. Per non lasciare scoperto il monitor nel
+frattempo, aggiungi fino a tre **Servizi di riserva** nella stessa pagina.
+
+### Cosa fa quando vede un problema
+
+In **Quando vede un problema** (stessa pagina) scegli:
+
+- **Fiducia minima dell'IA**: quanto deve essere sicura l'IA online. 70% è un buon inizio. Se ti disturba con problemi
+  dubbi, alzala all'80%. Sopra l'85% può lasciar correre un guasto vero;
+- quali difetti contano: spaghetti, piatto vuoto (il pezzo si è staccato), layer spostati, warping;
+- **Controlli di fila**: quanti giudizi di fila devono essere d'accordo prima di avvisarti;
+- **Metti in pausa da solo** e **Annulla da solo**: all'inizio sono spenti tutti e due. L'IA può sbagliare e una stampa
+  annullata non si riprende, quindi comincia con le sole notifiche e accendi la pausa quando ti fidi.
+
+Prima di mettere in pausa o annullare, l'IA guarda due volte: 40 secondi dopo le si chiede di nuovo su una foto nuova, e la
+stampa si ferma solo se vede di nuovo il problema. Un riflesso o la testina che passa nel frattempo sono spariti, un guasto
+vero è ancora lì. Nei primi 2 mm di stampa il solo «piatto vuoto» non la ferma mai, perché la telecamera vede a fatica un
+primo layer.
+
+Quando l'IA dà un allarme, la card della stampa ti chiede: **Problema reale**, **Falso allarme** o **Ignora**. La tua
+risposta chiude l'allarme e aiuta a misurare il monitor.
+
+<p align="center"><img src="images/ai-alarm-it.jpg" alt="La card della stampa chiede se l'allarme dell'IA è un problema reale" width="340"></p>
+
+### Calibrare la telecamera (consigliato)
+
+Senza calibrazione il monitor guarda solo la fascia esterna di un rettangolo dell'immagine, lontano dal pezzo. Con la
+calibrazione sa dove appare nell'immagine ogni punto della stampante: guarda **tutto il piatto tranne dove ci sono i pezzi**,
+e lascia fuori testina e gantry, che sono la causa principale dei falsi allarmi. Ci vuole circa un quarto d'ora, una volta
+sola; si rifà solo se sposti la telecamera.
+
+Prima di cominciare: piatto pulito, la luce come durante le stampe, stampante ferma. Durante la calibrazione la stampante si
+muove da sola: tieni le mani lontane.
+
+1. Apri **Impostazioni → Monitor IA → Calibrazione della telecamera**.
+2. **Come si muove l'asse Z?** Il piatto (la maggior parte delle CoreXY) o la testina. KlippEye propone la risposta leggendo
+   la tua configurazione. Le stampanti con il piatto che va avanti e indietro (bed slinger) non sono ancora supportate.
+3. Fai l'**homing** della stampante.
+4. Segni (solo quando Z muove il piatto). Il modo migliore: **Scarica i segni (STL)**, sei piccole piramidi già messe al
+   posto giusto per il tuo piatto, stampale con le tue impostazioni di sempre e lasciale sul piatto; poi scegli il G-code che
+   hai stampato e **Leggi i segni da questo file**. Il modo veloce: **Crea le 6 gocce**, sei gocce di filamento.
+5. I 12 punti. Per ognuno premi **Vai al punto**, tocca l'immagine dove sta il punto, toccalo di nuovo con precisione
+   nella vista ingrandita e premi **Tieni questo punto**. La pagina mostra un piccolo disegno di cosa toccare: la punta
+   dell'ugello, oppure la cima di un segno. Dopo il primo punto, **Trova l'ugello da solo** può fare per te gli altri punti
+   dell'ugello.
+6. **Calcola la calibrazione.** Un buon risultato ha un errore di pochi pixel; i punti in rosso sono stati toccati nel posto
+   sbagliato: rifai solo quelli. Poi **Salva la calibrazione** e togli i segni dal piatto.
+7. Testina e gantry: l'immagine dal vivo li mostra contornati in viola e arancione. Trascina i pallini (o usa − e +) in
+   modo che i contorni li coprano con un po' di margine.
+
+Ogni dieci minuti KlippEye controlla che la telecamera non si sia spostata. Se si è spostata, la pagina lo dice e il monitor
+smette di usare la calibrazione finché non la rifai.
+
+### Insegnargli com'è la tua stampante
+
+A fine stampa una card chiede **Com'è andata la stampa?**. Rispondi *Andata bene* oppure *C'era un problema* (con il momento
+in cui è comparso): ci vuole un secondo. Con **Impara dalle stampe di questa stampante** acceso (Impostazioni → Monitor IA →
+Modello locale), il modello locale usa le tue risposte per imparare com'è la tua stampante. Impara sul Raspberry, e le foto
+non escono mai da lì. Comincia a contare quando ha almeno 5 foto di stampe fallite e 20 di stampe riuscite.
+
+### Misurarlo
+
+Per sapere se un cambio delle impostazioni aiuta davvero, **Impostazioni → Monitor IA → Registrazioni → Registra le stampe**
+tiene le foto che il monitor ha guardato (circa 150 MB per una stampa di quattro ore; le più vecchie si cancellano quando lo
+spazio è pieno). Dopo una stampa, digli se è andata bene o da quale foto è fallita. **Misura adesso** fa girare di nuovo il
+monitor su quelle stampe e ti dice quanti allarmi all'ora avresti, quanti erano falsi e se ogni guasto è stato preso.
+
+### Se non si comporta bene
+
+| Cosa succede | Cosa provare |
 |---|---|
-| allarmi quando passa la testina | calibrare la telecamera e regolare i contorni di testina e gantry; alzare «Controlli di fila in cui il cambiamento deve restare» (3 → 4) |
-| allarmi quando cambia la luce | tenere «Cambio di luce» a 30; fissare l'esposizione della telecamera; schermare un LED troppo forte |
-| l'IA segnala problemi dubbi | alzare «Fiducia minima dell'IA» (70 → 80) |
-| non si accorge di un guasto vero | calibrare la telecamera (guarda tutto il piatto); controllare gli allarmi in Registrazioni: uno arancione vuol dire fiducia troppo alta |
+| allarmi quando passa la testina | calibra la telecamera; controlla il contorno di testina e gantry; in *Soglie del monitor* alza *Controlli di fila in cui il cambiamento deve restare* da 3 a 4 |
+| allarmi quando cambia la luce | sistema l'esposizione della telecamera; attenua un LED troppo forte; lascia il cambio di luce a 30 |
+| l'IA segnala problemi dubbi | alza *Fiducia minima dell'IA* dal 70% all'80% |
+| un guasto vero passa inosservato | calibra la telecamera; in *Registrazioni* guarda gli allarmi: uno arancione vuol dire che la fiducia era troppo alta |
+| "AI error 429" su un allarme | il servizio online rifiuta altre richieste (il suo limite al minuto o al giorno). Alza *Pausa tra due analisi dell'IA*, spegni *Manda all'IA anche la foto di prima*, aggiungi un servizio di riserva, oppure usa *Solo il modello locale* |
+| il monitor non chiama mai l'IA | controlla la chiave e il modello; controlla che OpenCV sia installato (`sudo apt install python3-opencv`) e che *Monitor attivo* sia acceso |
 
-### Calibrare la telecamera
+## 6. Le notifiche sul telefono
 
-**Impostazioni → Monitor IA → Calibrazione della telecamera** insegna a KlippEye dove ogni punto della stampante compare nell'immagine della telecamera.
-Così il monitor IA sa, a ogni controllo, dove sono la testina e il gantry e li esclude (sono la causa principale dei falsi
-allarmi). Circa quindici minuti, una volta; da rifare solo se sposti la telecamera.
+KlippEye avvisa il telefono quando una stampa finisce, si ferma per un errore, va in pausa, resta senza
+filamento, o quando l'IA vede un problema. Le notifiche viaggiano con [ntfy](https://ntfy.sh), un servizio gratuito
+senza account e senza chiavi: KlippEye crea un indirizzo privato che conoscono solo i tuoi telefoni.
 
-**Prima di iniziare**: piatto pulito, la luce come durante le stampe, stampante inattiva. Durante la calibrazione la stampante
-si muove da sola: tieni lontane le mani.
+### Con l'app KlippEye (Android)
 
-1. **Come si muove l'asse Z?** Il **piatto** (VzBot, Voron Trident, RatRig V-Core, quasi tutte le CoreXY) o la **testina**
-   (Voron 2.4). KlippEye propone la risposta dalla configurazione di Klipper. Le stampanti con il piatto che si muove in Y
-   (Prusa, Ender) non sono ancora supportate.
-2. **Homing** della stampante.
-3. **Segni** (solo se Z muove il piatto: per la telecamera l'ugello da solo è sempre alla stessa altezza, quindi sei segni sul
-   piatto danno la seconda altezza). Due modi:
-   * **Stampa i segni (consigliato)**: **Scarica i segni (STL)**, sei piccole piramidi già posizionate per il tuo piatto.
-     Passa il file nello slicer con le tue impostazioni solite (senza supporti, un colore che si distingua dal piatto),
-     stampalo e lascialo sul piatto. Poi scegli il G-code che hai stampato e **Leggi i segni da questo file**: KlippEye
-     trova dove lo slicer ha messo le piramidi e quanto sono venute alte (se lo slicer le sposta non importa).
-   * **Gocce rapide**: scegli le temperature di ugello e piatto e **Crea le 6 gocce**: la stampante lascia sei dischetti di
-     filamento (con retrazione e z-hop tra uno e l'altro). Più veloce, meno preciso.
-4. **I 12 punti.** Per ogni punto:
-   1. premi **Vai al punto**: la stampante si muove e compare un'immagine nuova;
-   2. tocca l'immagine dove si trova il punto (vedi la tabella sotto);
-   3. si apre una vista ingrandita: tocca di nuovo **esattamente** sul punto;
-   4. **Tieni questo punto**.
+La prima volta che apri l'app, ti chiede se ricevere le notifiche su questo telefono. Tocca **Imposta** e segui i cinque
+passi (li trovi anche in **Impostazioni → Notifiche → Questo telefono**):
 
-   | Punti | Cosa succede | Cosa toccare |
-   |---|---|---|
-   | da 1 a 6 | l'ugello si ferma 3 mm sopra un segno (Z muove il piatto) o in un punto del piatto (Z muove la testina) | il **punto più basso dell'ugello**, la punta di metallo, **non** il segno sotto |
-   | da 7 a 12, Z muove il piatto | il piatto scende e l'ugello va in fondo | la **punta in alto del segno** (per una goccia: il centro) |
-   | da 7 a 12, Z muove la testina | l'ugello va negli stessi punti, più in alto | il **punto più basso dell'ugello** |
-
-   A ogni punto la pagina mostra un piccolo disegno di cosa toccare. I numeri verdi sono fatti; tocca un numero per vederlo
-   o rifarlo. La croce gialla è il tuo tocco, quella verde un punto già tenuto.
-
-   **Homing con i segni sul piatto.** Dopo la stampa dei segni molte stampanti spengono i motori, quindi la pagina rifà
-   l'homing. KlippEye legge da Klipper dove fa l'homing di Z e mette le piramidi dell'STL lontane da lì (la pagina dice
-   dove); **Fai l'homing** chiede prima se un segno potrebbe stare sotto la testina o il probe in quel punto (una stampa
-   vecchia, una macro `[homing_override]`, niente `z_hop`). Durante la calibrazione i motori restano accesi (il timeout
-   di inattività viene allungato e poi rimesso com'era).
-
-   **Più veloce: l'ugello trovato da solo.** Dopo aver toccato l'ugello in un punto, KlippEye può trovarlo negli altri punti
-   dell'ugello: **Trova l'ugello da solo negli altri N punti** va in ognuno, sposta per un attimo la testina di lato (per
-   vedere dov'è) e cerca la punta che hai toccato (circa 15 secondi a punto; tieni le mani lontane). I punti trovati sono
-   blu: **Usa gli N punti trovati** li tiene, e **Calcola** colora in rosso quelli che non tornano, da toccare a mano.
-   In un singolo punto, **Vai lì e trova l'ugello da solo** apre la vista ingrandita su quello che ha trovato. I punti dei
-   segni (da 7 a 12 quando Z muove il piatto) si toccano sempre a mano.
-5. **Calcola la calibrazione**: l'errore medio in pixel (buono: pochi pixel) e, in rosso, i punti da rifare (un tocco sulla
-   cosa sbagliata: rifai solo quelli e calcola di nuovo). L'immagine dal vivo mostra la testina e il piatto disegnati sopra:
-   muovi la testina con i tasti, il disegno deve seguirla. **Salva la calibrazione**, poi togli i segni.
-
-**Testina e gantry.** Dopo il salvataggio la pagina mostra l'immagine dal vivo con la **testina** (viola) e il **gantry**
-(arancione: la barra che porta la testina da un lato all'altro) disegnati sopra. Quello che sta dentro i contorni è ciò che
-il monitor esclude, quindi devono coprire le parti, con un po' di margine (molto di più nasconderebbe un problema vicino
-all'ugello). Regolali **trascinando i pallini sulla foto** (ogni lato della testina, la sua cima — l'altezza — e i bordi
-alto e basso del gantry: la misura si vede mentre trascini) o con **−** e **+** (5 mm alla volta), muovendo la testina con i
-tasti per controllare in qualche punto. I pallini che finirebbero uno sopra l'altro (testina piccola o lontana) non
-compaiono: le loro misure restano con **−** e **+**:
-
-* testina: quanto sporge **a sinistra, a destra, davanti e dietro l'ugello**, **sopra** la punta dell'ugello e sotto;
-* gantry: dove la barra **inizia dietro l'ugello**, quanto è **profonda** e i suoi **bordi basso e alto** sopra la punta
-  dell'ugello. Spegnilo se la tua stampante non ha un gantry che attraversa l'immagine.
-
-L'interruttore **Escludi testina e gantry** (acceso di base), nella stessa pagina, accende e spegne le maschere.
-
-**Tutto il piatto, tranne dove sono i pezzi.** Con la calibrazione il monitor sa anche dove sono gli oggetti della stampa e
-guarda **tutto il piatto attorno a loro**, non solo i bordi dell'area controllata: conta la plastica che compare dove non
-dovrebbe esserci nessun pezzo (spaghetti accanto al pezzo, un pezzo staccato e trascinato), non il pezzo che cresce. I
-contorni degli oggetti vengono da `exclude_object` di Klipper quando lo slicer etichetta gli oggetti (PrusaSlicer/SuperSlicer/
-OrcaSlicer: *Etichetta oggetti*, e `[exclude_object]` in `printer.cfg`: consigliato), altrimenti dal G-code della stampa,
-letto una volta all'inizio. Durante una stampa l'immagine dal vivo di questa pagina li mostra in verde. Interruttore:
-**Guarda tutto il piatto, tranne dove sono i pezzi**, nella stessa pagina (acceso di base).
-Dove la testina è proprio sopra il pezzo la telecamera non vede sotto: un guasto si riconosce da ciò che compare attorno al pezzo.
-
-La calibrazione vale **finché la telecamera non si muove**. Ogni dieci minuti il servizio KlippEye confronta l'immagine con quella presa
-alla calibrazione; se la telecamera si è spostata, la pagina (e la sua riga nel menu) lo dice e il monitor smette di usare la
-calibrazione (e le maschere) finché non la rifai. Le misure di testina e gantry restano.
-
-### Misurare il monitor (registrazioni)
-
-Invece di indovinare se una soglia diversa aiuta, misuralo:
-
-1. **Impostazioni → Monitor IA → Registrazioni → Registra le stampe**. Durante ogni stampa il servizio KlippEye conserva le foto guardate dal monitor
-   (piccole, circa 150 MB per una stampa di quattro ore) con layer, posizione e punteggio, in `~/printer_data/klippeye/recordings/`.
-   Quando lo spazio scelto è pieno si eliminano le stampe più vecchie, e con meno di 1 GB libero sul disco non si registra niente.
-2. Dopo ogni stampa, aprila nella stessa pagina: sfoglia le foto e dì **È andata bene** oppure, se è fallita, vai alla prima
-   foto in cui si vede il problema e premi **È fallita da qui**. Sotto, **Allarmi di questa stampa** elenca i suoi allarmi,
-   ognuno con la foto vista dall'IA (toccala per ingrandirla) e il suo responso. Giudichi se il responso dell'IA corrisponde al
-   reale stato della stampa: **Risultato corretto** se corrisponde, **Risultato sbagliato** se no (una pausa per una stampa che andava bene, oppure "continua" mentre qualcosa andava
-   storto). Un allarme che l'IA non ha potuto giudicare (un errore del servizio IA) chiede **C'era un problema** o **Nessun
-   problema**. *Vedilo tra le foto* torna alla stampa in quel momento. Gli allarmi delle stampe non registrate sono raccolti
-   in fondo alla pagina.
-3. **Misura adesso** rifà girare il monitor sulle stampe registrate spuntate in *Stampe da usare* (tutte, se non ne togli
-   qualcuna: una stampa con un'altra telecamera o una prova si può escludere), con le soglie in uso adesso, e mostra gli allarmi
-   all'ora, quanti erano falsi e se ogni guasto è stato rilevato (e dopo quanto). Da terminale, per confrontare altre soglie:
-   `klippeye replay --set sensitivity=45 --set persist_checks=4` (opzioni: `scripts/replay.py`).
-   Con una calibrazione della telecamera il replay esclude testina e gantry come il monitor dal vivo (sulle stampe registrate
-   con KlippEye 1.13 o successivo, che tengono la posizione della testina); `--set machine_masks=off` confronta senza; sulle stampe registrate con la 1.16 o successiva
-   (che tengono gli oggetti) si guarda tutto il piatto fuori dai pezzi, `--set expected_zone=off` confronta con la sola fascia esterna.
-
-**Quanto è preciso?** Nella stessa pagina:
-* **Precisione dell'IA**: sugli allarmi che hai giudicato, quanto spesso il responso dell'IA corrispondeva alla stampa reale
-  (pause giuste, problemi fermati, fermate sbagliate, problemi non rilevati), e una tabella di cosa avrebbe dato ogni **fiducia
-  minima dell'IA** sugli stessi allarmi; se un altro valore è migliore la pagina lo dice e, con almeno 10 allarmi giudicati,
-  propone di usarlo.
-* **Misura e confronta le opzioni**: il replay anche senza la zona del G-code, senza le maschere, meno e più sensibile, ognuno
-  segnato meglio, peggio o uguale: quanto pesa il G-code e se le soglie hanno margine (alcuni minuti; da terminale
-  `klippeye replay --current --compare`).
-
-La pagina mostra anche il **carico del monitor**: il tempo di un controllo e la CPU usata dal servizio KlippEye nell'ultimo minuto.
-
-**"AI error 429"** su un allarme vuol dire che il servizio IA ha rifiutato la richiesta: troppe richieste o troppi dati (foto)
-per i limiti del suo piano, al minuto o al giorno; l'allarme riporta le parole del servizio. Dalla 1.26.1 il servizio KlippEye aspetta e
-riprova una volta quando il servizio chiede di attendere pochi secondi. Se succede spesso (un limite giornaliero), allunga la
-*Pausa tra due analisi dell'IA* (Soglie del monitor), spegni *Manda all'IA anche la foto di prima* (una foto per richiesta invece di due), scegli un
-modello con limiti più alti o un piano a pagamento del servizio.
-
-## 6. App Android e notifiche
-
-L'app Android è una finestra a tutto schermo sulla dashboard, con notifiche push, download dei file e aggiornamenti da sola.
-
-* **Installarla**: apri la dashboard nel browser del telefono → **Impostazioni → Aggiornamenti → App Android → Scarica l'app**,
-  apri il file scaricato e consenti l'installazione da questa fonte. Da lì l'app si aggiorna da sola: **Impostazioni →
-  Aggiornamenti → App Android → Aggiorna l'app** (Android chiede sempre conferma).
-* **Indirizzi**: al primo avvio l'app chiede l'indirizzo del Raspberry (quello che apri nel browser per la stampante, per esempio
-  `192.168.1.20` o `stampante.local`) e, se usi ZeroTier o una VPN, quello esterno. Poi li prova due volte ciascuno, alternandoli; se nessuno
-  risponde mostra *Riprova* e *Indirizzi*. Si cambiano anche da **Impostazioni → Indirizzi**.
-* **Tasto indietro**: chiude la guida o il dialogo aperto e torna alla pagina precedente del menu o al passo precedente della
-  configurazione guidata. I collegamenti a siti, store e all'app ntfy si aprono fuori dall'app.
-
-Le **notifiche push** (stampa completata, errore, pausa, filamento finito, allarmi dell'IA) le manda il servizio
-`klippeye-notifier`, sempre acceso dal 1.20.0 (fa anche la pausa / l'annullamento automatici scelti nel monitor IA). Le
-notifiche viaggiano su [ntfy](https://ntfy.sh), un servizio gratuito: nessun account e nessuna chiave. KlippEye crea un
-indirizzo privato (`klippeye-` + 16 lettere e cifre) che conoscono solo i tuoi telefoni.
-
-**Con l'app KlippEye (Android, dalla 1.3.0) non serve altro.** Alla prima apertura l'app chiede *«Vuoi ricevere le notifiche
-della stampante su questo telefono?»*: **Imposta** apre la procedura guidata (**Impostazioni → Notifiche → Questo telefono**):
-
-1. **Consenti le notifiche** (la finestra di Android).
+1. **Consenti le notifiche** nella finestra di Android.
 2. **Crea l'indirizzo privato sul Raspberry** (un tocco).
-3. **Ricevi su questo telefono**: l'app ascolta da sola, anche chiusa e dopo un riavvio del telefono. Una piccola notifica fissa
-   *«KlippEye in ascolto»* segnala il collegamento aperto: tienila premuta per nasconderla.
-4. **Lascia KlippEye sveglia**: consenti a KlippEye di funzionare senza limiti di batteria, altrimenti Android la addormenta e le
-   notifiche arrivano in ritardo.
-5. **Controlla che arrivi**: KlippEye manda una prova e la pagina conferma da sola quando arriva sul telefono.
+3. **Ricevi su questo telefono**. L'app resta in ascolto anche quando è chiusa e dopo il riavvio del telefono. Una piccola
+   notifica fissa mostra che è in ascolto: tienila premuta per nasconderla.
+4. **Lascia KlippEye sveglia**: permetti all'app di funzionare senza limiti di batteria. Altrimenti Android la addormenta e
+   le notifiche arrivano in ritardo.
+5. **Controlla che arrivi**: KlippEye manda una prova e la pagina conferma quando arriva sul telefono.
 
-*Non ricevere su questo telefono* la spegne solo su quel telefono. Se cambi indirizzo dalla dashboard, le app KlippEye si
-aggiornano da sole la volta dopo che le apri.
+### Con l'app ntfy (iPhone e altri telefoni)
 
-**Altri telefoni (iPhone, o chi preferisce l'app ntfy).** Nella stessa pagina, dal browser o sotto *Altri telefoni*:
-installa l'app gratuita **ntfy** (Google Play, F-Droid, App Store), **inquadra il codice QR** con la fotocamera (dal browser del
-telefono basta toccare *Apri nell'app ntfy*, oppure aggiungi a mano server e argomento) e **invia una notifica di prova**. Più
-telefoni possono inquadrare lo stesso codice.
+1. Installa l'app gratuita **ntfy** (App Store, Google Play o F-Droid).
+2. In KlippEye apri **Impostazioni → Notifiche** e, in *Altri telefoni*, inquadra il codice QR con la fotocamera del
+   telefono. Dal telefono stesso basta toccare *Apri nell'app ntfy*.
+3. Manda una notifica di prova.
 
-Chi conosce l'indirizzo può leggere le notifiche: non condividere il codice; **Nuovo indirizzo** ne crea un altro (i telefoni con
-l'app ntfy vanno abbinati di nuovo). Con un **server ntfy tuo** scrivi il suo indirizzo (e un token, se lo chiede) in *Un server
-ntfy tuo*. Non serve riavviare niente: il servizio legge da solo la modifica.
+Più telefoni possono inquadrare lo stesso codice. Chi ha l'indirizzo può leggere le tue notifiche, quindi non condividere il
+codice. Se dovesse sfuggire, **Nuovo indirizzo** ne crea un altro (i telefoni con ntfy devono inquadrarlo di nuovo).
 
-Se la pagina dice che il servizio delle notifiche non risulta ancora attivo (installazioni precedenti al 1.20.0), esegui una volta sul
-Raspberry il comando che la pagina mostra (`bash ~/klippeye/scripts/install.sh`). Dal terminale: `klippeye notify test` (prova) e
-`klippeye notify check` (controllo). La lingua delle notifiche si sceglie in **Impostazioni → Notifiche**; in `notifier.json` puoi
-anche scrivere testi tuoi (`"messages": {"complete": "Fatto!"}`).
+<p align="center"><img src="images/notifications-it.jpg" alt="Impostazioni, Notifiche su un computer" width="720"></p>
 
-### Home Assistant e altra domotica (MQTT)
+### Scegliere cosa arriva
 
-Impostazioni → **Home Assistant / MQTT** mette la stampante su un broker MQTT. In Home Assistant: installa il componente
-aggiuntivo **Mosquitto broker** (Impostazioni → Componenti aggiuntivi), dagli un utente tutto suo (Impostazioni → Persone →
-Utenti), poi in KlippEye scrivi l'indirizzo di Home Assistant, porta 1883, quell'utente e la sua password, **Prova il
-collegamento** e **Salva**. La stampante compare da sola in Impostazioni → Dispositivi e servizi → MQTT: stato, avanzamento,
-tempo rimasto e ora di fine, file, layer, temperature, il monitor IA e il suo allarme, i pulsanti **Pausa** e **Riprendi** e
-le luci di *Funzioni della stampante*. **Annulla stampa** c'è solo se attivi *Permetti di annullare la stampa*. I nomi delle
-entità sono nella lingua delle notifiche.
+In **Impostazioni → Notifiche** scegli quali notifiche arrivano e in che lingua. Sotto ognuna, *Cambia il testo* ti fa
+scrivere il tuo, con le parole tra graffe riempite al momento dell'invio: `{file}`, `{progress}`, `{remaining}`, `{layer}`,
+`{message}` (il motivo di un errore secondo Klipper) e altre.
 
-Node-RED, openHAB, ioBroker e gli altri leggono gli stessi valori su argomenti semplici (`klippeye/<nome>/state` in un JSON,
-`klippeye/<nome>/status/…` uno per uno) e mandano `pause` / `resume` a `klippeye/<nome>/command`: la pagina li elenca.
-L'utente e la password del broker proteggono i comandi; *Comandi dalla domotica* li spegne tutti.
+**Le tue notifiche** ne aggiunge altre: *Stampa avviata*, *Avanzamento raggiunto*, *Manca poco*, *Layer raggiunto*, *Una
+riga nella console* (parole che le tue macro scrivono con `M118` o `RESPOND`), *Temperatura raggiunta*. Ognuna si può segnare
+come *Importante*, per farla arrivare come un allarme.
 
-## 7. Password e sicurezza
+Se non arriva niente, sul Raspberry `klippeye notify check` elenca cosa manca e `klippeye notify test` manda una prova.
 
-* **Password facoltativa**: Impostazioni → **Accesso** → scrivila due volte → **Attiva la password**. Il dispositivo che usi resta
-  connesso; gli altri (anche l'app) la chiedono una volta e la ricordano per 6 mesi. Da lì la cambi o la rimuovi, e disconnetti gli altri
-  dispositivi. **Dimenticata?** Sul Raspberry: `klippeye password remove` (oppure `klippeye password` per sceglierne una nuova).
-* **Password ospiti** (con la password attiva): Impostazioni → **Accesso** → **Password ospiti**. Chi entra con questa vede la
-  stampante, la camera, i file e lo storico, ma non può mandare comandi, avviare o fermare stampe, né aprire configurazione, log
-  o impostazioni. Sul Raspberry: `klippeye password guest-set` / `guest-remove`. Nota: KlippEye protegge il proprio indirizzo;
-  la porta di Moonraker (7125) la protegge la sezione `[authorization]` di Moonraker, non KlippEye.
-* **Controlli di rete**, sempre accesi: il servizio KlippEye risponde solo se lo chiami con un indirizzo IP, il nome del Raspberry o un nome
-  della rete di casa (`.local`, `.lan`…), e rifiuta i comandi che arrivano da pagine di altri siti. Per usare un nome tuo:
-  `klippeye access host-add stampante.esempio.it`. `klippeye access network-checks off` li spegne.
-* La password non protegge Moonraker (porta 7125) né le altre interfacce web della stampante, e il traffico resta in chiaro (http) sulla rete di casa.
-  **Non aprire mai le porte 80, 443 o 8085 su internet**: da fuori usa una VPN (ZeroTier, Tailscale, WireGuard).
+## 7. L'app Android
 
-## 8. Dopo un blackout
+L'app mostra la dashboard a schermo intero, riceve le notifiche, scarica i file e si aggiorna da sola.
 
-Se la corrente salta mentre il Raspberry scrive, un file del programma può restare vuoto o a metà. KlippEye si ripara da solo,
-senza internet: prima di ogni avvio del servizio `scripts/repair.sh` confronta i file del programma con la copia che git tiene in
-`~/klippeye/.git` e rimette a posto quelli rovinati; il servizio KlippEye ricontrolla quando parte e quando si chiede la pagina della
-dashboard. Le tue impostazioni e la configurazione di Klipper non si toccano mai.
+- Per installarla, dal telefono apri la dashboard nel browser → **Impostazioni → Aggiornamenti → App Android → Scarica
+  l'app**. Apri il file scaricato e permetti l'installazione di app da questa fonte.
+- Al primo avvio chiede l'indirizzo del Raspberry (quello che scrivi nel browser, per esempio `192.168.1.20`) e, se usi una
+  VPN, l'indirizzo da usare fuori casa. Li cambi poi in **Impostazioni → Indirizzi**.
+- Quando c'è un'app nuova, **Impostazioni → Aggiornamenti → App Android → Aggiorna l'app**. Android chiede sempre di
+  confermare.
+- Il tasto **indietro** del telefono chiude la finestra aperta o torna alla pagina precedente. I link ad altri siti si aprono
+  nel browser.
 
-* `klippeye repair log` (o `~/printer_data/klippeye/repair.log`) dice cosa è stato ripristinato; `klippeye repair` controlla a mano.
-* Vuoi modificare a mano i file del programma? Prima crea `~/printer_data/klippeye/no-repair`, altrimenti la riparazione li rimette com'erano.
-* Se è rovinata la memoria di git stessa, il registro lo dice: esegui `klippeye update --force`.
+Se Android rifiuta di installare un aggiornamento, permetti *Installa app sconosciute* per KlippEye. Sui telefoni Samsung
+l'*Auto Blocker* deve essere spento (Impostazioni → Sicurezza e privacy → Auto Blocker).
 
-## 9. Dove stanno le cose
+## 8. Usarla fuori casa
+
+KlippEye è pensata per la rete di casa. **Non aprire mai le sue porte (80, 443, 8085) su internet dal router.** Per
+raggiungere la stampante da fuori usa una VPN, una rete privata tra i tuoi dispositivi: ZeroTier e Tailscale sono gratuiti
+per l'uso in casa e si configurano in pochi minuti.
+
+**Impostazioni → Indirizzi → Da fuori casa con ZeroTier: la guida** ti accompagna con ZeroTier in sei passi, con i comandi da
+copiare. Poi scrivi in **Impostazioni → Indirizzi** l'indirizzo del Raspberry nella rete di casa e quello nella VPN. L'app li
+prova a turno, e la telecamera usa quello giusto.
+
+## 9. Aggiornamenti
+
+**Impostazioni → Aggiornamenti → Controlla se c'è una versione nuova → Aggiorna KlippEye.** Il servizio si riavvia per
+qualche secondo e la pagina si ricarica da sola. Impostazioni, chiavi e notifiche restano come sono. Durante una stampa il
+pulsante è disattivato.
+
+<p align="center"><img src="images/updates-it.jpg" alt="Impostazioni, Aggiornamenti" width="300"></p>
+
+Una volta al giorno (mai durante una stampa) la dashboard chiede a Moonraker se KlippEye, Klipper, Moonraker o gli altri
+programmi hanno versioni nuove. Se sì, compare un numero sulla scheda **Sistema**. Non si installa niente senza di te.
+
+Il canale degli aggiornamenti (stessa pagina):
+
+- **Versioni stabili** (la scelta di partenza): solo le versioni che hanno passato tutti i test automatici;
+- **Ogni modifica**: ogni modifica appena pubblicata, per chi vuole provare prima le novità.
+
+| Se… | allora… |
+|---|---|
+| la versione nuova non va come speravi | **Torna alla versione precedente**, nella stessa pagina |
+| la pagina dice che i file del programma sono stati cambiati a mano | **Ripristina i file del programma** (le tue impostazioni non si toccano) |
+| la dashboard non si apre proprio | sul Raspberry: `klippeye update --force` rimette il programma com'è su GitHub |
+
+## 10. Password e sicurezza
+
+**Password** (facoltativa): **Impostazioni → Accesso**, scrivila due volte, **Attiva la password**. Il dispositivo che stai
+usando resta collegato; gli altri, anche l'app, la chiedono una volta e la ricordano per sei mesi. Dalla stessa pagina la
+cambi, la togli e scolleghi gli altri dispositivi. Se l'hai dimenticata, sul Raspberry `klippeye password remove` la toglie
+e `klippeye password` ne imposta una nuova.
+
+**Password ospiti**: chi entra con questa guarda la stampante, la telecamera, i file e la cronologia, ma non manda comandi,
+non avvia né ferma stampe e non apre configurazione e impostazioni.
+
+I controlli di rete sono sempre attivi: KlippEye risponde solo se chiamata con un indirizzo IP, il nome del Raspberry o un
+nome della rete di casa (`.local`, `.lan`…), e rifiuta i comandi che arrivano da pagine di altri siti. Per usare un nome tuo,
+per esempio con un tuo dominio: `klippeye access host-add stampante.esempio.it`.
+
+La password protegge solo KlippEye. Moonraker (porta 7125) e le altre interfacce della stampante hanno le loro impostazioni,
+e il traffico nella rete di casa non è cifrato: un motivo in più per usare una VPN da fuori.
+
+## 11. Home Assistant e MQTT
+
+**Impostazioni → Home Assistant / MQTT** collega la stampante a un broker MQTT. Con Home Assistant:
+
+1. Installa il componente aggiuntivo **Mosquitto broker** (Home Assistant → Impostazioni → Componenti aggiuntivi).
+2. Crea un utente apposta (Impostazioni → Persone → Utenti).
+3. In KlippEye scrivi l'indirizzo di Home Assistant, la porta **1883**, quell'utente e la sua password.
+4. **Prova il collegamento**, poi **Salva**.
+
+La stampante compare da sola in Home Assistant (Impostazioni → Dispositivi e servizi → MQTT) con lo stato, l'avanzamento, il
+tempo che manca, le temperature, il monitor IA, i pulsanti **Pausa** e **Riprendi** e le luci. **Annulla stampa** compare
+solo se accendi *Permetti di annullare la stampa*.
+
+Node-RED, openHAB, ioBroker e simili leggono gli stessi valori su topic MQTT semplici, elencati nella pagina. Per i tuoi
+script c'è anche un'API HTTP: [API.md](API.md) (in inglese).
+
+## 12. Più di una stampante
+
+Ogni stampante ha il suo KlippEye. In **Impostazioni → Le tue stampanti** aggiungi le altre con il loro indirizzo (*Prova*
+controlla che rispondano). Poi un tocco sul nome della stampante in alto passa dall'una all'altra, e la **Panoramica** le
+mostra tutte insieme, con stato e temperature.
+
+## 13. Quando qualcosa non va
+
+Se chiedi aiuto, allega il rapporto di diagnostica: **Impostazioni → Aggiornamenti → Diagnostica → Scarica il rapporto di
+diagnostica**, oppure `klippeye diagnose --save` sul Raspberry. Non contiene password, chiavi o token.
+
+| Cosa vedi | Cosa fare |
+|---|---|
+| la dashboard non si apre | sul Raspberry: `klippeye status`, poi `klippeye restart`. `klippeye log` mostra le ultime righe del log |
+| «questo nome non è permesso» | aprila con l'indirizzo IP, oppure permetti il nome: `klippeye access host-add NOME` |
+| Moonraker non conosce KlippEye | rilancia `bash ~/klippeye/scripts/install.sh`, poi riavvia Moonraker |
+| la telecamera resta nera | vedi il capitolo [4](#4-la-telecamera) |
+| nessuna notifica | `klippeye notify check` e `klippeye notify test` |
+| il monitor IA si comporta male | vedi [Se non si comporta bene](#se-non-si-comporta-bene) |
+| l'app non installa un aggiornamento | vedi il capitolo [7](#7-lapp-android) |
+| il Raspberry sembra lento | `klippeye benchmark`, meglio durante una stampa: misura per 30 secondi e dice in parole semplici se c'è margine |
+
+### Dopo un calo di corrente
+
+Un calo di corrente mentre il Raspberry scrive può lasciare un file rovinato. KlippEye si ripara da sola, senza internet:
+prima di ogni avvio confronta i suoi file con la copia che tiene git e rimette a posto quelli danneggiati. Le tue
+impostazioni e la configurazione della stampante non vengono mai toccate. `klippeye repair log` ti dice cosa è stato
+ripristinato.
+
+Se cambi a mano i file del programma di proposito, crea prima il file `~/printer_data/klippeye/no-repair`, altrimenti la
+riparazione li rimette com'erano.
+
+## 14. Domande frequenti
+
+**Sostituisce la mia interfaccia di Klipper?** No, a meno che tu non voglia. KlippEye le lavora accanto: stesso Klipper,
+stesso Moonraker, stessi file. Puoi tenerle aperte tutte e due insieme.
+
+**Cambia la configurazione della stampante?** Solo quando glielo chiedi. Se lasci che KlippEye crei una macro (in *Funzioni
+della stampante*), la scrive nel suo file `klippeye_macros.cfg` e aggiunge una riga `[include]` a `printer.cfg`, con una
+copia di sicurezza.
+
+**Serve internet?** Per installare e aggiornare sì. La dashboard, la telecamera e l'IA locale funzionano anche senza. Le
+notifiche e l'IA online ne hanno bisogno.
+
+**Manda da qualche parte le foto delle mie stampe?** Solo all'IA online che scegli, e solo le foto di un allarme. Con *Solo
+il modello locale* non esce niente dal Raspberry.
+
+**È gratis?** Sì, KlippEye è software libero. I servizi di IA online hanno piani gratuiti con un limite al giorno; quelli a
+pagamento li scegli tu.
+
+**Rallenta le stampe?** Il monitor gira a bassa priorità e Klipper ha la precedenza. Sui Raspberry Pi più vecchi (3 o Zero
+2), `klippeye benchmark` ti dice se c'è margine.
+
+**E l'iPhone?** La dashboard funziona in Safari e le notifiche arrivano con l'app ntfy. L'app KlippEye esiste solo per
+Android.
+
+## 15. Togliere KlippEye
+
+Sul Raspberry:
+
+```bash
+klippeye undo-install
+```
+
+Toglie i servizi, il comando `klippeye` e la voce nel gestore degli aggiornamenti di Moonraker. La cartella dei tuoi dati
+(`~/printer_data/klippeye`) e i pacchetti installati restano; cancella a mano le cartelle `~/klippeye` e
+`~/printer_data/klippeye` se vuoi eliminare anche quelle. Se KlippEye aveva preso l'indirizzo principale del Raspberry, la
+pagina che c'era prima lo riavrà.
+
+## A. Compilare la tua app Android
+
+Ti serve solo se modifichi l'app tu stesso. L'app pubblicata con KlippEye è già compilata e firmata.
+
+GitHub compila l'app gratis nei repository pubblici:
+
+1. Fai un fork del repository su GitHub e installa KlippEye dal tuo fork
+   (`git clone https://github.com/<tu>/KlippEye.git ~/klippeye`).
+2. La password della chiave di firma. Android aggiorna un'app solo se è firmata con la stessa chiave. GitHub crea la chiave
+   la prima volta e la cifra con una password che scegli tu: nel tuo repository vai in **Settings → Secrets and variables →
+   Actions → New repository secret**, nome **`KLIPPEYE_CHIAVE_PASSWORD`**, valore una frase lunga (almeno 16 caratteri, su
+   una riga). Conservala in un posto sicuro.
+3. **Settings → Actions → General → Workflow permissions → Read and write permissions**, così il workflow può salvare l'app
+   in `apk/`.
+4. **Actions → Android app → Run workflow.** Dopo 5-10 minuti l'app è in `apk/`. Aggiorna KlippEye dalla dashboard e installa
+   l'app da *Impostazioni → Aggiornamenti → App Android* (prima disinstalla un'app firmata con un'altra chiave).
+5. Per una versione nuova dell'app alza il numero in `android/VERSION` (per esempio `1.8.1`); GitHub la compila da solo.
+
+Quando il workflow si ferma, spiega il motivo in parole semplici (un segreto mancante, una password corta, una chiave
+diversa…). Dettagli tecnici, in inglese: [android/README.md](../android/README.md).
+
+## B. Dove KlippEye tiene i suoi file
 
 | Dove | Cosa |
 |---|---|
-| `~/klippeye` | il programma: una copia del repository GitHub. Non si modifica a mano (Moonraker rifiuterebbe di aggiornare) |
-| `~/printer_data/klippeye` | le tue cose: `monitor.json` (soglie del monitor), `ai.json` (chiave dell'IA), `access.json` (impronta della password), `notifier.json` e `service-account.json` (notifiche), `alerts/`, copie di sicurezza. Per salvarle basta copiare la cartella |
-| servizi `klippeye`, `klippeye-notifier` | partono con systemd all'accensione; `klippeye` deve tenere il suo nome: è quello che Moonraker riavvia dopo un aggiornamento |
-| database di Moonraker, namespace `klippeye` | le impostazioni della dashboard, uguali su tutti i dispositivi |
+| `~/klippeye` | il programma, una copia di questo repository. Non cambiarlo a mano: Moonraker si rifiuterebbe di aggiornarlo |
+| `~/printer_data/klippeye` | i tuoi dati: impostazioni del monitor, chiavi, password (solo l'impronta), notifiche, allarmi, registrazioni, copie di sicurezza. Copia questa cartella per avere un backup |
+| i servizi `klippeye` e `klippeye-notifier` | partono all'avvio. Non rinominare `klippeye`: Moonraker lo riavvia dopo un aggiornamento |
+| il database di Moonraker, namespace `klippeye` | le impostazioni della dashboard condivise da tutti i tuoi dispositivi |
 
-**Come funziona l'aggiornamento:** l'installazione aggiunge questa voce a `moonraker.conf`:
+L'installatore aggiunge questa sezione a `moonraker.conf`:
 
-```
+```ini
 [update_manager klippeye]
 type: git_repo
 path: ~/klippeye
@@ -708,49 +514,25 @@ channel: stable
 managed_services: klippeye
 ```
 
-Con **Aggiorna**, Moonraker scarica da GitHub l'ultima versione etichettata (o, sul canale `dev`, l'ultima modifica) in `~/klippeye` e riavvia il servizio `klippeye`; il servizio delle
-notifiche si accorge che il suo file è cambiato e riparte da solo. L'app Android arriva per la stessa strada: la cartella `apk/`
-del repository contiene l'ultima app costruita da GitHub, e il servizio KlippEye la offre al telefono solo se grandezza e SHA-256
-corrispondono ad `apk/version.json`.
+## C. Comandi del terminale
 
-## 10. Se qualcosa non va
+Si scrivono sul Raspberry. Ti serviranno di rado: le cose di tutti i giorni si fanno dalla dashboard. Per abitudine i
+comandi sono in inglese, ma i vecchi nomi italiani (`stato`, `riavvia`, `aggiorna`…) funzionano ancora.
 
-**Chiedi aiuto?** Allega il rapporto di diagnostica: *Impostazioni → Aggiornamenti → Diagnostica → Scarica il rapporto di
-diagnostica*, oppure `klippeye diagnose --save` sul Raspberry. Non contiene chiavi, password o token.
-
-**Il Raspberry ce la fa?** `klippeye benchmark` (meglio durante una stampa, con il monitor IA acceso) misura per 30 secondi
-quanto processore e memoria usano KlippEye, Moonraker, Klipper e la camera, la temperatura e gli avvisi di alimentazione del
-Raspberry, e quanto impiega il monitor IA per ogni foto, poi dice a parole se c'è margine.
-
-| Cosa vedi | Cosa fare |
+| Comando | Cosa fa |
 |---|---|
-| La dashboard non risponde | `klippeye status`; `klippeye restart`; `klippeye log` mostra le ultime righe del registro del servizio KlippEye |
-| La pagina dice che il nome non è ammesso | aprila con l'indirizzo IP, oppure ammetti il nome: `klippeye access host-add NOME` |
-| Moonraker «non conosce ancora KlippEye» | `bash ~/klippeye/scripts/install.sh`, poi riavvia Moonraker dal menu Riavvia |
-| La telecamera resta nera | Impostazioni → Telecamera: controlla metodo e indirizzo (o *Importa dalla stampante*); Impostazioni → Indirizzi |
-| Il monitor IA non chiama mai l'IA | la chiave dell'IA (5.1); OpenCV installato (`sudo apt install python3-opencv`); il monitor acceso |
-| Non arrivano notifiche | `klippeye notify check` elenca cosa manca; `klippeye notify test` manda una prova |
-| L'app non riesce a installare un aggiornamento | consenti «Installa app sconosciute» per KlippEye; l'Auto Blocker di Samsung dev'essere spento |
-
-Comandi da terminale: `klippeye status`, `version`, `log [notifier]`, `restart [backend|notifier|all]`, `repair [log]`,
-`update [--force]`, `notify test|check`, `password [set|remove|status|logout-all]`, `access ...`, `diagnose [--save]`,
-`undo-install`, `help`.
-I nomi italiani delle versioni precedenti (`stato`, `riavvia`, `aggiorna`…) funzionano ancora.
-
----
-
-## A. Costruire la propria app Android
-
-Serve solo per modificare l'app (le notifiche non ne hanno bisogno: sezione 6). GitHub costruisce l'app gratis per i repository pubblici.
-
-1. Fai un **fork** del repository su GitHub e installa KlippEye dal tuo fork (`git clone https://github.com/<tu>/KlippEye.git`).
-2. **Password della chiave di firma**: Android aggiorna un'app solo se è firmata sempre con la stessa chiave. GitHub crea la chiave
-   la prima volta e la cifra con una password che scegli tu: nel repository **Settings → Secrets and variables → Actions → New
-   repository secret**, nome **`KLIPPEYE_CHIAVE_PASSWORD`**, valore una frase lunga (almeno 16 caratteri, su una riga). Conservala.
-3. **Settings → Actions → General → Workflow permissions → Read and write permissions** (il workflow salva l'app in `apk/`).
-4. **Actions → Android app → Run workflow**. Dopo 5–10 minuti l'app è in `apk/`; aggiorna KlippEye dalla dashboard e installa l'app da
-   Impostazioni → Aggiornamenti → App Android (prima disinstalla un'app firmata con un'altra chiave).
-5. **Una versione nuova dell'app**: alza il numero in `android/VERSION` (tre numeri, per esempio `1.2.1`); GitHub la costruisce da solo.
-
-Quando il workflow si ferma spiega a parole cosa non va (segreto mancante, password corta, chiave diversa da quella dell'app
-pubblicata…). Dettagli tecnici: [android/README.md](../android/README.md).
+| `klippeye status` | se i servizi girano e la dashboard risponde |
+| `klippeye version` | la versione installata |
+| `klippeye log` · `klippeye log notifier` | le ultime righe del log della dashboard o delle notifiche |
+| `klippeye restart` · `restart notifier` · `restart all` | riavvia i servizi |
+| `klippeye update` · `update --force` | aggiorna a mano; `--force` butta via le modifiche fatte a mano |
+| `klippeye repair` · `repair log` | controlla subito i file del programma · dice cosa è stato ripristinato |
+| `klippeye notify test` · `notify check` | manda una notifica di prova · elenca cosa manca |
+| `klippeye password` · `password remove` | imposta · toglie la password della dashboard (anche `status`, `logout-all`, `guest-set`, `guest-remove`) |
+| `klippeye access host-add NOME` | permette un altro nome per la dashboard (anche `host-remove`, `network-checks on/off`, `status`) |
+| `klippeye diagnose` · `diagnose --save` | il rapporto da allegare quando chiedi aiuto |
+| `klippeye benchmark` | quanto processore e memoria usano i programmi della stampante |
+| `klippeye replay` | fa rigirare il monitor IA sulle stampe registrate (opzioni in cima a `scripts/replay.py`) |
+| `klippeye web main` · `web restore` · `web status` | KlippEye all'indirizzo principale del Raspberry, o di nuovo sulla porta 8085 |
+| `klippeye undo-install` | toglie KlippEye |
+| `klippeye help` | l'elenco dei comandi |

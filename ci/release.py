@@ -25,7 +25,7 @@ import subprocess
 import sys
 import urllib.request
 
-RELEASE = re.compile(r"^\d{1,2}\.\d{1,2}\.\d{1,3}$")
+RELEASE = re.compile(r"^\d{1,3}\.\d{1,3}\.\d{1,3}$")   # 1.120.0: a minor of three digits is a release too (it was not after 1.99)
 
 
 def git(repo, *args):

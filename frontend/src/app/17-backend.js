@@ -125,7 +125,7 @@ async function backendPost(url, body) {
 }
 
 /** "35" -> "35 %": a value with the unit of its setting. */
-const withUnit = (spec, value) => String(value).replace(".", ",") + (spec.unit ? (/^[%°]/.test(spec.unit) ? "" : " ") + spec.unit : "");
+const withUnit = (spec, value) => decimalText(value) + (spec.unit ? (/^[%°]/.test(spec.unit) ? "" : " ") + spec.unit : "");
 
 /**
  * The thresholds as the backend has them, ready for a menu:
