@@ -3,7 +3,7 @@
 Tags a KlippEye release once its tests passed: the tag vX.Y.Z (from VERSION) is what the "stable" update channel of
 Moonraker installs, and a GitHub release with the CHANGELOG section goes with it.
 
-Run by .github/workflows/release.yml after the "Tests" workflow (or the "App Android" one) finished on main:
+Run by .github/workflows/release.yml after the "Tests" workflow (or the "Android app" one) finished on main:
 
     python3 ci/release.py --tested-sha SHA [--repo DIR] [--dry-run]
 
@@ -77,7 +77,7 @@ def decide(repo, tested_sha, tip="origin/main"):
         except ValueError:
             built = None
         if built != app_version:
-            return dict(tag=False, reason="the Android app %s is not built yet (apk/ has %s): the tag waits for the App Android workflow" % (app_version, built or "nothing"))
+            return dict(tag=False, reason="the Android app %s is not built yet (apk/ has %s): the tag waits for the Android app workflow" % (app_version, built or "nothing"))
     tag = "v" + version
     if git_ok(repo, "rev-parse", "-q", "--verify", "refs/tags/" + tag):
         return dict(tag=False, reason="%s already exists (raise VERSION for a new release)" % tag)

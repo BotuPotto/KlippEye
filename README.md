@@ -14,8 +14,9 @@ Security: [SECURITY.md](SECURITY.md) · Contributing: [CONTRIBUTING.md](CONTRIBU
 
 * Full printer control from phone or desktop: temperatures, fans, motion, Z-offset, files, console and macros, config
   editor, bed mesh, calibrations, endstops, service and host restarts, software updates.
-* AI print monitor: a local OpenCV filter on the Raspberry; an online AI (Groq or OpenAI, with your own key) only judges
-  the pictures that look suspicious. Alerts are kept with their images.
+* AI print monitor: motion detection and a small model run on the Raspberry itself, without internet; an online AI
+  (Groq, Gemini, OpenAI and others, with your own key) is optional and only judges the pictures that look doubtful.
+  Alerts are kept with their images.
 * Push notifications received by the KlippEye Android app itself (guided set-up, no account, no key) or by the free ntfy app (QR code, also iPhone), in English, Italian, Spanish, German, French, Portuguese (Brazil), Polish, Simplified Chinese, Russian or Ukrainian, with optional automatic pause/cancel.
 * Home Assistant and MQTT: the printer, the AI monitor and the lights appear in Home Assistant by itself (discovery), with pause, resume and the lights; plain topics for Node-RED, openHAB, ioBroker.
 * Self-repair after a power loss: damaged program files are restored from git at every start.
@@ -66,7 +67,7 @@ The installer adds what is missing by itself (`python3-flask`, `python3-waitress
 
 The app has its own version (`android/VERSION`). The backend offers the APK only if its size and SHA-256 match
 `apk/version.json`; the app checks them again after downloading, and Android installs only an APK signed with the same
-key, after the user confirms. Setup (once) and steps: guide, part C. Technical details: [android/README.md](android/README.md).
+key, after the user confirms. Setup (once) and steps: guide, appendix A. Technical details: [android/README.md](android/README.md).
 
 ## Repository layout
 
@@ -80,7 +81,10 @@ key, after the user confirms. Setup (once) and steps: guide, part C. Technical d
 | `systemd/` | templates of the `klippeye` and `klippeye-notifier` services | updates |
 | `android/` | the Android app sources (`android/VERSION` = app version) | new app releases |
 | `apk/` | `KlippEye.apk` and `version.json`: the latest app built by GitHub | GitHub (`.github/workflows/app.yml`) |
-| `ci/app_ci.py` | the steps of the app build workflow | updates |
+| `ci/` | what the GitHub workflows run: `app_ci.py` (the app build), `release.py` (when a release gets its tag) | updates |
+| `models/base/` | the local model of the AI monitor, with the credits of its training pictures | updates |
+| `ml/` | the tools that train and measure that model ([ml/README.md](ml/README.md)); not needed on the Raspberry | contributors |
+| `docs/` | the guide (English and Italian) and the API for scripts and home automation | updates |
 | `tests/` | automatic tests ([tests/README.md](tests/README.md)), run on GitHub for every pull request | contributors |
 | `logos/` | official printer logos for the printer picker ([logos/README.md](logos/README.md)) | once |
 | `~/printer_data/klippeye/monitor.json` | AI monitor thresholds (changed from the dashboard) | the dashboard |

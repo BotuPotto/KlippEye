@@ -1,4 +1,4 @@
-"""The block "App Android" of the page Aggiornamenti: what the backend offers (/api/app/version), what the app says about itself
+"""The block «Android app» of the Updates page: what the backend offers (/api/app/version), what the app says about itself
 (window.KlippEyeApp.appInfo), the update through the app (updateApp -> window.klippeyeAppUpdate events), an older app, a browser.
 The Android app is played by a small fake bridge injected before the page starts.
 Usage: app_test.py <html> <outdir> <port>"""

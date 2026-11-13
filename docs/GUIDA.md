@@ -748,7 +748,7 @@ Serve solo per modificare l'app (le notifiche non ne hanno bisogno: sezione 6). 
    la prima volta e la cifra con una password che scegli tu: nel repository **Settings → Secrets and variables → Actions → New
    repository secret**, nome **`KLIPPEYE_CHIAVE_PASSWORD`**, valore una frase lunga (almeno 16 caratteri, su una riga). Conservala.
 3. **Settings → Actions → General → Workflow permissions → Read and write permissions** (il workflow salva l'app in `apk/`).
-4. **Actions → App Android → Run workflow**. Dopo 5–10 minuti l'app è in `apk/`; aggiorna KlippEye dalla dashboard e installa l'app da
+4. **Actions → Android app → Run workflow**. Dopo 5–10 minuti l'app è in `apk/`; aggiorna KlippEye dalla dashboard e installa l'app da
    Impostazioni → Aggiornamenti → App Android (prima disinstalla un'app firmata con un'altra chiave).
 5. **Una versione nuova dell'app**: alza il numero in `android/VERSION` (tre numeri, per esempio `1.2.1`); GitHub la costruisce da solo.
 
