@@ -1,7 +1,5 @@
 package com.klippeye.app
 
-import com.sun.net.httpserver.HttpExchange
-import com.sun.net.httpserver.HttpServer
 import org.junit.AfterClass
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
@@ -12,7 +10,10 @@ import org.junit.BeforeClass
 import org.junit.Test
 import java.io.File
 import java.io.IOException
-import java.net.InetSocketAddress
+import java.io.OutputStream
+import java.net.InetAddress
+import java.net.ServerSocket
+import java.net.Socket
 import java.net.URL
 import java.nio.file.Files
 import java.security.MessageDigest
@@ -87,7 +88,7 @@ class AppUpdateTest {
     }
 
     private fun served(path: String, size: Long = APK.size.toLong(), fingerprint: String = APK_SHA) =
-        AppUpdate.Request(URL("http://127.0.0.1:${server.address.port}$path"), "1.0.1", 10001, fingerprint, size)
+        AppUpdate.Request(URL("http://127.0.0.1:${server.localPort}$path"), "1.0.1", 10001, fingerprint, size)
 
     private fun left(folder: File) = folder.listFiles()?.map { it.name }?.sorted() ?: emptyList()
 
@@ -174,45 +175,64 @@ class AppUpdateTest {
         private val APK = ByteArray(300_000) { ((it * 31 + 7) % 251).toByte() }
         private val APK_SHA = MessageDigest.getInstance("SHA-256").digest(APK).joinToString("") { "%02x".format(it) }
         private val hits = AtomicInteger()
-        private lateinit var server: HttpServer
+        private lateinit var server: ServerSocket
 
-        private fun answer(e: HttpExchange, code: Int, body: ByteArray) {
-            hits.incrementAndGet()
-            e.responseHeaders.add("Content-Type", AppUpdate.APK_MIME_TYPE)
-            e.sendResponseHeaders(code, body.size.toLong())
-            e.responseBody.use { it.write(body) }
+        // A tiny HTTP/1.1 server on a plain socket: the JDK's com.sun.net.httpserver is not on the Android
+        // unit-test classpath. One request per connection, then the connection is closed.
+        private fun head(out: OutputStream, code: Int, length: Long?) {
+            val lines = StringBuilder("HTTP/1.1 $code X\r\nContent-Type: ${AppUpdate.APK_MIME_TYPE}\r\nConnection: close\r\n")
+            if (length != null) lines.append("Content-Length: $length\r\n")
+            out.write(lines.append("\r\n").toString().toByteArray())
+        }
+
+        private fun answer(out: OutputStream, code: Int, body: ByteArray) {
+            head(out, code, body.size.toLong())
+            out.write(body)
+        }
+
+        private fun serve(socket: Socket) {
+            socket.use { s ->
+                val reader = s.getInputStream().bufferedReader()
+                val path = (reader.readLine() ?: return).split(" ").getOrNull(1)?.substringBefore("?") ?: return
+                while (!reader.readLine().isNullOrEmpty()) { /* the request's headers: not needed */ }
+                val out = s.getOutputStream()
+                hits.incrementAndGet()
+                when (path) {
+                    "/app/KlippEye.apk" -> answer(out, 200, APK)
+                    "/missing/app" -> answer(out, 404, "no".toByteArray())
+                    "/broken/app" -> answer(out, 500, "no".toByteArray())
+                    "/damaged/app" -> answer(out, 200, APK.copyOf().also { bytes -> bytes[1234] = (bytes[1234] + 1).toByte() })
+                    "/small/app" -> answer(out, 200, APK.copyOf(1000))
+                    "/cut/app" -> { // announces the whole file but stops halfway: the connection breaks
+                        head(out, 200, APK.size.toLong())
+                        out.write(APK, 0, 100_000)
+                    }
+                    "/long/app" -> { // no Content-Length (the end of the connection ends it), bigger than the backend announced
+                        head(out, 200, null)
+                        out.write(APK + ByteArray(5000))
+                    }
+                    else -> answer(out, 404, "no".toByteArray())
+                }
+                out.flush()
+            }
         }
 
         @BeforeClass
         @JvmStatic
         fun startServer() {
-            server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
-            server.createContext("/app/KlippEye.apk") { answer(it, 200, APK) }
-            server.createContext("/missing/app") { answer(it, 404, "no".toByteArray()) }
-            server.createContext("/broken/app") { answer(it, 500, "no".toByteArray()) }
-            server.createContext("/damaged/app") { answer(it, 200, APK.copyOf().also { bytes -> bytes[1234] = (bytes[1234] + 1).toByte() }) }
-            server.createContext("/small/app") { answer(it, 200, APK.copyOf(1000)) }
-            server.createContext("/cut/app") { e ->
-                // announces the whole file but stops halfway: the connection breaks
-                hits.incrementAndGet()
-                e.sendResponseHeaders(200, APK.size.toLong())
-                e.responseBody.write(APK, 0, 100_000)
-                e.responseBody.flush()
-                e.close()
-            }
-            server.createContext("/long/app") { e ->
-                // no Content-Length (chunked), and bigger than the backend announced
-                hits.incrementAndGet()
-                e.sendResponseHeaders(200, 0)
-                e.responseBody.use { it.write(APK + ByteArray(5000)) }
-            }
-            server.start()
+            server = ServerSocket(0, 50, InetAddress.getByName("127.0.0.1"))
+            Thread {
+                while (!server.isClosed) {
+                    val socket = try { server.accept() } catch (e: IOException) { break }
+                    Thread { try { serve(socket) } catch (e: IOException) { /* the client went away */ } }.apply { isDaemon = true }.start()
+                }
+            }.apply { isDaemon = true }.start()
         }
 
         @AfterClass
         @JvmStatic
         fun stopServer() {
-            server.stop(0)
+            server.close()
         }
     }
 }
