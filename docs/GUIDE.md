@@ -214,8 +214,10 @@ Under **When it sees a problem** (same page) you choose:
   resumed, so start with notifications only and switch on the pause once you trust it.
 
 Before pausing or cancelling, the AI looks twice: 40 seconds later it is asked again on a new picture, and the print is
-stopped only if it sees the problem again. A reflection or the toolhead passing by is gone by then, while a real failure is still there. During
-the first 2 mm of the print an "empty bed" verdict alone never stops it, because a camera can hardly see a first layer.
+stopped only if it sees the problem again. A reflection or the toolhead passing by is gone by then, while a real failure is still there. An
+"empty bed" verdict (the part came off) is the easiest one to get wrong, so it counts only when the AI saw the part on the
+earlier picture and sees it gone on the new one, is at least 85% sure, the print is already 2 mm high and the part is at least
+2 cm across. The AI is also told how big the part is and, with a calibrated camera, where it should be in the picture.
 
 When the AI raises an alarm, the print card asks you: **Real problem**, **False alarm** or **Ignore**. Your answer clears
 the alarm and helps measure the monitor.

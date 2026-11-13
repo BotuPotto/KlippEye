@@ -1,5 +1,19 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.121.0
+
+**Far fewer false «empty bed» alarms.** The AI used to judge «empty bed» without knowing what to look for, and from a
+single picture a part that came off and a part the camera cannot see look the same. Now:
+
+* the AI is told how many objects are printed, how big the biggest one is, how high the print is and, with a calibrated
+  camera, where the part should be in the picture;
+* «empty bed» counts only when the part is clearly visible in the earlier picture and gone in the new one: with a single
+  picture it is never trusted;
+* it needs the AI to be at least 85% sure (the other defects keep your threshold), the print to be at least 2 mm high and
+  the part at least 2 cm across;
+* when one of these is missing, «empty bed» does not count; if a pause or a cancel rested on it alone, the print goes on
+  and the AI's panel says why. Spaghetti, layer shifts and warping are judged as before.
+
 ## 1.120.0
 
 **New guides, written from scratch for whoever uses the printer.** The [user guide](https://github.com/BotuPotto/KlippEye/blob/main/docs/GUIDE.md) goes from installing to

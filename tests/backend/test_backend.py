@@ -742,6 +742,30 @@ check("... 5 mm high, or the height unknown: as the AI said",
       b_ai.distrust_low_empty_bed(_empty, 5.0, 70)[0]["action"] == "CANCEL" and b_ai.distrust_low_empty_bed(_empty, None, 70)[0]["action"] == "CANCEL")
 _both = dict(_empty, spaghetti={"detected": True, "confidence": 90})
 check("... spaghetti seen too on the flat print: the stop stays", b_ai.distrust_low_empty_bed(_both, 0.2, 70)[0]["action"] == "CANCEL")
+print("== 1.121: «empty bed» needs the earlier picture, a part big enough and a sure AI")
+de = b_ai.distrust_empty_bed
+v, changed = de(_empty, 70, "it", z=8.0, with_reference=False, side=60)
+check("1.121: one picture only: «empty bed» not trusted, the stop becomes CONTINUE, the reason in the language",
+      changed and v["action"] == "CONTINUE" and v["empty_bed"]["detected"] is False and "una foto" in v["summary"], v)
+v, changed = de(_empty, 70, "en", z=8.0, with_reference=True, side=12)
+check("... a part 12 mm across: too small to say it is gone", changed and v["action"] == "CONTINUE" and "20 mm" in v["summary"], v)
+v, changed = de(dict(_empty, empty_bed={"detected": True, "confidence": 80}), 70, "en", z=8.0, with_reference=True, side=60)
+check("... 80% sure (the other defects need 70%): «empty bed» needs 85%", changed and v["action"] == "CONTINUE" and "85%" in v["summary"], v)
+v, changed = de(_empty, 70, "en", z=8.0, with_reference=True, side=60)
+check("... two pictures, a big part 8 mm high, 95% sure: the stop stays", not changed and v["action"] == "CANCEL", v)
+v, changed = de(_empty, 70, "en", z=8.0, with_reference=True, side=None)
+check("... the objects unknown: only the other rules count", not changed and v["action"] == "CANCEL")
+check("... spaghetti seen too: the stop stays, «empty bed» is still marked not trusted",
+      de(_both, 70, "en", z=8.0, with_reference=False)[0]["action"] == "CANCEL" and de(_both, 70, "en", with_reference=False)[0]["empty_bed"]["distrusted"] is True)
+_square = [{"name": "cube", "polygon": [[100, 100], [130, 100], [130, 125], [100, 125]]}, {"name": "pin", "polygon": [[10, 10], [14, 10], [14, 14]]}]
+check("1.121: the longest side of the biggest object", b_ai.largest_side(_square) == 30 and b_ai.largest_side([]) is None and b_ai.largest_side(None) is None)
+_hint = b_ai.part_hint(_square, 3.2, [(0.2, 0.8), (0.5, 0.5)])
+check("... the line for the AI: how many, how big, how tall, where in the picture, and a warning when low",
+      "2 object(s)" in _hint and "30 mm" in _hint and "3.2 mm" in _hint and "bottom left" in _hint and "the middle" in _hint and "few pixels" in _hint, _hint)
+check("... nothing known: no line", b_ai.part_hint(None, None) == "")
+_prompt = b_ai.build_ai_prompt(10, "printing", "a.gcode", 50, 210, 60, "en", None, _hint)
+check("... the line is in the question, and «empty bed» asks for the part to be seen gone on the earlier picture",
+      _hint in _prompt and "clearly visible in the BEFORE picture" in _prompt and "never report an empty bed" in _prompt)
 _stop = {"spaghetti": {"detected": True, "confidence": 90}, "action": "CANCEL", "summary": "nest"}
 v = b_ai.confirm_stop(_stop, {"action": "CONTINUE", "summary": "all fine"}, "it")
 check("1.102: confirm_stop: the second look sees nothing: CONTINUE, the proposal kept, why in the language",
