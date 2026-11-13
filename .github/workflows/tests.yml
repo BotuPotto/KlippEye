@@ -87,7 +87,7 @@ jobs:
   app:
     name: Android app compiles
     # The APK is published by app.yml only after a merge into main: this job compiles the app on every pull request
-    # (debug build, no signing key and no Firebase file needed), so a mistake in the Kotlin code is seen before the merge.
+    # (debug build, no signing key and no Firebase file needed), so a mistake in the Kotlin code is seen before the merge; the tests of app/src/test run too.
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -100,8 +100,8 @@ jobs:
         with:
           packages: 'platforms;android-34 build-tools;34.0.0'
       - uses: gradle/actions/setup-gradle@v4
-      - name: Compile the app (debug)
+      - name: Compile the app (debug) and run its tests
         working-directory: android
         run: |
           chmod +x gradlew
-          ./gradlew --no-daemon --stacktrace assembleDebug
+          ./gradlew --no-daemon --stacktrace assembleDebug testDebugUnitTest

@@ -1,2 +1,2 @@
-# Regole per R8/ProGuard. Oggi l'app si costruisce senza riduzione del codice (minifyEnabled false in app/build.gradle),
-# quindi questo file e' vuoto di proposito: c'e' perche' build.gradle lo nomina.
+# Rules for R8/ProGuard. The app is built without code shrinking today (minifyEnabled false in app/build.gradle),
+# so this file is empty on purpose: it is here because build.gradle names it.

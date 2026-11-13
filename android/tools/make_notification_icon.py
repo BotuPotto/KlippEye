@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
-"""Icona piccola delle notifiche (la sagoma bianca che compare nella barra di stato).
+"""The small icon of the notifications (the white shape in the status bar).
 
-Android vuole un'immagine bianca su fondo trasparente, 24 dp: la sagoma e' quella del logo KlippEye (tools/assets/logo_klippeye_mono.png,
-la stessa del logo a colori, con un anello vuoto attorno alla pupilla). Scrive res/drawable-<densita>/ic_stat_klippeye.png.   Uso:  python3 tools/genera_icona_notifica.py
-(serve Pillow)
+Android wants a white picture on a transparent background, 24 dp: the shape is the KlippEye logo's
+(tools/assets/logo_klippeye_mono.png, the same as the colour logo, with an empty ring around the pupil).
+Writes res/drawable-<density>/ic_stat_klippeye.png.
+
+    python3 tools/make_notification_icon.py      (needs Pillow)
 """
 import os
 from PIL import Image
@@ -11,7 +13,7 @@ from PIL import Image
 HERE = os.path.dirname(os.path.abspath(__file__))
 RES = os.path.join(HERE, "..", "app", "src", "main", "res")
 SIZES = {"mdpi": 24, "hdpi": 36, "xhdpi": 48, "xxhdpi": 72, "xxxhdpi": 96}
-MARGIN = 0.06  # aria attorno alla sagoma, in frazione del lato
+MARGIN = 0.06  # room around the shape, as a fraction of the side
 
 
 def main():

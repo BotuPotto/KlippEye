@@ -1,4 +1,69 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Written by android/tools/strings_source.py: edit the texts there. -->
 <resources>
-    <string name="app_name">KlippEye</string>
+    <string name="app_name" translatable="false">KlippEye</string>
+    <string name="logo_description">KlippEye logo</string>
+    <string name="status_searching">Looking for KlippEye…</string>
+    <string name="status_searching_local">Looking for KlippEye on the home network…</string>
+    <string name="status_first_start">Enter the Raspberry\'s address to begin.</string>
+    <string name="status_attempt">Attempt %1$d of %2$d: %3$s %4$s…</string>
+    <string name="network_local">home network</string>
+    <string name="network_external" translatable="false">ZeroTier / VPN</string>
+    <string name="status_connected">Connected to %1$s</string>
+    <string name="status_connected_via">Connected via %1$s %2$s</string>
+    <string name="status_switching">%1$s does not answer, trying %2$s…</string>
+    <string name="status_not_answering">KlippEye does not answer. Check that the Raspberry is on and connected to the network (and ZeroTier, if you use it), or check the addresses.</string>
+    <string name="status_connecting_printer">Connecting to %1$s…</string>
+    <string name="printer_not_answering">%1$s does not answer: back to the main printer</string>
+    <string name="retry">Try again</string>
+    <string name="addresses">Addresses</string>
+    <string name="cancel">Cancel</string>
+    <string name="addresses_title">Raspberry addresses</string>
+    <string name="addresses_welcome_title">Welcome to KlippEye</string>
+    <string name="addresses_welcome_message">Where is your printer? %1$s</string>
+    <string name="addresses_explanation">The same address you use to open the printer\'s web page in the browser (without http:// and without a port), for example 192.168.1.20 or printer.local. The external address is needed only if you open KlippEye away from home with ZeroTier or a VPN.</string>
+    <string name="addresses_hint_local">Local IP, e.g. 192.168.1.20</string>
+    <string name="addresses_hint_external">External IP (optional: ZeroTier, VPN)</string>
+    <string name="addresses_connect">Connect</string>
+    <string name="addresses_save">Save and try again</string>
+    <string name="address_local_invalid">The local IP is not a valid address</string>
+    <string name="address_local_not_private">The local IP must belong to a private network (192.168.x.x, 10.x.x.x, 172.16-31.x.x)</string>
+    <string name="address_external_invalid">The external IP is not a valid address</string>
+    <string name="address_external_not_private">The external IP must belong to a private network (ZeroTier, VPN)</string>
+    <string name="link_install_ntfy">Install the ntfy app first</string>
+    <string name="link_no_app">No app can open this link</string>
+    <string name="battery_settings_hint">Open Settings &gt; Apps &gt; KlippEye &gt; Battery and choose «Unrestricted»</string>
+    <string name="notification_settings_hint">Open Settings &gt; Apps &gt; KlippEye &gt; Notifications</string>
+    <string name="install_permission_hint">Open Settings &gt; Apps &gt; KlippEye &gt; Install unknown apps, allow it, then try again</string>
+    <string name="install_permission_missing">Without the permission Android does not install the update: turn on «Allow from this source» for KlippEye and try again</string>
+    <string name="installer_failed">Android\'s installer could not be opened: %1$s</string>
+    <string name="update_error_connection">The connection to the Raspberry was lost: %1$s</string>
+    <string name="update_error_bad_address">The update\'s address is not valid</string>
+    <string name="update_error_other_server">The app downloads updates only from the Raspberry it is connected to</string>
+    <string name="update_error_bad_version">The version number is not valid</string>
+    <string name="update_error_up_to_date">The app is already up to date</string>
+    <string name="update_error_no_fingerprint">The file\'s fingerprint is missing: check for updates again</string>
+    <string name="update_error_bad_size">The file size is not valid</string>
+    <string name="update_error_no_storage">The phone\'s storage is not available</string>
+    <string name="update_error_no_apk">The Raspberry does not have the app: update KlippEye first, then check again</string>
+    <string name="update_error_http">The Raspberry answered with an error (%1$s)</string>
+    <string name="update_error_not_announced">The file on the Raspberry is not the announced one: check for updates again</string>
+    <string name="update_error_too_big">The file is bigger than expected</string>
+    <string name="update_error_interrupted">The download stopped halfway (%1$s bytes): try again</string>
+    <string name="update_error_damaged">The downloaded file is damaged (different fingerprint): try again</string>
+    <string name="update_error_cannot_save">The file cannot be saved in the phone\'s storage</string>
+    <string name="download_not_supported">This address cannot be downloaded</string>
+    <string name="download_started">Downloading %1$s…</string>
+    <string name="download_saved">Saved in %1$s</string>
+    <string name="download_failed">Download failed: %1$s</string>
+    <string name="channel_alarms">Alarms and failures</string>
+    <string name="channel_alarms_description">Printer error, filament run out, serious defects found by the AI</string>
+    <string name="channel_warnings">Warnings</string>
+    <string name="channel_warnings_description">Print paused or stopped, defects found by the AI</string>
+    <string name="channel_print">Print complete</string>
+    <string name="channel_print_description">End of print and test notifications</string>
+    <string name="channel_listening">KlippEye is listening</string>
+    <string name="channel_listening_description">The ongoing notification that keeps the connection open to receive the notifications. It can be hidden.</string>
+    <string name="listening_title">KlippEye is listening</string>
+    <string name="listening_text">Receives the printers\' notifications. Touch and hold to hide it.</string>
 </resources>

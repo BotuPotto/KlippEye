@@ -32,7 +32,7 @@ def wait_until(fn, timeout=4.0, step=0.1):
     except Exception: return False
 
 
-# The KlippEye app 1.3.0 (KlippEyeApp/6), played by a fake bridge that behaves like Ascolto.kt
+# The KlippEye app 1.3.0 (KlippEyeApp/6), played by a fake bridge that behaves like PushSettings.kt
 APP = """(() => {
   const ua = navigator.userAgent + ' KlippEyeApp/%d';
   Object.defineProperty(navigator, 'userAgent', { get: () => ua });

@@ -698,7 +698,7 @@ if scenario("app") and PLAYWRIGHT:
     KOTLIN = bool(kotlin_home) and os.path.isfile(os.path.join(kotlin_home, "bin", "kotlinc")) and bool(shutil.which("java"))
     KTOUT = os.path.join(WORK, "kotlin")
     if KOTLIN:
-        src = os.path.join(ROOT, "android", "app", "src", "main", "java", "com", "klippeye", "app", "Aggiornamento.kt")
+        src = os.path.join(ROOT, "android", "app", "src", "main", "java", "com", "klippeye", "app", "AppUpdate.kt")
         main_kt = os.path.join(HERE, "AppDownload.kt")
         if not os.path.isdir(KTOUT) or os.path.getmtime(KTOUT) < max(os.path.getmtime(src), os.path.getmtime(main_kt)):
             shutil.rmtree(KTOUT, ignore_errors=True)
@@ -707,7 +707,7 @@ if scenario("app") and PLAYWRIGHT:
         SKIPPED.append("app: the checks with the app's Kotlin code (kotlinc or java not found)")
 
     def kotlin_download(version, sha, size, installed_code, outdir):
-        """The app's Kotlin code (Aggiornamento.kt) downloading from the real backend: -> (exit code, lines)"""
+        """The app's Kotlin code (AppUpdate.kt) downloading from the real backend: -> (exit code, lines)"""
         stdlib = [os.path.join(kotlin_home, "lib", n) for n in ("kotlin-stdlib.jar",)]
         r = subprocess.run(["java", "-cp", ":".join([KTOUT] + stdlib), "AppDownloadKt", BACKEND + "/", version, sha, str(size), str(installed_code), outdir],
                            capture_output=True, text=True, timeout=120)
@@ -773,10 +773,10 @@ if scenario("app") and PLAYWRIGHT:
         ok("[app] the app's Kotlin code downloads from the real backend and gets the same file", code == 0 and lines and lines[0].startswith("OK")
            and open(lines[0].split()[1], "rb").read() == apk_dev and lines[0].split()[2] == apk_sha, (code, lines))
         code, lines = kotlin_download("1.0.0", apk_sha, len(apk_dev), 10000, outdir)
-        ok("[app] ... with the same version installed it says it is up to date", code == 2 and lines and "già aggiornata" in lines[0], (code, lines))
+        ok("[app] ... with the same version installed it says it is up to date", code == 2 and lines and "UP_TO_DATE" in lines[0], (code, lines))
         code, lines = kotlin_download("1.0.0", "0" * 64, len(apk_dev), 5, outdir)
-        ok("[app] ... with a wrong fingerprint it throws the file away", code == 2 and lines and "rovinato" in lines[0]
-           and not any(f.endswith((".apk", ".parte")) for f in os.listdir(outdir)), (code, lines, os.listdir(outdir)))
+        ok("[app] ... with a wrong fingerprint it throws the file away", code == 2 and lines and "DAMAGED" in lines[0]
+           and not any(f.endswith((".apk", ".part")) for f in os.listdir(outdir)), (code, lines, os.listdir(outdir)))
 
     publish_app(w, "1.0.1", "1.0.2", "KlippEye 1.0.2 + app 1.0.1")
     http("POST", BACKEND + "/machine/update/refresh?name=klippeye", timeout=120)

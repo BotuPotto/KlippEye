@@ -214,7 +214,7 @@ function NotificationChannels({ store }) {
 const NOTIFY_INVITE_KEY = "ke_notify_invite_closed";
 const PROOF_WAIT_MS = 30000;
 
-/** What the app says about the notifications of this phone (Ascolto.stato in the app), or null outside the app. */
+/** What the app says about the notifications of this phone (PushSettings.state in the app), or null outside the app. */
 function readAppNotifyState() {
   const bridge = nativeBridge();
   if (!APP_CAN_NOTIFY || !bridge || typeof bridge.notifyState !== "function") return null;
