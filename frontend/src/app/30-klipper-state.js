@@ -355,9 +355,14 @@ const RESTART_DETAIL = {
 const RESTART_DETAIL_DEFAULT = tx("Waiting for Klipper to answer...");
 const DISCONNECTED_HELP = tx("Moonraker cannot connect to Klipper! Check that the Klipper service is running and that klippy_uds_address is set correctly in moonraker.conf.");
 
-/** `state` is what useKlipperState returns. Look and layout: css/35-klipper-state.css. */
-function KlipperStateBanner({ state }) {
+/**
+ * `state` is what useKlipperState returns. Look and layout: css/35-klipper-state.css.
+ * `compact` (a file open in the editor on a wide screen) puts it on one line, Klipper's words behind a button,
+ * so the editor under it keeps its height.
+ */
+function KlipperStateBanner({ state, compact = false }) {
   const { view } = state;
+  const [expanded, setExpanded] = useState(false);
   if (!view) return null;
 
   let tone = "neutral";
@@ -394,19 +399,44 @@ function KlipperStateBanner({ state }) {
         !disconnected && h("button", { className: "oui-btn oui-btn--primary oui-btn--sm", onClick: () => state.restartKlipper(true) }, h(Icons.RotateCw, { size: 16 }), tx("Firmware restart")),
         !disconnected && h("button", { className: "oui-btn oui-btn--sm", onClick: () => state.restartKlipper(false) }, h(Icons.RotateCw, { size: 16 }), tx("Klipper restart")),
         disconnected && h("button", { className: "oui-btn oui-btn--primary oui-btn--sm", onClick: () => state.serviceAction("restart", "klipper") }, h(Icons.RotateCw, { size: 16 }), tx("Restart the Klipper service")),
-        !disconnected && h("button", { className: "oui-btn oui-btn--sm", onClick: () => logsApi.download("klippy.log") }, h(Icons.Download, { size: 16 }), tx("Klipper log")),
-        h("button", { className: "oui-btn oui-btn--sm", onClick: () => logsApi.download("moonraker.log") }, h(Icons.Download, { size: 16 }), tx("Moonraker log")),
+        // compact: the two logs as icons (their name in the tooltip), so the panel stays on one line
+        !disconnected && h("button", { className: "oui-btn oui-btn--sm klipper-state__log", title: tx("Klipper log"), "aria-label": tx("Klipper log"), onClick: () => logsApi.download("klippy.log") }, h(Icons.Download, { size: 16 }), h("span", { className: "klipper-state__label" }, tx("Klipper log"))),
+        h("button", { className: "oui-btn oui-btn--sm klipper-state__log", title: tx("Moonraker log"), "aria-label": tx("Moonraker log"), onClick: () => logsApi.download("moonraker.log") }, h(Icons.Download, { size: 16 }), h("span", { className: "klipper-state__label" }, tx("Moonraker log"))),
       );
     }
   }
 
+  const iconBox = h("div", { className: "klipper-state__icon" }, loading ? h(LoadingRing, { size: compact ? 22 : undefined }) : icon);
+  if (compact) {
+    // one line: the state, the first line of what Klipper says, the buttons; the whole message only when asked for
+    const words = body ? String(body.props.children || "") : "";
+    const first = words.split("\n").find((line) => line.trim()) || "";
+    const more = words.trim() !== first.trim();
+    return h(
+      "div",
+      { className: cx("klipper-state klipper-state--compact", loading && "is-loading"), "data-tone": tone, role: loading ? "status" : "alert" },
+      h(
+        "div",
+        { className: "klipper-state__card" },
+        h(
+          "div",
+          { className: "klipper-state__head" },
+          iconBox,
+          h("div", { className: "klipper-state__summary" }, h("div", { className: "klipper-state__title" }, title), first && h("div", { className: "klipper-state__line", title: words }, first)),
+          more && h("button", { type: "button", className: "oui-btn oui-btn--sm klipper-state__more", "aria-expanded": expanded, "data-klipper-more": "1", onClick: () => setExpanded(!expanded) }, h(Icons.Chevron, { size: 16 }), expanded ? tx("Hide the message") : tx("Whole message")),
+          actions,
+        ),
+        expanded && more && body,
+      ),
+    );
+  }
   return h(
     "div",
     { className: cx("klipper-state", loading && "is-loading"), "data-tone": tone, role: loading ? "status" : "alert" },
     h(
       "div",
       { className: "klipper-state__card" },
-      h("div", { className: "klipper-state__head" }, h("div", { className: "klipper-state__icon" }, loading ? h(LoadingRing) : icon), h("div", { className: "klipper-state__title" }, title)),
+      h("div", { className: "klipper-state__head" }, iconBox, h("div", { className: "klipper-state__title" }, title)),
       body,
       actions,
     ),

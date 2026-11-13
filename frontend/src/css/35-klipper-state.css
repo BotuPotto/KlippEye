@@ -56,3 +56,30 @@
   50% { stroke-dasharray: 55, 100; stroke-dashoffset: -22; }
   100% { stroke-dasharray: 55, 100; stroke-dashoffset: -87; }
 }
+
+/* compact: on one line over the open editor of a wide screen, so the editor keeps its height */
+.klipper-state--compact { margin: 0; }
+.klipper-state--compact .klipper-state__card { padding: 10px 12px 10px 14px; }
+.klipper-state--compact .klipper-state__head { flex-wrap: wrap; gap: 8px 12px; }
+.klipper-state--compact .klipper-state__icon { width: 32px; height: 32px; }
+.klipper-state--compact .klipper-state__icon svg:not(.klipper-state__ring) { width: 18px; height: 18px; }
+.klipper-state__summary { flex: 1 1 160px; min-width: 0; }
+.klipper-state--compact .klipper-state__title { font-size: 15px; }
+.klipper-state__line {
+  overflow: hidden;
+  font-family: var(--oui-font-mono);
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--oui-text-2);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.klipper-state--compact .klipper-state__actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; }
+.klipper-state--compact .klipper-state__actions .oui-btn,
+.klipper-state__more { white-space: nowrap; }
+.klipper-state__more svg { transition: transform var(--oui-dur-fast) var(--oui-ease); }
+.klipper-state__more[aria-expanded="true"] svg { transform: rotate(180deg); }
+.klipper-state--compact .klipper-state__message,
+.klipper-state--compact .klipper-state__text { max-height: 24vh; margin-top: 10px; }
+.klipper-state--compact .klipper-state__label { display: none; }
+.klipper-state--compact .klipper-state__log { padding: 0 10px; }

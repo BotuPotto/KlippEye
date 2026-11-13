@@ -158,7 +158,7 @@ function App() {
       ? h(
           "main",
           { className: "desk-main" },
-          h(KlipperStateBanner, { state: klipper }),
+          h(KlipperStateBanner, { state: klipper, compact: tab === "config" && Boolean(editorSession) }),
           h("div", { className: "desk-page" }, pages[tab]),
           h(ConsoleDock, { entries: consoleFeed.entries }),
         )
