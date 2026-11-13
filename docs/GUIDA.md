@@ -171,10 +171,20 @@ dalla stampante*. Se apri KlippEye da fuori casa, vedi il capitolo [8](#8-usarla
 
 Durante una stampa KlippEye guarda la telecamera ogni pochi secondi, sul Raspberry stesso. Ogni foto la guardano in due:
 
-- un rilevamento del movimento, che si accorge quando qualcosa sul piatto cambia e resta cambiato (senza badare alla luce
-  e alla testina che passa);
+- un rilevamento del movimento (OpenCV), che si accorge quando qualcosa sul piatto cambia e resta cambiato (senza badare
+  alla luce e alla testina che passa);
 - un modello locale, una piccola IA per immagini addestrata su foto di stampe fallite, che arriva con KlippEye e funziona
-  senza internet. Dà un voto agli allarmi del rilevamento del movimento e guarda anche da solo ogni 15 secondi.
+  senza internet. Ogni 15 secondi valuta quanto è probabile che la foto mostri una stampa fallita. Guarda la foto intera
+  e, con la telecamera calibrata, più da vicino il pezzo.
+
+I due si aiutano. Quando OpenCV vede un cambiamento, il modello locale guarda subito, più da vicino quel punto, e continua
+a guardarlo per cinque minuti. Quando il modello locale ha un dubbio, OpenCV dà l'allarme prima per un minuto.
+
+Nel pannello del monitoraggio IA (tocca il badge **AI**) ognuno ha il suo riquadro, con l'ultimo punteggio e il massimo
+della stampa. Il punteggio di OpenCV torna a 0% quando un cambiamento smette di cambiare: un pezzo staccato che resta fermo
+diventa parte del suo sfondo. È normale, ed è per questo che il modello locale continua a tenerlo d'occhio. **Prova adesso
+il modello locale** valuta la foto della telecamera in quel momento: metti qualcosa davanti alla telecamera e guarda se lo
+riconosce.
 
 Cosa succede dopo dipende dalla tua scelta in **Impostazioni → Monitor IA → Il servizio IA → Chi giudica le foto**:
 
@@ -217,7 +227,10 @@ In **Quando vede un problema** (stessa pagina) scegli:
 
 Prima di mettere in pausa o annullare, l'IA guarda due volte: 40 secondi dopo le si chiede di nuovo su una foto nuova, e la
 stampa si ferma solo se vede di nuovo il problema. Un riflesso o la testina che passa nel frattempo sono spariti, un guasto
-vero è ancora lì. Il
+vero è ancora lì.
+Con un servizio di riserva, la seconda occhiata va all'altro servizio, come secondo parere; se la sua risposta non si
+legge, si chiede al successivo. Se il secondo parere non vede niente ma il modello locale è sicuro del guasto su quella
+stessa foto nuova, lo stop resta. Se la stampa finisce durante l'attesa, non si ferma niente. Il
 giudizio «piatto vuoto» (il pezzo si è staccato) è il più facile da sbagliare, quindi conta solo se l'IA ha visto il pezzo
 nella foto di prima e lo vede sparito in quella nuova, ne è sicura almeno all'85%, la stampa è già alta 2 mm e il pezzo misura
 almeno 2 cm. All'IA viene anche detto quanto è grande il pezzo e, con la telecamera calibrata, dove dovrebbe trovarsi
@@ -227,6 +240,18 @@ Quando l'IA dà un allarme, la card della stampa ti chiede: **Problema reale**, 
 risposta chiude l'allarme e aiuta a misurare il monitor.
 
 <p align="center"><img src="images/ai-alarm-it.jpg" alt="La card della stampa chiede se l'allarme dell'IA è un problema reale" width="340"></p>
+
+### Quanto è attento
+
+**Impostazioni → Monitor IA → Soglie del monitor** comincia con una scelta che regola insieme OpenCV e il modello locale:
+
+- **Pochi falsi allarmi**: solo problemi chiari, un piccolo difetto può essere notato tardi;
+- **Equilibrato**: i valori di serie;
+- **Nota di più**: i problemi vengono notati prima, con più falsi allarmi (l'IA online, se la usi, ne filtra molti).
+
+Ogni numero è in **Regolazioni fini**, raggruppato per quello che fa. Se ne cambi uno a mano la scelta diventa
+*Personalizzato*; scegli di nuovo un livello per rimetterli in accordo. I numeri del modello locale compaiono solo quando
+un modello locale è in uso, e *In dubbio da* resta sempre sotto *Sicuro da*.
 
 ### Calibrare la telecamera (consigliato)
 
@@ -275,10 +300,11 @@ monitor su quelle stampe e ti dice quanti allarmi all'ora avresti, quanti erano 
 
 | Cosa succede | Cosa provare |
 |---|---|
-| allarmi quando passa la testina | calibra la telecamera; controlla il contorno di testina e gantry; in *Soglie del monitor* alza *Controlli di fila in cui il cambiamento deve restare* da 3 a 4 |
+| allarmi quando passa la testina | calibra la telecamera; controlla il contorno di testina e gantry; in *Soglie del monitor* scegli *Pochi falsi allarmi* |
+| OpenCV segna 0% con un guasto evidente | normale quando il guasto smette di muoversi: guarda il *massimo* e il riquadro del modello locale, oppure premi *Prova adesso il modello locale* |
 | allarmi quando cambia la luce | sistema l'esposizione della telecamera; attenua un LED troppo forte; lascia il cambio di luce a 30 |
 | l'IA segnala problemi dubbi | alza *Fiducia minima dell'IA* dal 70% all'80% |
-| un guasto vero passa inosservato | calibra la telecamera; in *Registrazioni* guarda gli allarmi: uno arancione vuol dire che la fiducia era troppo alta |
+| un guasto vero passa inosservato | calibra la telecamera; in *Soglie del monitor* scegli *Nota di più*; in *Registrazioni* guarda gli allarmi: uno arancione vuol dire che la fiducia era troppo alta |
 | "AI error 429" su un allarme | il servizio online rifiuta altre richieste (il suo limite al minuto o al giorno). Alza *Pausa tra due analisi dell'IA*, spegni *Manda all'IA anche la foto di prima*, aggiungi un servizio di riserva, oppure usa *Solo il modello locale* |
 | il monitor non chiama mai l'IA | controlla la chiave e il modello; controlla che OpenCV sia installato (`sudo apt install python3-opencv`) e che *Monitor attivo* sia acceso |
 

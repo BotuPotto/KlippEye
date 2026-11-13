@@ -691,7 +691,7 @@ CONFIG_GROUPS = [
      "note": "During heating, mesh or purge the real print has not started yet: the monitor waits."},
     {"id": "ia", "title": "AI model", "note": ""},
     {"id": "local", "title": "Local model",
-     "note": "A small image model that runs on the Raspberry itself (no internet, no cost) and rates how likely each picture shows a failed print. It looks by itself every few seconds and judges the alarms of the motion detection: the online AI is asked when it is sure or in doubt. Without a model installed these settings have no effect."},
+     "note": "A small image model that runs on the Raspberry itself (no internet, no cost) and rates how likely each picture shows a failed print: the whole picture, and closer the part and the places where OpenCV saw a change. It looks by itself every few seconds and judges the alarms of the motion detection: the online AI is asked when it is sure or in doubt. Without a model installed these settings have no effect."},
     {"id": "recording", "title": "Recording",
      "note": "While a print runs the KlippEye service keeps the pictures the monitor looked at (small, about 30 KB each) with layer, position and score, so that the monitor can be measured afterwards. The oldest prints are deleted when the space is full."},
 ]
@@ -701,13 +701,13 @@ CONFIG_SPEC = [
      "help": "When off, the KlippEye service does not watch the camera and does not call the AI."},
     {"key": "sensitivity", "type": "int", "default": 35, "min": 5, "max": 100, "step": 1, "unit": "", "group": "rilevamento",
      "label": "Change threshold",
-     "help": "How much the brightness of a point must change between two pictures to count as movement. HIGHER = less sensitive (fewer false alarms); lower = more sensitive."},
+     "help": "How much a point of the picture must differ from the background to count as changed. HIGHER = less sensitive (fewer false alarms); lower = more sensitive."},
     {"key": "score_threshold", "type": "float", "default": 2.5, "min": 0.5, "max": 30, "step": 0.5, "decimals": 1, "unit": "%", "group": "rilevamento",
-     "label": "Movement at the edges",
-     "help": "How much of the outer band of the area must move for the check to be suspicious. Lower = more sensitive."},
+     "label": "Changed area for a suspicious check",
+     "help": "How much of the watched area must stay changed for a check to be suspicious: the bed outside the parts with a calibrated camera, otherwise the outer band of the rectangle. Lower = more sensitive. While the local model has a doubt, 60% of it is enough."},
     {"key": "trigger_count", "type": "int", "default": 3, "min": 1, "max": 10, "step": 1, "unit": "", "group": "rilevamento",
      "label": "Suspicious checks before the alarm",
-     "help": "How many suspicious checks are needed to ask the AI for an analysis. Every normal check takes one away."},
+     "help": "How many suspicious checks are needed for an alarm. Every normal check takes one away. While the local model has a doubt, one fewer is enough."},
     {"key": "check_interval", "type": "int", "default": 3, "min": 1, "max": 30, "step": 1, "unit": "s", "group": "rilevamento",
      "label": "How often it looks at the camera",
      "help": "Longer = less work for the Raspberry, but a problem is noticed later."},
@@ -746,10 +746,10 @@ CONFIG_SPEC = [
      "help": "When no online AI can answer (no key, the limits used up) and the local model is sure for three looks in a row, the monitor proposes a pause by itself (the automatic pause, if on, does it). Off: without the online AI the local model only warns."},
     {"key": "local_every", "type": "int", "default": 15, "min": 5, "max": 120, "step": 5, "unit": "s", "group": "local",
      "label": "How often the local model looks by itself",
-     "help": "Besides every alarm of the motion detection. Each look takes a fraction of a second of the Raspberry."},
+     "help": "Besides every change OpenCV sees, which it looks at at once. Each look takes a fraction of a second of the Raspberry."},
     {"key": "local_doubt", "type": "int", "default": 35, "min": 5, "max": 95, "step": 5, "unit": "%", "group": "local",
      "label": "In doubt from",
-     "help": "From this rating the local model has a doubt: an alarm of the motion detection goes to the online AI, and three doubtful looks in a row ask it too."},
+     "help": "From this rating the local model has a doubt: an alarm of the motion detection goes to the online AI, three doubtful looks in a row ask it too, and for a minute OpenCV raises an alarm sooner."},
     {"key": "local_sure", "type": "int", "default": 80, "min": 10, "max": 99, "step": 1, "unit": "%", "group": "local",
      "label": "Sure from",
      "help": "From this rating the local model is sure there is a failure: two sure looks in a row ask the online AI at once, even without an alarm of the motion detection."},
@@ -897,6 +897,12 @@ class MonitorConfig:
                 errors[key] = str(error)
         if errors:
             return errors, []
+        with self.lock:
+            merged = dict(self.values, **clean)
+        # 1.124: «sure» must stay above «in doubt», or the local model would be sure before it has a doubt
+        if merged.get("local_sure", 80) <= merged.get("local_doubt", 35):
+            key = "local_sure" if "local_sure" in clean else "local_doubt"
+            return {key: "«Sure from» must be higher than «In doubt from»"}, []
         with self.lock:
             changed = [key for key, value in clean.items() if self.values.get(key) != value]
             for key in changed:
@@ -1737,6 +1743,36 @@ AI_CONFIRM_DELAY_S = 40  # 1.102: a stop the AI proposes is looked at again this
 PART_HIDDEN = 0.6        # 1.123: the toolhead and the gantry cover this much of the part in the picture: it is hidden
 HIDDEN_WAIT_S = 90       # 1.123: a question to the AI put off because the part was hidden is asked within this time
 CONFIRM_HIDDEN_WAIT_S = 30  # 1.123: the second look waits up to this long for the toolhead to leave the part
+LOCAL_CHANGE_MEMORY_S = 300  # 1.124: a change the motion detection saw is looked at closer by the local model for 5 minutes,
+                             # also once the background has absorbed it (a part come off does not move any more)
+LOCAL_SOON_S = 3             # 1.124: a new change: the local model looks at once, at most this often
+LOCAL_BOOST_S = 60           # 1.124: after a doubtful look, the motion detection is more ready to raise an alarm for this long
+CROP_MARGIN = 0.5            # 1.124: a close look takes the box and half of its size around it on each side...
+CROP_MIN = 0.3               # ...and at least 30% of the picture's height, so the model still sees what is around
+
+
+def same_place(box, other, apart=0.08):
+    """Whether two boxes (fractions of the picture) are about the same place: centres closer than `apart`."""
+    if not box or not other:
+        return False
+    return (abs((box[0] + box[2] / 2.0) - (other[0] + other[2] / 2.0)) < apart
+            and abs((box[1] + box[3] / 2.0) - (other[1] + other[3] / 2.0)) < apart)
+
+
+def crop_rect(box, width, height, margin=CROP_MARGIN, minimum=CROP_MIN):
+    """A square around `box` (x, y, w, h in fractions of the picture), with a margin, at least `minimum` of the picture's
+    height and inside the picture -> (x0, y0, x1, y1) in pixels, or None."""
+    if not box:
+        return None
+    x, y, w, h = (float(v) for v in box)
+    side = max(w * width, h * height) * (1 + 2 * margin)
+    side = int(min(max(side, minimum * height), width, height))
+    if side < 16:
+        return None
+    cx, cy = (x + w / 2.0) * width, (y + h / 2.0) * height
+    x0 = int(min(max(cx - side / 2.0, 0), width - side))
+    y0 = int(min(max(cy - side / 2.0, 0), height - side))
+    return x0, y0, x0 + side, y0 + side
 EMPTY_BED_MIN_Z = 2.0  # 1.102: below this height (mm) a part can hardly be seen: «empty bed» is not trusted
 
 
@@ -2156,6 +2192,11 @@ class LightDetector(FrameJudge):
         """A print starts or ends: the alarms of the print before are closed (1.25), so the dashboard's AI badge and the
         verdict on the page belong to this print only. They stay in the alert history and in the recordings."""
         printing = state in ("printing", "paused")
+        if printing and not self.in_print:  # 1.124: the highest scores and the doubts belong to one print
+            self.reset_peak()
+            for key in ("peak", "doubt_until", "views", "best", "change_seen"):
+                self.local_state.pop(key, None)
+            self._local_stats()
         if printing != self.in_print:
             if self.last_analysis is not None:
                 print("[OPENCV] print %s: the last AI alarm is closed" % ("started" if printing else "ended"))
@@ -2373,6 +2414,9 @@ class LightDetector(FrameJudge):
                 now = time.time()
                 ignore = self._machine_mask()
                 zone = self._zone_masks()
+                # 1.124: while the local model has a doubt, the motion detection raises an alarm sooner
+                self.boost = bool(self.local_enabled and now < self.local_state.get("doubt_until", 0))
+                self.stats["boost"] = self.boost
                 score, triggered = self.judge(frame, r.content, now, ignore, zone)
                 ask = self._local_look(frame, now, triggered)   # 1.106: the local model's opinion and whether to ask online
                 ask = self._put_off_when_hidden(ask, now)        # 1.123: not while the toolhead hides the part
@@ -2404,6 +2448,56 @@ class LightDetector(FrameJudge):
                 print(f"[OPENCV] loop error: {e}")
                 self._nap(generation, 3)
 
+    def _local_stats(self):
+        state = self.local_state
+        self.stats["local"] = {k: state.get(k) for k in ("score", "checks", "filtered", "asked", "peak", "views", "best")}
+
+    def _part_box(self):
+        """Where the printed objects are in the picture (x, y, w, h in fractions), from the camera calibration; or None."""
+        try:
+            objects, z = self.zone.get("objects"), self._height_now()
+            known = camera_cal.limits()
+            if not objects or z is None or not known or not camera_cal.usable() or not camera_cal.saved:
+                return None
+            points = [p for polygon in print_zone.outlines(camera_cal.saved, objects, z, known[0], known[1])["expected"] for p in (polygon or [])]
+            if not points:
+                return None
+            xs, ys = [min(max(p[0], 0.0), 1.0) for p in points], [min(max(p[1], 0.0), 1.0) for p in points]
+            return (min(xs), min(ys), max(xs) - min(xs), max(ys) - min(ys))
+        except Exception as error:  # a help only
+            print("[LOCAL] where the part is: %s" % error)
+            return None
+
+    def local_views(self, frame, now=None):
+        """The pictures the local model judges (1.124): the whole picture; with a calibrated camera, a closer look at the
+        printed part; when the motion detection saw a change in the last minutes, a closer look at it.
+        -> [(name, picture)]."""
+        now = time.time() if now is None else now
+        height, width = frame.shape[:2]
+        views = [("whole", frame)]
+        for name, box in (("part", self._part_box()),
+                          ("change", self.change_box if self.change_at is not None and now - self.change_at <= LOCAL_CHANGE_MEMORY_S else None)):
+            rect = crop_rect(box, width, height)
+            if rect and (rect[2] - rect[0]) < 0.95 * min(width, height) + 1:
+                views.append((name, frame[rect[1]:rect[3], rect[0]:rect[2]]))
+        return views
+
+    def local_judge(self, frame, now=None):
+        """The local model on local_views(): -> (score 0..100: the highest view, {view: score}, the view that gave it)
+        or None (no model, or it failed on the whole picture)."""
+        model = local_ai.model
+        version = model.version if model is not None else None
+        scores = {}
+        for name, picture in self.local_views(frame, now):
+            result = local_ai.predict(picture)
+            if result is None:
+                if name == "whole":
+                    return None
+                continue
+            scores[name] = round(personal.blend(result[0], result[1], version) * 100, 1)
+        best = max(scores, key=scores.get)
+        return scores[best], scores, best
+
     def _local_look(self, frame, now, triggered):
         """The local model (1.106). It looks at every alarm of the motion detection and by itself every local_every
         seconds; -> whether to ask the online AI now (the reason in self.local_state["why"]):
@@ -2411,18 +2505,26 @@ class LightDetector(FrameJudge):
           by itself: two «sure» looks in a row, or three «in doubt» in a row.
         Without a model (or switched off) only the motion detection decides, as before."""
         state = self.local_state
-        due = triggered or now >= state.get("next", 0)
-        result = local_ai.predict(frame) if (self.local_enabled and due) else None
+        # 1.124: a change the motion detection has just seen is judged at once, closer, without waiting for local_every
+        # (a change that stays is seen again at every check: only a new one, or one in another place, is looked at at once)
+        fresh = (self.change_at is not None and self.change_at >= now - 0.5 and now - state.get("at", 0) >= LOCAL_SOON_S
+                 and not same_place(self.change_box, state.get("change_seen")))
+        due = triggered or fresh or now >= state.get("next", 0)
+        result = self.local_judge(frame, now) if (self.local_enabled and due) else None
         if result is None:
             state["why"] = "motion" if triggered and self.ai_online else None
             return bool(triggered) and self.ai_online
-        model = local_ai.model
-        score = round(personal.blend(result[0], result[1], model.version if model is not None else None) * 100, 1)
-        state.update(score=score, at=now, next=now + self.local_every, checks=state.get("checks", 0) + 1)
+        score, views, best = result
+        if (fresh or triggered) and self.change_box is not None:
+            state["change_seen"] = self.change_box
+        state.update(score=score, views=views, best=best, at=now, next=now + self.local_every, checks=state.get("checks", 0) + 1,
+                     peak=max(state.get("peak") or 0, score))
         sure, doubt = score >= self.local_sure, score >= self.local_doubt
+        if doubt:
+            state["doubt_until"] = now + LOCAL_BOOST_S
         state["sure_run"] = state.get("sure_run", 0) + 1 if sure else 0
         state["doubt_run"] = state.get("doubt_run", 0) + 1 if doubt else 0
-        self.stats["local"] = {k: state.get(k) for k in ("score", "checks", "filtered", "asked")}
+        self._local_stats()
         if not self.ai_online:
             # 1.119: the local model alone (the online AI switched off): three sure looks in a row propose a pause
             if state["sure_run"] >= 3 and now >= self.cooldown_until:
@@ -2451,7 +2553,7 @@ class LightDetector(FrameJudge):
                 self.cooldown_until = max(self.cooldown_until, now + self.cooldown_sec)
                 self._local_verdict(score, frame)
             state["why"] = None
-            self.stats["local"] = {k: state.get(k) for k in ("score", "checks", "filtered", "asked")}
+            self._local_stats()
             return False
         if why:
             state["asked"] = state.get("asked", 0) + 1
@@ -2459,7 +2561,7 @@ class LightDetector(FrameJudge):
             if why != "motion+local":
                 self.cooldown_until = max(self.cooldown_until, now + self.cooldown_sec)
         state["why"] = why
-        self.stats["local"] = {k: state.get(k) for k in ("score", "checks", "filtered", "asked")}
+        self._local_stats()
         return bool(why)
 
     def _online_ai_usable(self):
@@ -2671,6 +2773,18 @@ class LightDetector(FrameJudge):
             parsed, _ = distrust_empty_bed(parsed, self.ai_min_confidence, language, z=z, with_reference=used_reference, side=largest_side(objects), hidden=hidden)
         return {"ok": True, "parsed": parsed, "answer": answer, "with_reference": used_reference}
 
+    def _local_on_file(self, path):
+        """The local model's score (0..100) of a saved picture, or None (no model, switched off, not readable)."""
+        if not self.local_enabled or local_ai.model is None or not path:
+            return None
+        try:
+            frame = cv2.imread(path)
+            result = self.local_judge(frame) if frame is not None else None
+            return result[0] if result else None
+        except Exception as error:  # a help only
+            print("[LOCAL] the picture of the second look not judged: %s" % error)
+            return None
+
     def _free_targets(self, chain, now=None):
         """The services of the chain whose limit is not used up (1.104)."""
         now = time.time() if now is None else now
@@ -2772,18 +2886,38 @@ class LightDetector(FrameJudge):
                     still = (moonraker_status("print_stats").get("print_stats") or {}).get("state")
                 except Exception:
                     still = None
+                if still in ("complete", "cancelled", "error"):
+                    # 1.124: the print ended while waiting: there is nothing left to stop, no alarm is raised for it
+                    print(f"[OPENCV] second look not made: the print is {still}")
+                    record_alert({"outcome": "print ended before the second look", "score": score, "model": final_model,
+                                  "action": parsed.get("action"), "summary": parsed.get("summary")}, img_path, ref_path)
+                    return
                 again = self._ai_picture("confirm") if still == "printing" else None
                 if again:
+                    # 1.124: the local model's opinion of the new picture goes with the question (not the old one's)
+                    fresh_local = self._local_on_file(again)
+                    asked_local = dict(local or {}, score=fresh_local) if fresh_local is not None else local
                     # 1.104: a second opinion, from another service of the chain when there is one (and it is wanted);
-                    # the first one if that cannot answer
+                    # the first one if that cannot answer. 1.124: an answer that cannot be read is no answer: the next one
                     others = [t for t in self._free_targets(chain) if t is not target]
                     order = (others + [target]) if (ai_cfg.get("second_opinion") is not False and others) else ([target] + others)
-                    look, second_target, _ = self._ask_chain(order, again, img_path, AI_CONFIRM_DELAY_S, score, state, filename, progress, temp_h, language, local)
+                    look, second_target = {"ok": False}, None
+                    for candidate in order:
+                        look, second_target, _ = self._ask_chain([candidate], again, img_path, AI_CONFIRM_DELAY_S, score, state, filename, progress, temp_h, language, asked_local)
+                        if look["ok"] and look["parsed"] is not None:
+                            break
                     self.last_ai_call = time.time()
                     if look["ok"] and look["parsed"] is not None:
                         second = look["parsed"]
                         confirm = {"action": second.get("action"), "summary": second.get("summary"), "observation": second.get("observation"),
-                                   "model": second_target["model"], "service": second_target["name"]}
+                                   "model": second_target["model"], "service": second_target["name"], "local_score": fresh_local}
+                        # 1.124: another service that sees nothing does not let a failure go when the local model is sure
+                        # of it on the same new picture: the two looks that agree win
+                        if (second_target is not target and normalize_action(second.get("action")) not in ("PAUSE", "CANCEL")
+                                and fresh_local is not None and self.local_enabled and fresh_local >= self.local_sure):
+                            second = dict(second, action=parsed.get("action"))
+                            confirm["local_decided"] = True
+                            print(f"[OPENCV] the second opinion sees nothing, the local model is sure ({fresh_local:.0f}%): the stop holds")
                 parsed = confirm_stop(parsed, second, language)
                 print(f"[OPENCV] second look: {'confirmed' if parsed.get('confirmed') else 'not confirmed' if parsed.get('confirmed') is False else 'not made'}")
 
@@ -3301,7 +3435,10 @@ def api_detector_status():
         "progress": detector.stats.get("progress", 0),
         "roi": detector.roi,
         "sensitivity": detector.sensitivity,
-        "last_alert_img": detector.last_alert_img_path
+        "last_alert_img": detector.last_alert_img_path,
+        "local_available": local_ai.model is not None,   # 1.124: the dashboard shows the local model's score next to OpenCV's
+        "local_enabled": detector.local_enabled,
+        "score_threshold": detector.limits()[0],
     })
 
 @app.route("/api/print/detector/config", methods=["POST"])
@@ -3477,6 +3614,8 @@ def _review_public(review):
 def api_local_model():
     """The local model (1.106): GET whether there is one (the person's own or KlippEye's), its version, how it was
     measured, and its last look; POST {"reload": true} reads the model folders again (after copying a new model)."""
+    if request.method == "POST" and (request.get_json(silent=True) or {}).get("test"):
+        return _local_model_test()
     if request.method == "POST":
         local_ai.reload()
         model = local_ai.model
@@ -3486,6 +3625,26 @@ def api_local_model():
     return _no_store(jsonify(dict(local_ai.info(), ok=True, enabled=detector.local_enabled, personal=personal.info(),
                                   last={k: state.get(k) for k in ("score", "at", "checks", "filtered", "asked", "why")},
                                   folders={"own": LOCAL_MODEL_OWN_DIR, "base": LOCAL_MODEL_BASE_DIR})))
+
+
+def _local_model_test():
+    """1.124: the local model on the camera's picture now (the same views as during a print): to see whether it
+    recognises a defect put in front of the camera."""
+    lang = _lang()
+    if local_ai.model is None:
+        return jsonify({"ok": False, "error": bt("There is no local model in use", lang)}), 409
+    try:
+        frame = camera_frame(timeout=6)
+    except Exception:
+        frame = None
+    if frame is None:
+        return jsonify({"ok": False, "error": bt("No picture from the camera", lang)}), 502
+    result = detector.local_judge(frame)
+    if result is None:
+        return jsonify({"ok": False, "error": bt("The local model could not judge the picture", lang)}), 500
+    score, views, best = result
+    return _no_store(jsonify({"ok": True, "score": score, "views": views, "best": best,
+                              "doubt": detector.local_doubt, "sure": detector.local_sure}))
 
 
 @app.route("/api/local_model/personal", methods=["POST"])

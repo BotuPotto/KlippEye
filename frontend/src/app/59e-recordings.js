@@ -188,6 +188,11 @@ function alertSummary(alert) {
     return tx("Not analysed: the AI service answered with error {code}.", { code: error[1] }) + said;
   }
   if (outcome === "AI answer not readable") return tx("Not analysed: the AI's answer could not be read.");
+  if (outcome === "print ended before the second look") return tx("Not stopped: the print ended before the second look.");
+  const look = alert.second_look || {};
+  // 1.124: the second opinion saw nothing, the local model was sure on the same new picture: the stop held
+  if (look.local_decided && Number.isFinite(look.local_score))
+    return (alert.summary || alert.observation || outcome) + " " + tx("The second opinion saw nothing, but the local model was sure ({score}%) on the same picture: the stop holds.", { score: Math.round(look.local_score) });
   return alert.summary || alert.observation || outcome;
 }
 

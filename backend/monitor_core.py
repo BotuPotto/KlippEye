@@ -32,6 +32,7 @@ REFERENCE_MIN = 5  # below this number the comparison is not ready
 GLOBAL_STREAK_MAX = 10  # checks in a row with a "global" change before it counts as real
 INSIDE_WEIGHT = 0.5  # 1.70: a change on the part counts half: a share of the part, not of the whole bed
 INSIDE_MIN_PX = 150  # a part this small in the picture (half resolution) is not looked inside
+BOOST_SCORE = 0.6  # 1.124: with the local model in doubt, a suspicious check needs only 60% of the usual change
 
 
 class FrameJudge:
@@ -76,11 +77,17 @@ class FrameJudge:
         self.last_ignore = None  # the mask of the previous picture (the comparison without the filter)
         self.global_streak = 0
         self.global_streak_max = GLOBAL_STREAK_MAX
+        # 1.124: what the motion detection tells the local model, and back
+        self.change_box = None  # (x, y, w, h) in fractions of the picture: the biggest change that stayed, at the last check that had one
+        self.change_at = None   # when that was (seconds)
+        self._now = None
+        self.boost = False      # the local model has a doubt: an alarm needs a smaller change and one suspicious check fewer
         self.stats = {
             "frames_checked": 0,
             "anomalies": 0,
             "last_trigger": None,
             "last_score": 0,
+            "peak_score": 0,
             "status": "idle - waiting for a print",
         }
 
@@ -136,14 +143,16 @@ class FrameJudge:
         if score is None:  # the comparison is not ready yet, or this check is to be ignored (light change)
             return None, False
         self.stats["last_score"] = round(score, 2)
+        self.stats["peak_score"] = max(self.stats.get("peak_score") or 0, round(score, 2))
+        threshold, needed = self.limits()
         # threshold: more than 2.5% (default) of the outer pixels moving = suspicious
-        if score > self.score_threshold:
+        if score > threshold:
             self.trigger_count += 1
             self.stats["anomalies"] += 1
-            self.log(f"[OPENCV] Anomaly {self.trigger_count}/{self.trigger_threshold} score={score:.2f}%")
+            self.log(f"[OPENCV] Anomaly {self.trigger_count}/{needed} score={score:.2f}%")
         else:
             self.trigger_count = max(0, self.trigger_count - 1)
-        if self.trigger_count < self.trigger_threshold:
+        if self.trigger_count < needed:
             return score, False
         self.log(f"[OPENCV] TRIGGER score={score:.2f}%")
         self.stats["last_trigger"] = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(now))
@@ -151,6 +160,29 @@ class FrameJudge:
         self.cooldown_until = now + self.cooldown_sec
         self.trigger_count = 0
         return score, True
+
+    def limits(self):
+        """(score threshold, suspicious checks needed) in use now: lower while the local model has a doubt (`boost`)."""
+        if self.boost:
+            return self.score_threshold * BOOST_SCORE, max(1, self.trigger_threshold - 1)
+        return self.score_threshold, self.trigger_threshold
+
+    def reset_peak(self):
+        self.stats["peak_score"] = 0
+        self.change_box = self.change_at = None
+
+    def _note_change(self, persistent, offset=(0, 0), now=None):
+        """The biggest patch of `persistent` (a part of the half-size picture starting at `offset`) as a box in fractions
+        of the whole picture: where the local model is asked to look closer (1.124)."""
+        if persistent is None or not cv2.countNonZero(persistent):
+            return
+        contours = cv2.findContours(persistent, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)[-2]
+        if not contours:
+            return
+        x, y, w, h = cv2.boundingRect(max(contours, key=cv2.contourArea))
+        width, height = OPENCV_WIDTH / 2.0, OPENCV_HEIGHT / 2.0
+        self.change_box = ((x + offset[0]) / width, (y + offset[1]) / height, w / width, h / height)
+        self.change_at = time.time() if now is None else now
 
     @staticmethod
     def _fit_mask(ignore, shape):
@@ -239,6 +271,7 @@ class FrameJudge:
         It works at half resolution: 4 times fewer points to look at. -> % of the area, or None (nothing to count now).
         """
         now = time.time() if now is None else now
+        self._now = now
         small = cv2.resize(frame, (OPENCV_WIDTH // 2, OPENCV_HEIGHT // 2), interpolation=cv2.INTER_AREA)
         gray = cv2.GaussianBlur(cv2.cvtColor(small, cv2.COLOR_BGR2GRAY), (11, 11), 0)
         ignore = self._fit_mask(ignore, gray.shape)
@@ -320,6 +353,7 @@ class FrameJudge:
             return 0.0
         h_roi, w_roi = persistent.shape
         stays = cv2.bitwise_and(persistent, persistent, mask=self._periphery_mask(h_roi, w_roi))
+        self._note_change(stays, (x, y), self._now)
         return (cv2.countNonZero(stays) / (w_roi * h_roi)) * 100
 
     def _persistent(self, changed, seen):
@@ -378,6 +412,7 @@ class FrameJudge:
         self.stats["zone_watched"] = round(total * 100.0 / watched.size, 1)
         if persistent is None or total == 0:
             return 0.0
+        self._note_change(persistent, (0, 0), self._now)
         score = cv2.countNonZero(cv2.bitwise_and(persistent, area)) * 100.0 / total
         if hidden_part and score <= self.score_threshold:
             return None  # neither a yes nor a no: an alarm building up on the part is not lowered by it

@@ -93,6 +93,7 @@ with sync_playwright() as p:
     pg.click('button[aria-label="Impostazioni"]'); pg.wait_for_selector(".drawer"); pg.wait_for_timeout(450)
     pg.locator('.set-entry[data-page="ai"]').click(); pg.wait_for_timeout(500)
     pg.locator('.set-entry[data-page="detector"]').click(); pg.wait_for_timeout(1500)
+    pg.locator("[data-fine]").click(); pg.wait_for_timeout(400)   # 1.124: the sliders are under «Fine adjustments»
     SWIPE = """([sx, ex, ms, sel]) => new Promise((done) => { const el = sel ? document.querySelector(sel) : document.querySelector('.drawer__body');
       const r = el.getBoundingClientRect(); const y = r.top + Math.min(r.height / 2, 20);
       const mk = (type, x) => { const t = new Touch({ identifier: 1, target: el, clientX: x, clientY: y }); return new TouchEvent(type, { bubbles: true, cancelable: true, touches: type === 'touchend' ? [] : [t], changedTouches: [t] }); };

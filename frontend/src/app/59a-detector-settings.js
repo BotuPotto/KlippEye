@@ -204,8 +204,19 @@ function AreaSetting({ spec, value, defaultValue, error, band, onChange }) {
   );
 }
 
+/**
+ * 1.124: limits that depend on another setting: «In doubt from» stays below «Sure from» (the backend refuses the
+ * opposite), so the slider of one stops where the other one is.
+ */
+function boundSpec(spec, values) {
+  if (spec.key === "local_doubt" && Number.isFinite(values.local_sure)) return { ...spec, max: Math.max(spec.min, Math.min(spec.max, Math.floor((values.local_sure - 1) / 5) * 5)) };
+  if (spec.key === "local_sure" && Number.isFinite(values.local_doubt)) return { ...spec, min: Math.min(spec.max, Math.max(spec.min, values.local_doubt + 1)) };
+  return spec;
+}
+
 /** The right control for one setting of the backend's list. */
-function BackendSettingControl({ spec, config }) {
+function BackendSettingControl({ spec: given, config }) {
+  const spec = boundSpec(given, config.values || {});
   const value = config.values[spec.key];
   const defaultValue = config.data.defaults ? config.data.defaults[spec.key] : spec.default;
   const error = config.errors[spec.key];
@@ -242,6 +253,51 @@ const localizeBackendSchema = (data) => ({
   spec: data.spec.map((spec) => ({ ...spec, label: tx(spec.label), help: spec.help && tx(spec.help) })),
 });
 
+/**
+ * 1.124: how watchful the monitor is, in one choice. Each level moves OpenCV and the local model together, so they stay
+ * in step; a number changed by hand shows «Custom». Balanced = the default values.
+ */
+const WATCH_LEVELS = [
+  {
+    id: "careful",
+    label: tx("Few false alarms"),
+    note: tx("It speaks up only for clear problems: a bigger change that stays longer, a surer local model. A small defect may be noticed late."),
+    values: { sensitivity: 40, score_threshold: 4, trigger_count: 4, persist_checks: 4, local_doubt: 45, local_sure: 85, local_every: 20 },
+  },
+  {
+    id: "balanced",
+    label: tx("Balanced"),
+    note: tx("The usual values: a good compromise between noticing a problem early and not raising alarms for nothing."),
+    values: { sensitivity: 35, score_threshold: 2.5, trigger_count: 3, persist_checks: 3, local_doubt: 35, local_sure: 80, local_every: 15 },
+  },
+  {
+    id: "watchful",
+    label: tx("Notices more"),
+    note: tx("Smaller changes and lower local-model ratings are enough, and the local model looks more often: problems are noticed sooner, with more false alarms (the online AI, when used, filters many of them)."),
+    values: { sensitivity: 28, score_threshold: 1.5, trigger_count: 2, persist_checks: 2, local_doubt: 25, local_sure: 70, local_every: 10 },
+  },
+];
+const WATCH_KEYS = Object.keys(WATCH_LEVELS[1].values);
+
+/** The level the values match, or "custom". */
+function watchLevel(values) {
+  const level = WATCH_LEVELS.find((item) => WATCH_KEYS.every((key) => Number(values[key]) === item.values[key]));
+  return level ? level.id : "custom";
+}
+const watchLevelName = (values) => {
+  const level = WATCH_LEVELS.find((item) => item.id === watchLevel(values));
+  return level ? level.label : tx("Custom");
+};
+
+/** The fine numbers in the order they act: OpenCV, then the local model, then the pauses and the start. */
+const FINE_GROUPS = [
+  { id: "opencv", title: tx("OpenCV: what counts as a change"), keys: ["sensitivity", "score_threshold", "trigger_count", "persist_checks", "check_interval"] },
+  { id: "background", title: tx("OpenCV: the background and the light"), keys: ["reference_seconds", "global_change"] },
+  { id: "local", title: tx("Local model"), keys: ["local_every", "local_doubt", "local_sure"] },
+  { id: "tempi", title: tx("Pauses"), keys: ["cooldown", "ai_cooldown"] },
+  { id: "avvio", title: tx("When it starts checking"), keys: ["warmup_seconds", "min_progress", "hotend_tolerance"] },
+];
+
 const DETECTOR_ELSEWHERE = ["enabled", "ai_min_confidence", "ai_send_reference", "ai_online", "ai_model", "machine_masks", "expected_zone", "inside_parts", "persistent_filter", "local_enabled", "local_filter", "local_alone", "personal_learning"];
 /** Used only when the camera is not calibrated (or the whole-bed watching is off): the rectangle and its outer band. */
 const FALLBACK_KEYS = ["roi", "border"];
@@ -249,16 +305,33 @@ const FALLBACK_KEYS = ["roi", "border"];
 function DetectorPage({ active }) {
   const config = useBackendConfig(active);
   const calibration = useBackendJson("/api/camera/calibration", active, BACKEND_POLL_MS);
+  const localModel = useBackendJson("/api/local_model", active, BACKEND_POLL_MS);
   const [askReset, setAskReset] = useState(false);
+  const [fine, setFine] = useState(false);
   const data = useMemo(() => (config.data ? localizeBackendSchema(config.data) : null), [config.data]);
+  const customNow = config.phase === "ok" && config.values ? watchLevel(config.values) === "custom" : false;
+  // numbers changed by hand open the fine adjustments; they stay open when a level or «Restore» puts them back in step
+  useEffect(() => {
+    if (customNow) setFine(true);
+  }, [customNow]);
   if (config.phase !== "ok" || !data) return h(BackendNotice, { phase: config.phase });
+  const values = config.values;
   // shown elsewhere (1.19): the switch and the AI on the AI monitor page, the masks on Camera calibration, recording on
   // Recordings; the old detection (filter off) is no longer offered: it ignores the masks and the zone
   const thresholds = data.spec.filter((spec) => spec.group !== "recording" && !DETECTOR_ELSEWHERE.includes(spec.key));
-  const zoneActive = Boolean(calibration.phase === "ok" && calibration.data.saved && calibration.data.usable && config.values.expected_zone !== false);
+  const byKey = Object.fromEntries(thresholds.map((spec) => [spec.key, spec]));
+  const zoneActive = Boolean(calibration.phase === "ok" && calibration.data.saved && calibration.data.usable && values.expected_zone !== false);
   const fallback = thresholds.filter((spec) => FALLBACK_KEYS.includes(spec.key));
-  const changed = thresholds.some((spec) => JSON.stringify(config.values[spec.key]) !== JSON.stringify(data.defaults ? data.defaults[spec.key] : spec.default));
-  const watching = data.running && config.values.enabled !== false;
+  const changed = thresholds.some((spec) => JSON.stringify(values[spec.key]) !== JSON.stringify(data.defaults ? data.defaults[spec.key] : spec.default));
+  const watching = data.running && values.enabled !== false;
+  const online = values.ai_online !== false;
+  const localReady = localModel.phase === "ok" && localModel.data.available && values.local_enabled !== false;
+  const level = watchLevel(values);
+  const levelInfo = WATCH_LEVELS.find((item) => item.id === level);
+  const showFine = fine || level === "custom";
+  // a number that does nothing now is not offered: the pause between AI analyses without the online AI, the local
+  // model's thresholds without a local model
+  const hidden = (key) => (key === "ai_cooldown" && !online) || (FINE_GROUPS[2].keys.includes(key) && !localReady);
   return h(
     React.Fragment,
     null,
@@ -270,20 +343,44 @@ function DetectorPage({ active }) {
     ),
     data.has_cv2 === false && h("div", { className: "set-status set-status--warn" }, h("span", { className: "set-status__dot" }), h("span", null, tx("OpenCV is missing on the Raspberry: the monitor cannot compare the pictures. Install it with"), " ", h("code", null, "sudo apt install python3-opencv"), ".")),
     config.problem && h("div", { className: "set-status set-status--warn", role: "alert" }, h("span", { className: "set-status__dot" }), config.problem),
+    h(
+      SettingsGroup,
+      { title: tx("How watchful it is"), help: ["ai", "thresholds"] },
+      h(ChipChoice, {
+        label: tx("How watchful it is"),
+        options: [...WATCH_LEVELS.map((item) => ({ id: item.id, label: item.label })), ...(level === "custom" ? [{ id: "custom", label: tx("Custom") }] : [])],
+        value: level,
+        onChange: (id) => {
+          const chosen = WATCH_LEVELS.find((item) => item.id === id);
+          if (chosen) config.set({ ...chosen.values });
+        },
+      }),
+      h("p", { className: "set-group__note", "data-watch-level": level }, levelInfo ? levelInfo.note : tx("Some numbers were changed by hand: they are below, in «Fine adjustments». Choose a level to put them back in step.")),
+      h(
+        "p",
+        { className: "set-group__note" },
+        localReady
+          ? tx("The two work together: OpenCV notices what appears and stays in the picture and shows the local model where to look closer; when the local model has a doubt, OpenCV raises an alarm sooner.")
+          : tx("Without the local model only OpenCV decides when to ask the AI."),
+      ),
+    ),
     data.saved === false && !changed && h("p", { className: "set-group__note" }, tx("These are the default values: until you change something the KlippEye service writes no file.")),
-    data.groups.map((group) => {
-      const specs = thresholds.filter((spec) => spec.group === group.id && !FALLBACK_KEYS.includes(spec.key));
-      if (!specs.length) return null;
-      const switches = specs.filter((spec) => spec.type === "bool");
-      const others = specs.filter((spec) => spec.type !== "bool");
-      return h(
-        SettingsGroup,
-        { key: group.id, title: group.title, note: group.note },
-        switches.length > 0 && h("div", { className: "oui-list" }, switches.map((spec) => h(BackendSettingControl, { key: spec.key, spec, config }))),
-        others.map((spec) => h(BackendSettingControl, { key: spec.key, spec, config })),
-      );
-    }),
-    fallback.length > 0 &&
+    (level !== "custom" || fine) &&
+      h(
+        "button",
+        { type: "button", className: "oui-btn oui-btn--quiet oui-btn--block", "aria-expanded": showFine, "data-fine": showFine ? "open" : "closed", onClick: () => setFine(!fine) },
+        h(Icons.Sliders, { size: 18 }),
+        showFine ? tx("Hide the fine adjustments") : tx("Fine adjustments"),
+      ),
+    showFine &&
+      FINE_GROUPS.map((group) => {
+        const specs = group.keys.map((key) => byKey[key]).filter((spec) => spec && !hidden(spec.key));
+        if (!specs.length) return null;
+        return h(SettingsGroup, { key: group.id, title: group.title }, specs.map((spec) => h(BackendSettingControl, { key: spec.key, spec, config })));
+      }),
+    showFine && !localReady && h("p", { className: "set-group__note", "data-local-hidden": "" }, tx("The local model's thresholds appear here when a local model is in use (AI monitor → Local model).")),
+    showFine &&
+      fallback.length > 0 &&
       h(
         SettingsGroup,
         {
@@ -329,5 +426,5 @@ function DetectorPage({ active }) {
 function detectorSummary(version) {
   if (version.state === "old") return tx("KlippEye service to update");
   if (version.state === "down") return tx("KlippEye service not reachable");
-  return tx("Sensitivity, watched area, pauses");
+  return tx("How watchful it is, fine adjustments");
 }

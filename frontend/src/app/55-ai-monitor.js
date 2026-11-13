@@ -58,6 +58,9 @@ const DETECTOR_STATUS_TEXTS = [
   [/^preparing the comparison \((\d+)\/(\d+) pictures\)$/, (m) => tx("preparing the comparison ({count}/{total} pictures)", { count: m[1], total: m[2] })],
   [/^light change or camera moved \((\d+)% of the picture\): ignored$/, (m) => tx("light change or camera moved ({percent}% of the picture): ignored", { percent: m[1] })],
   [/^scanning \(large lasting change\)$/, () => tx("scanning") + " (" + tx("large lasting change") + ")"],
+  [/^scanning \(whole bed, and the parts below the layer being printed\)$/, () => tx("watching the bed and the parts")],
+  [/^scanning \(whole bed, outside the parts\)$/, () => tx("watching the bed")],
+  [/^the toolhead hides the part: the AI is asked when it moves$/, () => tx("the head hides the part")],
   [/^cv2 not installed$/, () => tx("OpenCV not installed")],
 ];
 function detectorStatusText(status) {
@@ -80,9 +83,15 @@ function describeDetector(json) {
   if (realStarted === false && /heating|riscaldamento/i.test(status)) pill = { text: tx("Heating/mesh - waiting for the real print"), tone: "warming" };
   else if (printing) pill = { text: tx("Monitoring on • printing"), tone: "active" };
 
+  const local = stats.local || {};
   return {
     state: detectorStatusText(status || "idle").slice(0, 30),
-    score: (stats.last_score || 0) + "%",
+    score: decimalText(stats.last_score || 0) + "%",
+    peak: Number(stats.peak_score) || 0, // 1.124: the highest of this print (the last one goes back to 0 once a change stays)
+    boost: stats.boost === true,
+    // 1.124: the local model, next to OpenCV: null = not in use (no model, or switched off)
+    local: json.local_available && json.local_enabled !== false ? { score: Number.isFinite(local.score) ? local.score : null, peak: Number(local.peak) || 0, best: local.best || "" } : null,
+    localMissing: json.local_available === false,
     checks: stats.frames_checked || 0,
     dot: printing ? "active" : idle ? "idle" : "warming",
     pill,
@@ -95,7 +104,7 @@ function describeDetector(json) {
 /* ---------------------------------------------------------------------------
    Polling
    ------------------------------------------------------------------------- */
-const IDLE_DETECTOR = { state: "idle", score: "0%", checks: 0, dot: "idle", pill: { text: tx("Waiting for a print"), tone: "waiting" }, realStarted: undefined, realReason: "" };
+const IDLE_DETECTOR = { state: "idle", score: "0%", peak: 0, local: null, checks: 0, dot: "idle", pill: { text: tx("Waiting for a print"), tone: "waiting" }, realStarted: undefined, realReason: "" };
 
 function verdictOf(response) {
   return { verdict: response.analysis, model: response.model, progress: response.progress, timestamp: response.timestamp, alertId: response.alert_id || "", image: response.image || "", answer: response.answer || "" };
@@ -212,8 +221,44 @@ function AiHeaderBadge({ badge }) {
    ------------------------------------------------------------------------- */
 const DETECTOR_PILLS = { waiting: "oui-badge", warming: "oui-badge oui-badge--warn", active: "oui-badge oui-badge--ok" };
 
-function MonitorTile({ label, children }) {
-  return h("div", { className: "oui-tile monitor-tile" }, h("div", { className: "oui-caption" }, label), h("div", { className: "ai-metric" }, children));
+function MonitorTile({ label, children, foot, name }) {
+  return h(
+    "div",
+    { className: "oui-tile monitor-tile", "data-tile": name },
+    h("div", { className: "oui-caption" }, label),
+    h("div", { className: "ai-metric" }, children),
+    foot && h("div", { className: "monitor-tile__foot" }, foot),
+  );
+}
+
+const LOCAL_VIEW_NAMES = { whole: tx("whole picture"), part: tx("on the part"), change: tx("where it changed") };
+
+/** 1.124: the local model's score of the camera's picture now: to see whether it recognises a defect put in front of it. */
+function LocalTry() {
+  const [state, setState] = useState({ phase: "idle" });
+  const run = async () => {
+    setState({ phase: "busy" });
+    const reply = await backendPost("/api/local_model", { test: true });
+    setState(reply.ok ? { phase: "ok", data: reply.data } : { phase: "error", message: reply.message });
+  };
+  let result = null;
+  if (state.phase === "ok") {
+    const { score, views, doubt, sure } = state.data;
+    const verdict = score >= sure ? tx("sure there is a failure") : score >= doubt ? tx("in doubt") : tx("it sees no failure");
+    const parts = Object.entries(views || {}).map(([name, value]) => (LOCAL_VIEW_NAMES[name] || name) + " " + decimalText(value) + "%");
+    result = h(
+      "p",
+      { className: cx("oui-caption monitor-try__result", score >= sure ? "is-sure" : score >= doubt && "is-doubt"), "data-local-try": score },
+      h("strong", null, decimalText(score) + "%"),
+      " · " + verdict + (parts.length > 1 ? " (" + parts.join(", ") + ")" : ""),
+    );
+  } else if (state.phase === "error") result = h("p", { className: "oui-caption monitor-try__result is-error", role: "alert" }, state.message || tx("the KlippEye service does not answer"));
+  return h(
+    "div",
+    { className: "monitor-try" },
+    h("button", { type: "button", className: "oui-btn oui-btn--sm", "data-local-test": "", disabled: state.phase === "busy", onClick: run }, h(Icons.Camera, { size: 16 }), state.phase === "busy" ? tx("Looking…") : tx("Try the local model now")),
+    result,
+  );
 }
 
 /** Banner for a verdict that recommends stopping or pausing. */
@@ -270,10 +315,21 @@ function AiMonitorCard({ monitor, bare }) {
     h(
       "div",
       { className: "monitor-grid" },
-      h(MonitorTile, { label: tx("Status") }, detector.state),
-      h(MonitorTile, { label: tx("OpenCV score") }, detector.score),
-      h(MonitorTile, { label: tx("Checks") }, detector.checks),
+      h(MonitorTile, { label: tx("Status"), name: "status" }, detector.state),
+      h(MonitorTile, { label: tx("Checks"), name: "checks" }, detector.checks),
+      h(
+        MonitorTile,
+        { label: tx("Local model"), name: "local", foot: detector.local && detector.local.peak ? tx("highest: {score}%", { score: decimalText(detector.local.peak) }) : detector.local ? tx("rates every picture") : null },
+        detector.local ? (detector.local.score === null ? "—" : decimalText(detector.local.score) + "%") : detector.localMissing ? tx("none") : tx("off"),
+      ),
+      h(
+        MonitorTile,
+        { label: tx("Changes (OpenCV)"), name: "opencv", foot: detector.peak ? tx("highest: {score}%", { score: decimalText(detector.peak) }) : tx("counts what appears and stays") },
+        detector.score,
+      ),
     ),
+    detector.boost && h("p", { className: "oui-caption", "data-boost": "" }, tx("The local model has a doubt: OpenCV raises an alarm sooner for a minute.")),
+    detector.local && h(LocalTry),
     latest ? h(VerdictAlert, { latest }) : h("div", { className: "ai-alert hidden" }),
     latest && alarmPhoto(latest) && h(ZoomablePhoto, { src: alarmPhoto(latest), title: tx("What the AI monitor saw") + (latest.timestamp ? " • " + latest.timestamp : ""), className: "ai-panel__photo" }),
     isAlarm(latest) && latest.answer && h("p", { className: "oui-caption", "data-ai-answered": latest.answer }, AI_ANSWER_TEXT[latest.answer]),

@@ -29,7 +29,8 @@ Le card si possono spostare, nascondere e chiudere: vedi [Card](#card-e-ordine-d
 
 - **Il nome della stampante** (con la freccia): con più stampanti, un tocco le elenca e passa dall'una all'altra.
 - **IA**: lo stato del monitor IA. Grigio senza stampa, verde se è tutto a posto, arancione o rosso con un allarme. Un tocco
-  apre il pannello del monitoraggio IA, con l'ultima foto e l'ultimo giudizio.
+  apre il pannello del monitoraggio IA: i punteggi del modello locale e di OpenCV (l'ultimo e il massimo della stampa),
+  l'ultima foto e l'ultimo giudizio.
 - **Lo stato della stampante**: in stampa, in pausa, pronta, errore.
 - **⏻ (accensione)**: riavvia Klipper (normale o riavvio del firmware), riavvia, avvia o ferma i servizi gestiti da Moonraker
   (klipper, moonraker, crowsnest…), riavvia o spegne il Raspberry. Chiede conferma durante una stampa, e sempre prima di
@@ -406,10 +407,13 @@ Tutto il monitor IA, dall'alto in basso: acceso o spento; come guarda la stampa 
 telecamera*, *Soglie del monitor* e *Registrazioni*); quando vede un problema (fiducia minima, difetti, controlli di fila,
 pausa e annullamento automatici); il servizio IA (chi giudica le foto: IA online e modello locale, oppure solo il modello
 locale; il servizio, il modello, le chiavi, i servizi di riserva); il modello locale (i suoi interruttori e l'apprendimento
-dalle tue stampe). La [guida](GUIDA.md#5-il-monitor-ia) spiega come configurarlo.
+dalle tue stampe, e *Prova adesso il modello locale* sulla foto della telecamera). La [guida](GUIDA.md#5-il-monitor-ia)
+spiega come configurarlo.
 
-**Soglie del monitor** tiene i numeri fini: sensibilità, quanto deve durare un cambiamento, cambi di luce, pausa tra le
-analisi, quando cominciano i controlli, le soglie del modello locale, e il rettangolo guardato senza calibrazione.
+**Soglie del monitor** comincia con *Quanto è attento* (Pochi falsi allarmi, Equilibrato, Nota di più), che regola insieme
+OpenCV e il modello locale. In *Regolazioni fini* ci sono i singoli numeri, raggruppati per quello che fanno: cosa conta
+come cambiamento, lo sfondo e la luce, il modello locale, le pause, quando cominciano i controlli, e il rettangolo guardato
+senza calibrazione. Un numero che con la tua configurazione non fa niente non viene mostrato.
 
 ### Notifiche
 

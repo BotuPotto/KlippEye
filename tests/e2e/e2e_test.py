@@ -679,6 +679,9 @@ if scenario("ui") and PLAYWRIGHT:
         pg.wait_for_timeout(800)
         pg.click('.set-entry[data-page="detector"]')
         pg.wait_for_timeout(1500)
+        wait(lambda: pg.locator("[data-fine]").count() == 1, 15)
+        pg.click("[data-fine]")   # 1.124: the numbers are under «Fine adjustments»
+        pg.wait_for_timeout(500)
         ok("[ui] AI monitor thresholds (real backend): the default values are shown", wait(lambda: pg.locator("#set-num-sensitivity").count() == 1 and pg.locator("#set-num-sensitivity").input_value() == "35", 15), body())
         pg.locator("#set-num-sensitivity").fill("50")
         ok("[ui] ... a new value reaches the backend and is written to monitor.json", pumped(lambda: json.load(open(os.path.join(w.data, "monitor.json")))["values"]["sensitivity"] == 50, 10), (posts[-6:], body()[:300]))

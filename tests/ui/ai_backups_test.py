@@ -96,6 +96,15 @@ with sync_playwright() as p:
     ok("... opened: the steps and what the free plan means", "aistudio.google.com/apikey" in guide.inner_text() and "Create API key" in guide.inner_text() and "migliorare" in guide.inner_text(), guide.inner_text())
     P.close()
 
+    # --- 1.124: a backup equal to the monitor's service (same service, same model) is not used: said
+    P = open_ai_page(b, ai_cfg=dict(two_keys, monitor_backups=[{"provider": "groq", "model": ""}, {"provider": "gemini", "model": ""}]))
+    ok("1.124: a backup with the same service and model as the monitor's: marked as not used; the other one not",
+       P.pg.locator('[data-ai-backup-repeated="0"]').count() == 1 and P.pg.locator('[data-ai-backup-repeated="1"]').count() == 0, P.pg.locator(".ai-backups").inner_text())
+    P.close()
+    P = open_ai_page(b, ai_cfg=dict(two_keys, monitor_backups=[{"provider": "mistral", "model": ""}]))
+    ok("1.124: the only backup has no key: the second opinion says the same service looks twice", P.pg.locator('[data-second-opinion="none"]').count() == 1)
+    P.close()
+
     # --- 320 px, long languages
     for locale in ("de-DE", "ru-RU"):
         P = open_ai_page(b, 320, 700, locale=locale, ai_cfg=dict(two_keys, monitor_backups=[{"provider": "gemini", "model": ""}, {"provider": "mistral", "model": ""}]))

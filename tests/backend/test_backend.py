@@ -886,6 +886,16 @@ def _chain_post(plan):
             r = _Quota()
             r.status_code = int(answer)
             return r
+        if answer == "junk":   # 1.124: an answer that is not the JSON asked for
+
+            class J:
+                ok = True
+                status_code = 200
+                text = ""
+
+                def json(self_inner):
+                    return {"choices": [{"message": {"content": "I cannot tell from this picture."}}]}
+            return J()
 
         class R:
             ok = True
@@ -905,6 +915,7 @@ def _two_services(post, second_opinion=True):
                "logs": {"provider": "groq", "model": ""}, "monitor_backups": [{"provider": "gemini", "model": ""}], "second_opinion": second_opinion},
               open(b.AI_CONFIG_PATH, "w"))
     b.detector._ai_picture = lambda suffix, _c=c: _c
+    b.detector._local_on_file = lambda path: None   # 1.124: no local opinion of the new picture unless a test gives one
     b.moonraker_status = lambda query, timeout=3: {"print_stats": {"state": "printing", "filename": "x.gcode"}}
     return b, c, p
 
@@ -933,6 +944,42 @@ post, calls = _chain_post({"groq": ["PAUSE"], "gemini": ["CONTINUE"]})
 b_ai, cur, prev = _two_services(post, second_opinion=False)
 b_ai.detector.call_ai_analysis(cur, prev, 60)
 check("... second opinion off: the second look is Groq's again", calls == ["groq", "groq"] and b_ai.read_alert_history()[0].get("action") == "PAUSE", calls)
+post, calls = _chain_post({"groq": ["PAUSE", "PAUSE"], "gemini": ["junk"]})
+b_ai, cur, prev = _two_services(post)
+b_ai.detector.call_ai_analysis(cur, prev, 60)
+h0 = b_ai.read_alert_history()[0]
+check("1.124: the second opinion's answer cannot be read: the next service is asked (Groq again), its look counts",
+      calls == ["groq", "gemini", "groq"] and h0.get("action") == "PAUSE" and h0.get("confirmed") is True and (h0.get("second_look") or {}).get("service") == "Groq", (calls, h0))
+post, calls = _chain_post({"groq": ["PAUSE"], "gemini": ["CONTINUE"]})
+b_ai, cur, prev = _two_services(post)
+b_ai.detector._local_on_file = lambda path: 92.0
+b_ai.detector.local_enabled, b_ai.detector.local_sure = True, 80
+b_ai.detector.call_ai_analysis(cur, prev, 60)
+h0 = b_ai.read_alert_history()[0]
+check("1.124: the second opinion sees nothing but the local model is sure (92%) on the same new picture: the stop holds",
+      calls == ["groq", "gemini"] and h0.get("action") == "PAUSE" and h0.get("confirmed") is True and (h0.get("second_look") or {}).get("local_decided") is True
+      and (h0.get("second_look") or {}).get("local_score") == 92.0, h0)
+post, calls = _chain_post({"groq": ["PAUSE"], "gemini": ["CONTINUE"]})
+b_ai, cur, prev = _two_services(post)
+b_ai.detector._local_on_file = lambda path: 50.0
+b_ai.detector.call_ai_analysis(cur, prev, 60)
+check("... the local model only in doubt (50%): the second opinion decides, CONTINUE", b_ai.read_alert_history()[0].get("action") == "CONTINUE")
+post, calls = _chain_post({"groq": ["PAUSE"], "gemini": ["CONTINUE"]})
+b_ai, cur, prev = _two_services(post, second_opinion=False)
+b_ai.detector._local_on_file = lambda path: 92.0
+_asked = []
+_orig_ask = b_ai.detector._ask_ai
+b_ai.detector._ask_ai = lambda *a: (_asked.append(a[-1]), _orig_ask(*a))[1]
+b_ai.detector.call_ai_analysis(cur, prev, 60)
+check("1.124: the second look tells the AI the local model's opinion of the NEW picture", len(_asked) == 2 and (_asked[1] or {}).get("score") == 92.0, _asked)
+post, calls = _chain_post({"groq": ["PAUSE"], "gemini": ["PAUSE"]})
+b_ai, cur, prev = _two_services(post)
+b_ai.moonraker_status = lambda query, timeout=3: {"print_stats": {"state": "cancelled", "filename": "x.gcode"}}
+b_ai.detector.last_analysis = None
+b_ai.detector.call_ai_analysis(cur, prev, 60)
+h0 = b_ai.read_alert_history()[0]
+check("1.124: the print ended while waiting for the second look: no second question, no alarm, written as such",
+      calls == ["groq"] and b_ai.detector.last_analysis is None and h0.get("outcome") == "print ended before the second look", (calls, h0))
 
 b_ai, cur, prev = fresh_ai(ai_reply())
 for i in range(45):
@@ -2914,6 +2961,69 @@ check("... import of another printer's export: its pictures added, listed", _r.s
       and _r.get_json()["personal"]["imported"][0]["printer"] == "other" and _r.get_json()["personal"]["have"]["failed"] == 1, _r.get_json())
 _r = _lc.post("/api/local_model/personal", json={"forget_imported": True}).get_json()
 check("... removed again", _r["personal"]["imported"] == [] and _r["personal"]["have"]["failed"] == 0, _r)
+
+print("== 1.124: OpenCV and the local model help each other")
+check("1.124: two boxes about the same place, or not", _lb.same_place((0.1, 0.1, 0.1, 0.1), (0.12, 0.1, 0.08, 0.12)) and not _lb.same_place((0.1, 0.1, 0.1, 0.1), (0.5, 0.1, 0.1, 0.1))
+      and not _lb.same_place(None, (0.1, 0.1, 0.1, 0.1)))
+check("1.124: a close look: a square around the box, with a margin, inside the picture",
+      _lb.crop_rect((0.4, 0.4, 0.1, 0.1), 1000, 500) == (350, 125, 550, 325) and _lb.crop_rect((0.95, 0.9, 0.05, 0.1), 1000, 500) == (850, 350, 1000, 500)
+      and _lb.crop_rect(None, 1000, 500) is None, (_lb.crop_rect((0.4, 0.4, 0.1, 0.1), 1000, 500), _lb.crop_rect((0.95, 0.9, 0.05, 0.1), 1000, 500)))
+_lb.personal.layer = None
+_det.local_enabled, _det.local_filter, _det.local_doubt, _det.local_sure, _det.local_every = True, True, 35, 80, 15
+_det.change_box, _det.change_at = None, None
+_with_scores([0.2])
+_views = _det.local_views(_frame, 100.0)
+check("... no calibration, no change seen: the local model looks at the whole picture only", [n for n, _ in _views] == ["whole"], [n for n, _ in _views])
+_det.change_box, _det.change_at = (0.1, 0.1, 0.1, 0.1), 100.0
+_views = _det.local_views(_frame, 100.0)
+check("... a change seen by OpenCV: also a closer look at it (a square crop of the picture)",
+      [n for n, _ in _views] == ["whole", "change"] and _views[1][1].shape[0] == _views[1][1].shape[1] < _frame.shape[0], [(n, v.shape) for n, v in _views])
+check("... forgotten after 5 minutes", [n for n, _ in _det.local_views(_frame, 100.0 + _lb.LOCAL_CHANGE_MEMORY_S + 1)] == ["whole"])
+_with_scores([0.10, 0.70])
+check("... the highest of the looks counts, and which one gave it", _det.local_judge(_frame, 100.0) == (70.0, {"whole": 10.0, "change": 70.0}, "change"))
+_with_scores([0.10] * 9)
+_det.local_state = {"at": 1000.0, "next": 2000.0}
+_det.change_box, _det.change_at = (0.1, 0.1, 0.1, 0.1), 1010.0
+_det._local_look(_frame, 1010.0, False)
+_c1 = _det.local_state.get("checks")
+_det.change_at = 1014.0   # the same change, seen again at the next check
+_det._local_look(_frame, 1014.0, False)
+_c2 = _det.local_state.get("checks")
+_det.change_box, _det.change_at = (0.6, 0.5, 0.1, 0.1), 1017.0   # a change in another place
+_det._local_look(_frame, 1017.0, False)
+check("1.124: a new change seen by OpenCV: the local model looks at once (not 15 s later), once for that change; again for one elsewhere",
+      _c1 == 1 and _c2 == 1 and _det.local_state.get("checks") == 2, (_c1, _c2, _det.local_state))
+_with_scores([0.5, 0.5])
+_det.local_state = {}
+_det.change_box, _det.change_at = None, None
+_det._local_look(_frame, 3000.0, False)
+check("1.124: a doubtful look (50%): for a minute the motion detection raises an alarm sooner",
+      _det.local_state.get("doubt_until") == 3000.0 + _lb.LOCAL_BOOST_S and _det.local_state.get("peak") == 50.0, _det.local_state)
+_det.score_threshold, _det.trigger_threshold = 2.5, 3
+_det.boost = True
+_boosted = _det.limits()
+_det.boost = False
+check("... the threshold at 60% and one suspicious check fewer (never below one)", _boosted == (1.5, 2) and _det.limits() == (2.5, 3), _boosted)
+_det.stats["peak_score"] = 7.5
+_det.in_print = False
+_det._follow_print("printing")
+check("1.124: a new print: the highest scores and the doubts start again", _det.stats["peak_score"] == 0 and "peak" not in _det.local_state and "doubt_until" not in _det.local_state)
+_r = _lc.post("/api/backend/config", json={"values": {"local_doubt": 90}})
+check("1.124: «in doubt» above «sure» is refused", _r.status_code == 400 and "local_doubt" in _r.get_json()["errors"], _r.get_json())
+_r = _lc.post("/api/backend/config", json={"values": {"local_doubt": 50, "local_sure": 60}})
+check("... both changed together, in order: taken", _r.status_code == 200, _r.get_json())
+_lc.post("/api/backend/config/reset", json={"keys": ["local_doubt", "local_sure"]})
+_lb.camera_frame = lambda timeout=5: _frame
+_with_scores([0.42])
+_det.change_box, _det.change_at = None, None
+_r = _lc.post("/api/local_model", json={"test": True})
+check("1.124: «Try now»: the local model on the camera's picture, with its thresholds", _r.status_code == 200 and _r.get_json()["score"] == 42.0
+      and _r.get_json()["views"] == {"whole": 42.0} and _r.get_json()["doubt"] == 35, _r.get_json())
+_lb.local_ai.model = None
+_r = _lc.post("/api/local_model", json={"test": True})
+check("... without a model: said so", _r.status_code == 409 and _r.get_json()["error"], _r.get_json())
+_s = _lc.get("/api/print/detector/status").get_json()
+check("1.124: the status says whether the local model is there, and the highest OpenCV score", _s["local_available"] is False and "peak_score" in _s["stats"], _s)
 
 stop_all()
 fake.close()

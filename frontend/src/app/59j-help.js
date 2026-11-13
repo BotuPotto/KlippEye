@@ -256,6 +256,16 @@ const HELP = {
           tx("The «AI» badge in the top bar is grey with no print, green while all is well, amber or red with an alarm; a tap opens the AI monitoring panel. When the AI sees a problem, the print card asks whether it is real: «False alarm» and «Ignore» put the badge back to green, and every answer helps measure the monitor. The alarms of a print are closed when the next one starts."),
         ],
       },
+      {
+        id: "thresholds",
+        title: tx("OpenCV and the local model"),
+        steps: [
+          tx("OpenCV compares each picture with a background made of the last minute: it notices what appears and stays (a string, a part that moves). Once a change stops changing it becomes background, so its score goes back to 0%: «highest» keeps the top of the print."),
+          tx("The local model rates each picture by itself, every few seconds: how likely it shows a failed print. It looks at the whole picture, closer at the part (with a calibrated camera) and closer where OpenCV saw a change, also minutes later."),
+          tx("They help each other: a change seen by OpenCV makes the local model look at once; a doubt of the local model makes OpenCV raise an alarm sooner for a minute."),
+          tx("«How watchful it is» moves both together. «Try the local model now», with a defect in front of the camera, shows whether it recognises it."),
+        ],
+      },
       { id: "confidence", title: tx("Minimum AI confidence"), text: [tx("How sure the AI must be to propose a pause. 70% is the usual value; above 85% a failed print may not be stopped, because the AI is rarely that sure.")] },
       { id: "actions", title: tx("Automatic actions"), text: [tx("Off by default: you are told and you decide. «Pause by itself» stops the print when the AI is sure; a cancelled print cannot be recovered, so «Cancel by itself» is for when you really trust it.")] },
     ],
