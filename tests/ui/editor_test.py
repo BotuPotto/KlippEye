@@ -364,6 +364,32 @@ with sync_playwright() as p:
     P.pg.keyboard.press("Escape")
     ok("[desktop] no page errors", not errs(P), errs(P)[:2])
     P.close()
+
+    # ------------------------------------------------------------------ 1.123: Klipper in error or starting, the editor keeps its height
+    for phase, msg, w, hgt in (("error", "Option 'sensor_pin' in section 'extruder' must be specified\nOnce the underlying issue is corrected, use the\n\"RESTART\" command to reload the config", 1280, 720),
+                               ("startup", "Printer is not ready\nThe klippy host software is attempting to connect.  Please\nretry in a few moments.", 1280, 720)):
+        mock.reset()
+        mock.set(webhooks=phase, webhooks_msg=msg)
+        P = Page(b, mock, w, hgt)
+        CUR[0] = P
+        P.goto("config", 2000)
+        full = P.pg.evaluate("() => Math.round(document.querySelector('.klipper-state').getBoundingClientRect().height)")
+        P.pg.locator(".cfg-row", has=P.pg.locator(".cfg-row__name", has_text=re.compile("^printer.cfg$"))).first.locator(".cfg-row__main").click()
+        wait_until(lambda: P.pg.locator(".desk-editor .cm-editor").count() == 1)
+        P.pg.wait_for_timeout(500)
+        sizes = P.pg.evaluate("() => [Math.round(document.querySelector('.klipper-state').getBoundingClientRect().height), Math.round(document.querySelector('.editor-body').getBoundingClientRect().height)]")
+        ok("[desktop %s] a file open: the Klipper panel on one line (%s px, was %s), the editor tall (%s px)" % (phase, sizes[0], full, sizes[1]),
+           P.pg.locator(".klipper-state--compact").count() == 1 and sizes[0] < 90 and sizes[1] > 300, sizes)
+        ok("[desktop %s] ... the first line of Klipper's words is shown, the buttons are still there" % phase,
+           msg.split("\n")[0] in P.pg.locator(".klipper-state__line").inner_text() and P.pg.locator(".klipper-state__actions button").count() >= 3)
+        P.pg.locator("[data-klipper-more]").click()
+        P.pg.wait_for_timeout(300)
+        ok("[desktop %s] ... «Whole message» shows all of it" % phase, "RESTART" in P.pg.locator(".klipper-state__message").inner_text() if phase == "error" else "retry" in P.pg.locator(".klipper-state__message").inner_text())
+        P.pg.screenshot(path=out + "/desktop_%s.png" % phase)
+        P.pg.locator(".editor-close").click()
+        ok("[desktop %s] ... the file closed: the full panel again" % phase, wait_until(lambda: P.pg.locator(".klipper-state--compact").count() == 0 and P.pg.locator(".klipper-state").count() == 1))
+        ok("[desktop %s] no page errors" % phase, not [e for e in errs(P) if not re.search(r"status of (502|503)", e)], errs(P)[:2])
+        P.close()
     b.close()
 
 print("\n%d failure(s)" % len(FAILS) + (": " + ", ".join(FAILS) if FAILS else ""))
