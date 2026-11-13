@@ -2760,6 +2760,35 @@ _det.local_enabled = False
 _with_scores([0.95])
 check("1.106: «Use the local model» off: as without a model", _det._local_look(_frame, 8000.0, True) is True and _det.local_state.get("checks") is None)
 _det.local_enabled = True
+print("== 1.119: the local model alone (the online AI switched off)")
+_lb.AI_CONFIG_PATH = os.path.join(tmp(), "ai.json")
+with open(_lb.AI_CONFIG_PATH, "w") as _f:
+    json.dump({"keys": {"groq": "gsk_" + "x" * 40}}, _f)   # a key is there: only the switch keeps the AI offline
+_det.ai_online = False
+_with_scores([0.5])
+check("1.119: online AI off: an alarm of the motion detection with the model in doubt does not ask the online AI",
+      _det._local_look(_frame, 10000.0, True) is False and _det._online_ai_usable() is False)
+_det.last_analysis = None
+_with_scores([0.95, 0.95, 0.95])
+_r = [_det._local_look(_frame, 11000.0 + 15 * k, False) for k in range(3)]
+_la = _det.last_analysis or {}
+check("... three sure looks propose a pause by themselves, also with «stop on the local model alone» off, and the text does not speak of an online AI",
+      _r == [False, False, False] and (_la.get("analysis") or {}).get("action") == "PAUSE" and "online" not in (_la.get("analysis") or {}).get("summary", ""), (_r, _la))
+_det.last_analysis = None
+_with_scores([0.95, 0.95, 0.95])
+_det.cooldown_until = 20000.0
+[_det._local_look(_frame, 12000.0 + 15 * k, False) for k in range(3)]
+check("... not while the monitor rests after an alarm", _det.last_analysis is None)
+_det.local_enabled = False
+_with_scores([0.95])
+check("... without the local model (or switched off) an alarm of the motion detection asks nobody", _det._local_look(_frame, 13000.0, True) is False)
+_det.local_enabled = True
+_r = _lc.post("/api/print/analyze")
+check("... the analysis by hand is refused (409) and says why", _r.status_code == 409 and _r.get_json().get("online_off") is True, (_r.status_code, _r.get_json()))
+_det.ai_online = True
+_det.cooldown_until = 0
+_spec = {s["key"]: s for s in _lc.get("/api/backend/config").get_json()["spec"]}
+check("1.119: «Use the online AI» is a setting of the AI group, on by default", _spec.get("ai_online", {}).get("group") == "ia" and _spec["ai_online"]["default"] is True)
 _p = _lb.build_ai_prompt(12, "printing", "x.gcode", 40, 210, None, "en", {"score": 91, "why": "local_sure"})
 _p2 = _lb.build_ai_prompt(12, "printing", "x.gcode", 40, 210, None, "en", {"score": 55, "why": "motion+local"})
 check("1.106: the prompt tells the online AI the local model's rating (asked by it, or with an alarm of the motion detection)",

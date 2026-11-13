@@ -318,7 +318,7 @@ function LightsSettings({ settings, resolved, capabilities, update, editor, crea
     h(
       "div",
       { className: "fn-light-add" },
-      items.length < LIGHTS_MAX && h("button", { type: "button", className: "oui-btn", "data-add-light": "1", onClick: () => add({}) }, h(Icons.Plus, { size: 16 }), tx("Add a light")),
+      items.length < LIGHTS_MAX && h("button", { type: "button", className: "oui-btn oui-btn--block", "data-add-light": "1", onClick: () => add({}) }, h(Icons.Plus, { size: 18 }), tx("Add a light")),
       h(
         "button",
         { type: "button", className: "oui-btn oui-btn--quiet", "data-create": "light", onClick: () => createMacro("light_on", (on) => createMacro("light_off", (off) => add({ name: tx("Light"), mode: "macro", onMacro: on, offMacro: off, stateFrom: "auto" }))) },

@@ -27,7 +27,7 @@ html[data-mode="light"] {
   --oui-text-2: #4a505e;
   --oui-text-3: #5d6373; /* 1.115: 5.5:1 on the white cards (was 4.6) */
 
-  --oui-ok: #0e7a47; /* 1.115: a deeper green, readable on its own soft badge */
+  --oui-ok: #0b6e40; /* 1.119: 4.8:1 on its own soft badge in every look (#0e7a47 was 4.1-4.5) */
   --oui-ok-soft: rgba(20, 153, 91, 0.12);
   --oui-warn: #985a00;
   --oui-warn-soft: rgba(229, 140, 0, 0.14);
@@ -79,7 +79,7 @@ html[data-mode="light"] .oui-dark-island {
   --oui-glass-solid: #1a1c22;
   --oui-text: #f3f4f6;
   --oui-text-2: #aeb3be;
-  --oui-text-3: #7f8592;
+  --oui-text-3: #959ba8; /* 1.119: 4.6:1 or more on the cards and the chosen rows (was 3.5-4) */
   --oui-ok: #3ddc8a;
   --oui-warn: #ffb740;
   --oui-danger: #ff5d5d;

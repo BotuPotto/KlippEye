@@ -32,7 +32,7 @@
   /* ---- text ---- */
   --oui-text: #f3f4f6;
   --oui-text-2: #aeb3be;
-  --oui-text-3: #7f8592;
+  --oui-text-3: #959ba8; /* 1.119: 4.6:1 or more on the cards and the chosen rows (was 3.5-4) */
 
   /* ---- accent ---- */
   --oui-accent: #b79cff;                        /* the light violet of the logo */

@@ -242,7 +242,7 @@ const localizeBackendSchema = (data) => ({
   spec: data.spec.map((spec) => ({ ...spec, label: tx(spec.label), help: spec.help && tx(spec.help) })),
 });
 
-const DETECTOR_ELSEWHERE = ["enabled", "ai_min_confidence", "ai_send_reference", "ai_model", "machine_masks", "expected_zone", "inside_parts", "persistent_filter", "local_enabled", "local_filter", "local_alone", "personal_learning"];
+const DETECTOR_ELSEWHERE = ["enabled", "ai_min_confidence", "ai_send_reference", "ai_online", "ai_model", "machine_masks", "expected_zone", "inside_parts", "persistent_filter", "local_enabled", "local_filter", "local_alone", "personal_learning"];
 /** Used only when the camera is not calibrated (or the whole-bed watching is off): the rectangle and its outer band. */
 const FALLBACK_KEYS = ["roi", "border"];
 
