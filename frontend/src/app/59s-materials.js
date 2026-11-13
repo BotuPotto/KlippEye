@@ -74,7 +74,7 @@ function MaterialsPage() {
         "div",
         { className: "oui-btn-row material-actions" },
         materials.length < MATERIALS_MAX &&
-          h("button", { type: "button", className: "oui-btn oui-btn--quiet oui-btn--sm", "data-material-add": "", onClick: () => set((list) => list.push({ name: tx("New"), hotend: 200, bed: 60 })) }, h(Icons.Plus, { size: 16 }), tx("Add a material")),
+          h("button", { type: "button", className: "oui-btn oui-btn--block", "data-material-add": "", onClick: () => set((list) => list.push({ name: tx("New"), hotend: 200, bed: 60 })) }, h(Icons.Plus, { size: 18 }), tx("Add a material")),
         !isDefault &&
           h("button", { type: "button", className: "oui-btn oui-btn--quiet oui-btn--sm", "data-material-reset": "", onClick: () => update((draft) => (draft.materials = MATERIAL_PRESETS.map((one) => ({ ...one })))) }, h(Icons.Undo, { size: 16 }), tx("Back to the usual ones")),
       ),

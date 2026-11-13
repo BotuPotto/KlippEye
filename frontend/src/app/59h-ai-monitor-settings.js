@@ -97,6 +97,10 @@ function AiPage({ active, menu }) {
       SettingsGroup,
       { title: tx("When it sees a problem"), help: ["ai", "confidence"] },
       config.phase === "ok" &&
+        !online &&
+        h("p", { className: "set-group__note", "data-confidence": "local" }, tx("With the local model alone, its own threshold decides: «Sure from», in Monitor thresholds → Local model.")),
+      config.phase === "ok" &&
+        online &&
         Number.isFinite(confidence) &&
         h(
           "div",

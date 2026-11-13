@@ -1,9 +1,9 @@
 """A look at every page of the settings, in every language, look and mode, for what a person would see as wrong:
 the page scrolling sideways, a text cut off or running out of its box, two things on top of each other, a text too
 pale on its background, a button too small to tap. It does not check what the pages do (settings_test.py does).
-Usage: settings_audit.py <html> <outdir> <port> [--shots] [--langs it,de] [--looks oneui,glass] [--modes dark,light] [--width 390]
+Usage: settings_audit.py <html> <outdir> <port> [--shots] [--langs it,de] [--looks oneui,glass] [--modes dark,light] [--width 390] [--height 844]
 --shots also saves a picture of each page (in <outdir>/<lang>-<look>-<mode>/<page>.png)."""
-import sys, os, json, argparse
+import os, json, argparse
 from playwright.sync_api import sync_playwright
 from lib import Mock, Page
 
@@ -14,6 +14,7 @@ ap.add_argument("--langs", default="en,it,de,es,fr,pl,pt,ru,uk,zh")
 ap.add_argument("--looks", default="oneui")
 ap.add_argument("--modes", default="dark")
 ap.add_argument("--width", type=int, default=390)
+ap.add_argument("--height", type=int, default=844, help="a tall window shows a whole page in one picture")
 args = ap.parse_args()
 os.makedirs(args.out, exist_ok=True)
 mock = Mock(args.html, args.port)
@@ -98,7 +99,7 @@ def main():
                 for mode in args.modes.split(","):
                     combo = "%s-%s-%s" % (lang, look, mode)
                     mock.reset()
-                    P = Page(browser, mock, args.width, 844, locale={"en": "en-US", "zh": "zh-CN"}.get(lang, lang + "-" + lang.upper()))
+                    P = Page(browser, mock, args.width, args.height, locale={"en": "en-US", "zh": "zh-CN"}.get(lang, lang + "-" + lang.upper()))
                     P.ctx.add_init_script("try { localStorage.setItem('ke_lang', %s); localStorage.setItem('ke_layout', %s); } catch (e) {}"
                                           % (json.dumps(lang), json.dumps(json.dumps({"look": look, "mode": mode, "collapsed": {}, "devices": {}}))))
                     P.goto("home", 1500)
@@ -110,6 +111,8 @@ def main():
                         except Exception as error:
                             report.setdefault(combo, {})[page] = [{"kind": "not-opened", "text": str(error)[:200], "detail": ""}]
                             continue
+                        P.pg.mouse.move(1, 1)   # the pointer left over a row would judge its hover colours (no hover on a phone)
+                        P.settle(250)
                         problems = P.pg.evaluate(AUDIT_JS)
                         english = []
                         if lang not in ("en",):

@@ -101,6 +101,28 @@ with sync_playwright() as p:
     ok("... the imported ones removed", {"forget_imported": True} in state()["personal_posts"] and P.pg.locator("[data-personal-imported]").count() == 0)
     P.close()
 
+    # 1.119: «Who judges the pictures»: the online AI (usual) or the local model alone
+    P = open_page(b, "ai", local_model=model)
+    judge = P.pg.locator("[data-judge]")
+    ok("1.119: the online AI is the usual judge: its service and keys shown", judge.get_attribute("data-judge") == "online"
+       and P.pg.locator("[data-ai-ready]").count() == 1 and "Chiedi all'IA online solo se il modello locale ha un dubbio" in P.pg.locator(".drawer__body").inner_text())
+    P.pg.locator('.oui-chip:has-text("Solo il modello locale")').click()
+    P.settle(1200)
+    page = P.pg.locator(".drawer__body").inner_text()
+    ok("... «Local model only»: saved (ai_online off), the service and its keys hidden, the switches about the online AI too",
+       any(c.get("ai_online") is False for c in state()["brain_cfg_log"]) and P.pg.locator("[data-judge]").get_attribute("data-judge") == "local"
+       and P.pg.locator("[data-ai-ready]").count() == 0 and "Chiedi all'IA online solo" not in page and "Ferma col solo modello locale" not in page
+       and "Nessuna foto esce dal Raspberry" in page and "Usa il modello locale" in page, page[-1500:])
+    P.shot(os.path.join(out, "local_only.png"))
+    P.close()
+    P = open_page(b, "ai")   # no local model installed
+    P.pg.locator('.oui-chip:has-text("Solo il modello locale")').click()
+    P.settle(1200)
+    judge = P.pg.locator("[data-judge]")
+    ok("... with no local model: a warning that nothing can judge", judge.get_attribute("data-judge") == "nobody"
+       and "set-group__note--warn" in judge.get_attribute("class") and "non può giudicare nulla" in judge.inner_text(), judge.inner_text())
+    P.close()
+
     P = open_page(b, "ai", 320, 700, local_model=dict(model, personal=dict(personal, enabled=True, trained=True, examples=31, failed=9, fine=22,
                                                                                           imported=[{"origin": "a", "printer": "a-printer-with-a-very-long-name", "pictures": 12}])))
     P.pg.locator('.set-switch:has-text("Impara dalle stampe di questa stampante")').click()

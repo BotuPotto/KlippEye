@@ -151,6 +151,6 @@ input[type="range"] { touch-action: pan-y; }
 .ai-backup__fields { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
 .ai-backup__fields .oui-field { width: 100%; min-width: 0; }
 .ai-backup__remove { flex: none; width: 40px; height: 40px; margin-top: 2px; }
-.ai-backups__add { align-self: flex-start; gap: 6px; }
+.ai-backups__add { align-self: stretch; gap: 6px; } /* 1.119: full width, as every «add» of the settings */
 .logs-settings { display: flex; flex-direction: column; gap: 6px; margin: 12px 0; padding: 12px 14px; background: var(--oui-surface-2); border-radius: var(--oui-r-field); }
 .logs-settings__head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }

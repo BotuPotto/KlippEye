@@ -339,6 +339,32 @@ const HELP = {
       { id: "app", title: tx("Android app"), text: [tx("«Download the app» on the phone installs it the first time; later «Update the app» updates it (Android always asks to confirm).")] },
     ],
   },
+  // 1.119: the page of its own (before, only "Name and logo", now a part of it, had a guide)
+  appearance: {
+    title: tx("Appearance"),
+    sections: [
+      { id: "logo", title: "Logo", text: [tx("The logo in the top bar. Choose the brand of your printer, or KlippEye. A brand whose logo file is not in the repository yet shows only the name.")] },
+      { id: "name", title: tx("Name"), text: [tx("A name of your own (example: Voron.287): shown in the top bar and in the browser tab, useful with more than one printer. Empty: the name of the brand.")] },
+      { id: "theme", title: tx("Theme"), text: [tx("«As the device» follows the dark or light mode of the phone or computer, also when it changes by itself in the evening.")] },
+      { id: "colour", title: tx("Colour"), text: [tx("The colour of buttons, switches and highlights on this device. A colour that is too dark or too pale is made lighter or deeper, so that it reads on the page.")] },
+      { id: "look", title: tx("Look"), text: [tx("The same page and colours, dressed after another popular app. On this device.")] },
+      { id: "cards", title: tx("Cards"), text: [tx("Drag a card by its handle (or use the arrows) to move it, also into the other column; the switch shows or hides it. Each kind of device keeps its own layout.")] },
+    ],
+  },
+  printers: {
+    title: tx("Your printers"),
+    sections: [
+      { id: "add", title: tx("Adding a printer"), text: [tx("Every printer has its own KlippEye. Write the address of another one (the port 8085 is added by itself): «Try» checks that it answers, «Add» puts it in the list. The name is optional: without it, the one the printer gives itself.")] },
+      { id: "switch", title: tx("Going from one to the other"), text: [tx("A tap on the name in the top bar lists the printers: a tap on another one opens it, and the overview shows them all together. The list is the same on every device of this printer.")] },
+    ],
+  },
+  materials: {
+    title: tx("Materials"),
+    sections: [
+      { id: "what", title: tx("What they are for"), text: [tx("The materials offered in the temperature window: a tap sets the nozzle and the bed together. They are a starting point: the temperatures on the label of the spool come first.")] },
+      { id: "spoolman", title: "Spoolman", text: [tx("With Spoolman, the spool in use is offered first, with the temperatures of its filament.")] },
+    ],
+  },
   language: {
     title: tx("Language"),
     sections: [{ id: "what", title: tx("Language"), text: [tx("The language of this device only. «Automatic» follows the language of the phone or computer. The language of the notifications is chosen in Notifications.")] }],

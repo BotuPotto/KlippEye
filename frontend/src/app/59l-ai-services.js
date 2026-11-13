@@ -254,7 +254,7 @@ function AiBackupsSettings({ ai }) {
         onRemove: () => save({ monitor_backups: plain(backups).filter((b, i) => i !== index) }),
       }),
     ),
-    backups.length < max && h("button", { type: "button", className: "oui-btn oui-btn--sm ai-backups__add", disabled: busy, "data-ai-backup-add": "1", onClick: add }, h(Icons.Plus, { size: 16 }), tx("Add a backup service")),
+    backups.length < max && h("button", { type: "button", className: "oui-btn oui-btn--block ai-backups__add", disabled: busy, "data-ai-backup-add": "1", onClick: add }, h(Icons.Plus, { size: 18 }), tx("Add a backup service")),
     backups.length > 0 &&
       h("div", { className: "oui-list" }, h(SwitchRow, { title: tx("Second opinion from another service"), detail: tx("Before a pause or a cancel, the second look is asked of a backup service: two different AIs must agree."), checked: data.second_opinion !== false, disabled: busy, onChange: (value) => save({ second_opinion: value }) })),
     problem && h("p", { className: "set-field__error", role: "alert" }, problem),

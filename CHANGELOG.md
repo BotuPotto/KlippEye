@@ -1,5 +1,25 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.119.0
+
+**The AI monitor can do without the online AI.** Settings → AI monitor → The AI service → «Who judges the pictures»:
+«Local model only» sends no picture to the internet. The local model judges alone: when it is sure for three looks in a
+row it proposes a pause, and «Pause by itself» does it. Without a local model the page says that nothing can judge. The
+keys of the online services stay saved for when you switch back; the analysis of the logs is not affected.
+
+**The settings, page by page, in every language and look.** A new check (tests/ui/settings_audit.py) opens every page
+of the settings in the ten languages, the eight looks, dark and light, and looks for what reads badly. What it found:
+
+* the grey of the small texts was too pale in dark mode (and more in Liquid Glass): now readable on every box;
+* the green of the badges in light mode was too pale on its own background;
+* in light mode (Soft, HyperOS, Studio, Liquid Glass) the boxes were almost the colour of the panel: a thin edge now;
+* «All right» on Printer functions sat inside the last line of the text: now under it;
+* the «add» buttons (a light, a material, a backup service) all look the same, as on Camera;
+* the six values of «Minimum AI confidence» stay on one row on a phone;
+* the names of the cards on Appearance go on two lines before being cut (German, Polish...);
+* the logos on Appearance: their names start at the same place;
+* Appearance, Your printers and Materials have their «?» guide, as every other page.
+
 ## 1.118.0
 
 **A full review of the code, part 4: every module read line by line.** Nothing new to learn; a few fixes and a lot of

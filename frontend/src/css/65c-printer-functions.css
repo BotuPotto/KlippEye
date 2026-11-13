@@ -12,6 +12,8 @@
 .fn-key { display: flex; flex-direction: column; gap: 8px; }
 .fn-warn { color: var(--oui-warn, #f5b041); }
 .fn-confidence { display: flex; flex-direction: column; gap: 6px; }
+.fn-confidence .set-chips { display: grid; grid-template-columns: repeat(auto-fit, minmax(48px, 1fr)); } /* 1.119: the six values on one row on a phone, not five and one */
+.fn-confidence .oui-chip { min-width: 0; padding: 0 6px; }
 .fn-fallback.is-unused { opacity: 0.55; }
 .rec-alert__under { color: var(--oui-warn, #f5b041); font-size: 12px; font-weight: 600; }
 
@@ -53,7 +55,7 @@ body:has(.modal, .confirm-overlay, .sheet-overlay, .screen, .drawer) .nt-invite 
 
 /* ---- 1.37: the page in three parts; the lights list ---- */
 .fn-section { display: flex; align-items: center; gap: 10px; margin: 18px 4px 2px; font-size: 13px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--oui-accent-text); }
-.fn-light-add { display: flex; flex-wrap: wrap; gap: 8px; }
+.fn-light-add { display: flex; flex-direction: column; gap: 8px; }
 .fn-light-add .oui-btn--quiet { justify-content: flex-start; text-align: left; } /* 1.119: a long label that wraps reads from the left, by its icon */
 
 /* ---- 1.56: every function a row that opens (FnFold) ---- */

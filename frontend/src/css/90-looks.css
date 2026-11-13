@@ -19,6 +19,7 @@ html[data-look="glass"] {
   --oui-r-field: 20px;
   --oui-blur: 36px;
 }
+html[data-look="glass"]:not([data-mode="light"]) { --oui-text-3: #a3a9b5; } /* 1.119: its lighter surfaces need a lighter grey text (4.5:1) */
 html[data-look="glass"] body::before {
   background:
     radial-gradient(70% 40% at 15% 0%, rgba(var(--oui-backdrop-rgb), 0.45), transparent 70%),
@@ -144,6 +145,8 @@ html[data-mode="light"][data-look="soft"] {
   --oui-glass: rgba(255, 255, 255, 0.94);
 }
 html[data-mode="light"][data-look="soft"] .oui-card { box-shadow: 0 2px 4px rgba(30, 34, 70, 0.04), 0 16px 36px rgba(30, 34, 70, 0.08); }
+/* 1.119: the settings panel a shade darker than its rows and boxes, which were almost the same white and did not show */
+html[data-mode="light"][data-look="soft"] .drawer { background: rgba(233, 235, 243, 0.97); }
 
 /* ---- Fluent (Windows 11): smoky acrylic over a tinted page, 8 px corners, a thin light edge on top, calm type ---- */
 html[data-look="fluent"] {
