@@ -50,7 +50,7 @@ def styles():
 
 
 def release():
-    """The release written into the page (DASHBOARD_RELEASE in app/17-brain.js): the environment variable KLIPPEYE_RELEASE, else
+    """The release written into the page (DASHBOARD_RELEASE in app/17-backend.js): the environment variable KLIPPEYE_RELEASE, else
     the VERSION file of the repository (../VERSION), else "sviluppo"."""
     chosen = os.environ.get("KLIPPEYE_RELEASE", "").strip()
     for path in (os.path.join(HERE, "..", "VERSION"),):
@@ -102,7 +102,7 @@ def script():
     parts.append("\n" + banner("APPLICATION"))
     parts += [read(path) for path in files("src/app/*.js")]
     code = "\n".join(parts)
-    assert code.count("__KLIPPEYE_RELEASE__") == 1, "the release placeholder must appear once (app/17-brain.js)"
+    assert code.count("__KLIPPEYE_RELEASE__") == 1, "the release placeholder must appear once (app/17-backend.js)"
     assert code.count("/*__EMBEDDED_LOGOS__*/") == 1, "the logos placeholder must appear once (app/01-assets.js)"
     assert code.count("/*__I18N__*/") == 1, "the dictionaries placeholder must appear once (app/02-i18n.js)"
     return code.replace("__KLIPPEYE_RELEASE__", release()).replace("/*__EMBEDDED_LOGOS__*/", logos()).replace("/*__I18N__*/", dictionaries())

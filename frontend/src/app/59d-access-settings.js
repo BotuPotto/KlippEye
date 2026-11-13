@@ -87,7 +87,7 @@ function useAccessStatus(active = true) {
   const [state, setState] = useState({ phase: "loading", info: null });
   const reload = React.useCallback(async () => {
     try {
-      const response = await fetchFresh(ACCESS_STATUS_URL, { timeout: BRAIN_READ_TIMEOUT_MS });
+      const response = await fetchFresh(ACCESS_STATUS_URL, { timeout: BACKEND_READ_TIMEOUT_MS });
       if (response.status === 404) return setState({ phase: "old", info: null });
       const info = await response.json();
       setState(isPlainObject(info) && typeof info.enabled === "boolean" ? { phase: "ok", info } : { phase: "old", info: null });
@@ -299,7 +299,7 @@ function HttpsGroup({ refresh }) {
   const [result, setResult] = useState(null);
   const load = React.useCallback(async () => {
     try {
-      const response = await fetchFresh("/api/https", { timeout: BRAIN_READ_TIMEOUT_MS });
+      const response = await fetchFresh("/api/https", { timeout: BACKEND_READ_TIMEOUT_MS });
       if (!response.ok) return setInfo((old) => old || { missing: true });
       const json = await response.json();
       setInfo(json);
@@ -390,7 +390,7 @@ function WebAddressGroup({ onChanged }) {
   const [command, setCommand] = useState("");
   const load = React.useCallback(async () => {
     try {
-      const response = await fetchFresh("/api/web", { timeout: BRAIN_READ_TIMEOUT_MS });
+      const response = await fetchFresh("/api/web", { timeout: BACKEND_READ_TIMEOUT_MS });
       setInfo(response.ok ? await response.json() : { missing: true });
     } catch (error) {
       setInfo((old) => old || { missing: true });

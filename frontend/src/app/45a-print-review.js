@@ -36,7 +36,7 @@ function usePrintReview(printing) {
   const [state, setState] = useState({ review: null, problems: Object.keys(REVIEW_PROBLEMS) });
   const load = React.useCallback(async () => {
     try {
-      const response = await fetchFresh("/api/print/review", { timeout: BRAIN_READ_TIMEOUT_MS });
+      const response = await fetchFresh("/api/print/review", { timeout: BACKEND_READ_TIMEOUT_MS });
       if (!response.ok) return setState((old) => ({ ...old, review: null }));
       const json = await response.json();
       setState({ review: json.review || null, problems: Array.isArray(json.problems) ? json.problems.filter((id) => REVIEW_PROBLEMS[id]) : Object.keys(REVIEW_PROBLEMS) });
@@ -91,7 +91,7 @@ function PrintReviewCard({ printing }) {
     setBusy(true);
     setProblem("");
     const at = outcome === "failed" && picture !== null && thumbs[picture] ? thumbs[picture].t : null;
-    const reply = await brainPost("/api/print/review/" + encodeURIComponent(review.id), { outcome, problems: outcome === "failed" ? chosen : [], failed_at: at });
+    const reply = await backendPost("/api/print/review/" + encodeURIComponent(review.id), { outcome, problems: outcome === "failed" ? chosen : [], failed_at: at });
     setBusy(false);
     if (!reply.ok) return setProblem(tx("Not saved: ") + (reply.message || tx("the KlippEye service does not answer")));
     if (outcome === "skipped") return clear();
@@ -101,7 +101,7 @@ function PrintReviewCard({ printing }) {
   };
   const stopAsking = async () => {
     setBusy(true);
-    const reply = await brainPost("/api/backend/config", { values: { print_review: false } });
+    const reply = await backendPost("/api/backend/config", { values: { print_review: false } });
     setBusy(false);
     if (!reply.ok) return setProblem(tx("Not saved: ") + (reply.message || tx("the KlippEye service does not answer")));
     clear();

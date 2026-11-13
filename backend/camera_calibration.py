@@ -44,9 +44,9 @@ DEFAULT_TOOLHEAD = {"width": 60, "depth": 70, "height": 70}   # mm around the no
 WATCH_EVERY_S = 600
 BUSY_STATES = ("printing", "paused")
 FIND_SHIFT = 90.0     # mm the toolhead moves aside while the nozzle is looked for (more than its width: the two do not overlap)
-SETTLE_S = 1.2
+SETTLE_S = 1.2            # after a move, before the picture: the camera's stream is a little late
 IDLE_DURING_CALIBRATION_S = 3600   # 1.29.1: the motors stay on this long during the calibration (Klipper's idle timeout)
-SETTINGS_TTL_S = 60        # after a move, before the picture: the camera's stream is a little late
+SETTINGS_TTL_S = 60        # Klipper's configuration is read again after this long
 
 
 class HomingRisk(Exception):
@@ -145,9 +145,9 @@ class CameraCalibration:
         self.watch = (self.saved or {}).get("watch") or {"state": "unknown"}
         self.marks = {"state": "idle"}
         self._marks_thread = None
-        self.auto = {"state": "idle"}
+        self.auto = {"state": "idle"}   # 1.29: finding the nozzle at every point by itself
         self._settings = (0.0, None)
-        self._idle_was = None   # Klipper's idle timeout before the calibration made it longer   # 1.29: finding the nozzle at every point by itself
+        self._idle_was = None   # Klipper's idle timeout before the calibration made it longer
         self._auto_thread = None
         self._auto_stop = False
         self.last_watch = 0.0
@@ -252,7 +252,7 @@ class CameraCalibration:
         """For the page: where Z is homed, whether the markers of the STL were moved away from it, the risks now."""
         place = self.homing_place()
         risks, expected = self.homing_risks(printer)
-        positions, moved = self.marker_layout(printer)
+        moved = self.marker_layout(printer)[1]
         probe = place.get("probe")
         return {"how": place["how"], "xy": place["xy"], "z_hop": place["z_hop"], "probe": {"name": probe[0], "x_offset": probe[1], "y_offset": probe[2]} if probe else None,
                 "layout_moved": moved, "risks": risks, "expected": expected}
@@ -714,7 +714,7 @@ class CameraCalibration:
         return [known[0][0], known[1][0]] if known else self.get_shape().get("x_range")
 
     def zone_masks(self, objects, z, width, height):
-        """Phase 4c: (watched, expected) pictures for the monitor with the machine at Z = z (print_zone.py), or None when
+        """Phase 4c: (watched, expected, settled) pictures for the monitor with the machine at Z = z (print_zone.masks), or None when
         the calibration cannot be trusted, the bed size is not known or there are no objects."""
         known = self.limits()
         if not objects or not known or not self.usable() or self.cv2 is None:

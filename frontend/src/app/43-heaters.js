@@ -86,17 +86,17 @@ function useTemperatureDialog() {
   const close = () => setDialog((d) => ({ ...d, open: false }));
   const setValue = (value) => setDialog((d) => ({ ...d, value }));
   const confirm = () => {
-    sendBrainGcode(HEATERS[dialog.kind].gcode + (parseInt(dialog.value) || 0)).catch(noop);
+    sendBackendGcode(HEATERS[dialog.kind].gcode + (parseInt(dialog.value) || 0)).catch(noop);
     close();
   };
   /** 1.112: a material: the nozzle and the bed at once. */
   const material = (preset) => {
-    sendBrainGcode(HEATERS.hotend.gcode + preset.hotend + "\n" + HEATERS.bed.gcode + preset.bed).catch(noop);
+    sendBackendGcode(HEATERS.hotend.gcode + preset.hotend + "\n" + HEATERS.bed.gcode + preset.bed).catch(noop);
     close();
   };
   /** 1.112: this heater off. */
   const off = () => {
-    sendBrainGcode(HEATERS[dialog.kind].gcode + "0").catch(noop);
+    sendBackendGcode(HEATERS[dialog.kind].gcode + "0").catch(noop);
     close();
   };
   return { dialog, edit, close, setValue, confirm, material, off };

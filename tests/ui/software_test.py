@@ -296,7 +296,7 @@ with sync_playwright() as p:
     P.shot(out + "/update_progress.png", tall=False)
     ok("when the backend is back the page reloads by itself", reloaded(P, 40.0))
     P.settle(1500)
-    ok("... on the new release", state()["brain_release"] == "1.0.1")
+    ok("... on the new release", state()["backend_release"] == "1.0.1")
     ok("[update] no uncaught error", [e for e in P.errors if "pageerror" in e] == [], P.errors)
     P.close()
 
@@ -342,14 +342,14 @@ with sync_playwright() as p:
     P.close()
 
     # rollback
-    P = fresh(b, vz={"version": "v0.0.0-4", "remote_version": "v0.0.0-4", "rollback_version": "v0.0.0-3"}, brain_release="1.0.1")
+    P = fresh(b, vz={"version": "v0.0.0-4", "remote_version": "v0.0.0-4", "rollback_version": "v0.0.0-3"}, backend_release="1.0.1")
     pg = P.pg
     open_menu(P); go(P, "software")
     ok("a rollback is offered when there is a version to go back to", wait_until(lambda: pg.locator("button", has_text="Torna alla versione precedente").count() == 1, 5.0))
     pg.locator("button", has_text="Torna alla versione precedente").click(); P.settle(500)
     ok("it asks and names the version", "Tornare alla versione precedente?" in pg.locator(".sheet-card").inner_text() and "v0.0.0-3" in pg.locator(".sheet-card").inner_text())
     pg.locator(".sheet-footer button", has_text="Torna indietro").click()
-    ok("[rollback] the backend restarts and the page reloads", reloaded(P, 45.0) and ("rollback", "klippeye") in [tuple(a) for a in state()["update_log"]] and state()["brain_release"] == "1.0.0", (state()["update_log"], state()["brain_release"]))
+    ok("[rollback] the backend restarts and the page reloads", reloaded(P, 45.0) and ("rollback", "klippeye") in [tuple(a) for a in state()["update_log"]] and state()["backend_release"] == "1.0.0", (state()["update_log"], state()["backend_release"]))
     P.close()
 
     # Moonraker does not know KlippEye
@@ -367,7 +367,7 @@ with sync_playwright() as p:
     P.close()
 
     # this page and the backend differ
-    P = fresh(b, brain_release="2.0.0")
+    P = fresh(b, backend_release="2.0.0")
     pg = P.pg
     open_menu(P); go(P, "software")
     ok("the page asks to reload when the backend is a newer release", wait_until(lambda: "ma il servizio KlippEye è la" in pg.locator(".drawer__body").inner_text(), 4.0) and pg.locator("button", has_text="Ricarica").count() == 1, pg.locator(".drawer__body").inner_text()[:400])

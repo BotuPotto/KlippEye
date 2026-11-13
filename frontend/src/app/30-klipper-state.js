@@ -40,12 +40,12 @@ const RESTART_KINDS = {
   service: { label: tx("Restarting the Klipper service"), limit: 90000, grace: KLIPPER_RESTART_GRACE_MS, reload: true },
   moonraker: { label: tx("Restarting Moonraker"), limit: 120000, grace: KLIPPER_RESTART_GRACE_MS, reload: true },
   // the program that serves this page: it is back when it answers again, whatever Klipper is doing (it may be off: "disconnected")
-  brain: { label: tx("Restarting the KlippEye service"), limit: 120000, grace: KLIPPER_RESTART_GRACE_MS, reload: true, anyAnswer: true },
+  backend: { label: tx("Restarting the KlippEye service"), limit: 120000, grace: KLIPPER_RESTART_GRACE_MS, reload: true, anyAnswer: true },
   host: { label: tx("Restarting the Raspberry"), limit: 360000, grace: KLIPPER_RESTART_GRACE_MS, reload: true },
   save: { label: tx("Saving and restarting Klipper"), limit: 90000, grace: 4000, reload: false }, // SAVE_CONFIG may have nothing to save: then nothing restarts
 };
 /** Services whose restart takes Klipper (or the whole of Moonraker) away for a while, by name. */
-const SERVICE_RESTART_KIND = { klipper: "service", moonraker: "moonraker", klippeye: "brain" };
+const SERVICE_RESTART_KIND = { klipper: "service", moonraker: "moonraker", klippeye: "backend" };
 /** Services whose restart cuts the connection of this very page (Moonraker answers through the backend; the backend is the page's server). */
 const CUTS_CONNECTION = ["moonraker", "klippeye"];
 

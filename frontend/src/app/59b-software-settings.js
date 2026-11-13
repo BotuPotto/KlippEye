@@ -193,7 +193,7 @@ function CommitList({ commits }) {
 }
 
 /** The state of Moonraker's side: what it says about the repository, and the buttons that follow from it. */
-function UpdateBlock({ update, remoteRelease, brainRelease, printing, menu, updates }) {
+function UpdateBlock({ update, remoteRelease, backendRelease, printing, menu, updates }) {
   const { phase, raw } = update;
   if (phase === "loading") return h("div", { className: "set-status" }, h("span", { className: "set-status__dot" }), tx("Asking Moonraker whether there is something new…"));
   if (phase === "down") return h("div", { className: "set-status set-status--warn" }, h("span", { className: "set-status__dot" }), tx("Moonraker does not answer: cannot know whether there are updates."));
@@ -230,7 +230,7 @@ function UpdateBlock({ update, remoteRelease, brainRelease, printing, menu, upda
         "div",
         { className: "set-status set-status--update" },
         h("span", { className: "set-status__dot" }),
-        h("span", null, remoteRelease ? (brainRelease ? tx("Release {release} is available (you have {current})", { release: remoteRelease, current: brainRelease }) : tx("Release {release} is available", { release: remoteRelease })) : behind === 1 ? tx("Update available: 1 change coming") : tx("Update available: {count} changes coming", { count: behind })),
+        h("span", null, remoteRelease ? (backendRelease ? tx("Release {release} is available (you have {current})", { release: remoteRelease, current: backendRelease }) : tx("Release {release} is available", { release: remoteRelease })) : behind === 1 ? tx("Update available: 1 change coming") : tx("Update available: {count} changes coming", { count: behind })),
       ),
       h(CommitList, { commits: raw.commits_behind }),
       h(
@@ -266,7 +266,7 @@ function AutoUpdateCheckBlock() {
 }
 
 function SoftwarePage({ active, menu, updates, printing, actions }) {
-  const version = useBrainVersion(active);
+  const version = useBackendVersion(active);
   const update = useProgramUpdate(active);
   const channel = useUpdateChannel(active, () => update.check());
   const remoteRelease = useRemoteRelease(update.raw);
@@ -317,7 +317,7 @@ function SoftwarePage({ active, menu, updates, printing, actions }) {
         h(InfoLine, { label: tx("Dashboard (this page)"), value: dashboardRelease(), warn: differs }),
         git && h(InfoLine, { label: tx("Code version"), value: git.commit + (git.branch ? " • " + git.branch : "") }),
         h(InfoLine, { label: tx("Service up for"), value: formatUptime(info.uptime) }),
-        Number(info.api) < BRAIN_API_LEVEL && h(InfoLine, { label: tx("Service interface"), value: tx("{api} ({needed} needed)", { api: info.api, needed: BRAIN_API_LEVEL }), warn: true }),
+        Number(info.api) < BACKEND_API_LEVEL && h(InfoLine, { label: tx("Service interface"), value: tx("{api} ({needed} needed)", { api: info.api, needed: BACKEND_API_LEVEL }), warn: true }),
       ),
       // 1.74: the service runs on Flask's own server when waitress is missing (an installation from before 1.74)
       info.server === "flask" &&
@@ -339,7 +339,7 @@ function SoftwarePage({ active, menu, updates, printing, actions }) {
     h(
       SettingsGroup,
       { title: txc("noun", "Update") },
-      h(UpdateBlock, { update, remoteRelease, brainRelease: info.release, printing, menu, updates }),
+      h(UpdateBlock, { update, remoteRelease, backendRelease: info.release, printing, menu, updates }),
       h(
         "button",
         { type: "button", className: "oui-btn oui-btn--block", disabled: update.checking || update.phase === "down", onClick: update.check },

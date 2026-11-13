@@ -132,7 +132,7 @@ def _levenberg_marquardt(params, points, pixels, model, iterations=200):
             d[i] = steps[i]
             jac[:, i] = (_residuals(params + d, points, pixels, model) - _residuals(params - d, points, pixels, model)) / (2 * steps[i])
         jtj, jtr = jac.T @ jac, jac.T @ res
-        improved = False
+        improved = done = False
         for _ in range(10):
             try:
                 delta = np.linalg.solve(jtj + lam * np.diag(np.diag(jtj) + 1e-9), -jtr)
@@ -179,7 +179,7 @@ def fit(points, pixels, width, height):
                 except (ValueError, np.linalg.LinAlgError):
                     continue
                 p0 = np.r_[f0, start_center, k0, 0.0, rotation_to_vector(rot), t]
-                params, cost = _levenberg_marquardt(p0, points, pixels, model)
+                params, _ = _levenberg_marquardt(p0, points, pixels, model)
                 projected, z = project_params(params, points, model)
                 if np.any(z <= 0) or params[0] <= 0:
                     continue

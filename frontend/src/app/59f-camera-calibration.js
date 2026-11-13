@@ -46,7 +46,7 @@ const SHAPE_MAX = { left: 300, right: 300, front: 300, back: 300, top: 400, belo
 const SHAPE_SEND_EVERY_MS = 400; // while a handle is dragged, the new size goes to the backend this often (the outline follows)
 const QUALITY_TEXT = { good: tx("good"), fair: tx("acceptable"), poor: tx("not good enough") };
 
-/** POST to the calibration API; resolves { ok, data, message } like brainPost, with a longer wait (moves take time). */
+/** POST to the calibration API; resolves { ok, data, message } like backendPost, with a longer wait (moves take time). */
 async function camcalPost(path, body) {
   try {
     const response = await fetch("/api/camera/" + path, { method: "POST", headers: JSON_HEADERS, body: JSON.stringify(body || {}) });
@@ -126,7 +126,7 @@ function LiveCheck({ camera, draft, editShape }) {
     let cancelled = false;
     const read = async () => {
       try {
-        const response = await fetchFresh("/api/camera/overlay" + (draft ? "?draft=1" : ""), { timeout: BRAIN_READ_TIMEOUT_MS });
+        const response = await fetchFresh("/api/camera/overlay" + (draft ? "?draft=1" : ""), { timeout: BACKEND_READ_TIMEOUT_MS });
         const data = await response.json();
         if (cancelled) return;
         if (response.ok && data.ok) {
@@ -392,7 +392,7 @@ function MarkersStep({ state, run, busy }) {
     let cancelled = false;
     (async () => {
       try {
-        const response = await fetchFresh("/api/camera/gcode-files", { timeout: BRAIN_READ_TIMEOUT_MS * 2 });
+        const response = await fetchFresh("/api/camera/gcode-files", { timeout: BACKEND_READ_TIMEOUT_MS * 2 });
         const data = await response.json();
         if (cancelled || !data.ok) return;
         setFiles(data.files);
@@ -722,7 +722,7 @@ function useCameraCalibration(active) {
     let cancelled = false;
     const read = async () => {
       try {
-        const response = await fetchFresh("/api/camera/calibration", { timeout: BRAIN_READ_TIMEOUT_MS * 2 });
+        const response = await fetchFresh("/api/camera/calibration", { timeout: BACKEND_READ_TIMEOUT_MS * 2 });
         if (response.status === 404) return !cancelled && setState({ phase: "old" });
         const data = await response.json();
         if (!cancelled) setState(response.ok && data.ok ? { phase: "ok", ...data } : (previous) => (previous.phase === "ok" ? previous : { phase: "down" }));
@@ -779,7 +779,7 @@ function CameraCalibrationPage({ active }) {
     return here ? reply : reply.ok;
   };
   if (state.phase === "old") return h("div", { className: "set-status set-status--warn" }, h("span", { className: "set-status__dot" }), tx("The KlippEye service on the Raspberry cannot calibrate the camera yet: update KlippEye (Settings → Updates)."));
-  if (state.phase !== "ok") return h(BrainNotice, { phase: state.phase === "loading" ? "loading" : "down" });
+  if (state.phase !== "ok") return h(BackendNotice, { phase: state.phase === "loading" ? "loading" : "down" });
   const saved = state.saved;
   const drafting = calibrating || Boolean(state.draft && state.draft.z_moves);
   return h(
@@ -835,11 +835,11 @@ async function camcalDelete() {
 
 /** What the AI monitor does with the calibration (1.19: these two switches were in Monitor thresholds). */
 function MaskSwitches({ active }) {
-  const config = useBrainConfig(active);
-  const data = useMemo(() => (config.data ? localizeBrainSchema(config.data) : null), [config.data]);
+  const config = useBackendConfig(active);
+  const data = useMemo(() => (config.data ? localizeBackendSchema(config.data) : null), [config.data]);
   if (config.phase !== "ok" || !data) return null;
   const specs = ["machine_masks", "expected_zone", "inside_parts"].map((key) => data.spec.find((spec) => spec.key === key)).filter(Boolean);
-  return h(SettingsGroup, { title: tx("What the AI monitor does with it") }, h("div", { className: "oui-list" }, specs.map((spec) => h(BrainSettingControl, { key: spec.key, spec, config }))));
+  return h(SettingsGroup, { title: tx("What the AI monitor does with it") }, h("div", { className: "oui-list" }, specs.map((spec) => h(BackendSettingControl, { key: spec.key, spec, config }))));
 }
 
 /** One line for the menu list. */

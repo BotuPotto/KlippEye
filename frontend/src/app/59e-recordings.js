@@ -80,7 +80,7 @@ function useBackendJson(url, active, ms = RECORDINGS_POLL_MS) {
     let cancelled = false;
     const read = async () => {
       try {
-        const response = await fetchFresh(url, { timeout: BRAIN_READ_TIMEOUT_MS });
+        const response = await fetchFresh(url, { timeout: BACKEND_READ_TIMEOUT_MS });
         if (cancelled) return;
         if (response.status === 404) return setState((previous) => (previous.phase === "ok" && url.startsWith("/api/recordings/") ? { phase: "gone", data: null } : { phase: "old", data: null }));
         const data = await response.json();
@@ -99,7 +99,7 @@ function useBackendJson(url, active, ms = RECORDINGS_POLL_MS) {
   return { ...state, reload: () => reloadRef.current() };
 }
 
-async function brainDelete(url) {
+async function backendDelete(url) {
   try {
     const response = await fetch(url, { method: "DELETE" });
     return response.ok;
@@ -199,7 +199,7 @@ function AlertRow({ alert, session, onLabelled, onShow }) {
   const change = async (next) => {
     setBusy(true);
     // 1.26.2: with the recording, so an alarm that already left the alert history is labelled in its recording
-    const reply = await brainPost("/api/print/alerts/" + alert.id + "/label", session ? { label: next, session } : { label: next });
+    const reply = await backendPost("/api/print/alerts/" + alert.id + "/label", session ? { label: next, session } : { label: next });
     setBusy(false);
     if (reply.ok) {
       setLabel(next);
@@ -291,14 +291,14 @@ function RecordingDetail({ id, onClose }) {
   const failedAt = label.outcome === "failed" ? label.failed_at : null;
   const setLabel = async (outcome, when) => {
     setBusy(true);
-    const reply = await brainPost("/api/recordings/" + id + "/label", { outcome, failed_at: when });
+    const reply = await backendPost("/api/recordings/" + id + "/label", { outcome, failed_at: when });
     setBusy(false);
     setProblem(reply.ok ? "" : tx("Not saved: ") + (reply.message || tx("the KlippEye service does not answer")));
     detail.reload();
   };
   const remove = async () => {
     setBusy(true);
-    const ok = await brainDelete("/api/recordings/" + id);
+    const ok = await backendDelete("/api/recordings/" + id);
     setBusy(false);
     if (ok) onClose(true);
     else setProblem(tx("The recording was not deleted."));
@@ -543,7 +543,7 @@ function CompareResult({ result }) {
 /** How often the AI's verdict matched the real print, on the alarms you judged (1.28). */
 function AiPrecisionGroup({ active }) {
   const data = useBackendJson("/api/print/alerts/precision", active, RECORDINGS_POLL_MS * 3);
-  const config = useBrainConfig(active);
+  const config = useBackendConfig(active);
   if (data.phase !== "ok") return null;
   const p = data.data;
   const pct = (value) => (value === null || value === undefined ? "–" : value + "%");
@@ -632,7 +632,7 @@ function MeasureGroup({ sessions }) {
     let cancelled = false;
     const read = async () => {
       try {
-        const response = await fetchFresh("/api/recordings/measure", { timeout: BRAIN_READ_TIMEOUT_MS });
+        const response = await fetchFresh("/api/recordings/measure", { timeout: BACKEND_READ_TIMEOUT_MS });
         const data = await response.json();
         if (!cancelled) setState(response.ok && isPlainObject(data) ? { phase: data.state, result: data.result } : { phase: "error" });
       } catch (error) {
@@ -649,7 +649,7 @@ function MeasureGroup({ sessions }) {
     setStarting(true);
     const body = chosen.length === usable.length ? {} : { ids: chosen.map((session) => session.id) };
     if (compare === true) body.compare = true;
-    const reply = await brainPost("/api/recordings/measure", body);
+    const reply = await backendPost("/api/recordings/measure", body);
     setStarting(false);
     setState(reply.ok ? { phase: "running" } : { phase: "error", result: { error: reply.message } });
   };
@@ -709,11 +709,11 @@ function RecordingRow({ session, onOpen }) {
 }
 
 function RecordingsPage({ active }) {
-  const config = useBrainConfig(active);
+  const config = useBackendConfig(active);
   const list = useBackendJson("/api/recordings", active);
   const detector = useBackendJson("/api/print/detector/status", active, RECORDINGS_POLL_MS);
   const [openId, setOpenId] = useState(null);
-  const schema = useMemo(() => (config.data ? localizeBrainSchema(config.data) : null), [config.data]);
+  const schema = useMemo(() => (config.data ? localizeBackendSchema(config.data) : null), [config.data]);
   if (openId) {
     return h(RecordingDetail, {
       id: openId,
@@ -726,7 +726,7 @@ function RecordingsPage({ active }) {
   if (list.phase === "old" || config.phase === "old") {
     return h("div", { className: "set-status set-status--warn" }, h("span", { className: "set-status__dot" }), tx("The KlippEye service on the Raspberry does not record prints yet: update KlippEye (Settings → Updates)."));
   }
-  if (list.phase !== "ok") return h(BrainNotice, { phase: list.phase === "loading" ? "loading" : "down" });
+  if (list.phase !== "ok") return h(BackendNotice, { phase: list.phase === "loading" ? "loading" : "down" });
   const data = list.data;
   const specs = schema ? schema.spec.filter((spec) => spec.group === "recording") : [];
   const stats = detector.phase === "ok" && isPlainObject(detector.data.stats) ? detector.data.stats : {};
@@ -749,8 +749,8 @@ function RecordingsPage({ active }) {
     h(
       SettingsGroup,
       { title: tx("Recording"), note: tx("Used {used} of {limit}; {free} free on the disk.", { used: formatSpace(data.used_bytes), limit: formatSpace(data.max_bytes), free: data.free_bytes === null ? "?" : formatSpace(data.free_bytes) }) },
-      config.phase === "ok" && specs.filter((spec) => spec.type === "bool").length > 0 && h("div", { className: "oui-list" }, specs.filter((spec) => spec.type === "bool").map((spec) => h(BrainSettingControl, { key: spec.key, spec, config }))),
-      config.phase === "ok" && specs.filter((spec) => spec.type !== "bool").map((spec) => h(BrainSettingControl, { key: spec.key, spec, config })),
+      config.phase === "ok" && specs.filter((spec) => spec.type === "bool").length > 0 && h("div", { className: "oui-list" }, specs.filter((spec) => spec.type === "bool").map((spec) => h(BackendSettingControl, { key: spec.key, spec, config }))),
+      config.phase === "ok" && specs.filter((spec) => spec.type !== "bool").map((spec) => h(BackendSettingControl, { key: spec.key, spec, config })),
       config.problem && h("div", { className: "set-status set-status--warn", role: "alert" }, h("span", { className: "set-status__dot" }), config.problem),
     ),
     (stats.check_ms !== undefined || stats.cpu_percent !== undefined) &&

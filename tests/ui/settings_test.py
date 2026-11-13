@@ -407,16 +407,16 @@ with sync_playwright() as p:
     # which address for which page (the rule, tried on addresses the browser could be at)
     PICK_SRC = pick_host_fn()
     PICK = "([src, host, local, ext, route]) => { const pick = new Function(src + '; return pickCameraHost;')(); const r = pick({ network: { localIp: local, externalIp: ext, route } }, host); return r.side + ' ' + r.host; }"
-    cases = [("192.168.1.17", "192.168.1.17", "172.25.170.177", "auto", "local 192.168.1.17"), ("172.25.170.177", "192.168.1.17", "172.25.170.177", "auto", "external 172.25.170.177"),
-             ("192.168.77.5", "192.168.1.17", "172.25.170.177", "auto", "local 192.168.1.17"), ("172.25.9.9", "192.168.1.17", "172.25.170.177", "auto", "external 172.25.170.177"),
-             ("10.0.0.5", "10.0.0.5", "172.25.170.177", "auto", "local 10.0.0.5"), ("10.0.3.9", "10.0.0.5", "172.25.170.177", "auto", "local 10.0.0.5"),
-             ("klippeye.local", "klippeye.local", "172.25.170.177", "auto", "local klippeye.local"), ("klippeye.local", "192.168.1.17", "172.25.170.177", "auto", "external 172.25.170.177"),
-             ("KLIPPEYE.LOCAL", "klippeye.local", "172.25.170.177", "auto", "local klippeye.local"), ("localhost", "192.168.1.17", "172.25.170.177", "auto", "external 172.25.170.177"),
-             ("203.0.113.9", "192.168.1.17", "172.25.170.177", "auto", "external 172.25.170.177"), ("172.25.170.177", "192.168.1.17", "172.25.170.177", "local", "local 192.168.1.17"),
-             ("192.168.1.17", "192.168.1.17", "172.25.170.177", "external", "external 172.25.170.177"), ("192.168.1.17", "192.168.1.17:8080", "172.25.170.177", "auto", "local 192.168.1.17:8080"),
+    cases = [("192.168.1.17", "192.168.1.17", "172.25.10.20", "auto", "local 192.168.1.17"), ("172.25.10.20", "192.168.1.17", "172.25.10.20", "auto", "external 172.25.10.20"),
+             ("192.168.77.5", "192.168.1.17", "172.25.10.20", "auto", "local 192.168.1.17"), ("172.25.9.9", "192.168.1.17", "172.25.10.20", "auto", "external 172.25.10.20"),
+             ("10.0.0.5", "10.0.0.5", "172.25.10.20", "auto", "local 10.0.0.5"), ("10.0.3.9", "10.0.0.5", "172.25.10.20", "auto", "local 10.0.0.5"),
+             ("klippeye.local", "klippeye.local", "172.25.10.20", "auto", "local klippeye.local"), ("klippeye.local", "192.168.1.17", "172.25.10.20", "auto", "external 172.25.10.20"),
+             ("KLIPPEYE.LOCAL", "klippeye.local", "172.25.10.20", "auto", "local klippeye.local"), ("localhost", "192.168.1.17", "172.25.10.20", "auto", "external 172.25.10.20"),
+             ("203.0.113.9", "192.168.1.17", "172.25.10.20", "auto", "external 172.25.10.20"), ("172.25.10.20", "192.168.1.17", "172.25.10.20", "local", "local 192.168.1.17"),
+             ("192.168.1.17", "192.168.1.17", "172.25.10.20", "external", "external 172.25.10.20"), ("192.168.1.17", "192.168.1.17:8080", "172.25.10.20", "auto", "local 192.168.1.17:8080"),
              # 1.22: addresses not set -> the address of the page
              ("192.168.3.4", "", "", "auto", "same 192.168.3.4"), ("pi.local", "", "", "auto", "same pi.local"), ("10.1.1.1", "", "", "local", "local 10.1.1.1"),
-             ("172.25.9.9", "192.168.1.17", "", "auto", "same 172.25.9.9"), ("192.168.1.17", "", "172.25.170.177", "auto", "external 172.25.170.177")]
+             ("172.25.9.9", "192.168.1.17", "", "auto", "same 172.25.9.9"), ("192.168.1.17", "", "172.25.10.20", "auto", "external 172.25.10.20")]
     got = [pg.evaluate(PICK, [PICK_SRC] + list(c[:4])) for c in cases]
     bad = [(c, g) for c, g in zip(cases, got) if g != c[4]]
     ok("which address the camera is asked at, for %d addresses the browser could be at" % len(cases), not bad, bad)
@@ -563,7 +563,7 @@ with sync_playwright() as p:
         """What the app is to the page: its user agent, and the bridge (here it only records what it is told)."""
         agent = "Object.defineProperty(navigator,'userAgent',{get:()=>%s});" % json.dumps(WV + (" KlippEyeApp/%d" % version if version else ""))
         if version >= 4:
-            bridge = ("window.__app = { calls: [], pair: { local: '192.168.1.17', external: '172.25.170.177' } };"
+            bridge = ("window.__app = { calls: [], pair: { local: '192.168.1.17', external: '172.25.10.20' } };"
                       "window.KlippEyeApp = { saveUrl() {}, setAddresses(l, e) { window.__app.calls.push([l, e]); const refuse = %s; if (refuse) return refuse; window.__app.pair = { local: l, external: e }; return 'ok'; },"
                       " getAddresses() { return JSON.stringify(window.__app.pair); } };") % json.dumps(refuse)
         else:

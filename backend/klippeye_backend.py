@@ -56,8 +56,8 @@ CAMERA_NGINX_URL = "http://127.0.0.1/webcam"
 PORT = int(os.environ.get("KLIPPEYE_PORT") or 8085)  # always 8085 (the variable is for the tests only)
 
 # === BASE: release, data folder, saved settings ===========================================
-BRAIN_DIR = os.path.dirname(os.path.abspath(__file__))
-REPO_DIR = os.path.dirname(BRAIN_DIR)  # ~/klippeye: the repository folder (backend/, frontend/, VERSION...)
+BACKEND_DIR = os.path.dirname(os.path.abspath(__file__))
+REPO_DIR = os.path.dirname(BACKEND_DIR)  # ~/klippeye: the repository folder (backend/, frontend/, VERSION...)
 API_LEVEL = 2  # goes up when the "language" between backend and dashboard changes (the dashboard says which one it needs)
 START_TS = time.time()
 
@@ -171,7 +171,7 @@ def write_json_atomic(path, data, private=False):
 #   * origin: a command (POST, PUT, DELETE) sent by a page of another site is refused; so are other-site requests that
 #     are not a plain page navigation (Sec-Fetch-Site: cross-site).
 # With the password on, a request also needs the session cookie or the internal token of the services on the Raspberry.
-sys.path.insert(0, BRAIN_DIR)
+sys.path.insert(0, BACKEND_DIR)
 import access  # noqa: E402
 
 ACCESS = access.Store(DATA_DIR)
@@ -198,7 +198,7 @@ ACCESS_TEXT = {
     },
     "it": {
         "host": "KlippEye risponde solo se lo chiami con l'indirizzo IP del Raspberry o con un nome della rete di casa. Per usare il nome '%(host)s' scrivi sul Raspberry:  klippeye access host-add %(host)s",
-        "origin_cmd": "Comando rifiutato: arriva da una pagina che non e' la dashboard di KlippEye (%(origin)s).",
+        "origin_cmd": "Comando rifiutato: arriva da una pagina che non è la dashboard di KlippEye (%(origin)s).",
         "origin_read": "Richiesta rifiutata: arriva da un altro sito.",
         "login": "Serve l'accesso: apri la dashboard e inserisci la password.",
         "wait": "Troppi tentativi sbagliati: riprova tra %(seconds)d secondi.",
@@ -490,7 +490,7 @@ def _access_guard():
             navigation = request.method == "GET" and request.headers.get("Sec-Fetch-Mode") == "navigate"
             if not navigation:
                 return _refuse(403, "origin", _text("origin_read"))
-    if not settings.get("enabled") or internal or request.path in ACCESS_PUBLIC or (request.path == "/api/version" and request.method == "GET" and octoprint_client()):
+    if not settings.get("enabled") or internal or request.path in ACCESS_PUBLIC or (request.path == "/api/version" and request.method == "GET" and slicer_client()):
         return None
     role = access.token_role(settings, request.cookies.get(access.COOKIE_NAME))
     if role == "admin":
@@ -917,7 +917,7 @@ class MonitorConfig:
             print("[CONFIG] cannot save %s: %s" % (self.path, error))
 
 
-brain_config = MonitorConfig(MONITOR_CONFIG_PATH)
+backend_config = MonitorConfig(MONITOR_CONFIG_PATH)
 
 
 _GIT_INFO = {"at": 0.0, "value": None}
@@ -1186,7 +1186,7 @@ def health():
 @app.route("/api/printer")
 @app.route("/api/status")
 def api_printer():
-    if request.path == "/api/printer" and octoprint_client():  # 1.94: OctoPrint's /api/printer, from Moonraker
+    if request.path == "/api/printer" and slicer_client():  # 1.94: the slicers' /api/printer, from Moonraker
         return proxy_moonraker("api/printer")
     try:
         objects = {name: None for name in ("heater_bed", "extruder", "print_stats", "heater_fan", "toolhead", "gcode_move", "virtual_sdcard", "display_status", "webhooks")}
@@ -1234,14 +1234,15 @@ def api_gcode():
     return jsonify({"result": result, "moonraker_status": answer.status_code, "sent": script})
 
 
-# 1.94: the slicers that send to "OctoPrint" (OrcaSlicer, PrusaSlicer...) reach Moonraker's OctoPrint-style API through
-# here too: its own paths go to Moonraker; /api/version and /api/printer, which KlippEye has as well, go there when the
-# question comes from such a program (it sends X-Api-Key, or says so in its User-Agent).
-_OCTOPRINT_AGENT = re.compile(r"slicer|octoprint|cura", re.IGNORECASE)
+# 1.94: slicers that upload with the network printer protocol (OrcaSlicer, PrusaSlicer...) reach Moonraker's compatible
+# API (its "octoprint_compat" component) through here too: its own paths go to Moonraker; /api/version and /api/printer,
+# which KlippEye has as well, go there when the question comes from such a program (it sends X-Api-Key, or says so in its
+# User-Agent).
+_SLICER_AGENT = re.compile(r"slicer|octoprint|cura", re.IGNORECASE)
 
 
-def octoprint_client():
-    return "X-Api-Key" in request.headers or bool(_OCTOPRINT_AGENT.search(request.headers.get("User-Agent", "")))
+def slicer_client():
+    return "X-Api-Key" in request.headers or bool(_SLICER_AGENT.search(request.headers.get("User-Agent", "")))
 
 
 @app.route("/api/files", methods=["GET", "POST"])
@@ -1253,7 +1254,7 @@ def octoprint_client():
 @app.route("/api/printerprofiles", methods=["GET"])
 @app.route("/api/server", methods=["GET"])
 @app.route("/api/printer/command", methods=["POST"])
-def octoprint_compat(path=""):
+def slicer_upload_api(path=""):
     return proxy_moonraker(request.path.lstrip("/"))
 
 
@@ -1600,7 +1601,7 @@ def api_ai_config():
     except OSError as e:
         return jsonify({"ok": False, "error": bt("cannot save the key in {path}: {error}", _lang(), path=AI_CONFIG_PATH, error=e)}), 500
     if isinstance(body.get("monitor"), dict) and detector.ai_model:
-        set_brain_config({"ai_model": ""})   # the model of before 1.27 (Monitor thresholds) gives way to the one chosen here
+        set_backend_config({"ai_model": ""})   # the model of before 1.27 (Monitor thresholds) gives way to the one chosen here
     return jsonify(dict(ai_services.summary(cfg), ok=True, saved_to=[AI_CONFIG_PATH]))
 
 
@@ -2227,7 +2228,7 @@ class LightDetector(FrameJudge):
                     ps = status.get("print_stats") or {}
                     state = ps.get("state", "")
                     self._follow_print(state)
-                    recorder.observe(state, ps.get("filename", ""), time.time(), brain_config.snapshot())
+                    recorder.observe(state, ps.get("filename", ""), time.time(), backend_config.snapshot())
                     reviews.observe(state, ps.get("filename", ""), time.time())  # 1.103: «how did it go?» at the end
                     camera_cal.maybe_check()  # has the camera moved since its calibration? (every 10 minutes)
 
@@ -2657,8 +2658,8 @@ class LightDetector(FrameJudge):
 RECORDINGS_DIR = os.path.join(DATA_DIR, "recordings")
 recorder = Recorder(RECORDINGS_DIR, cv2 if HAS_CV2 else None, RELEASE)
 detector = LightDetector()
-detector.apply_config(brain_config.snapshot())  # the saved thresholds (or the defaults) apply from the first check
-recorder.configure(brain_config.snapshot()["record"], brain_config.snapshot()["record_max_mb"])
+detector.apply_config(backend_config.snapshot())  # the saved thresholds (or the defaults) apply from the first check
+recorder.configure(backend_config.snapshot()["record"], backend_config.snapshot()["record_max_mb"])
 from print_review import PrintReviews, PROBLEMS as REVIEW_PROBLEMS  # noqa: E402  (1.103: how each print went)
 from personal_layer import PersonalLayer  # noqa: E402  (1.107: the local model's layer of each printer)
 import local_model  # noqa: E402  (1.106: the local model)
@@ -2718,7 +2719,7 @@ class LocalAi:
 
 local_ai = LocalAi()
 personal = PersonalLayer(DATA_DIR, np, cv2 if HAS_CV2 else None)   # 1.107: what this printer learned (optional)
-personal.configure(brain_config.snapshot()["personal_learning"])
+personal.configure(backend_config.snapshot()["personal_learning"])
 
 
 def train_personal_later(why=""):
@@ -2736,15 +2737,15 @@ def train_personal_later(why=""):
 
 REVIEWS_DIR = os.path.join(DATA_DIR, "reviews")
 reviews = PrintReviews(REVIEWS_DIR, cv2 if HAS_CV2 else None)
-reviews.configure(brain_config.snapshot()["print_review"])
+reviews.configure(backend_config.snapshot()["print_review"])
 
 
-def set_brain_config(changes):
+def set_backend_config(changes):
     """Changes thresholds: checks them, saves them in monitor.json and puts them in use. -> (errors, changed keys)."""
-    errors, changed = brain_config.update(changes)
+    errors, changed = backend_config.update(changes)
     if errors:
         return errors, changed
-    values = brain_config.snapshot()
+    values = backend_config.snapshot()
     detector.apply_config(values)
     recorder.configure(values["record"], values["record_max_mb"])
     reviews.configure(values["print_review"])
@@ -2881,7 +2882,7 @@ def api_diagnose():
 @app.route("/api/version", methods=["GET"])
 def api_version():
     """Who am I: release (VERSION file), interface level, repository commit, how long I have been up."""
-    if octoprint_client():  # 1.94: a slicer checking its "OctoPrint" connection: Moonraker answers it
+    if slicer_client():  # 1.94: a slicer checking its connection: Moonraker answers it
         return proxy_moonraker("api/version")
     return jsonify({
         "ok": True,
@@ -3053,22 +3054,22 @@ def logo_file(name):
 # === end PRINTER LOGOS ===========================================================================
 
 
-def brain_config_reply(ok=True, status=200, **extra):
+def backend_config_reply(ok=True, status=200, **extra):
     body = {
         "ok": ok,
         "api": API_LEVEL,
-        "values": brain_config.snapshot(),
-        "saved": brain_config.saved,
-        "save_error": brain_config.save_error,
+        "values": backend_config.snapshot(),
+        "saved": backend_config.saved,
+        "save_error": backend_config.save_error,
     }
     body.update(extra)
     return jsonify(body), status
 
 
 @app.route("/api/backend/config", methods=["GET"])
-def api_brain_config_get():
+def api_backend_config_get():
     """The AI monitor thresholds with all it takes to draw the menu (labels, limits, defaults)."""
-    return brain_config_reply(
+    return backend_config_reply(
         defaults=config_defaults(),
         groups=CONFIG_GROUPS,
         spec=[{k: v for k, v in spec.items() if k != "pattern"} for spec in CONFIG_SPEC],
@@ -3079,28 +3080,28 @@ def api_brain_config_get():
 
 
 @app.route("/api/backend/config", methods=["POST"])
-def api_brain_config_set():
+def api_backend_config_set():
     """{"values": {key: value, ...}}: only the given keys. When a value is wrong nothing changes (400 + errors)."""
     body = request.get_json(silent=True)
     if not isinstance(body, dict):
-        return brain_config_reply(False, 400, errors={"_": "a JSON object is needed"})
+        return backend_config_reply(False, 400, errors={"_": "a JSON object is needed"})
     changes = body.get("values") if isinstance(body.get("values"), dict) else body
-    errors, changed = set_brain_config(changes)
+    errors, changed = set_backend_config(changes)
     if errors:
-        return brain_config_reply(False, 400, errors=errors)
-    return brain_config_reply(changed=changed)
+        return backend_config_reply(False, 400, errors=errors)
+    return backend_config_reply(changed=changed)
 
 
 @app.route("/api/backend/config/reset", methods=["POST"])
-def api_brain_config_reset():
+def api_backend_config_reset():
     """Back to the defaults: all of them, or only {"keys": [...]}."""
     body = request.get_json(silent=True) or {}
     keys = body.get("keys") if isinstance(body.get("keys"), list) else None
     defaults = config_defaults()
-    errors, changed = set_brain_config({key: defaults[key] for key in (keys or defaults) if key in defaults})
+    errors, changed = set_backend_config({key: defaults[key] for key in (keys or defaults) if key in defaults})
     if errors:
-        return brain_config_reply(False, 400, errors=errors)
-    return brain_config_reply(changed=changed)
+        return backend_config_reply(False, 400, errors=errors)
+    return backend_config_reply(changed=changed)
 
 
 @app.route("/api/print/detector/start", methods=["POST"])
@@ -3113,13 +3114,13 @@ def api_detector_start():
             changes["sensitivity"] = max(5, min(100, int(sens)))
         except (TypeError, ValueError):
             pass
-    set_brain_config(changes)
+    set_backend_config(changes)
     detector.start()
     return jsonify({"ok": True, "enabled": detector.enabled, "stats": detector.stats})
 
 @app.route("/api/print/detector/stop", methods=["POST"])
 def api_detector_stop():
-    set_brain_config({"enabled": False})
+    set_backend_config({"enabled": False})
     detector.stop()
     return jsonify({"ok": True, "enabled": detector.enabled})
 
@@ -3156,12 +3157,12 @@ def api_detector_config():
     except (TypeError, ValueError):
         pass
     if changes:
-        errors, _ = set_brain_config(changes)
+        errors, _ = set_backend_config(changes)
         if errors:  # a value that is not acceptable (e.g. an area outside the picture): left as it was, like the old try/except did
             for key in errors:
                 changes.pop(key, None)
             if changes:
-                set_brain_config(changes)
+                set_backend_config(changes)
     return jsonify({"ok": True, "sensitivity": detector.sensitivity, "roi": detector.roi})
 
 @app.route("/api/print/alerts", methods=["GET"])
@@ -4235,7 +4236,7 @@ def api_print_analyze():
 
 # start the detector when cv2 is there (unless switched off in the menu: Monitor thresholds > Monitor on)
 try:
-    if HAS_CV2 and brain_config.snapshot()["enabled"]:
+    if HAS_CV2 and backend_config.snapshot()["enabled"]:
         detector.start()
         print("[OPENCV] Detector started (it checks while printing)")
     elif HAS_CV2:
@@ -4612,5 +4613,5 @@ if __name__ == "__main__":
     threading.Thread(target=_schedule_loop, name="schedule", daemon=True).start()
     _https_apply(_https_settings())  # 1.93: the encrypted entrance, when it was switched on
     _mqtt_apply(_mqtt_settings())  # 1.100: Home Assistant / MQTT, when set up
-    print(f"KlippEye backend {RELEASE} (api {API_LEVEL}) - data in {DATA_DIR} - settings {'read from ' + MONITOR_CONFIG_PATH if brain_config.saved else 'default (no saved file)'}")
+    print(f"KlippEye backend {RELEASE} (api {API_LEVEL}) - data in {DATA_DIR} - settings {'read from ' + MONITOR_CONFIG_PATH if backend_config.saved else 'default (no saved file)'}")
     serve_forever()

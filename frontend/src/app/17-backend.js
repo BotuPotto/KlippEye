@@ -1,11 +1,11 @@
 /* ============================================================================
-   17 · BRAIN
+   17 · BACKEND
    What the dashboard asks the backend (the KlippEye program on the Raspberry that serves this very page) about itself, as
    opposed to Moonraker:
      · who it is           /api/version        release, interface level, commit, since when it runs
      · its monitor limits  /api/backend/config   the thresholds of the AI monitor, with labels and bounds (the backend
                                                describes its own settings: a new one shows up in the menu by itself)
-     · coming back         after an update or a restart the backend is away for a few seconds: waitForBrain()
+     · coming back         after an update or a restart the backend is away for a few seconds: waitForBackend()
    A backend older than release 1.0 has none of this (its answer is 404): the helpers call that "old", so that the menus can
    say "update the backend" instead of failing.
    ========================================================================== */
@@ -15,25 +15,25 @@ const DASHBOARD_RELEASE = "__KLIPPEYE_RELEASE__";
 const dashboardRelease = () => (DASHBOARD_RELEASE.startsWith("__") ? "sviluppo" : DASHBOARD_RELEASE);
 
 /** The interface level this page needs from the backend (the backend says its own in /api/version). */
-const BRAIN_API_LEVEL = 2;
-const BRAIN_READ_TIMEOUT_MS = 5000;
-const BRAIN_WRITE_TIMEOUT_MS = 12000;
-const BRAIN_POLL_MS = 15000;
-const BRAIN_SAVE_DELAY_MS = 600; // changes closer than this are sent as one
-const BRAIN_WAIT_POLL_MS = 1500;
-const BRAIN_WAIT_LIMIT_MS = 150000;
-const BRAIN_NO_RESTART_MS = 25000; // a backend that stayed up this long after the work was done was not restarted
+const BACKEND_API_LEVEL = 2;
+const BACKEND_READ_TIMEOUT_MS = 5000;
+const BACKEND_WRITE_TIMEOUT_MS = 12000;
+const BACKEND_POLL_MS = 15000;
+const BACKEND_SAVE_DELAY_MS = 600; // changes closer than this are sent as one
+const BACKEND_WAIT_POLL_MS = 1500;
+const BACKEND_WAIT_LIMIT_MS = 150000;
+const BACKEND_NO_RESTART_MS = 25000; // a backend that stayed up this long after the work was done was not restarted
 
 /** The backend sees a web page of release `a` and itself of release `b`: worth a hint to reload when they differ. */
-const releasesDiffer = (brainRelease) => Boolean(brainRelease) && dashboardRelease() !== "sviluppo" && brainRelease !== "sviluppo" && brainRelease !== dashboardRelease();
+const releasesDiffer = (backendRelease) => Boolean(backendRelease) && dashboardRelease() !== "sviluppo" && backendRelease !== "sviluppo" && backendRelease !== dashboardRelease();
 
 /**
  * Asks who the backend is. { state: "ok", info } | { state: "old" } (answers, but knows nothing of releases)
  * | { state: "down" } (no answer, or an error).
  */
-async function readBrainVersion(options) {
+async function readBackendVersion(options) {
   try {
-    const response = await fetchFresh("/api/version", { timeout: BRAIN_READ_TIMEOUT_MS, ...options });
+    const response = await fetchFresh("/api/version", { timeout: BACKEND_READ_TIMEOUT_MS, ...options });
     if (response.status === 404) return { state: "old" };
     if (!response.ok) return { state: "down" };
     const info = await response.json();
@@ -44,19 +44,19 @@ async function readBrainVersion(options) {
   }
 }
 
-/** { state, info } of readBrainVersion, read every few seconds while `active`. `reload()` asks at once. */
-function useBrainVersion(active = true) {
+/** { state, info } of readBackendVersion, read every few seconds while `active`. `reload()` asks at once. */
+function useBackendVersion(active = true) {
   const [version, setVersion] = useState({ state: "loading" });
   const reloadRef = useRef(noop);
   useEffect(() => {
     if (!active) return undefined;
     let cancelled = false;
     const read = async () => {
-      const answer = await readBrainVersion();
+      const answer = await readBackendVersion();
       if (!cancelled) setVersion(answer);
     };
     reloadRef.current = read;
-    const stop = startPolling(read, BRAIN_POLL_MS);
+    const stop = startPolling(read, BACKEND_POLL_MS);
     return () => {
       cancelled = true;
       stop();
@@ -67,27 +67,27 @@ function useBrainVersion(active = true) {
 
 /**
  * Waits until the backend answers again after it was restarted (by an update, a restart or a rollback). `before` is what
- * readBrainVersion() said just before: a backend that started at another moment, or with another release, is the new one.
+ * readBackendVersion() said just before: a backend that started at another moment, or with another release, is the new one.
  * `settled()` (optional) tells whether the work that should have restarted the backend is done (it resolves true): if the backend
- * has stayed up, untouched, for BRAIN_NO_RESTART_MS and the work is done, the restart did not happen by itself.
- * Resolves { ok: true, info, restarted } or { ok: false } after BRAIN_WAIT_LIMIT_MS. `onTick(seconds)` reports the time spent waiting.
+ * has stayed up, untouched, for BACKEND_NO_RESTART_MS and the work is done, the restart did not happen by itself.
+ * Resolves { ok: true, info, restarted } or { ok: false } after BACKEND_WAIT_LIMIT_MS. `onTick(seconds)` reports the time spent waiting.
  */
-async function waitForBrain(before, onTick = noop, settled = null) {
+async function waitForBackend(before, onTick = noop, settled = null) {
   const started = Date.now();
   const knownStart = before && before.state === "ok" ? before.info.started : null;
   const knownRelease = before && before.state === "ok" ? before.info.release : null;
   let upSince = 0;
-  while (Date.now() - started < BRAIN_WAIT_LIMIT_MS) {
-    await sleep(BRAIN_WAIT_POLL_MS);
+  while (Date.now() - started < BACKEND_WAIT_LIMIT_MS) {
+    await sleep(BACKEND_WAIT_POLL_MS);
     onTick(Math.round((Date.now() - started) / 1000));
-    const now = await readBrainVersion();
+    const now = await readBackendVersion();
     if (now.state !== "ok") {
       upSince = 0;
       continue;
     }
     if (knownStart === null || now.info.started !== knownStart || now.info.release !== knownRelease) return { ok: true, info: now.info, restarted: true };
     upSince = upSince || Date.now();
-    if (settled && Date.now() - upSince > BRAIN_NO_RESTART_MS && (await settled()) === true) return { ok: true, info: now.info, restarted: false };
+    if (settled && Date.now() - upSince > BACKEND_NO_RESTART_MS && (await settled()) === true) return { ok: true, info: now.info, restarted: false };
   }
   return { ok: false };
 }
@@ -97,9 +97,9 @@ async function waitForBrain(before, onTick = noop, settled = null) {
    ------------------------------------------------------------------------- */
 
 /** One read of /api/backend/config: { state: "ok", data } | { state: "old" } | { state: "down" }. */
-async function readBrainConfig() {
+async function readBackendConfig() {
   try {
-    const response = await fetchFresh("/api/backend/config", { timeout: BRAIN_READ_TIMEOUT_MS });
+    const response = await fetchFresh("/api/backend/config", { timeout: BACKEND_READ_TIMEOUT_MS });
     if (response.status === 404) return { state: "old" };
     if (!response.ok) return { state: "down" };
     const data = await response.json();
@@ -111,9 +111,9 @@ async function readBrainConfig() {
 }
 
 /** POST to the backend; resolves { ok, data (the backend's answer, parsed), message }. A network failure is { ok: false, data: null }. */
-async function brainPost(url, body) {
+async function backendPost(url, body) {
   try {
-    const response = await fetch(url, { method: "POST", headers: JSON_HEADERS, body: JSON.stringify(body), signal: AbortSignal.timeout ? AbortSignal.timeout(BRAIN_WRITE_TIMEOUT_MS) : undefined });
+    const response = await fetch(url, { method: "POST", headers: JSON_HEADERS, body: JSON.stringify(body), signal: AbortSignal.timeout ? AbortSignal.timeout(BACKEND_WRITE_TIMEOUT_MS) : undefined });
     let data = null;
     try {
       data = await response.json();
@@ -133,7 +133,7 @@ const withUnit = (spec, value) => String(value).replace(".", ",") + (spec.unit ?
  *     plus the changes still on their way), errors { key: why the backend refused it }, problem (a text, or ""), set(changes), reset(keys) }
  * A change shows at once, goes to the backend a moment later (several together as one) and is read back from its answer.
  */
-function useBrainConfig(active) {
+function useBackendConfig(active) {
   const [phase, setPhase] = useState("loading");
   const [data, setData] = useState(null);
   const [edits, setEdits] = useState({}); // changes made here and not yet confirmed by the backend
@@ -161,7 +161,7 @@ function useBrainConfig(active) {
 
   const load = async () => {
     if (sending.current || Object.keys(waiting.current).length) return; // our own change is on its way: its answer is newer
-    const answer = await readBrainConfig();
+    const answer = await readBackendConfig();
     if (!alive.current) return;
     if (answer.state === "ok") {
       setPhase("ok");
@@ -173,7 +173,7 @@ function useBrainConfig(active) {
 
   useEffect(() => {
     if (!active) return undefined;
-    return startPolling(load, BRAIN_POLL_MS);
+    return startPolling(load, BACKEND_POLL_MS);
   }, [active]);
 
   const flush = async () => {
@@ -182,7 +182,7 @@ function useBrainConfig(active) {
     if (!Object.keys(changes).length) return;
     waiting.current = {};
     sending.current = true;
-    const reply = await brainPost("/api/backend/config", { values: changes });
+    const reply = await backendPost("/api/backend/config", { values: changes });
     sending.current = false;
     if (alive.current) {
       take(reply);
@@ -204,7 +204,7 @@ function useBrainConfig(active) {
     setEdits((previous) => ({ ...previous, ...changes }));
     setErrors((previous) => Object.fromEntries(Object.entries(previous).filter(([key]) => !(key in changes))));
     clearTimeout(timer.current);
-    timer.current = setTimeout(flush, BRAIN_SAVE_DELAY_MS);
+    timer.current = setTimeout(flush, BACKEND_SAVE_DELAY_MS);
   };
 
   const reset = async (keys) => {
@@ -212,7 +212,7 @@ function useBrainConfig(active) {
     waiting.current = {};
     setEdits({});
     setErrors({});
-    const reply = await brainPost("/api/backend/config/reset", keys ? { keys } : {});
+    const reply = await backendPost("/api/backend/config/reset", keys ? { keys } : {});
     if (!alive.current) return;
     take(reply);
     setProblem(reply.ok ? "" : tx("The reset did not work: ") + (reply.message || tx("the KlippEye service does not answer")) + ".");

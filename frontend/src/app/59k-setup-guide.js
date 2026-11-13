@@ -43,17 +43,17 @@ function SetupIntro({ children }) {
 
 /** The AI step: switch, key and the way to the camera calibration (the whole AI page is too much for a first set-up). */
 function SetupAi({ onCalibrate }) {
-  const config = useBrainConfig(true);
+  const config = useBackendConfig(true);
   const aiServices = useAiServices(true);
-  const data = useMemo(() => (config.data ? localizeBrainSchema(config.data) : null), [config.data]);
+  const data = useMemo(() => (config.data ? localizeBackendSchema(config.data) : null), [config.data]);
   const spec = data ? data.spec.find((item) => item.key === "enabled") : null;
-  const calibration = useBackendJson("/api/camera/calibration", true, BRAIN_POLL_MS);
+  const calibration = useBackendJson("/api/camera/calibration", true, BACKEND_POLL_MS);
   const calibrated = calibration.phase === "ok" && calibration.data.saved && calibration.data.usable;
   return h(
     React.Fragment,
     null,
-    config.phase !== "ok" && h(BrainNotice, { phase: config.phase }),
-    spec && config.values.enabled !== undefined && h("div", { className: "oui-list" }, h(BrainSettingControl, { spec, config })),
+    config.phase !== "ok" && h(BackendNotice, { phase: config.phase }),
+    spec && config.values.enabled !== undefined && h("div", { className: "oui-list" }, h(BackendSettingControl, { spec, config })),
     h(
       SettingsGroup,
       { title: tx("The AI service"), help: ["ai", "start"] },
@@ -65,7 +65,7 @@ function SetupAi({ onCalibrate }) {
       h(
         SettingsGroup,
         { title: tx("Learning from your prints") },
-        h("div", { className: "oui-list" }, ["print_review", "personal_learning"].map((key) => data.spec.find((item) => item.key === key)).filter(Boolean).map((one) => h(BrainSettingControl, { key: one.key, spec: one, config }))),
+        h("div", { className: "oui-list" }, ["print_review", "personal_learning"].map((key) => data.spec.find((item) => item.key === key)).filter(Boolean).map((one) => h(BackendSettingControl, { key: one.key, spec: one, config }))),
         h("p", { className: "set-group__note" }, tx("At the end of a print a card asks how it went: a second, and it is how the monitor gets better on your printer. Everything stays on the Raspberry.")),
       ),
     h(
@@ -91,7 +91,7 @@ function useSetupStatus(active) {
   const { settings } = useSettings();
   const channels = useBackendJson("/api/notifications/channels", active, 30000);
   const aiKey = useAiKey(active);
-  const calibration = useBackendJson("/api/camera/calibration", active, BRAIN_POLL_MS);
+  const calibration = useBackendJson("/api/camera/calibration", active, BACKEND_POLL_MS);
   const [access] = useAccessStatus(active);
   const mqtt = useBackendJson("/api/mqtt", active, 30000);
   const phone = readAppNotifyState();

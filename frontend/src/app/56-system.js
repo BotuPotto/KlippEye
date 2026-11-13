@@ -8,7 +8,7 @@
 
    KlippEye's own update (the component "klippeye", see app/59b-software-settings.js) is special: Moonraker restarts the backend
    that serves this page, so the answer to the request is cut off and the page cannot ask anything for a few seconds.
-   That is expected, not a failure: the dialog waits for the backend to come back (app/17-brain.js), checks what became of
+   That is expected, not a failure: the dialog waits for the backend to come back (app/17-backend.js), checks what became of
    the update and only then reloads the page.
    ========================================================================== */
 
@@ -16,7 +16,7 @@ const UPDATE_POLL_MS = 1500;
 const UPDATE_POLL_LIMIT_MS = 60000;
 const UPDATE_RELOAD_DELAY_MS = 3000;
 const ROLLBACK_RELOAD_DELAY_MS = 2000;
-const BRAIN_RELOAD_DELAY_MS = 1500;
+const BACKEND_RELOAD_DELAY_MS = 1500;
 const UPDATE_REFRESH_DELAY_MS = 1500;
 const WS_CONNECT_TIMEOUT_MS = 4000;
 const WS_CALL_TIMEOUT_MS = 12000;
@@ -298,7 +298,7 @@ const ResultBox = ({ tone, title, text }) =>
 
 /** The confirmation of KlippEye's own update: releases, what is coming, and what will happen to the backend. */
 function ProgramUpdateInfo({ component }) {
-  const version = useBrainVersion(true);
+  const version = useBackendVersion(true);
   const remote = useRemoteRelease(component.raw);
   const raw = component.raw || {};
   const behind = raw.commits_behind_count != null ? Number(raw.commits_behind_count) : component.behind;
@@ -411,7 +411,7 @@ function friendlyUpdateError(message) {
 /** State machine of the update dialog; call once, in the App. */
 function useUpdateDialog() {
   const [dialog, setDialog] = useState(CLOSED_DIALOG);
-  const target = useRef({ name: null, full: false, brain: false });
+  const target = useRef({ name: null, full: false, ownProgram: false });
   const pollTimer = useRef(null);
 
   const patch = (changes) => setDialog((previous) => ({ ...previous, ...changes }));
@@ -435,7 +435,7 @@ function useUpdateDialog() {
   const startProgress = (title, sub, working) =>
     setDialog({ ...CLOSED_DIALOG, open: true, mode: "progress", title, sub, info: h(UpdateWorking, { text: working }), log: [], progress: 0 });
   const showDone = (info) => patch({ mode: "progress-done", info, cancel: null, confirm: { text: tx("Reload") } });
-  const brainLost = () =>
+  const backendLost = () =>
     showFailure(
       tx("The KlippEye service did not come back within two and a half minutes. On the Raspberry:  klippeye restart  (and  klippeye log  to see why)."),
     );
@@ -471,22 +471,22 @@ function useUpdateDialog() {
    * The backend is about to restart (or has): wait for it to come back, check with `verify()` what became of the work, and
    * reload the page. If Moonraker did the work but did not restart the backend, restart it here: the new files must run.
    */
-  const finishAfterBrainRestart = async (before, doneTitle, verify) => {
+  const finishAfterBackendRestart = async (before, doneTitle, verify) => {
     progress(40, tx("The KlippEye service is restarting..."));
     patch({ info: h(UpdateWorking, { text: tx("The KlippEye service is restarting: the page reconnects by itself...") }) });
-    let result = await waitForBrain(before, (seconds) => progress(Math.min(92, 40 + seconds), tx("Waiting for the KlippEye service... ") + seconds + " s"), verify);
+    let result = await waitForBackend(before, (seconds) => progress(Math.min(92, 40 + seconds), tx("Waiting for the KlippEye service... ") + seconds + " s"), verify);
     if (result.ok && result.restarted === false) {
       log(tx("The KlippEye service did not restart by itself: restarting it."));
-      const again = await readBrainVersion();
+      const again = await readBackendVersion();
       try {
         await moonraker.serviceAction("restart", PROGRAM_COMPONENT);
       } catch (error) {} // the connection is cut as the backend goes down: expected
-      result = await waitForBrain(again, (seconds) => progress(Math.min(95, 60 + seconds), tx("Waiting for the KlippEye service... ") + seconds + " s"));
+      result = await waitForBackend(again, (seconds) => progress(Math.min(95, 60 + seconds), tx("Waiting for the KlippEye service... ") + seconds + " s"));
     }
     if (!result.ok) {
       progress(100, tx("The KlippEye service did not come back"));
       log(tx("The KlippEye service no longer answers."));
-      return brainLost();
+      return backendLost();
     }
     log(tx("The KlippEye service is back (release {release}).", { release: result.info.release }));
     const outcome = await verify();
@@ -498,13 +498,13 @@ function useUpdateDialog() {
     progress(100, tx("Completed!"));
     log(tx("Completed!"));
     showDone(h(ResultBox, { tone: "ok", title: doneTitle, text: tx("Release {release}: reloading the page...", { release: result.info.release }) }));
-    return setTimeout(() => location.reload(), BRAIN_RELOAD_DELAY_MS);
+    return setTimeout(() => location.reload(), BACKEND_RELOAD_DELAY_MS);
   };
 
-  const runUpdate = async (name, full, brain) => {
+  const runUpdate = async (name, full, ownProgram) => {
     startProgress(full ? tx("Full update") : name === PROGRAM_COMPONENT ? tx("Updating KlippEye") : tx("Updating {name}", { name }), tx("Starting..."), tx("Preparing..."));
     log(tx("Starting upgrade ") + (name || "FULL"));
-    const before = brain ? await readBrainVersion() : null;
+    const before = ownProgram ? await readBackendVersion() : null;
     const verify = async () => {
       const entry = await readProgramEntry();
       if (!entry) return true; // Moonraker did not answer: the backend is back, which is what could be checked
@@ -515,10 +515,10 @@ function useUpdateDialog() {
       const result = await startUpgrade(name);
       progress(30, tx("Started - running..."));
       log(tx("Started: ") + JSON.stringify(result).substring(0, 200));
-      if (brain) return finishAfterBrainRestart(before, tx("Update completed"), verify);
+      if (ownProgram) return finishAfterBackendRestart(before, tx("Update completed"), verify);
       return watchUpdate();
     } catch (error) {
-      if (brain && isCutConnection(error)) return finishAfterBrainRestart(before, tx("Update completed"), verify);
+      if (ownProgram && isCutConnection(error)) return finishAfterBackendRestart(before, tx("Update completed"), verify);
       progress(100, tx("Error"));
       log(tx("ERROR: ") + error.message);
       return showFailure(friendlyUpdateError(error.message));
@@ -526,19 +526,19 @@ function useUpdateDialog() {
   };
 
   const runRollback = async (name) => {
-    const brain = name === PROGRAM_COMPONENT;
-    startProgress(brain ? tx("Previous release of KlippEye") : tx("Previous version of {name}", { name }), tx("Restoring..."), tx("Going back…"));
+    const ownProgram = name === PROGRAM_COMPONENT;
+    startProgress(ownProgram ? tx("Previous release of KlippEye") : tx("Previous version of {name}", { name }), tx("Restoring..."), tx("Going back…"));
     log(tx("Back to the previous version: {name}", { name }));
-    const before = brain ? await readBrainVersion() : null;
+    const before = ownProgram ? await readBackendVersion() : null;
     try {
       await rollbackComponent(name);
       log(tx("Done") + " ✓");
-      if (brain) return finishAfterBrainRestart(before, tx("Previous release restored"), async () => true);
+      if (ownProgram) return finishAfterBackendRestart(before, tx("Previous release restored"), async () => true);
       progress(100, tx("Finished"));
       showDone(null);
       return setTimeout(() => location.reload(), ROLLBACK_RELOAD_DELAY_MS);
     } catch (error) {
-      if (brain && isCutConnection(error)) return finishAfterBrainRestart(before, tx("Previous release restored"), async () => true);
+      if (ownProgram && isCutConnection(error)) return finishAfterBackendRestart(before, tx("Previous release restored"), async () => true);
       log(tx("Failure: ") + error.message);
       return showFailure(friendlyUpdateError(error.message));
     }
@@ -547,7 +547,7 @@ function useUpdateDialog() {
   const runRecover = async (name) => {
     startProgress(tx("Restoring the KlippEye files"), tx("Restoring..."), tx("Restoring..."));
     log(tx("Restoring ") + name);
-    const before = await readBrainVersion();
+    const before = await readBackendVersion();
     const verify = async () => {
       const entry = await readProgramEntry();
       return !entry || (entry.is_valid !== false && !entry.is_dirty && !entry.corrupt) ? true : tx("The KlippEye service is back but Moonraker still marks the program as not in order: try «Restore the program files» again, or on the Raspberry run  klippeye update --force .");
@@ -569,12 +569,12 @@ function useUpdateDialog() {
       log(tx("Failure: ") + error.message);
       return showFailure(friendlyUpdateError(error.message));
     }
-    return finishAfterBrainRestart(before, tx("Files restored"), verify);
+    return finishAfterBackendRestart(before, tx("Files restored"), verify);
   };
 
   const ask = (kind, subject, name, full) => {
     const confirmation = confirmationFor(kind, subject);
-    target.current = { name, full, brain: full ? Array.isArray(subject) && subject.includes(PROGRAM_COMPONENT) : name === PROGRAM_COMPONENT };
+    target.current = { name, full, ownProgram: full ? Array.isArray(subject) && subject.includes(PROGRAM_COMPONENT) : name === PROGRAM_COMPONENT };
     setDialog({ ...CLOSED_DIALOG, open: true, mode: confirmation.mode, ...confirmation.view, cancel: { text: tx("Cancel") }, confirm: { text: confirmation.confirmText } });
   };
 
@@ -586,11 +586,11 @@ function useUpdateDialog() {
     askRollback: (component) => ask("rollback", component, component.key, false),
     askRecover: (component) => ask("recover", component, component.key, false),
     confirm() {
-      const { name, full, brain } = target.current;
-      if (dialog.mode === "confirm-update") runUpdate(name, full, brain);
+      const { name, full, ownProgram } = target.current;
+      if (dialog.mode === "confirm-update") runUpdate(name, full, ownProgram);
       else if (dialog.mode === "confirm-rollback") runRollback(name);
       else if (dialog.mode === "confirm-recover") runRecover(name);
-      else if (dialog.mode === "confirm-full") runUpdate(null, true, brain);
+      else if (dialog.mode === "confirm-full") runUpdate(null, true, ownProgram);
       else if (dialog.mode === "progress-done") {
         close();
         location.reload();

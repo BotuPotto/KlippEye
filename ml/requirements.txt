@@ -1,7 +1,7 @@
 # The tools to make the local model (on a computer or Google Colab, never on the Raspberry). On a computer without a
 # graphics card, PyTorch for the CPU is smaller: pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
-torch>=2.2
-torchvision>=0.17
+torch>=2.5           # torch.onnx.export(dynamo=False) needs 2.5 or newer
+torchvision>=0.20
 onnx>=1.15
 opencv-python-headless>=4.9
 numpy

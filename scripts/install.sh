@@ -55,7 +55,7 @@ else
   PRINTER_DATA="$(moonraker_printer_data)"
   [ -n "$PRINTER_DATA" ] && [ -d "$PRINTER_DATA" ] || PRINTER_DATA="$HOME/printer_data"
 fi
-BRAIN_URL="${KLIPPEYE_BRAIN_URL:-http://127.0.0.1:8085}"
+BACKEND_URL="${KLIPPEYE_BACKEND_URL:-${KLIPPEYE_BRAIN_URL:-http://127.0.0.1:8085}}"   # KLIPPEYE_BRAIN_URL: its name before 1.118
 MOONRAKER_SERVICE="${KLIPPEYE_MOONRAKER_SERVICE:-moonraker}"
 if [ -n "${KLIPPEYE_DATA:-}" ]; then DATA="$KLIPPEYE_DATA"
 elif [ -d "$PRINTER_DATA" ]; then DATA="$PRINTER_DATA/klippeye"
@@ -111,7 +111,7 @@ PYTHON="${KLIPPEYE_PYTHON:-$(command -v python3 || true)}"
 good "$("$PYTHON" --version 2>&1) ($PYTHON)"
 case "$REPO$DATA" in *" "*) stop "Folder names must not contain spaces ($REPO, $DATA)." ;; esac
 [ -f "$REPO/backend/klippeye_backend.py" ] || stop "$REPO/backend/klippeye_backend.py not found: this does not look like the KlippEye folder."
-# What KlippEye needs, as Debian / Raspberry Pi OS packages (the same names on MainsailOS, Bullseye, Bookworm, Trixie):
+# What KlippEye needs, as Debian / Raspberry Pi OS packages (the same names on Bullseye, Bookworm and Trixie, and on the printer images built on them):
 #   the backend: flask, requests, numpy (1.23.0: the camera calibration is numpy-only and part of the backend),
 #   waitress (1.74: the web server made to run for months; without it Flask's own server is used)
 #   the AI monitor: OpenCV (python3-opencv) - left out with --no-ai
@@ -183,8 +183,8 @@ backup_file() {  # file_to_save name_in_the_backup
   mkdir -p "$(dirname "$BK/$2")"
   cp -p "$1" "$BK/$2" 2>/dev/null || sudo_run cp -p "$1" "$BK/$2"
 }
-brain_release() {  # max_seconds -> prints the release when the backend answers within that time
-  "$PYTHON" - "$BRAIN_URL/api/version" "$1" <<'PY'
+backend_release() {  # max_seconds -> prints the release when the backend answers within that time
+  "$PYTHON" - "$BACKEND_URL/api/version" "$1" <<'PY'
 import json, sys, time, urllib.request
 end = time.time() + float(sys.argv[2])
 while True:
@@ -333,29 +333,25 @@ done
 
 # 1.20.0: the notification service always runs. With no channel set up it sends nothing, but it does the automatic
 # pause / cancel of the AI monitor, and it starts sending as soon as ntfy is turned on in the dashboard (no restart needed).
-NOTIFIER_ON=1
-BRAIN_CHANGED=0
-if install_unit klippeye; then BRAIN_CHANGED=1; fi
+BACKEND_CHANGED=0
+if install_unit klippeye; then BACKEND_CHANGED=1; fi
 # the self-repair drop-in (klippeye.service.d/repair.conf, ripara.conf before 1.3.0, added by the backend) is no longer needed:
 # the line is in the service file itself
 if [ -f "$UNIT_DIR/klippeye.service.d/ripara.conf" ] || [ -f "$UNIT_DIR/klippeye.service.d/repair.conf" ]; then
-  sudo_run rm -f "$UNIT_DIR/klippeye.service.d/ripara.conf" "$UNIT_DIR/klippeye.service.d/repair.conf"; sudo_run rmdir "$UNIT_DIR/klippeye.service.d" 2>/dev/null; BRAIN_CHANGED=1
+  sudo_run rm -f "$UNIT_DIR/klippeye.service.d/ripara.conf" "$UNIT_DIR/klippeye.service.d/repair.conf"; sudo_run rmdir "$UNIT_DIR/klippeye.service.d" 2>/dev/null; BACKEND_CHANGED=1
 fi
 NOTIFIER_CHANGED=0
-if [ "$NOTIFIER_ON" = 1 ]; then
-  if install_unit klippeye-notifier; then NOTIFIER_CHANGED=1; fi
-fi
+if install_unit klippeye-notifier; then NOTIFIER_CHANGED=1; fi
 sudo_run "$SYSTEMCTL" daemon-reload || stop "systemctl daemon-reload failed."
-sudo_run "$SYSTEMCTL" enable klippeye >/dev/null 2>&1
-[ "$NOTIFIER_ON" = 1 ] && sudo_run "$SYSTEMCTL" enable klippeye-notifier >/dev/null 2>&1
+sudo_run "$SYSTEMCTL" enable klippeye klippeye-notifier >/dev/null 2>&1
 
-if [ "$BRAIN_CHANGED" = 1 ] || ! unit_active klippeye; then
+if [ "$BACKEND_CHANGED" = 1 ] || ! unit_active klippeye; then
   sudo_run "$SYSTEMCTL" restart klippeye || warn "systemctl restart klippeye gave an error"
   printf '   ...     waiting for the backend to answer (up to 40 seconds)\n'
-  if NEWREL="$(brain_release 40)"; then
+  if NEWREL="$(backend_release 40)"; then
     good "The backend answers: release $NEWREL"
   else
-    printf '\n   ERROR   The new backend does not answer at %s.\n' "$BRAIN_URL"
+    printf '\n   ERROR   The new backend does not answer at %s.\n' "$BACKEND_URL"
     note "Last lines of its log:"
     (journalctl -u klippeye -n 12 --no-pager 2>/dev/null || sudo_run journalctl -u klippeye -n 12 --no-pager 2>/dev/null) | sed 's/^/           /'
     stop_new_units
@@ -365,17 +361,15 @@ else
   good "Service klippeye already in order"
 fi
 
-if [ "$NOTIFIER_ON" = 1 ]; then
-  if [ "$NOTIFIER_CHANGED" = 1 ] || ! unit_active klippeye-notifier; then
-    sudo_run "$SYSTEMCTL" restart klippeye-notifier || warn "systemctl restart klippeye-notifier gave an error"
-  fi
-  good "Service klippeye-notifier on"
-  if "$PYTHON" "$REPO/notifier/klippeye_notifier.py" --config "$DATA/notifier.json" --check >"$WORK/check.out" 2>&1; then
-    good "Notification check passed"
-  else
-    warn "The notification check reports something (see below). The backend and the dashboard work anyway."
-    sed 's/^/           /' "$WORK/check.out" | tail -n 8
-  fi
+if [ "$NOTIFIER_CHANGED" = 1 ] || ! unit_active klippeye-notifier; then
+  sudo_run "$SYSTEMCTL" restart klippeye-notifier || warn "systemctl restart klippeye-notifier gave an error"
+fi
+good "Service klippeye-notifier on"
+if "$PYTHON" "$REPO/notifier/klippeye_notifier.py" --config "$DATA/notifier.json" --check >"$WORK/check.out" 2>&1; then
+  good "Notification check passed"
+else
+  warn "The notification check reports something (see below). The backend and the dashboard work anyway."
+  sed 's/^/           /' "$WORK/check.out" | tail -n 8
 fi
 
 # --- 4. commands -------------------------------------------------------------------------------------------------------
@@ -449,9 +443,8 @@ PY
     if [ ! -f "$ASVC" ]; then
       warn "$ASVC not found (the list of services Moonraker may restart): without it Moonraker does not restart 'klippeye' after an update."
     else
-      WANT="klippeye"; [ "$NOTIFIER_ON" = 1 ] && WANT="klippeye klippeye-notifier"
       ADDED=""
-      for s in $WANT; do
+      for s in klippeye klippeye-notifier; do
         if ! grep -qx "$s" "$ASVC"; then
           if [ -z "$ADDED" ]; then backup_file "$ASVC" moonraker.asvc; fi
           if [ -s "$ASVC" ] && [ "$(tail -c1 "$ASVC" | wc -l)" -eq 0 ]; then printf '\n' >> "$ASVC"; fi

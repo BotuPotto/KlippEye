@@ -1,7 +1,7 @@
 /* ============================================================================
    59a · AI MONITOR THRESHOLDS
    The page "Soglie del monitor" of the settings menu (app/59-settings.js): the limits the backend's camera watcher uses
-   to decide that a print has gone wrong. They live in the backend (app/17-brain.js reads and writes them) and the backend
+   to decide that a print has gone wrong. They live in the backend (app/17-backend.js reads and writes them) and the backend
    describes each one itself: label, help text, unit, minimum and maximum. This page only draws what it is told, so a
    threshold added to the backend later appears here without a new dashboard.
    ========================================================================== */
@@ -205,7 +205,7 @@ function AreaSetting({ spec, value, defaultValue, error, band, onChange }) {
 }
 
 /** The right control for one setting of the backend's list. */
-function BrainSettingControl({ spec, config }) {
+function BackendSettingControl({ spec, config }) {
   const value = config.values[spec.key];
   const defaultValue = config.data.defaults ? config.data.defaults[spec.key] : spec.default;
   const error = config.errors[spec.key];
@@ -219,7 +219,7 @@ function BrainSettingControl({ spec, config }) {
 }
 
 /** Why the thresholds are not there, in words. */
-function BrainNotice({ phase }) {
+function BackendNotice({ phase }) {
   if (phase === "loading") return h("div", { className: "set-status" }, h("span", { className: "set-status__dot" }), tx("Reading the thresholds from the KlippEye service…"));
   if (phase === "old") {
     return h(
@@ -236,7 +236,7 @@ function BrainNotice({ phase }) {
  * The names and explanations of the thresholds come from the backend in English: shown in the page's language
  * (frontend/tools/i18n.py check makes sure every one of them is in the dictionaries).
  */
-const localizeBrainSchema = (data) => ({
+const localizeBackendSchema = (data) => ({
   ...data,
   groups: data.groups.map((group) => ({ ...group, title: tx(group.title), note: group.note && tx(group.note) })),
   spec: data.spec.map((spec) => ({ ...spec, label: tx(spec.label), help: spec.help && tx(spec.help) })),
@@ -247,11 +247,11 @@ const DETECTOR_ELSEWHERE = ["enabled", "ai_min_confidence", "ai_send_reference",
 const FALLBACK_KEYS = ["roi", "border"];
 
 function DetectorPage({ active }) {
-  const config = useBrainConfig(active);
-  const calibration = useBackendJson("/api/camera/calibration", active, BRAIN_POLL_MS);
+  const config = useBackendConfig(active);
+  const calibration = useBackendJson("/api/camera/calibration", active, BACKEND_POLL_MS);
   const [askReset, setAskReset] = useState(false);
-  const data = useMemo(() => (config.data ? localizeBrainSchema(config.data) : null), [config.data]);
-  if (config.phase !== "ok" || !data) return h(BrainNotice, { phase: config.phase });
+  const data = useMemo(() => (config.data ? localizeBackendSchema(config.data) : null), [config.data]);
+  if (config.phase !== "ok" || !data) return h(BackendNotice, { phase: config.phase });
   // shown elsewhere (1.19): the switch and the AI on the AI monitor page, the masks on Camera calibration, recording on
   // Recordings; the old detection (filter off) is no longer offered: it ignores the masks and the zone
   const thresholds = data.spec.filter((spec) => spec.group !== "recording" && !DETECTOR_ELSEWHERE.includes(spec.key));
@@ -279,8 +279,8 @@ function DetectorPage({ active }) {
       return h(
         SettingsGroup,
         { key: group.id, title: group.title, note: group.note },
-        switches.length > 0 && h("div", { className: "oui-list" }, switches.map((spec) => h(BrainSettingControl, { key: spec.key, spec, config }))),
-        others.map((spec) => h(BrainSettingControl, { key: spec.key, spec, config })),
+        switches.length > 0 && h("div", { className: "oui-list" }, switches.map((spec) => h(BackendSettingControl, { key: spec.key, spec, config }))),
+        others.map((spec) => h(BackendSettingControl, { key: spec.key, spec, config })),
       );
     }),
     fallback.length > 0 &&
@@ -292,7 +292,7 @@ function DetectorPage({ active }) {
             ? tx("Not used now: the camera is calibrated, so the monitor watches the whole bed outside the parts. These are used again only if the calibration is lost or the whole-bed watching is switched off.")
             : tx("Used now: without a camera calibration the monitor watches only the outer band of this rectangle. Calibrate the camera (AI monitor → Camera calibration) to watch the whole bed."),
         },
-        h("div", { className: cx("fn-fallback", zoneActive && "is-unused"), "data-fallback": zoneActive ? "unused" : "used" }, fallback.map((spec) => h(BrainSettingControl, { key: spec.key, spec, config }))),
+        h("div", { className: cx("fn-fallback", zoneActive && "is-unused"), "data-fallback": zoneActive ? "unused" : "used" }, fallback.map((spec) => h(BackendSettingControl, { key: spec.key, spec, config }))),
       ),
     h(
       SettingsGroup,

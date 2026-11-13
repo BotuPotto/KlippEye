@@ -490,8 +490,8 @@ function CameraPage() {
 const cleanHostOrEmpty = (value) => (typeof value === "string" && value.trim() === "" ? "" : cleanHost(value));
 
 const APP_ADDRESSES_NOTES = {
-  browser: tx("The Android app (version mk218 or newer) connects to these same addresses: every change applies from its next start."),
-  old: tx("This version of the app has the addresses built in: from mk218 (or newer) it takes them from here."),
+  browser: tx("The Android app connects to these same addresses: every change applies from its next start."),
+  old: tx("This version of the app has the addresses built in: update it (Settings → Updates → Android app) to take them from here."),
   refused: tx("The app did not accept these addresses: they must be private network addresses (192.168.x.x, 10.x.x.x, 172.16-31.x.x, ZeroTier). The last accepted pair will be used."),
   ok: tx("The Android app will use these addresses at its next start."),
   waiting: tx("The Android app uses the addresses saved on the Raspberry: it gets them as soon as they are known."),
@@ -532,7 +532,7 @@ function NetworkPage() {
         label: tx("External IP (ZeroTier, VPN)"),
         value: externalIp,
         validate: cleanHostOrEmpty,
-        error: tx("Not a valid address (example: 172.25.170.177)"),
+        error: tx("Not a valid address (example: 172.25.10.20)"),
         placeholder: tx("only with ZeroTier, Tailscale or a VPN"),
         inputMode: "decimal",
         onCommit: (value) => update((draft) => (draft.network.externalIp = value)),
@@ -590,7 +590,7 @@ function ZeroTierGuide() {
         step(
           4,
           tx("Let the Raspberry in"),
-          p(tx("On my.zerotier.com open the network: under «Members» tick «Auth» on the Raspberry's line and give it a name. After a few seconds «Managed IPs» shows its address (for example 172.25.170.177). To check it from the Raspberry:")),
+          p(tx("On my.zerotier.com open the network: under «Members» tick «Auth» on the Raspberry's line and give it a name. After a few seconds «Managed IPs» shows its address (for example 172.25.10.20). To check it from the Raspberry:")),
           h(CodeBlock, { code: "sudo zerotier-cli listnetworks", lang: "bash" }),
         ),
         step(5, tx("Add the phone and the computer"), p(tx("Install the «ZeroTier One» app (Android, iPhone, Windows, macOS), join the same Network ID, then tick «Auth» on their lines too, as in step 4."))),
@@ -803,19 +803,19 @@ function SyncLine({ sync }) {
   );
 }
 
-function settingsSummary(page, settings, brain) {
+function settingsSummary(page, settings, backendState) {
   const { camera, network, zOffset, notifications } = settings;
   switch (page) {
     case "detector":
-      return detectorSummary(brain.version);
+      return detectorSummary(backendState.version);
     case "recordings":
-      return recordingsSummary(brain.recordings);
+      return recordingsSummary(backendState.recordings);
     case "camcal":
-      return cameraCalibrationSummary(brain.camcal);
+      return cameraCalibrationSummary(backendState.camcal);
     case "access":
-      return accessSummary(brain.access);
+      return accessSummary(backendState.access);
     case "software":
-      return softwareSummary(brain.version, brain.update, appUpdateWaiting(brain.app, readInstalledApp()));
+      return softwareSummary(backendState.version, backendState.update, appUpdateWaiting(backendState.app, readInstalledApp()));
     case "printer":
       return printerBrand(settings.printer.brand).label + (settings.printer.name ? " • " + settings.printer.name : "");
     case "camera":
@@ -841,7 +841,7 @@ function settingsSummary(page, settings, brain) {
     case "notifications":
       return tx("{count} of {total} on", { count: NOTIFICATION_KINDS.filter((kind) => notifications[kind.id]).length, total: NOTIFICATION_KINDS.length });
     default:
-      return aiMonitorSummary(settings, brain);
+      return aiMonitorSummary(settings, backendState);
   }
 }
 
@@ -920,13 +920,13 @@ const SETTINGS_WORDS = () => ({
 });
 
 /** The pages the search can find: the menu's lines, then the pages inside them (with their parent's name). */
-function searchPages(query, settings, brain) {
+function searchPages(query, settings, backendState) {
   const words = SETTINGS_WORDS();
   const norm = (text) => String(text || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   const parts = norm(query).split(/\s+/).filter(Boolean);
   if (!parts.length) return [];
   const all = [
-    ...SETTINGS_ENTRIES.map((entry) => ({ ...entry, meta: settingsSummary(entry.id, settings, brain) })),
+    ...SETTINGS_ENTRIES.map((entry) => ({ ...entry, meta: settingsSummary(entry.id, settings, backendState) })),
     ...AI_SUBPAGES.map((entry) => ({ ...entry, parent: "ai" })),
     ...CAMERA_SUBPAGES.map((entry) => ({ ...entry, parent: "camera" })),
   ];
@@ -945,7 +945,7 @@ function pageRoot(page) {
   return current;
 }
 
-function SettingsEntry({ entry, settings, brain, menu }) {
+function SettingsEntry({ entry, settings, backendState, menu }) {
   const active = pageRoot(menu.page) === entry.id; // 1.65: on a computer the list stays beside the page, this line marked
   return h(
     "button",
@@ -957,9 +957,9 @@ function SettingsEntry({ entry, settings, brain, menu }) {
       h("span", { className: "oui-row__name" }, entry.title),
       entry.id === "functions" && !settings.functions.reviewed
         ? h("span", null, h("span", { className: "set-entry__badge set-entry__badge--inline" }, tx("To check"))) // under the name: the long title keeps its room on a narrow phone
-        : h("span", { className: "oui-row__meta set-entry__meta" }, settingsSummary(entry.id, settings, brain)),
+        : h("span", { className: "oui-row__meta set-entry__meta" }, settingsSummary(entry.id, settings, backendState)),
     ),
-    entry.id === "software" && ((brain.update.phase === "ok" && Number(brain.update.raw.commits_behind_count) > 0) || appUpdateWaiting(brain.app, readInstalledApp())) && h("span", { className: "set-entry__badge" }, tx("New")),
+    entry.id === "software" && ((backendState.update.phase === "ok" && Number(backendState.update.raw.commits_behind_count) > 0) || appUpdateWaiting(backendState.app, readInstalledApp())) && h("span", { className: "set-entry__badge" }, tx("New")),
     h("span", { className: "set-entry__go", "aria-hidden": "true" }, h(Icons.Forward)),
   );
 }
@@ -987,7 +987,7 @@ function SettingsHome({ menu }) {
     };
   }, []);
   const shown = (entry) => !entry.component || (components && components.has(entry.component));
-  const brain = { version: useBrainVersion(true), update: useProgramUpdate(true), app: useAppRelease(true), access: useAccessStatus(true)[0], recordings: useBackendJson("/api/recordings", true, BRAIN_POLL_MS), camcal: useBackendJson("/api/camera/calibration", true, BRAIN_POLL_MS) };
+  const backendState = { version: useBackendVersion(true), update: useProgramUpdate(true), app: useAppRelease(true), access: useAccessStatus(true)[0], recordings: useBackendJson("/api/recordings", true, BACKEND_POLL_MS), camcal: useBackendJson("/api/camera/calibration", true, BACKEND_POLL_MS) };
   return h(
     React.Fragment,
     null,
@@ -1007,7 +1007,7 @@ function SettingsHome({ menu }) {
     ),
     query.trim() &&
       (() => {
-        const found = searchPages(query, settings, brain);
+        const found = searchPages(query, settings, backendState);
         return h(
           "section",
           { className: "set-group set-group--menu", "data-group": "found" },
@@ -1024,7 +1024,7 @@ function SettingsHome({ menu }) {
         h(
           "div",
           { className: "oui-list" },
-          SETTINGS_ENTRIES.filter((entry) => entry.group === group.id && shown(entry)).map((entry) => h(SettingsEntry, { key: entry.id, entry, settings, brain, menu })),
+          SETTINGS_ENTRIES.filter((entry) => entry.group === group.id && shown(entry)).map((entry) => h(SettingsEntry, { key: entry.id, entry, settings, backendState, menu })),
         ),
       ),
     ),

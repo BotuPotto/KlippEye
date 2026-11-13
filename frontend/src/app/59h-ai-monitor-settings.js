@@ -9,7 +9,7 @@
      4. the AI service: which service and model (1.27: any of several, the model chosen from the service's own list),
         the keys, the earlier picture (59l-ai-services.js);
    and leads to the three pages inside it: Camera calibration, Monitor thresholds (the fine numbers), Recordings.
-   The values live where they are used: the backend's thresholds (monitor.json, useBrainConfig) and the dashboard's shared
+   The values live where they are used: the backend's thresholds (monitor.json, useBackendConfig) and the dashboard's shared
    settings (automatic actions, defects, checks in a row: read by the notification service).
    ========================================================================== */
 
@@ -21,7 +21,7 @@ function useAiKey(active) {
   const [state, setState] = useState({ phase: "loading" });
   const load = async () => {
     try {
-      const response = await fetchFresh("/api/ai/config", { timeout: BRAIN_READ_TIMEOUT_MS });
+      const response = await fetchFresh("/api/ai/config", { timeout: BACKEND_READ_TIMEOUT_MS });
       const data = await response.json();
       setState({ phase: "ok", configured: Boolean(data.configured), provider: data.provider || "", preview: data.key_preview || "" });
     } catch (error) {
@@ -60,14 +60,14 @@ function AiPage({ active, menu }) {
   const { settings, update } = useSettings();
   const ai = settings.ai;
   const status = useNotifierStatus(active);
-  const config = useBrainConfig(active);
-  const calibration = useBackendJson("/api/camera/calibration", active, BRAIN_POLL_MS);
-  const recordings = useBackendJson("/api/recordings", active, BRAIN_POLL_MS);
+  const config = useBackendConfig(active);
+  const calibration = useBackendJson("/api/camera/calibration", active, BACKEND_POLL_MS);
+  const recordings = useBackendJson("/api/recordings", active, BACKEND_POLL_MS);
   const aiServices = useAiServices(active);
-  const localModel = useBackendJson("/api/local_model", active, BRAIN_POLL_MS);
-  const data = useMemo(() => (config.data ? localizeBrainSchema(config.data) : null), [config.data]);
+  const localModel = useBackendJson("/api/local_model", active, BACKEND_POLL_MS);
+  const data = useMemo(() => (config.data ? localizeBackendSchema(config.data) : null), [config.data]);
   const spec = (key) => (data ? data.spec.find((item) => item.key === key) : null);
-  const control = (key) => (spec(key) && config.values[key] !== undefined ? h(BrainSettingControl, { key, spec: spec(key), config }) : null);
+  const control = (key) => (spec(key) && config.values[key] !== undefined ? h(BackendSettingControl, { key, spec: spec(key), config }) : null);
   const last = lastActionText(status);
   const looking = lookingText(calibration, config.values || {});
   const confidence = config.values ? config.values.ai_min_confidence : undefined;
@@ -76,7 +76,7 @@ function AiPage({ active, menu }) {
   return h(
     React.Fragment,
     null,
-    config.phase !== "ok" && h(BrainNotice, { phase: config.phase }),
+    config.phase !== "ok" && h(BackendNotice, { phase: config.phase }),
     config.phase === "ok" && h("div", { className: "oui-list" }, control("enabled")),
     h(ServiceLine, { status }),
     h(
@@ -202,14 +202,14 @@ function PersonalLayerPart({ personal, reload, control, on }) {
   };
   const train = () =>
     run("train", async () => {
-      const reply = await brainPost("/api/local_model/personal", { train: true });
+      const reply = await backendPost("/api/local_model/personal", { train: true });
       if (!reply.ok) toast.error(tx("Learning failed: {reason}", { reason: reply.message }));
       else if (reply.data && reply.data.personal && !reply.data.personal.trained) toast.action(tx("Not enough examples yet: answer «How did the print go?» after a few more prints"));
       else toast.success(tx("The local model learned from this printer's examples"));
     });
   const forget = () =>
     run("forget", async () => {
-      const reply = await brainPost("/api/local_model/personal", { forget_imported: true });
+      const reply = await backendPost("/api/local_model/personal", { forget_imported: true });
       if (!reply.ok) toast.error(reply.message);
     });
   const upload = (event) => {
@@ -262,7 +262,7 @@ function PersonalLayerPart({ personal, reload, control, on }) {
 }
 
 /** One line for the menu list. */
-function aiMonitorSummary(settings, brain) {
-  const calibrated = brain.camcal && brain.camcal.phase === "ok" && brain.camcal.data.saved && brain.camcal.data.usable;
+function aiMonitorSummary(settings, backendState) {
+  const calibrated = backendState.camcal && backendState.camcal.phase === "ok" && backendState.camcal.data.saved && backendState.camcal.data.usable;
   return (calibrated ? tx("Whole bed") : tx("Outer band only")) + " • " + tx("Auto pause: {pause}", { pause: ON_OFF(settings.ai.autoPause) });
 }

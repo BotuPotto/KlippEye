@@ -73,6 +73,7 @@ def _write_private(path, text):
 
 
 def default_settings():
+    # "formato" is the stored name of the file's format number (kept: older releases read it)
     return {"formato": FORMAT, "enabled": False, "salt": "", "hash": "", "iterations": ITERATIONS,
             "secret": secrets.token_hex(32), "generation": 1, "allowed_hosts": [], "network_checks": True,
             # 1.82: a second password for guests, who can look but not command (only with the main password on)
@@ -309,7 +310,7 @@ class Throttle:
     def wait_seconds(self, ip, now=None):
         now = now or time.time()
         with self.lock:
-            count, until = self.failures.get(ip, (0, 0))
+            until = self.failures.get(ip, (0, 0))[1]
             return max(0, int(until - now + 0.999))
 
     def failed(self, ip, now=None):
@@ -332,7 +333,7 @@ class Throttle:
 # ---------------------------------------------------------------------------------------------------------------------
 
 def split_host(host_header):
-    """'192.168.1.17:8085' -> '192.168.1.17'; '[fe80::1]:8085' -> 'fe80::1'; in minuscolo."""
+    """'192.168.1.17:8085' -> '192.168.1.17'; '[fe80::1]:8085' -> 'fe80::1'; lower case."""
     host = (host_header or "").strip().lower()
     if host.startswith("["):
         return host[1:host.find("]")] if "]" in host else host

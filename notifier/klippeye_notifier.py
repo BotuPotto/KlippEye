@@ -38,7 +38,7 @@ From version 1.1 it also follows the dashboard's settings menu. The dashboard ke
     · which notifications are on (they win over the "events" of notifier.json),
     · how the AI verdict is filtered (verdicts in a row, minimum confidence, which defects count),
     · whether it may pause / cancel the print by itself when the AI says so (both OFF unless the person switches them on),
-    · from version 1.3, the language of the notifications ("language": English or Italian, see MESSAGES).
+    · from version 1.3, the language of the notifications ("language": one of the dashboard's languages, see MESSAGES).
 Pausing and cancelling are the only things it ever WRITES to the printer (Moonraker's /printer/print/pause and /cancel, which run
 the PAUSE and CANCEL_PRINT macros like the dashboard buttons do), and it tells the dashboard it is alive by writing its own
 key "notifier" (version, last sign of life, last automatic action) into the same namespace.
@@ -62,12 +62,12 @@ import logging
 import os
 import queue
 import re
-import urllib.parse
 import signal
 import sys
 import threading
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Tuple
@@ -323,10 +323,11 @@ def message_text(config: Dict[str, Any], language: Optional[str], key: str) -> s
             return MESSAGES[lang][key]
     return DEFAULT_MESSAGES[key]
 
+
 DEFAULT_CONFIG: Dict[str, Any] = {
     # where to read from (the Raspberry itself)
     "moonraker_url": "http://127.0.0.1:7125",
-    "brain_url": "http://127.0.0.1:8085",
+    "brain_url": "http://127.0.0.1:8085",  # the KlippEye service ("brain" is the stored name of the first releases)
     # Firebase: the key file downloaded from the Firebase console, and the private "topic" the phone listens to
     "service_account_file": "service-account.json",
     "project_id": "",  # empty: taken from the key file
@@ -355,8 +356,8 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "fcm_url": "https://fcm.googleapis.com/v1/projects/{project}/messages:send",
 }
 
-# the Android notification channel (created by the app) and the importance of each kind of notification; the ids are
-# the app's (alarms, warnings, print) and stay Italian until an app release renames them
+# the Android notification channel (created by the app) and the importance of each kind of notification. The ids are the
+# app's (alarms, warnings, print): the phone keeps the person's channel settings under them, so they never change
 KIND_CHANNEL = {
     "custom": "avvisi",  # 1.7: a notification of your own; "custom_high" an important one
     "custom_high": "allarmi",
@@ -419,7 +420,7 @@ def load_config(path: str) -> Dict[str, Any]:
     return config
 
 
-def brain_headers(config: Dict[str, Any]) -> Dict[str, str]:
+def backend_headers(config: Dict[str, Any]) -> Dict[str, str]:
     """The internal token of the services on the Raspberry, if there is one (read every time: the backend may create it later)."""
     path = config.get("_token_file")
     if not path:
@@ -909,8 +910,7 @@ def http_json(url: str, method: str = "GET", body: Any = None, headers: Optional
     request_headers = dict(headers or {})
     if body is not None:
         if form:
-            from urllib.parse import urlencode
-            data = urlencode(body).encode("utf-8")
+            data = urllib.parse.urlencode(body).encode("utf-8")
             request_headers.setdefault("Content-Type", "application/x-www-form-urlencoded")
         else:
             data = json.dumps(body).encode("utf-8")
@@ -950,13 +950,8 @@ def ai_action(response: Dict[str, Any]) -> str:
 
 def action_in_text(text: str) -> str:
     """The verdict is often JSON text (sometimes with words around it): the action is in it."""
-    try:
-        match = re.search(r"\{[\s\S]*\}", text)
-        data = json.loads(match.group(0) if match else text)
-        value = data.get("action") if isinstance(data, dict) else None
-        return value if isinstance(value, str) else ""
-    except ValueError:
-        return ""
+    value = json_in_text(text).get("action")
+    return value if isinstance(value, str) else ""
 
 
 def json_in_text(text: str) -> Dict[str, Any]:
@@ -1024,7 +1019,7 @@ def printer_info(found: Dict[str, Any]) -> Dict[str, Any]:
 class PrinterReader:
     def __init__(self, config: Dict[str, Any]) -> None:
         self.moonraker = config["moonraker_url"].rstrip("/")
-        self.brain = config["brain_url"].rstrip("/")
+        self.backend_url = config["brain_url"].rstrip("/")
         self.config = config
         self.ai_every = float(config["ai_poll_seconds"])
         self.settings_every = float(config["settings_poll_seconds"])
@@ -1145,12 +1140,12 @@ class PrinterReader:
 
     def _read_ai(self) -> Optional[AiVerdict]:
         try:
-            status, response = http_json(self.brain + "/api/print/last_analysis", headers=brain_headers(self.config))
+            status, response = http_json(self.backend_url + "/api/print/last_analysis", headers=backend_headers(self.config))
         except OSError:
-            self._note("brain", False, "The backend (AI analysis)")
+            self._note("backend", False, "The backend (AI analysis)")
             return None
         ok = status == 200 and isinstance(response, dict)
-        self._note("brain", ok, "The backend (AI analysis)")
+        self._note("backend", ok, "The backend (AI analysis)")
         if not ok:
             return None
         if not (response.get("ok", True) and response.get("has_analysis")):
@@ -1249,7 +1244,7 @@ class GoogleToken:
                 body = {"grant_type": "urn:ietf:params:oauth:grant-type:jwt-bearer", "assertion": self._assertion(now)}
                 status, answer = http_json(self.token_uri, "POST", body, timeout=15, form=True)
                 if status != 200 or not isinstance(answer, dict) or not answer.get("access_token"):
-                    detail = answer.get("error_description") or answer.get("error") if isinstance(answer, dict) else answer
+                    detail = (answer.get("error_description") or answer.get("error")) if isinstance(answer, dict) else answer
                     raise SendError("Google did not accept the key (%s: %s)" % (status, detail), retry=status >= 500 or status == 429)
                 self._token = answer["access_token"]
                 self._expires = now + float(answer.get("expires_in") or 3000)
@@ -1315,7 +1310,7 @@ class FcmSender:
             if isinstance(answer, dict):
                 detail = (answer.get("error") or {}).get("message", "") if isinstance(answer.get("error"), dict) else str(answer)
             retry = status in (429, 500, 502, 503, 504)
-            raise SendError("Firebase ha risposto %s: %s" % (status, detail or answer), retry=retry)
+            raise SendError("Firebase answered %s: %s" % (status, detail or answer), retry=retry)
 
 
 def firebase_ready(config: Dict[str, Any]) -> bool:
@@ -1475,8 +1470,7 @@ class Outbox:
             try:
                 self._deliver(notice, created)
             finally:
-                with self._count:
-                    self.pending -= 1
+                self._done()
 
     def _deliver(self, notice: Notice, created: float) -> None:
         """One notice: sent, or retried (5 s, 10 s ... up to 60 s) until it goes or it is too old."""
@@ -1595,7 +1589,7 @@ def run(config: Dict[str, Any], dry_run: bool, stop: threading.Event, outbox_sen
             LOG.info("(dry run, not done) automatic action: %s", action.kind)
             watcher.report_action(action.kind, True)
             return
-        LOG.info("Azione automatica: %s", action.kind)
+        LOG.info("Automatic action: %s", action.kind)
         watcher.report_action(action.kind, reader.act(action.kind))
 
     try:
@@ -1658,7 +1652,7 @@ def command_check(config: Dict[str, Any]) -> int:
     except OSError as error:
         report(False, "", "Moonraker not reachable at %s (%s). Check \"moonraker_url\"" % (config["moonraker_url"], error))
     try:
-        status, response = http_json(config["brain_url"].rstrip("/") + "/api/print/last_analysis", headers=brain_headers(config))
+        status, _ = http_json(config["brain_url"].rstrip("/") + "/api/print/last_analysis", headers=backend_headers(config))
         report(status == 200, "Backend reached (AI analysis)", "The backend answers %s at %s: the AI alerts will not arrive" % (status, config["brain_url"]), required=False)
     except OSError as error:
         report(False, "", "Backend not reachable at %s (%s): the AI alerts will not arrive" % (config["brain_url"], error), required=False)

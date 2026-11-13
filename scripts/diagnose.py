@@ -24,28 +24,23 @@ import time
 import urllib.request
 
 HIDDEN = "[hidden]"
+# (what looks like a secret, what it becomes): the part before the secret (a key's name, "Bearer ") stays readable
 SECRET_PATTERNS = [
-    re.compile(r"-----BEGIN [A-Z ]+-----[\s\S]*?-----END [A-Z ]+-----"),        # private keys
-    re.compile(r"\b(gsk_|sk-or-|sk-|xai-|LLM-|AIza)[A-Za-z0-9_\-]{8,}"),        # AI and Google API keys
-    re.compile(r"(?i)(bearer\s+)[A-Za-z0-9._\-]{8,}"),
-    re.compile(r"(?i)(\"?(api_key|apikey|password|passwd|token|secret|authorization|private_key)\"?\s*[:=]\s*)(\"[^\"]*\"|'[^']*'|\S+)"),
-    re.compile(r"(?i)(klippeye_session=)[^;\s]+"),
-    re.compile(r"(https?://)[^/\s:@]+:[^/\s@]+@"),                             # credentials inside an address
+    (re.compile(r"-----BEGIN [A-Z ]+-----[\s\S]*?-----END [A-Z ]+-----"), HIDDEN),                      # private keys
+    (re.compile(r"\b(?:gsk_|sk-or-|sk-|xai-|LLM-|AIza|fw_)[A-Za-z0-9_\-]{8,}"), HIDDEN),                # AI and Google API keys
+    (re.compile(r"(?i)(bearer\s+)[A-Za-z0-9._\-]{8,}"), r"\1" + HIDDEN),
+    (re.compile(r"(?i)(\"?(?:api_key|apikey|password|passwd|token|secret|authorization|private_key)\"?\s*[:=]\s*)(?:\"[^\"]*\"|'[^']*'|\S+)"),
+     r"\1" + HIDDEN),
+    (re.compile(r"(?i)(klippeye_session=)[^;\s]+"), r"\1" + HIDDEN),
+    (re.compile(r"(https?://)[^/\s:@]+:[^/\s@]+@"), r"\1" + HIDDEN + "@"),                              # credentials inside an address
 ]
 
 
 def redact(text):
     """`text` with everything that looks like a secret replaced by [hidden]."""
     text = str(text)
-    for pattern in SECRET_PATTERNS:
-        if pattern.groups >= 3:
-            text = pattern.sub(lambda m: m.group(1) + HIDDEN, text)
-        elif pattern.groups == 1 and pattern.pattern.startswith("(https?"):
-            text = pattern.sub(lambda m: m.group(1) + HIDDEN + "@", text)
-        elif pattern.groups >= 1 and pattern.pattern.startswith("(?i)("):
-            text = pattern.sub(lambda m: m.group(1) + HIDDEN, text)
-        else:
-            text = pattern.sub(HIDDEN, text)
+    for pattern, replacement in SECRET_PATTERNS:
+        text = pattern.sub(replacement, text)
     return text
 
 
@@ -288,7 +283,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description="KlippEye diagnostic report (nothing secret is included)")
     parser.add_argument("--repo", default=os.path.dirname(here))
     parser.add_argument("--data", default=os.environ.get("KLIPPEYE_DATA") or os.path.expanduser("~/printer_data/klippeye"))
-    parser.add_argument("--backend", default=os.environ.get("KLIPPEYE_BRAIN_URL") or "http://127.0.0.1:8085")
+    parser.add_argument("--backend", default=os.environ.get("KLIPPEYE_BACKEND_URL") or os.environ.get("KLIPPEYE_BRAIN_URL") or "http://127.0.0.1:8085")
     parser.add_argument("--moonraker", default=os.environ.get("KLIPPEYE_MOONRAKER_URL") or "http://127.0.0.1:7125")
     parser.add_argument("--no-logs", action="store_true", help="leave out the service logs")
     args = parser.parse_args(argv)

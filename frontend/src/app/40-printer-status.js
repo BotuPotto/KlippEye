@@ -43,7 +43,7 @@ function usePrinterStatus() {
     let cancelled = false;
     const poll = async () => {
       try {
-        const snapshot = await brain.printer();
+        const snapshot = await backendApi.printer();
         if (cancelled) return;
         const toolhead = (snapshot.raw && snapshot.raw.toolhead) || snapshot.toolhead || {};
         const position = positionFromSnapshot(snapshot);

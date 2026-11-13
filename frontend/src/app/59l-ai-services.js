@@ -13,7 +13,7 @@ function useAiServices(active) {
   const [state, setState] = useState({ phase: "loading", data: null });
   const load = async () => {
     try {
-      const response = await fetchFresh("/api/ai/config", { timeout: BRAIN_READ_TIMEOUT_MS });
+      const response = await fetchFresh("/api/ai/config", { timeout: BACKEND_READ_TIMEOUT_MS });
       const data = await response.json();
       setState(response.ok && isPlainObject(data) && Array.isArray(data.services) ? { phase: "ok", data } : { phase: "old", data: null });
     } catch (error) {
@@ -24,7 +24,7 @@ function useAiServices(active) {
     if (active) load();
   }, [active]);
   const save = async (body) => {
-    const reply = await brainPost("/api/ai/config", body);
+    const reply = await backendPost("/api/ai/config", body);
     if (reply.ok && reply.data && Array.isArray(reply.data.services)) setState({ phase: "ok", data: reply.data });
     return reply;
   };

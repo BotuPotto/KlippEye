@@ -43,7 +43,7 @@ async function sendLightCommand(turnOn, light) {
   let timer = 0;
   try {
     const timeout = new Promise((_, reject) => (timer = setTimeout(() => reject(new Error("timeout")), LIGHT_SEND_TIMEOUT_MS)));
-    const response = await Promise.race([sendBrainGcode(turnOn ? light.on : light.off), timeout]);
+    const response = await Promise.race([sendBackendGcode(turnOn ? light.on : light.off), timeout]);
     return Boolean(response && response.ok);
   } catch (e) {
     return false;
@@ -236,7 +236,7 @@ function useCaseLight() {
     set: (id, on) => engines.current.get(id) && engines.current.get(id).set(on),
     /** Brightness 0-100 and colour of a light switched on its output; true when Klipper took it. */
     async sendLevel(light, level, color) {
-      const response = await sendBrainGcode(lightLevelCommand(light, level, color, capabilities.commands)).catch(() => null);
+      const response = await sendBackendGcode(lightLevelCommand(light, level, color, capabilities.commands)).catch(() => null);
       const engine = engines.current.get(light.id);
       if (engine) engine.refresh();
       if (!response || !response.ok) toast.notice(tx("Cannot switch the light"), 2600);

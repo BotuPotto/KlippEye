@@ -21,7 +21,7 @@ A. [Building your own Android app](#a-building-your-own-android-app)
 **Already there:**
 
 * a printer with **Klipper and Moonraker** on a Raspberry Pi (or any Linux computer next to the printer), installed with
-  KIAUH, a ready-made image (such as MainsailOS or FluiddPi) or by hand. The printer's other web interfaces can stay: KlippEye
+  KIAUH, a ready-made printer image or by hand. The printer's other web interfaces can stay: KlippEye
   works next to them;
 * **SSH access** to the Raspberry, **once**, for the installation (with your user: it does not have to be `pi`). Everything after
   that happens in the dashboard;
@@ -39,12 +39,12 @@ AI monitor (Groq is free), a **phone** for notifications (Android with the Klipp
 | `python3-numpy` | the camera calibration (and the AI monitor) |
 | `python3-opencv` | the AI monitor: looking at the camera's photos (left out with `--no-ai`) |
 
-It works on every recent Raspberry Pi OS and MainsailOS (Debian 11 "Bullseye", 12 "Bookworm", 13 "Trixie") with Python 3.7 or
+It works on every recent Raspberry Pi OS and the printer images built on it (Debian 11 "Bullseye", 12 "Bookworm", 13 "Trixie") with Python 3.7 or
 newer. Nothing is installed on your computer: a browser is enough.
 
 ## 2. Install
 
-Connect to the Raspberry with SSH (`ssh <user>@<address of the Raspberry>`; on MainsailOS the user is usually `pi`) and paste these
+Connect to the Raspberry with SSH (`ssh <user>@<address of the Raspberry>`; on ready-made printer images the user is usually `pi`) and paste these
 lines, one at a time:
 
 ```
@@ -53,7 +53,7 @@ git clone https://github.com/BotuPotto/KlippEye.git ~/klippeye
 bash ~/klippeye/scripts/install.sh
 ```
 
-The first line is only needed when `git` is not there yet (MainsailOS has it: it does no harm). The installer checks what is
+The first line is only needed when `git` is not there yet (ready-made printer images have it: it does no harm). The installer checks what is
 missing and installs it by itself: the first time, with OpenCV, it takes a few minutes; after that about a minute. Every step says
 `OK`; if something is wrong it says so in plain words (`WARNING` or `ERROR`) and tells you what to do. At the end it shows the
 dashboard address and `Moonraker sees KlippEye`.
