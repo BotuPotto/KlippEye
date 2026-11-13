@@ -78,7 +78,8 @@ While that file is printing, **Follow the print** shows the current layer, what 
 ### How did the print go?
 
 At the end of a print a card at the top of Home asks how it went: *Went fine*, or *There was a problem* (which kind, and
-with the slider from which picture it could be seen). It's optional: *Skip*, or *Don't ask again*. Your answers help the
+from which picture it could be seen: the picture is shown big, with the slider and ‹ › under it, and a tap enlarges it
+over the whole screen). It's optional: *Skip*, or *Don't ask again*. Your answers help the
 AI monitor learn and measure itself ([guide, chapter 5](GUIDE.md#teaching-it-about-your-printer)).
 
 ### Windows opened by macros

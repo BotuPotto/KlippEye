@@ -1734,6 +1734,9 @@ _history_lock = threading.Lock()
 AI_RATE_RETRY_MAX_S = 30  # a 429 that asks to wait longer than this is not retried (the alarm says the AI was busy)
 AI_QUOTA_PAUSE_S = 600  # 1.102: a 429 with no time given: the AI is left alone this long
 AI_CONFIRM_DELAY_S = 40  # 1.102: a stop the AI proposes is looked at again this much later, on a new picture
+PART_HIDDEN = 0.6        # 1.123: the toolhead and the gantry cover this much of the part in the picture: it is hidden
+HIDDEN_WAIT_S = 90       # 1.123: a question to the AI put off because the part was hidden is asked within this time
+CONFIRM_HIDDEN_WAIT_S = 30  # 1.123: the second look waits up to this long for the toolhead to leave the part
 EMPTY_BED_MIN_Z = 2.0  # 1.102: below this height (mm) a part can hardly be seen: «empty bed» is not trusted
 
 
@@ -1765,10 +1768,12 @@ def largest_side(objects):
     return best
 
 
-def empty_bed_doubt(z, with_reference, side, confidence, language="en"):
+def empty_bed_doubt(z, with_reference, side, confidence, language="en", hidden=False):
     """Why «empty bed» is not trusted for this answer, or None when it is (1.121, before only the height counted).
     A part that came off and a part the camera cannot see look the same on ONE picture: the AI must see it gone, so
     the earlier picture is needed. A low or small part is hard to see at all; and the AI must be quite sure."""
+    if hidden:
+        return bt("The print head covers the part in this picture: «empty bed» is not trusted.", language)
     if z is not None and z < EMPTY_BED_MIN_Z:
         return bt("The print is still lower than {height} mm: the camera can hardly see it, «empty bed» is not trusted.", language, height="%g" % EMPTY_BED_MIN_Z)
     if not with_reference:
@@ -1780,7 +1785,7 @@ def empty_bed_doubt(z, with_reference, side, confidence, language="en"):
     return None
 
 
-def distrust_empty_bed(parsed, minimum, language="en", z=None, with_reference=True, side=None):
+def distrust_empty_bed(parsed, minimum, language="en", z=None, with_reference=True, side=None, hidden=False):
     """«Empty bed» is the most frequent false alarm: a first layer or a flat part is a film the camera hardly sees, a small
     or far part is a few pixels, the print head hides it... and the AI took it for an empty bed (1.102: a false CANCEL at
     76% of a 0.2 mm print). When empty_bed_doubt has a reason, the defect is set to not detected (`distrusted`), and a stop
@@ -1790,7 +1795,7 @@ def distrust_empty_bed(parsed, minimum, language="en", z=None, with_reference=Tr
     empty = parsed.get("empty_bed")
     if not (isinstance(empty, dict) and empty.get("detected") is True):
         return parsed, False
-    reason = empty_bed_doubt(z, with_reference, side, empty.get("confidence"), language)
+    reason = empty_bed_doubt(z, with_reference, side, empty.get("confidence"), language, hidden)
     if reason is None:
         return parsed, False
     out = dict(parsed, empty_bed=dict(empty, detected=False, distrusted=True, why_distrusted=reason))
@@ -2131,6 +2136,7 @@ class LightDetector(FrameJudge):
         self.zone = {}  # phase 4c: {"file", "source": "exclude_object" | "gcode" | None, "objects": [...], "why"}
         self.zone_reading = None  # the file whose G-code is being read for the zone
         self._zone_cache = (None, None)  # ((objects id, Z), masks)
+        self.ask_waiting = None  # 1.123: when a question to the AI was put off because the toolhead hid the part
 
     def _measure(self, judge_seconds):
         """How heavy the monitor is: the time of one check (decoding + judging, averaged) and the CPU the whole backend used
@@ -2369,6 +2375,7 @@ class LightDetector(FrameJudge):
                 zone = self._zone_masks()
                 score, triggered = self.judge(frame, r.content, now, ignore, zone)
                 ask = self._local_look(frame, now, triggered)   # 1.106: the local model's opinion and whether to ask online
+                ask = self._put_off_when_hidden(ask, now)        # 1.123: not while the toolhead hides the part
                 recorder.add_frame(frame, now, dict(self.meta, score=None if score is None else round(score, 2), trig=triggered,
                                                     local=self.local_state.get("score") if self.local_state.get("at") == now else None))
                 reviews.add_frame(frame, now, self.meta)  # a small picture a minute at most, for «how did it go?»
@@ -2510,6 +2517,53 @@ class LightDetector(FrameJudge):
             print(f"[OPENCV] picture for the second look not taken: {error}")
             return None
 
+    def _part_hidden(self):
+        """How much of the printed part the toolhead and the gantry hide in the picture now (0..1), from the camera
+        calibration, the objects of the print and where the toolhead is. None when it cannot be known (no calibration,
+        no objects, no position, a part too small to measure)."""
+        try:
+            objects, z, position = self.zone.get("objects"), self._height_now(), (self.meta or {}).get("live")
+            if not objects or z is None or not position or not camera_cal.usable() or not camera_cal.saved:
+                return None
+            width, height = OPENCV_WIDTH // 4, OPENCV_HEIGHT // 4
+            head = camera_cal.monitor_mask([position], width, height)
+            part = print_zone.part_mask(cv2, np, camera_cal.saved, objects, z, width, height)
+            area = cv2.countNonZero(part)
+            if head is None or area < 12:
+                return None
+            if head.shape != part.shape:
+                head = cv2.resize(head, (width, height), interpolation=cv2.INTER_NEAREST)
+            return cv2.countNonZero(cv2.bitwise_and(head, part)) / float(area)
+        except Exception as error:  # a help only: never in the way of the monitor
+            print("[OPENCV] is the part hidden by the toolhead: %s" % error)
+            return None
+
+    def _hides_part(self):
+        hidden = self._part_hidden()
+        return hidden is not None and hidden >= PART_HIDDEN
+
+    def _put_off_when_hidden(self, ask, now):
+        """1.123: a question for the online AI while the toolhead hides the part is put off (the AI would see an empty
+        bed, and the call is spent for nothing) and asked at the first round the part shows again, within HIDDEN_WAIT_S.
+        -> whether to ask now."""
+        if not self.ai_online:
+            return ask
+        if ask:
+            if self._hides_part():
+                self.ask_waiting = self.ask_waiting or now
+                self.stats["ai_put_off"] = self.stats.get("ai_put_off", 0) + 1
+                self.stats["status"] = "the toolhead hides the part: the AI is asked when it moves"
+                return False
+            self.ask_waiting = None
+            return True
+        if self.ask_waiting is not None:
+            if now - self.ask_waiting > HIDDEN_WAIT_S:
+                self.ask_waiting = None
+            elif not self._hides_part():
+                self.ask_waiting = None
+                return True
+        return False
+
     def _part_places(self, objects, z):
         """Where the objects are in the picture (centres, fractions 0..1), when the camera is calibrated; else None."""
         try:
@@ -2546,6 +2600,9 @@ class LightDetector(FrameJudge):
             return {"ok": False, "status": 0, "error": "picture not found"}
         objects, z = self.zone.get("objects"), self._height_now()
         part = part_hint(objects, z, self._part_places(objects, z))
+        hidden = self._hides_part()
+        if hidden:
+            part += " The print head is in front of the part in this picture: it may hide it."
 
         def ask(with_reference):
             prompt = build_ai_prompt(score, state, filename, progress, temp_h, ref_age if with_reference else None, language, local, part)
@@ -2611,7 +2668,7 @@ class LightDetector(FrameJudge):
             if "observation" not in parsed and "osservazione" in parsed:  # an answer the old way
                 parsed["observation"] = parsed.pop("osservazione")
             parsed, _ = apply_min_confidence(parsed, self.ai_min_confidence, language)
-            parsed, _ = distrust_empty_bed(parsed, self.ai_min_confidence, language, z=z, with_reference=used_reference, side=largest_side(objects))
+            parsed, _ = distrust_empty_bed(parsed, self.ai_min_confidence, language, z=z, with_reference=used_reference, side=largest_side(objects), hidden=hidden)
         return {"ok": True, "parsed": parsed, "answer": answer, "with_reference": used_reference}
 
     def _free_targets(self, chain, now=None):
@@ -2706,6 +2763,10 @@ class LightDetector(FrameJudge):
                 self.stats["status"] = "AI: a problem is being checked again"
                 print(f"[OPENCV] the AI proposes {parsed.get('action')}: looking again in {AI_CONFIRM_DELAY_S}s")
                 time.sleep(AI_CONFIRM_DELAY_S)
+                waited = 0
+                while waited < CONFIRM_HIDDEN_WAIT_S and self._hides_part():  # 1.123: not on a picture where the part is hidden
+                    time.sleep(3)
+                    waited += 3
                 second = None
                 try:
                     still = (moonraker_status("print_stats").get("print_stats") or {}).get("state")

@@ -7,7 +7,7 @@ was warned about, that the alarms alone never see. Each print keeps a few small 
 48 at most: when full every other one goes and the pause doubles), so they are there even when the recordings are off.
 
     <root>/<id>/review.json   {id, file, started, ended, end_state, thumbs: [{n, t, progress, layer}], answer}
-    <root>/<id>/0001.jpg ...  the pictures (320 x 214)
+    <root>/<id>/0001.jpg ...  the pictures (960 wide until answered, then 320; the camera's own shape)
 
 answer: None (not answered yet), {"outcome": "ok" | "failed" | "skipped", "problems": [...], "failed_at": time | None, "time"}.
 Only the standard library, plus the OpenCV module the caller passes (none: no pictures, the question is still asked).
@@ -25,7 +25,11 @@ ACTIVE_STATES = ("printing", "paused")
 PROBLEMS = ("spaghetti", "detached", "layer_shift", "nozzle_blob", "clog", "warping",
             "stringing", "under_extrusion", "over_extrusion", "elephant_foot", "ghosting", "overhangs", "supports", "rough_surface", "other")
 OUTCOMES = ("ok", "failed", "skipped")
-THUMB_WIDTH, THUMB_HEIGHT, THUMB_QUALITY = 320, 214, 70
+# 1.122: the pictures are kept big (THUMB_WIDTH) while the print waits for its answer, so that a small defect can be seen
+# in «From when can it be seen?»; once answered (or when the next print starts) they are made KEPT_WIDTH wide, which is
+# all the learning needs (personal_layer.py makes them 320 wide anyway), so the folder does not grow
+THUMB_WIDTH, THUMB_QUALITY = 960, 78
+KEPT_WIDTH, KEPT_QUALITY = 320, 70
 THUMB_EVERY_S = 60       # the first pause between two pictures (doubles every time the print fills its pictures)
 MAX_THUMBS = 48
 KEEP = 60                # prints kept (the oldest go)
@@ -114,6 +118,7 @@ class PrintReviews:
                 self.every, self.next_thumb = THUMB_EVERY_S, 0.0
                 self._save(self.current)
                 self._prune()
+                self._shrink_earlier(rid)  # only the last print is asked about: the earlier ones need no big pictures
             elif self.current:
                 self._close(state or "standby", now)
 
@@ -133,7 +138,7 @@ class PrintReviews:
             if not (review and self.enabled and self.cv2 is not None) or review.get("ended") is not None or now < self.next_thumb:
                 return False
             try:
-                small = self.cv2.resize(frame, (THUMB_WIDTH, THUMB_HEIGHT), interpolation=self.cv2.INTER_AREA)
+                small = self._resized(frame, THUMB_WIDTH)
                 ok, data = self.cv2.imencode(".jpg", small, [int(self.cv2.IMWRITE_JPEG_QUALITY), THUMB_QUALITY])
                 if not ok:
                     return False
@@ -200,8 +205,45 @@ class PrintReviews:
             else:
                 failed_at = None
             review["answer"] = {"outcome": outcome, "problems": sorted(set(problems), key=PROBLEMS.index), "failed_at": failed_at, "time": round(time.time())}
+            self._shrink(review)
             self._save(review)
             return review
+
+    # ------------------------------------------------------------------ the size of the pictures
+    def _resized(self, frame, width):
+        """The picture `width` pixels wide, with the camera's own shape (never made bigger)."""
+        height, wide = frame.shape[:2]
+        if wide <= width:
+            return frame
+        return self.cv2.resize(frame, (width, max(1, round(height * width / wide))), interpolation=self.cv2.INTER_AREA)
+
+    def _shrink(self, review):
+        """The pictures of an answered (or past) print made KEPT_WIDTH wide (1.122). Marks the review "small"."""
+        if review.get("small") or self.cv2 is None:
+            return
+        for t in review.get("thumbs") or []:
+            path = os.path.join(self.root, review["id"], "%04d.jpg" % t["n"])
+            try:
+                image = self.cv2.imread(path)
+                if image is None or image.shape[1] <= KEPT_WIDTH:
+                    continue
+                ok, data = self.cv2.imencode(".jpg", self._resized(image, KEPT_WIDTH), [int(self.cv2.IMWRITE_JPEG_QUALITY), KEPT_QUALITY])
+                if ok:
+                    with open(path + ".tmp", "wb") as handle:
+                        handle.write(data.tobytes())
+                    os.replace(path + ".tmp", path)
+            except Exception as error:  # noqa: BLE001 - a picture left big is no harm
+                print("[REVIEW] picture not made smaller: %s" % error)
+        review["small"] = True
+
+    def _shrink_earlier(self, current_id):
+        for rid in self.ids():
+            if rid == current_id:
+                continue
+            review = self.load(rid)
+            if review and not review.get("small"):
+                self._shrink(review)
+                self._save(review)
 
     def picture(self, rid, n):
         """The path of one small picture of a print, or None."""

@@ -221,7 +221,7 @@ vero è ancora lì. Il
 giudizio «piatto vuoto» (il pezzo si è staccato) è il più facile da sbagliare, quindi conta solo se l'IA ha visto il pezzo
 nella foto di prima e lo vede sparito in quella nuova, ne è sicura almeno all'85%, la stampa è già alta 2 mm e il pezzo misura
 almeno 2 cm. All'IA viene anche detto quanto è grande il pezzo e, con la telecamera calibrata, dove dovrebbe trovarsi
-nell'immagine.
+nell'immagine; e mentre la testina sta davanti al pezzo l'IA non viene interpellata: si aspetta che si sposti.
 
 Quando l'IA dà un allarme, la card della stampa ti chiede: **Problema reale**, **Falso allarme** o **Ignora**. La tua
 risposta chiude l'allarme e aiuta a misurare il monitor.
