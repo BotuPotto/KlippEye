@@ -28,7 +28,9 @@ import threading
 import time
 import zipfile
 
-FAILED_AFTER = 60       # seconds after the person's moment from which the pictures show the failure
+import labelled_prints
+
+FAILED_AFTER = labelled_prints.FAILED_AFTER   # seconds after the person's moment from which the pictures show the failure
 OK_EVERY = 4            # of a fine recording, one picture in OK_EVERY
 MIN_FAILED, MIN_FINE = 5, 20   # fewer examples than these: no layer (the base model alone)
 BLEND_MIN, BLEND_MAX = 0.25, 0.6   # the personal layer's weight in the final score: from MIN_FAILED failed examples ...
@@ -40,64 +42,30 @@ EXPORT_WIDTH = 320      # their width (the recordings' pictures are made smaller
 ORIGIN_RE = re.compile(r"[^A-Za-z0-9_.-]+")
 
 
+def _read_json(path):
+    with open(path, encoding="utf-8") as handle:
+        return json.load(handle)
+
+
 def _sigmoid(np, x):
     return 1.0 / (1.0 + np.exp(-np.clip(x, -60, 60)))
 
 
 def examples_of(data_dir):
-    """-> [(key, picture path, label 1 failed / 0 fine)] from the reviews, the recordings and the imported examples."""
+    """-> [(key, picture path, label 1 failed / 0 fine)] from the reviews, the recordings and the imported examples.
+    Of a recording (a picture every few seconds, much alike) one fine picture in OK_EVERY and one failed in two."""
     out = []
-    for review_file in glob.glob(os.path.join(data_dir, "reviews", "*", "review.json")):
-        folder = os.path.dirname(review_file)
-        try:
-            review = json.load(open(review_file, encoding="utf-8"))
-        except (OSError, ValueError):
-            continue
-        answer = review.get("answer") or {}
-        outcome, moment = answer.get("outcome"), answer.get("failed_at")
-        if outcome not in ("ok", "failed"):
-            continue
-        for thumb in review.get("thumbs") or []:
-            path = os.path.join(folder, "%04d.jpg" % thumb.get("n", 0))
-            t = thumb.get("t", 0)
-            if outcome == "ok" or (moment is not None and t < moment):
-                label = 0
-            elif moment is not None and t >= moment + FAILED_AFTER:
-                label = 1
-            else:
+    for one in labelled_prints.prints_of(data_dir):
+        recording = one["kind"] == "recording"
+        for index, (number, t, path) in enumerate(one["pictures"]):
+            label = labelled_prints.label_at(one, t)
+            if label is None or (recording and index % (2 if label else OK_EVERY)):
                 continue
-            if os.path.isfile(path):
-                out.append(("rev/%s/%d" % (review.get("id"), thumb.get("n", 0)), path, label))
-    for session_file in glob.glob(os.path.join(data_dir, "recordings", "*", "session.json")):
-        folder = os.path.dirname(session_file)
-        try:
-            session = json.load(open(session_file, encoding="utf-8"))
-            frames = [json.loads(line) for line in open(os.path.join(folder, "frames.jsonl"), encoding="utf-8") if line.strip()]
-        except (OSError, ValueError):
-            continue
-        label_info = session.get("label") or {}
-        outcome, moment = label_info.get("outcome"), label_info.get("failed_at")
-        if outcome not in ("ok", "failed"):
-            continue
-        for i, frame in enumerate(frames):
-            t = frame.get("t", 0)
-            if outcome == "ok" or (moment is not None and t < moment):
-                if i % OK_EVERY:
-                    continue
-                label = 0
-            elif moment is not None and t >= moment + FAILED_AFTER:
-                if i % 2:
-                    continue
-                label = 1
-            else:
-                continue
-            path = os.path.join(folder, "%06d.jpg" % frame.get("n", 0))
-            if os.path.isfile(path):
-                out.append(("rec/%s/%d" % (session.get("id"), frame.get("n", 0)), path, label))
+            out.append(("%s/%s/%d" % ("rec" if recording else "rev", one["id"], number), path, label))
     for labels_file in glob.glob(os.path.join(data_dir, "personal", "imported", "*", "labels.json")):
         folder = os.path.dirname(labels_file)
         try:
-            labels = json.load(open(labels_file, encoding="utf-8"))
+            labels = _read_json(labels_file)
         except (OSError, ValueError):
             continue
         for name, label in (labels.get("pictures") or {}).items():
@@ -145,7 +113,7 @@ class PersonalLayer:
     # ------------------------------------------------------------------ the layer on disk
     def _load(self):
         try:
-            data = json.load(open(os.path.join(self.folder, "layer.json"), encoding="utf-8"))
+            data = _read_json(os.path.join(self.folder, "layer.json"))
             data["w"] = self.np.array(data["w"], dtype=self.np.float64)
             self.layer = data
         except (OSError, ValueError, KeyError, TypeError):
@@ -279,7 +247,7 @@ class PersonalLayer:
         buffer = io.BytesIO()
         labels = {}
         with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
-            for k, (key, picture, label) in enumerate(chosen):
+            for k, (_, picture, label) in enumerate(chosen):
                 name = "%05d.jpg" % k
                 content = self._small(picture)
                 if content is None:
@@ -292,7 +260,8 @@ class PersonalLayer:
     def _small(self, picture):
         """The JPEG bytes of a picture, at most EXPORT_WIDTH wide (None: unreadable)."""
         try:
-            content = open(picture, "rb").read()
+            with open(picture, "rb") as handle:
+                content = handle.read()
         except OSError:
             return None
         if self.cv2 is None:
@@ -312,7 +281,7 @@ class PersonalLayer:
         out = []
         for labels_file in sorted(glob.glob(os.path.join(self.folder, "imported", "*", "labels.json"))):
             try:
-                labels = json.load(open(labels_file, encoding="utf-8"))
+                labels = _read_json(labels_file)
             except (OSError, ValueError):
                 continue
             out.append({"origin": os.path.basename(os.path.dirname(labels_file)), "printer": labels.get("printer"), "pictures": len(labels.get("pictures") or {})})
@@ -325,7 +294,7 @@ class PersonalLayer:
             archive = zipfile.ZipFile(io.BytesIO(data))
             labels = json.loads(archive.read("labels.json"))
         except (zipfile.BadZipFile, KeyError, ValueError):
-            raise ValueError("not a file exported by KlippEye")
+            raise ValueError("not a file exported by KlippEye") from None
         pictures = labels.get("pictures") if isinstance(labels, dict) else None
         if not isinstance(pictures, dict) or labels.get("format") != 1:
             raise ValueError("not a file exported by KlippEye")

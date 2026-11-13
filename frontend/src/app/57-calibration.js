@@ -10,66 +10,19 @@
    ========================================================================== */
 
 const MACRO_PRELOAD_DELAY_MS = 1100;
-const MACRO_PREFIX = "gcode_macro ";
-
-/* ---------------------------------------------------------------------------
-   Finding the macros
-   ------------------------------------------------------------------------- */
-const PARAM_DEFAULT_PATTERN = /params\.([A-Za-z0-9_]+)[^\n]*?\|\s*default\s*\(\s*([^),\n]+)/gi;
-const PARAM_PATTERN = /params\.([A-Za-z0-9_]+)/gi;
-
-/** The `{params.X|default(...)}` references of a macro's gcode, with their defaults. */
-function extractParams(gcode) {
-  const defaults = {};
-  for (const match of gcode.matchAll(PARAM_DEFAULT_PATTERN)) defaults[match[1].toUpperCase()] = match[2].trim().replace(/^['"]|['"]$/g, "");
-  const names = [...new Set([...gcode.matchAll(PARAM_PATTERN)].map((match) => match[1].toUpperCase()))];
-  return names.map((name) => ({ name, default: defaults[name] || "", type: "text" }));
-}
-
-/** The parameter list in the shape {name, default, type}, whatever the backend sent. */
-const normalizeParams = (params) => (params || []).map((param) => (typeof param === "string" ? { name: param, default: "", type: "text" } : param));
-
-/** Macros known to the backend backend (they carry file, description and parameters). */
-async function macrosFromBrain() {
-  const json = await fetchJson("/api/macros/list").catch(() => null);
-  if (!json || !json.ok || !json.macros) return [];
-  return json.macros.map((macro) => {
-    const params = normalizeParams(macro.params);
-    return {
-      name: macro.name,
-      file: macro.file || "",
-      description: macro.description || "",
-      params,
-      has_params: params.length > 0 || !!macro.has_params,
-      source: macro.source || "brain",
-    };
-  });
-}
-
-/** Macros defined in the printer configuration (Klipper's `configfile` object). */
-async function macrosFromConfig() {
-  const configfile = await moonraker.configfile().catch(() => ({}));
-  const config = configfile.config || {};
-  return Object.keys(config)
-    .filter((key) => key.toLowerCase().startsWith(MACRO_PREFIX))
-    .map((key) => ({ name: key.slice(MACRO_PREFIX.length).trim(), settings: config[key] || {} }))
-    .filter(({ name }) => !name.startsWith("_"))
-    .map(({ name, settings }) => {
-      const params = extractParams(settings.gcode || "");
-      return { name, file: settings.filename || "", description: settings.description || "", params, has_params: params.length > 0, source: "configfile" };
-    });
-}
-
 /**
- * Every macro, merged from the backend list and the printer config (the backend wins), sorted by name.
- * (The old dashboard also asked /printer/objects/list but read the wrong field, so that source never
- * contributed anything and has been dropped.)
+ * Every macro of the printer, sorted by name. The backend builds the list (macro_catalog.py) from Klipper's own
+ * configuration and from the files of the configuration folder, with each macro's file, description and parameters.
  */
 async function loadMacroCatalog() {
-  const [brain, config] = await Promise.all([macrosFromBrain(), macrosFromConfig()]);
-  const byName = new Map();
-  for (const macro of [...brain, ...config]) if (!byName.has(macro.name)) byName.set(macro.name, macro);
-  return [...byName.values()].sort((a, b) => a.name.localeCompare(b.name));
+  const json = await fetchJson("/api/macros/list").catch(() => null);
+  const macros = (json && json.ok && json.macros) || [];
+  return macros
+    .map((macro) => {
+      const params = macro.params || [];
+      return { name: macro.name, file: macro.file || "", description: macro.description || "", params, has_params: params.length > 0, source: macro.source || "" };
+    })
+    .sort((a, b) => a.name.localeCompare(b.name));
 }
 
 /** The old "Calibrations" choice (before 1.33), kept by the backend: only read once, to turn it into a group. */
@@ -128,7 +81,7 @@ function useMacroCatalog() {
  * backend's old list is then emptied, so it happens once (and not again after "Restore the initial values").
  */
 function useMacroMigration() {
-  const { settings, sync, update } = useSettings();
+  const { sync, update } = useSettings();
   const done = useRef(false);
   useEffect(() => {
     if (done.current || sync.state !== "shared") return;
@@ -208,7 +161,7 @@ function MacroButton({ macro, onRun, onEditParams }) {
 
 /** Form for the parameters of one macro; "ESEGUI" sends `NAME KEY=value ...` for the filled-in fields. */
 function ParamDialog({ macro, onRun, onClose }) {
-  const params = normalizeParams(macro.params);
+  const params = macro.params || [];
   const [values, setValues] = useState(() => Object.fromEntries(params.map((param) => [param.name, param.default || ""])));
   const firstInput = useRef(null);
   useBodyScrollLock(true);

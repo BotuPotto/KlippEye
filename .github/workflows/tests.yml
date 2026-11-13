@@ -33,6 +33,10 @@ jobs:
         # (Chrome is preinstalled on it) are enough to run Chromium
         run: |
           python -m playwright install --with-deps chromium || { echo "::warning::Ubuntu's archive not reachable, Chromium without --with-deps"; python -m playwright install chromium; }
+      - name: Lint the Python code (settings in pyproject.toml)
+        run: |
+          pip install ruff==0.16.9
+          ruff check .
       - name: Run the tests (no browser tests)
         run: bash tests/run_all.sh --no-ui
 

@@ -12,48 +12,17 @@ next one is counted only --cooldown seconds later (as the monitor rests between 
 Writes a table for several thresholds and, with --json, the details.
 """
 import argparse
-import glob
 import json
 import os
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "backend"))
+import labelled_prints  # noqa: E402
 import local_model  # noqa: E402
 
 THRESHOLDS = (0.5, 0.6, 0.7, 0.8, 0.9, 0.95)
-FAILED_AFTER = 60
-
-
-def prints_of(data):
-    """-> [{id, kind: recording | review, outcome, failed_at, started, ended, pictures: [(time, path)]}]"""
-    out = []
-    for session_file in sorted(glob.glob(os.path.join(data, "recordings", "*", "session.json"))):
-        folder = os.path.dirname(session_file)
-        try:
-            session = json.load(open(session_file, encoding="utf-8"))
-            frames = [json.loads(line) for line in open(os.path.join(folder, "frames.jsonl"), encoding="utf-8") if line.strip()]
-        except (OSError, ValueError):
-            continue
-        label = session.get("label") or {}
-        if label.get("outcome") not in ("ok", "failed"):
-            continue
-        pictures = [(f.get("t", 0), os.path.join(folder, "%06d.jpg" % f.get("n", 0))) for f in frames]
-        out.append({"id": session.get("id", os.path.basename(folder)), "kind": "recording", "outcome": label["outcome"], "failed_at": label.get("failed_at"),
-                    "started": session.get("started"), "ended": session.get("ended"), "pictures": [p for p in pictures if os.path.isfile(p[1])]})
-    for review_file in sorted(glob.glob(os.path.join(data, "reviews", "*", "review.json"))):
-        folder = os.path.dirname(review_file)
-        try:
-            review = json.load(open(review_file, encoding="utf-8"))
-        except (OSError, ValueError):
-            continue
-        answer = review.get("answer") or {}
-        if answer.get("outcome") not in ("ok", "failed"):
-            continue
-        pictures = [(t.get("t", 0), os.path.join(folder, "%04d.jpg" % t.get("n", 0))) for t in review.get("thumbs") or []]
-        out.append({"id": review.get("id", os.path.basename(folder)), "kind": "review", "outcome": answer["outcome"], "failed_at": answer.get("failed_at"),
-                    "started": review.get("started"), "ended": review.get("ended"), "pictures": [p for p in pictures if os.path.isfile(p[1])]})
-    return [p for p in out if p["pictures"]]
+FAILED_AFTER = labelled_prints.FAILED_AFTER
 
 
 def alarms(scored, threshold, consecutive, cooldown):
@@ -82,7 +51,7 @@ def main(argv=None):
     if model is None:
         print("No model in %s (model.onnx and model.json are needed)" % args.model)
         return 1
-    prints = prints_of(args.data)
+    prints = labelled_prints.prints_of(args.data)
     if not prints:
         print("No labelled print in %s: label some (Recordings, or «How did the print go?») and copy the folder again." % args.data)
         return 1
@@ -91,7 +60,7 @@ def main(argv=None):
     for one in prints:
         pictures = one["pictures"][:: args.every] if one["kind"] == "recording" else one["pictures"]
         scored = []
-        for t, path in pictures:
+        for _, t, path in pictures:
             image = cv2.imread(path)
             if image is not None:
                 scored.append((t, model.predict(image)[0]))

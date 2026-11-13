@@ -10,7 +10,7 @@ const FILES_METADATA_LIMIT = 8; // metadata (and thumbnails) are fetched for the
 const FILES_METADATA_LIMIT_WIDE = 24; // ...a wide screen shows far more tiles at once
 
 /* ---------------------------------------------------------------------------
-   Moonraker file API (the "gcodes" root). The backend backend forwards every
+   Moonraker file API (the "gcodes" root). The backend forwards every
    method of /server/*, DELETE included, straight to Moonraker.
    ------------------------------------------------------------------------- */
 const encodeRemotePath = (path) => path.split("/").map(encodeURIComponent).join("/");

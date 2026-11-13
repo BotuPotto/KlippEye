@@ -1,4 +1,4 @@
-import sys, os, json
+import sys, os
 from playwright.sync_api import sync_playwright
 from lib import *
 html, out = sys.argv[1], sys.argv[2]; os.makedirs(out, exist_ok=True)

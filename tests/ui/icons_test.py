@@ -1,5 +1,5 @@
 """The file icons: prints without a preview, the config files and folders, the logs. Usage: icons_test.py <html> <outdir> <port>"""
-import sys, os, re, json
+import sys, os, re
 from playwright.sync_api import sync_playwright
 from lib import *
 

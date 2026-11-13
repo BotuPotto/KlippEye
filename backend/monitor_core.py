@@ -29,9 +29,9 @@ OPENCV_WIDTH = 1080   # the pictures are looked at in this size (the filter work
 OPENCV_HEIGHT = 720
 REFERENCE_SAMPLES = 7  # background pictures (median)
 REFERENCE_MIN = 5  # below this number the comparison is not ready
-GLOBAL_STREAK_MAX = 10
+GLOBAL_STREAK_MAX = 10  # checks in a row with a "global" change before it counts as real
 INSIDE_WEIGHT = 0.5  # 1.70: a change on the part counts half: a share of the part, not of the whole bed
-INSIDE_MIN_PX = 150  # a part this small in the picture (half resolution) is not looked inside  # checks in a row with a "global" change before it counts as real
+INSIDE_MIN_PX = 150  # a part this small in the picture (half resolution) is not looked inside
 
 
 class FrameJudge:
@@ -138,12 +138,12 @@ class FrameJudge:
         if score > self.score_threshold:
             self.trigger_count += 1
             self.stats["anomalies"] += 1
-            self.log(f"[OPENCV] Anomalia {self.trigger_count}/{self.trigger_threshold} score={score:.2f}%")
+            self.log(f"[OPENCV] Anomaly {self.trigger_count}/{self.trigger_threshold} score={score:.2f}%")
         else:
             self.trigger_count = max(0, self.trigger_count - 1)
         if self.trigger_count < self.trigger_threshold:
             return score, False
-        self.log(f"[OPENCV] TRIGGER spaghetti! score={score:.2f}%")
+        self.log(f"[OPENCV] TRIGGER score={score:.2f}%")
         self.stats["last_trigger"] = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(now))
         self.stats["status"] = f"TRIGGERED score={score:.2f}%"
         self.cooldown_until = now + self.cooldown_sec

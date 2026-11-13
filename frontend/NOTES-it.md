@@ -67,7 +67,6 @@ src/app/                    codice dell'applicazione (un modulo per area, in ord
 vendor/react-dom-*.js       React 18.3.1 + ReactDOM, codice di terzi, NON modificato
 vendor/tailwind-*.css       Tailwind compilato; la build tiene solo le classi realmente usate
 tools/tailwind_purge.py     fa quella riduzione (la chiama build.py)
-tools/check_classes.py      elenca i nomi di classe usati nel codice che non hanno nessuna regola CSS
 tools/make_favicon.py       disegna le icone di src/icons/ dal logo KlippEye su riquadro viola (tools/assets/logo_klippeye.png); servono Pillow e numpy
 tools/make_wordmark_font.py ricava da Outfit il font (1 KB) della scritta KlippEye in alto e lo scrive in src/css/02-wordmark-font.css; serve fontTools
 tools/assets/               il logo: klippeye_g4.svg (sorgente), logo_klippeye.png (a colori) e logo_klippeye_mono.png (sagoma a un colore)
@@ -111,8 +110,8 @@ tendina (`app/21-dropdown.js`), con la freccina `menu-chevron` dei pulsanti che 
 - **Stili inline**: restano solo quelli che dipendono da un dato (larghezza di una barra, colore di un
   livello del monitor AI). Tutto il resto è una classe.
 - **Classi Tailwind**: la build include solo quelle presenti nel sorgente. Una classe nuova che non
-  esiste nel CSS compilato in `vendor/` non fa nulla: va scritta in `src/css/` (`tools/check_classes.py`
-  aiuta a trovare i refusi).
+  esiste nel CSS compilato in `vendor/` non fa nulla: va scritta in `src/css/` (i test nel browser,
+  `tests/ui/app_test.py`, falliscono se una classe non ha nessuna regola).
 - La sintassi JavaScript resta entro ES2020, per la WebView di Android.
 
 ## Cosa cambia rispetto alla versione ottimizzata (V37 riorganizzata)
@@ -640,12 +639,12 @@ pagina. Il riavvio dal menù (anche quello della finestra Alimentazione e serviz
 **Il blocco «App Android»** (`59c-app-update.js`, in fondo alla pagina Aggiornamenti): GitHub costruisce e firma l'APK (workflow
 `.github/workflows/app.yml` del repository), lo mette in `apk/` insieme a `versione.json`, e arriva sul Raspberry con il normale
 «Aggiorna KlippEye». Il backend lo offre: `GET /api/app/version` (`{available, version, code, size, sha256, built}` oppure `{available:false, reason}`;
-`available` è vero solo se dimensione e SHA-256 del file vero coincidono con `versione.json`) e `GET /app/KlippEye.apk` (supporta `Range`; `/app/VzBot.apk` è lo stesso file, per la vecchia app).
+`available` è vero solo se dimensione e SHA-256 del file vero coincidono con `versione.json`) e `GET /app/KlippEye.apk` (supporta `Range`).
 Il blocco cambia secondo dove è aperta la dashboard:
 - **app release 5 o più** (user agent `KlippEyeApp/5`, la vecchia app `VzBotApp/5`): `window.KlippEyeApp.appInfo()` dà `{version, code, canInstall}`; con «Aggiorna l'app» la
   pagina chiama `window.KlippEyeApp.updateApp("/app/KlippEye.apk", versione, sha256, grandezza)` (tutti testo) e l'app risponde chiamando
   `window.vzAppUpdate({stato: "scarico"(fatto, totale) | "permesso" | "installazione" | "errore"(messaggio)})`. L'app controlla da sé che
-  l'indirizzo sia quello del backend a cui è collegata e il percorso esattamente `/app/KlippEye.apk` (la vecchia app: `/app/VzBot.apk`), che la versione sia più nuova, e dopo il
+  l'indirizzo sia quello del backend a cui è collegata e il percorso esattamente `/app/KlippEye.apk`, che la versione sia più nuova, e dopo il
   download grandezza e SHA-256. Android chiede sempre conferma e accetta solo un APK con la stessa chiave dell'app installata.
 - **app 3 o 4** (`VzBotApp/3`, `/4`): non sa aggiornarsi; il blocco offre il file da salvare in Download (`saveUrl`) da installare a mano una volta.
 - **browser**: un normale download.

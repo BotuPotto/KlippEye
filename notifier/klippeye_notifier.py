@@ -1306,7 +1306,7 @@ class FcmSender:
             try:
                 status, answer = http_json(self.url, "POST", payload, {"Authorization": "Bearer " + self.token.get(force=attempt == 2)}, timeout=20)
             except OSError as error:
-                raise SendError("network not reachable (%s)" % error)
+                raise SendError("network not reachable (%s)" % error) from error
             if status == 200:
                 return
             if status == 401 and attempt == 1:
@@ -1354,7 +1354,7 @@ class NtfySender:
         try:
             status, answer = http_json(self.url, "POST", build_ntfy(self.config, notice), headers, timeout=20)
         except OSError as error:
-            raise SendError("ntfy not reachable (%s)" % error)
+            raise SendError("ntfy not reachable (%s)" % error) from error
         if 200 <= status < 300:
             return
         detail = answer.get("error", "") if isinstance(answer, dict) else str(answer)[:200]

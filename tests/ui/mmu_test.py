@@ -94,7 +94,7 @@ with sync_playwright() as p:
             ok("«Change to T3» sends MMU_CHANGE_TOOL TOOL=3", wait_until(lambda: "MMU_CHANGE_TOOL TOOL=3" in state()["gcode_log"]), state()["gcode_log"][-3:])
             card.locator(".mmu-chosen button", has_text="Seleziona il gate #3").click()
             ok("«Select gate» sends MMU_SELECT GATE=3", wait_until(lambda: "MMU_SELECT GATE=3" in state()["gcode_log"]))
-            for cmd, script in (("load", "MMU_LOAD"), ("unload", "MMU_UNLOAD"), ("home", "MMU_HOME"), ("recover", "MMU_RECOVER")):
+            for cmd in ("load", "unload", "home", "recover"):
                 card.locator('[data-mmu-cmd="%s"]' % cmd).click()
             ok("load, unload, home, recover", wait_until(lambda: all(s in state()["gcode_log"] for s in ("MMU_LOAD", "MMU_UNLOAD", "MMU_HOME", "MMU_RECOVER"))), state()["gcode_log"][-5:])
             pg.wait_for_timeout(500)

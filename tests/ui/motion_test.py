@@ -1,6 +1,6 @@
 """Checks the motion layer (One UI animations): layers come in and go out, the tab marker slides, pages rise, sections
 fold, nothing keeps animating at rest, 'reduce motion' is honoured. Usage: motion_test.py <html> <outdir> <port>"""
-import sys, os, re, json
+import sys, os, re
 from playwright.sync_api import sync_playwright
 from lib import *
 

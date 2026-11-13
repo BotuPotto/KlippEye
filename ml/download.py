@@ -31,9 +31,10 @@ def licence_of(folder):
     for name in ("README.roboflow.txt", "README.dataset.txt"):
         path = os.path.join(folder, name)
         if os.path.isfile(path):
-            for line in open(path, encoding="utf-8", errors="replace"):
-                if "license" in line.lower() or "licence" in line.lower():
-                    return line.strip().split(":", 1)[-1].strip() or line.strip()
+            with open(path, encoding="utf-8", errors="replace") as handle:
+                for line in handle:
+                    if "license" in line.lower() or "licence" in line.lower():
+                        return line.strip().split(":", 1)[-1].strip() or line.strip()
     return "see the dataset's page"
 
 
@@ -51,7 +52,8 @@ def main(argv=None):
     except ImportError:
         print("pip install roboflow")
         return 1
-    sources = json.load(open(args.sources, encoding="utf-8"))["roboflow"]
+    with open(args.sources, encoding="utf-8") as handle:
+        sources = json.load(handle)["roboflow"]
     os.makedirs(args.out, exist_ok=True)
     rf = Roboflow(api_key=args.key)
     credits, done, skipped = [], 0, []
@@ -70,7 +72,8 @@ def main(argv=None):
                 project.version(number).download(fmt, location=folder, overwrite=True)
             else:
                 print("already here: %s" % slug)
-            json.dump({"slug": slug, "version": number, "type": kind, "format": fmt}, open(os.path.join(folder, "klippeye-source.json"), "w"))
+            with open(os.path.join(folder, "klippeye-source.json"), "w", encoding="utf-8") as handle:
+                json.dump({"slug": slug, "version": number, "type": kind, "format": fmt}, handle)
             credits.append("- [%s](https://universe.roboflow.com/%s) v%d (%s): %s" % (slug, slug, number, kind, licence_of(folder)))
             done += 1
         except Exception as error:  # noqa: BLE001 - one dataset less, the others go on

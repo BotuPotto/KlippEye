@@ -2,7 +2,7 @@
 (window.KlippEyeApp.appInfo), the update through the app (updateApp -> window.klippeyeAppUpdate events), an older app, a browser.
 The Android app is played by a small fake bridge injected before the page starts.
 Usage: app_test.py <html> <outdir> <port>"""
-import sys, os, re, json, time, urllib.request
+import sys, os, json, time, urllib.request
 from playwright.sync_api import sync_playwright
 from lib import *
 

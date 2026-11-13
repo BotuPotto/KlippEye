@@ -36,7 +36,7 @@ class LocalModel:
             with open(os.path.join(folder, "model.json"), encoding="utf-8") as handle:
                 self.info = json.load(handle)
         except (OSError, ValueError) as error:
-            raise ModelError("model.json not readable: %s" % error)
+            raise ModelError("model.json not readable: %s" % error) from error
         if not isinstance(self.info, dict) or self.info.get("format") != FORMAT:
             raise ModelError("model.json of an unknown format")
         self.size = int(self.info.get("size") or 224)
@@ -47,7 +47,7 @@ class LocalModel:
         try:
             self.net = cv2.dnn.readNetFromONNX(os.path.join(folder, "model.onnx"))
         except Exception as error:  # noqa: BLE001 - OpenCV's own errors
-            raise ModelError("model.onnx not readable: %s" % error)
+            raise ModelError("model.onnx not readable: %s" % error) from error
         self.outputs = list(self.net.getUnconnectedOutLayersNames())
 
     def blob(self, frame_bgr):

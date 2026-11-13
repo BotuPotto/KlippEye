@@ -1,5 +1,4 @@
-import json, os, re, subprocess, sys, time, hashlib, urllib.request
-from playwright.sync_api import sync_playwright
+import json, os, subprocess, sys, time, urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 POLL_PATHS = ("/printer/objects/query", "/api/printer", "/server/gcode_store", "/server/files/metadata",

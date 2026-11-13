@@ -146,7 +146,7 @@ class PrinterMacros:
         try:
             return {str(c).upper() for c in self.commands()}
         except Exception:
-            raise MacroError("Klipper does not answer: it must be running to check the macros")
+            raise MacroError("Klipper does not answer: it must be running to check the macros") from None
 
     # ---------------------------------------------------------------- the file
     def render(self):
@@ -192,7 +192,7 @@ class PrinterMacros:
             with open(printer_cfg, encoding="utf-8") as f:
                 text = f.read()
         except OSError:
-            raise MacroError("printer.cfg was not found in {folder}", folder=self.config_dir())
+            raise MacroError("printer.cfg was not found in {folder}", folder=self.config_dir()) from None
         os.makedirs(self.backup_dir, exist_ok=True)
         shutil.copy2(printer_cfg, os.path.join(self.backup_dir, "printer.cfg.%s" % time.strftime("%Y%m%d-%H%M%S")))
         block = "\n# KlippEye (Settings -> Printer functions)\n%s\n" % INCLUDE_LINE

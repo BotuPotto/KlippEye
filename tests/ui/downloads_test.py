@@ -1,5 +1,5 @@
 """Download of config files, logs and images: in a browser, in the app that can save files (KlippEyeApp/3), in older apps."""
-import sys, os, re, json, urllib.request
+import sys, os, re, urllib.request
 from playwright.sync_api import sync_playwright
 from lib import *
 html, out = sys.argv[1], sys.argv[2]; os.makedirs(out, exist_ok=True)

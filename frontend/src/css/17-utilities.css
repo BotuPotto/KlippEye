@@ -1,7 +1,7 @@
 /* ============================================================================
    Layout utilities that the compiled Tailwind stylesheet does not carry.
-   Only classes used by src/app/*.js belong here (tools/check_classes.py lists
-   the ones that have no rule at all).
+   Only classes used by src/app/*.js belong here (the browser tests fail on a
+   class that has no rule at all: tests/ui/app_test.py).
    ========================================================================== */
 
 .mb-6 { margin-bottom: 24px; }

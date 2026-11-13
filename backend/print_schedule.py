@@ -96,7 +96,7 @@ class PrintSchedule:
         try:
             at = float(at)
         except (TypeError, ValueError):
-            raise ScheduleError("not a time")
+            raise ScheduleError("not a time") from None
         now = self.clock()
         if at < now - 60:
             raise ScheduleError("this time has passed")

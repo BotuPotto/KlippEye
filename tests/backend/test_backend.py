@@ -16,7 +16,6 @@ import stat
 import sys
 import tempfile
 import time
-import types
 import subprocess
 import urllib.parse
 
@@ -135,7 +134,7 @@ for bad, label in (({"sensitivity": True}, "bool al posto di un numero"), ({"sen
     try:
         r = client.post("/api/backend/config", json={"values": bad})
         code = r.status_code
-    except Exception as e:  # NaN is not valid JSON: the client refuses before sending
+    except Exception:  # NaN is not valid JSON: the client refuses before sending
         code = 400
     check("rifiuta " + label, code == 400)
 
@@ -312,6 +311,9 @@ class FakeResp:
     def iter_content(self, chunk_size=8192):
         yield b"{}"
 
+    def close(self):
+        seen["closed"] = True
+
 
 def fake_request(method, url, **kw):
     seen["timeout"] = kw.get("timeout")
@@ -328,6 +330,27 @@ cp.post("/machine/services/restart?service=klippeye").close()
 check("ponte: /machine/services/* idem", seen["timeout"] == (5, 600), seen)
 cp.get("/printer/info").close()
 check("ponte: il resto resta a 10 secondi", seen["timeout"] == 10, seen)
+check("review 1.116: the bridge closes Moonraker's answer when ours ends (also when the browser goes away)", seen.get("closed") is True, seen)
+
+
+class PackedResp(FakeResp):
+    headers = {"Content-Type": "application/json", "Content-Encoding": "gzip", "Content-Length": "999", "Connection": "keep-alive",
+               "Transfer-Encoding": "chunked", "X-Custom": "kept"}
+
+
+def sent_request(method, url, **kw):
+    seen["sent"] = kw.get("headers")
+    return PackedResp()
+
+
+bp.requests.request = sent_request
+_pr = cp.get("/printer/info", headers={"Cookie": "klippeye_session=secret", "X-KlippEye-Token": "internal", "X-Api-Key": "k", "Authorization": "Bearer moonraker"})
+check("review 1.116: the bridge does not pass on the headers of the connection, nor those of a compression requests already undid",
+      _pr.data == b"{}" and _pr.headers.get("X-Custom") == "kept" and all(name not in _pr.headers for name in ("Content-Encoding", "Transfer-Encoding", "Connection"))
+      and _pr.headers.get("Content-Length") != "999", dict(_pr.headers))
+check("... and Moonraker gets neither KlippEye's session cookie nor its internal token (its own Authorization still passes)",
+      "Authorization" in seen["sent"] and not any(name.lower() in ("cookie", "x-klippeye-token", "x-api-key", "host") for name in seen["sent"]), seen["sent"])
+_pr.close()
 bp.requests.request = real_request
 
 # ---------------------------------------------------------------------------------------------------------------------
@@ -570,7 +593,7 @@ for i in range(15):
     p = os.path.join(alerts, "klippeye_alert_%d.jpg" % (1000 + i))
     open(p, "wb").write(b"x")
     os.utime(p, (1000 + i, 1000 + i))
-mt.prune_alert_images(pattern=os.path.join(alerts, "klippeye_alert_*.jpg"))
+mt.prune_alert_images(folder=alerts)
 left = sorted(os.listdir(alerts))
 check("prune_alert_images tiene le ultime 10", len(left) == 10 and "klippeye_alert_1014.jpg" in left and "klippeye_alert_1004.jpg" not in left and "klippeye_alert_1005.jpg" in left, left)
 
@@ -1944,7 +1967,10 @@ fake.state["roots"] = {"config": os.path.join(_proot, "cfg"), "logs": os.path.jo
 _pb = load_brain(NEW_BRAIN, tmp(), fake, brain_json={"values": {"enabled": False}})
 _pbc = _pb.app.test_client()
 check("the folders come from Moonraker (its file roots), whatever the user", _pb._config_dir() == os.path.join(_proot, "cfg") and _pb._logs_dir() == os.path.join(_proot, "lg")
-      and _pb._macro_dirs()[0] == os.path.join(_proot, "cfg") and _pb._shaketune_dirs()[0] == os.path.join(_proot, "cfg", "shaketune"), (_pb._config_dir(), _pb._logs_dir()))
+      and _pp.shaketune_dirs(_pb.MOONRAKER_URL, _pb.requests)[0] == os.path.join(_proot, "cfg", "shaketune"), (_pb._config_dir(), _pb._logs_dir()))
+_mj = _pbc.get("/api/macros/list").get_json()
+check("the macros of the files of that folder are listed (review 1.116)", _mj["ok"] and [m["name"] for m in _mj["macros"]] == ["MY_PARK"]
+      and _mj["macros"][0]["file"] == "macros.cfg" and _mj["macros"][0]["source"] == "filesystem", _mj)
 _lj = _pbc.get("/api/logs/list").get_json()
 check("the logs page lists the logs of that folder", _lj.get("dir") == os.path.join(_proot, "lg") and [f["name"] for f in _lj["files"]] == ["klippy.log"], _lj)
 _pp.forget()
@@ -1960,7 +1986,6 @@ if _old_home is not None:
 _pp.forget()
 
 print("== 1.18.0: printer functions (phase 5b): KlippEye's own macros")
-import printer_macros as _pmac  # noqa: E402
 _cfgdir = tmp()
 os.makedirs(_cfgdir, exist_ok=True)
 _PRINTER_CFG = "[include macros.cfg]\n[printer]\nkinematics: corexy\n\n#*# <---------------------- SAVE_CONFIG ---------------------->\n#*# DO NOT EDIT THIS BLOCK OR BELOW.\n#*#\n#*# [probe]\n#*# z_offset = 1.2\n"

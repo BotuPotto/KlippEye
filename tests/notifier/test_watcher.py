@@ -1,5 +1,5 @@
 """Unit tests of the pure logic of klippeye_notifier.py (Watcher, verdict reading, RS256, message). Usage: python3 test_watcher.py"""
-import copy, json, os, random, sys
+import json, os, random, sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "notifier"))
 import klippeye_notifier as vn
 

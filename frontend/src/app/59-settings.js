@@ -804,7 +804,7 @@ function SyncLine({ sync }) {
 }
 
 function settingsSummary(page, settings, brain) {
-  const { camera, network, zOffset, notifications, ai } = settings;
+  const { camera, network, zOffset, notifications } = settings;
   switch (page) {
     case "detector":
       return detectorSummary(brain.version);

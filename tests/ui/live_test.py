@@ -2,7 +2,7 @@
 A proxy stands between browser and mock and, on freeze(), kills the connections that exist at that moment without
 closing them (what a sleeping phone's connections do): requests on them hang for ever, new connections work.
 Usage: live_test.py <html> <outdir> <port> [--repro]   (--repro: only print, never fail)"""
-import sys, os, re, json, time
+import sys, os, time
 from playwright.sync_api import sync_playwright
 from lib import *
 from blackhole_proxy import Proxy

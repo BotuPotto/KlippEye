@@ -91,7 +91,7 @@ class MiniWebSocket:
         """The next text message (str), or None when nothing arrived within a second."""
         if not self.buffer and not select.select([self.sock], [], [], 1.0)[0]:
             return None
-        message, kind = b"", None
+        message = b""
         while True:
             first = self._read(2)
             fin, opcode = first[0] & 0x80, first[0] & 0x0F
@@ -112,7 +112,7 @@ class MiniWebSocket:
             if opcode == 0xA:
                 continue
             if opcode in (0x1, 0x2):
-                kind, message = opcode, payload
+                message = payload
             elif opcode == 0x0:
                 message += payload
             if fin:

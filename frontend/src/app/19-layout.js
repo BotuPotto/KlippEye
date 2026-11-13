@@ -31,8 +31,6 @@ const LAYOUT_DEFAULTS = {
 LAYOUT_DEFAULTS.tablet = LAYOUT_DEFAULTS.phone;
 /** Cards that always stay (the print card: the page's reason to be). */
 const LAYOUT_FIXED = ["print"];
-/** The cards of the phone's pages (1.50), as before: Settings → Appearance and the tests still name them so. */
-const LAYOUT_PAGES = { home: LAYOUT_DEFAULTS.phone.home.main, control: LAYOUT_DEFAULTS.phone.control.main };
 
 /** The kind of device this screen is: the computer's layout from 1100 px (70-desktop-shell.js), a tablet from 700. */
 function layoutDeviceNow() {

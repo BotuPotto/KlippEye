@@ -21,11 +21,13 @@ Usage: python ml/datasets.py --yolo ~/data/spaghetti --klippeye ~/klippeye-data 
 import argparse
 import csv
 import glob
-import json
 import os
 import random
 import re
 import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "backend"))
+import labelled_prints  # noqa: E402  (the prints judged in the dashboard: one reader for KlippEye and these tools)
 
 IMAGE_EXT = (".jpg", ".jpeg", ".png", ".bmp", ".webp")
 # the classes of the datasets, by their names: a failure that ruins the print (what the monitor must catch), a defect of
@@ -46,7 +48,7 @@ def kind_of(name, fail_classes=()):
     if QUALITY.search(name) and not re.search(r"spag|detach|fail", name, re.I):
         return None
     return 1  # spaghetti, failure, error, defect… and names nobody knows: counted as failures
-FAILED_AFTER = 60          # a failure is clear this many seconds after the moment the person chose
+FAILED_AFTER = labelled_prints.FAILED_AFTER   # a failure is clear this many seconds after the moment the person chose
 OK_EVERY = 4               # of a fine recording, one picture in OK_EVERY (they are much alike)
 CROP_MARGIN = 0.6          # a box is cut out with this much of its size around it
 FAIL_CROPS = 2             # failure boxes cut out of one picture, at most
@@ -90,7 +92,10 @@ def _yaml_names(text):
 
 def from_yolo(root, work, fail_classes, empty_is_ok, cv2):
     yaml = next(iter(glob.glob(os.path.join(root, "**", "data.yaml"), recursive=True)), None)
-    names = _yaml_names(open(yaml, encoding="utf-8").read()) if yaml else []
+    names = []
+    if yaml:
+        with open(yaml, encoding="utf-8") as handle:
+            names = _yaml_names(handle.read())
     kinds = {i: kind_of(n, fail_classes) for i, n in enumerate(names)}
     failing = {i for i, k in kinds.items() if k == 1}
     quality = {i for i, k in kinds.items() if k is None}
@@ -105,7 +110,9 @@ def from_yolo(root, work, fail_classes, empty_is_ok, cv2):
         label_file = os.path.splitext(path.replace(os.sep + "images" + os.sep, os.sep + "labels" + os.sep))[0] + ".txt"
         boxes = []
         if os.path.isfile(label_file):
-            for line in open(label_file, encoding="utf-8"):
+            with open(label_file, encoding="utf-8") as handle:
+                lines = handle.read().splitlines()
+            for line in lines:
                 parts = line.split()
                 if len(parts) >= 5 and parts[0].isdigit():
                     values = [float(v) for v in parts[1:]]
@@ -222,49 +229,18 @@ def from_auto(root, work, fail_classes, empty_is_ok, cv2, limit=MAX_PER_DATASET,
 
 
 def from_klippeye(root):
+    """The prints judged in the dashboard (labelled recordings, answers to «How did the print go?»): a fine picture in
+    OK_EVERY of a recording, every failed one; a failed print without a moment gives nothing (which pictures show it
+    is not known)."""
     rows = []
-    # the recordings with a label (Recordings → a print → «it went fine» / «it failed from here»)
-    for session_file in glob.glob(os.path.join(root, "recordings", "*", "session.json")):
-        folder = os.path.dirname(session_file)
-        try:
-            session = json.load(open(session_file, encoding="utf-8"))
-            frames = [json.loads(line) for line in open(os.path.join(folder, "frames.jsonl"), encoding="utf-8") if line.strip()]
-        except (OSError, ValueError):
-            continue
-        label = (session.get("label") or {})
-        outcome, failed_at = label.get("outcome"), label.get("failed_at")
-        if outcome not in ("ok", "failed"):
-            continue
-        for i, frame in enumerate(frames):
-            path = os.path.join(folder, "%06d.jpg" % frame.get("n", 0))
-            if not os.path.isfile(path):
+    for one in labelled_prints.prints_of(root):
+        recording = one["kind"] == "recording"
+        group = ("rec:" if recording else "rev:") + str(one["id"])
+        for index, (_, t, path) in enumerate(one["pictures"]):
+            label = labelled_prints.label_at(one, t)
+            if label is None or (recording and label == 0 and index % OK_EVERY):
                 continue
-            if outcome == "ok" or (failed_at is not None and frame.get("t", 0) < failed_at):
-                if i % OK_EVERY == 0:
-                    rows.append((path, 0, "rec:" + session.get("id", folder), "klippeye"))
-            elif failed_at is not None and frame.get("t", 0) >= failed_at + FAILED_AFTER:
-                rows.append((path, 1, "rec:" + session.get("id", folder), "klippeye"))
-    # the answers to «How did the print go?» (their small pictures)
-    for review_file in glob.glob(os.path.join(root, "reviews", "*", "review.json")):
-        folder = os.path.dirname(review_file)
-        try:
-            review = json.load(open(review_file, encoding="utf-8"))
-        except (OSError, ValueError):
-            continue
-        answer = review.get("answer") or {}
-        outcome, failed_at = answer.get("outcome"), answer.get("failed_at")
-        if outcome not in ("ok", "failed"):
-            continue
-        for thumb in review.get("thumbs") or []:
-            path = os.path.join(folder, "%04d.jpg" % thumb.get("n", 0))
-            if not os.path.isfile(path):
-                continue
-            t = thumb.get("t", 0)
-            if outcome == "ok" or (failed_at is not None and t < failed_at):
-                rows.append((path, 0, "rev:" + review.get("id", folder), "klippeye"))
-            elif failed_at is not None and t >= failed_at + FAILED_AFTER:
-                rows.append((path, 1, "rev:" + review.get("id", folder), "klippeye"))
-            # failed without a moment: which pictures show it is not known, they are left out
+            rows.append((path, label, group, "klippeye"))
     return rows
 
 

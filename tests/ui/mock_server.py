@@ -1,4 +1,4 @@
-"""Mock Moonraker + KlippEye backend backend used ONLY to run the dashboard headless for A/B tests."""
+"""Mock Moonraker + KlippEye backend used ONLY to run the dashboard headless for A/B tests."""
 import io, json, sys, time, copy, threading, os, ast, math, re
 from flask import Flask, request, jsonify, Response, send_file
 from PIL import Image
@@ -1563,10 +1563,11 @@ def api_print_snapshot():
 @app.route("/api/macros/list")
 def macros_list():
     extra = [{"name": "AXES_SHAPER_CALIBRATION", "file": "macros/shaper.cfg", "description": "Axes shaper calibration", "params": [{"name": "FREQ_START", "default": "5", "type": "int"}, {"name": "FREQ_END", "default": "133", "type": "int"}], "has_params": True, "source": "brain"}] if S.get("long_macro") else []
-    return jsonify(ok=True, count=3 + len(extra), shaketune_found=0, macros=extra + [
+    return jsonify(ok=True, count=6 + len(extra), shaketune_found=0, macros=extra + [
         {"name": "CLEAN_NOZZLE", "file": "macros/clean.cfg", "description": "Clean", "params": [], "has_params": False, "source": "brain"},
         {"name": "PARK_TEST", "file": "macros/park.cfg", "description": "Park test", "params": [{"name": "X", "default": "100", "type": "int"}, {"name": "Y", "default": "50", "type": "int"}], "has_params": True, "source": "brain"},
-        {"name": "SHAPER_CALIBRATE", "file": "macros/shaper.cfg", "description": "dummy", "params": [], "has_params": False, "source": "shaketune_scan"}])
+        {"name": "SHAPER_CALIBRATE", "file": "macros/shaper.cfg", "description": "dummy", "params": [], "has_params": False, "source": "shaketune_scan"}]
+        + [{"name": name, "file": "", "description": "", "params": [], "has_params": False, "source": "klipper"} for name in ("LUCI_OFF", "LUCI_ON", "VAR_LUCI")])
 @app.route("/api/calibration/selected", methods=["GET", "POST"])
 def calib_selected():
     if request.method == "POST":

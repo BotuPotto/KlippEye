@@ -1,6 +1,6 @@
 """Functional test of the wide (desktop) layout: tabs, device page, files + detail panel, inline config editor
 with its unsaved-changes guards, console bar, the 1100 px breakpoint. Usage: desktop_test.py <html> <outdir> <port>"""
-import sys, os, re, json
+import sys, os, re
 from playwright.sync_api import sync_playwright
 from lib import *
 

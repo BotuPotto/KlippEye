@@ -15,7 +15,6 @@ import camera_model as cm  # noqa: E402
 import camera_calibration as cc  # noqa: E402
 import camera_markers  # noqa: E402
 import machine_masks  # noqa: E402
-import nozzle_finder as nf  # noqa: E402
 
 FAILS = []
 

@@ -81,13 +81,6 @@ def logs_dir(moonraker_url=None, requests=None):
     return _first_existing([os.path.join(home, "printer_data", "logs"), os.path.join(home, "klipper_logs")])
 
 
-def macro_dirs(moonraker_url=None, requests=None):
-    """Where the macro files may be: the config folder, then Klippain Shake&Tune's own folder if it is installed."""
-    home = _home()
-    out = [config_dir(moonraker_url, requests), os.path.join(home, "klippain_shaketune"), os.path.join(home, "klippain_shaketune", "shaketune")]
-    return [p for i, p in enumerate(out) if p not in out[:i]]
-
-
 def shaketune_dirs(moonraker_url=None, requests=None):
     """Where Shake&Tune may keep its files."""
     home = _home()

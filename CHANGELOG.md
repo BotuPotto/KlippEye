@@ -1,5 +1,25 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.116.0
+
+**A full review of the code, part 1: the backend.** Nothing new to learn: the oldest parts of the backend were rewritten
+in the style of the rest, with a few real fixes found on the way.
+
+* **AI monitor**: an answer of the online AI that cannot be read (cut off, not in the expected shape) no longer counts
+  as «pause the print»: it is written in the history and the print goes on. The picture sent to the AI is the very one
+  the alarm was raised on (it was taken again a moment later), and the pictures waiting for the AI are kept in KlippEye's
+  own data folder instead of the shared temporary folder.
+* **Macros**: one list, made by the backend (new module `macro_catalog.py`): Klipper's configuration first, then the
+  files of the configuration folder. A parameter's default is no longer given to another parameter of the same line;
+  dated copies of the configuration and the `.git` folder are not read.
+* **Printer and camera addresses passed on by the backend**: the connection to the printer is always closed when the
+  page goes away, and the cookie and the internal key of KlippEye are not passed on.
+* **Logs**: the routes share one check of the file name; the text given to the AI is built in one place.
+* Tidier code: imports at the top, old section names and unused code removed, one module (`labelled_prints.py`) for
+  reading the labelled prints (it was written three times), a tool that only gave false alarms deleted, an old copy of
+  the app (6 MB) that nothing used removed from the repository.
+* The Python code is now checked by a linter (`ruff`, settings in `pyproject.toml`) on every pull request.
+
 ## 1.115.0
 
 **Clearer on the light page, and the movement wheel redrawn.**
