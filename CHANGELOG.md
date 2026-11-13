@@ -9,6 +9,10 @@ time, progress and layer. A tap opens it over the whole screen, to zoom on a sma
 The pictures of a print are kept three times as wide (960 pixels) until you answer; once answered, or when the next print
 starts, they are made small again, so the space they take on the Raspberry does not grow.
 
+**Fewer calls to the online AI.** With a calibrated camera KlippEye now knows when the print head is in front of the part.
+A question is then put off until the head moves away (within 90 seconds), the second look of a stop waits for it too, and
+an «empty bed» seen through the head never counts.
+
 ## 1.121.0
 
 **Far fewer false «empty bed» alarms.** The AI used to judge «empty bed» without knowing what to look for, and from a

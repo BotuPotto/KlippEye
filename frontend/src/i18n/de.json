@@ -2113,6 +2113,7 @@
  "The pictures of this print are deleted for good. Confirm?": "Die Bilder dieses Drucks werden endgültig gelöscht. Bestätigen?",
  "The previous page ({name}): ": "Die vorherige Seite ({name}): ",
  "The print failed": "Der Druck ist fehlgeschlagen",
+ "The print head covers the part in this picture: «empty bed» is not trusted.": "Auf diesem Bild verdeckt der Druckkopf das Teil: «leeres Bett» wird nicht vertraut.",
  "The print is fine": "Der Druck ist in Ordnung",
  "The print is still lower than {height} mm: the camera can hardly see it, «empty bed» is not trusted.": "Der Druck ist noch niedriger als {height} mm: Die Kamera sieht ihn kaum, «leeres Bett» ist nicht verlässlich.",
  "The print is {height} mm tall, the printer reaches {max} mm.": "Der Druck ist {height} mm hoch, der Drucker erreicht {max} mm.",
