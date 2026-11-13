@@ -85,7 +85,7 @@ with sync_playwright() as p:
     P.pg.fill("#set-num-sensitivity", "33")
     P.settle(1600)
     ok("... a number changed by hand: «Custom», the fine adjustments stay open", P.pg.locator('.set-chips .is-selected').inner_text() == "Personalizzato"
-       and P.pg.locator("#set-num-sensitivity").count() == 1 and P.pg.locator("[data-fine]").count() == 0)
+       and P.pg.locator("#set-num-sensitivity").count() == 1 and P.pg.locator("[data-fine='closed']").count() == 0)
     P.shot(os.path.join(out, "local_model_thresholds.png"))
     P.close()
 

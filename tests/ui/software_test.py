@@ -84,6 +84,13 @@ def go(P, name):
     if not P.pg.locator('.set-entry[data-page="%s"]' % name).count() and name in ("camcal", "detector", "recordings"):
         P.pg.click('.set-entry[data-page="ai"]'); P.settle(600)
     P.pg.click('.set-entry[data-page="%s"]' % name); P.settle(500)
+    if name == "detector":   # 1.124: the numbers are under «Fine adjustments»
+        for _ in range(20):
+            if P.pg.locator("[data-fine]").count():
+                break
+            P.settle(150)
+        if P.pg.locator("[data-fine='closed']").count():
+            P.pg.click("[data-fine]"); P.settle(300)
 
 
 def reloaded(P, timeout=45.0):
@@ -222,7 +229,7 @@ with sync_playwright() as p:
 
     # reading it back from the backend (another device changed something)
     pg.reload(); P.settle(1500)
-    open_menu(P); go(P, "ai"); pg.click('.set-entry[data-page="detector"]'); P.settle(700)
+    open_menu(P); go(P, "ai"); go(P, "detector"); P.settle(400)
     ok("after a reload the values are the ones the backend kept", num_box(P, "Soglia di cambiamento").input_value() == "50" and num_box(P, "Ogni quanto guarda la telecamera").input_value() == "7" and num_box(P, "Pausa dopo un allarme").input_value() == "120")
     ok("the reset button is on now", not pg.locator("button", has_text="Ripristina i valori predefiniti").is_disabled())
     pg.locator("button", has_text="Ripristina i valori predefiniti").click(); P.settle(300)
@@ -233,6 +240,7 @@ with sync_playwright() as p:
     pg.locator(".set-confirm button", has_text="Sì, ripristina").click()
     ok("'Sì' brings the usual values back", wait_until(lambda: num_box(P, "Soglia di cambiamento").input_value() == "35" and num_box(P, "Ogni quanto guarda la telecamera").input_value() == "3" and num_box(P, "Pausa dopo un allarme").input_value() == "90", 4.0))
     ok("... and it was the backend that did it", any(isinstance(x, dict) and "reset" in x for x in cfg_log()))
+    ok("1.124: back to Balanced after the reset, the fine adjustments stay open", pg.locator(".set-chips .is-selected").inner_text() == "Equilibrato" and pg.locator("[data-fine='open']").count() == 1)
     P.shot(out + "/detector_full.png")
     ok("[detector] no error in the console", P.errors == [], P.errors)
     P.close()

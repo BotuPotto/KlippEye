@@ -29877,6 +29877,11 @@ function DetectorPage({ active }) {
   const [askReset, setAskReset] = useState(false);
   const [fine, setFine] = useState(false);
   const data = useMemo(() => (config.data ? localizeBackendSchema(config.data) : null), [config.data]);
+  const customNow = config.phase === "ok" && config.values ? watchLevel(config.values) === "custom" : false;
+  // numbers changed by hand open the fine adjustments; they stay open when a level or «Restore» puts them back in step
+  useEffect(() => {
+    if (customNow) setFine(true);
+  }, [customNow]);
   if (config.phase !== "ok" || !data) return h(BackendNotice, { phase: config.phase });
   const values = config.values;
   // shown elsewhere (1.19): the switch and the AI on the AI monitor page, the masks on Camera calibration, recording on
@@ -29928,7 +29933,7 @@ function DetectorPage({ active }) {
       ),
     ),
     data.saved === false && !changed && h("p", { className: "set-group__note" }, tx("These are the default values: until you change something the KlippEye service writes no file.")),
-    level !== "custom" &&
+    (level !== "custom" || fine) &&
       h(
         "button",
         { type: "button", className: "oui-btn oui-btn--quiet oui-btn--block", "aria-expanded": showFine, "data-fine": showFine ? "open" : "closed", onClick: () => setFine(!fine) },
