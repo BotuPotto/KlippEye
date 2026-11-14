@@ -19,6 +19,14 @@ real print starts. What appeared outside the parts (a purge line, also an adapti
 covered with the empty bed before the local model looks, and OpenCV ignores it, also if it is pulled off by hand. A change
 of the light is not taken for a purge.
 
+**What the personal layer learns from is kept apart.** A small copy of every picture that becomes an example (an answer
+to «How did the print go?», a labelled recording) is kept with its label, also while learning is off: deleting
+recordings, or the oldest answers going, no longer takes examples away. At most 4000 copies: every failed one, the oldest
+fine ones go first.
+
+**Several recordings deleted at once.** *Choose several to delete* under *Recorded prints* puts a tick on each print
+(*Tick all*, *Untick all*), then *Delete (n)* asks once. The print being recorded cannot be chosen.
+
 ## 1.124.0
 
 **OpenCV and the local model now help each other.**

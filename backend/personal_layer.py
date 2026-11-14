@@ -8,6 +8,8 @@ small logistic regression on those numbers, trained in a few seconds on this pri
     fine pictures; a failed one with its moment gives fine pictures before it and failed ones from a minute after it;
   - the labelled recordings (recorder.py), one picture in OK_EVERY of a fine print;
   - the examples imported from another printer (export / import below).
+1.125: a small copy of every picture that became an example (personal/kept/) is kept apart, with its label: deleting
+recordings, or the oldest answers going (the last 60 prints are kept), does not take examples away (keep_examples()).
 Its score is blended with the base model's, more as the examples grow (BLEND_MAX at most): the base model keeps its say.
 
 On disk, in <data>/personal/:
@@ -42,6 +44,8 @@ EXPORT_WIDTH = 320      # their width (the recordings' pictures are made smaller
 IMPORT_MAX = 2 * EXPORT_MAX         # an import keeps at most this many pictures ...
 IMPORT_PICTURE_MAX = 2 * 1024 * 1024  # ... each at most this big (a crafted zip cannot fill the Raspberry's card)
 ORIGIN_RE = re.compile(r"[^A-Za-z0-9_.-]+")
+KEPT_MAX = 4000         # 1.125: copies kept apart at most: every failed one, the oldest fine ones go first
+KEPT_WIDTH = 320        # ... this wide
 
 
 def _read_json(path):
@@ -53,9 +57,19 @@ def _sigmoid(np, x):
     return 1.0 / (1.0 + np.exp(-np.clip(x, -60, 60)))
 
 
-def examples_of(data_dir):
-    """-> [(key, picture path, label 1 failed / 0 fine)] from the reviews, the recordings and the imported examples.
-    Of a recording (a picture every few seconds, much alike) one fine picture in OK_EVERY and one failed in two."""
+def _kept_folder(data_dir):
+    return os.path.join(data_dir, "personal", "kept")
+
+
+def _kept_labels(data_dir):
+    try:
+        return _read_json(os.path.join(_kept_folder(data_dir), "labels.json")).get("pictures") or {}
+    except (OSError, ValueError, AttributeError):
+        return {}
+
+
+def _originals(data_dir):
+    """The examples of the reviews and the recordings still on disk: [(key, path, label)]."""
     out = []
     for one in labelled_prints.prints_of(data_dir):
         recording = one["kind"] == "recording"
@@ -64,6 +78,89 @@ def examples_of(data_dir):
             if label is None or (recording and index % (2 if label else OK_EVERY)):
                 continue
             out.append(("%s/%s/%d" % ("rec" if recording else "rev", one["id"], number), path, label))
+    return out
+
+
+def keep_examples(data_dir, cv2, now=None):
+    """1.125: a small copy, apart, of every example of the reviews and the recordings (its label kept up to date while
+    the original is there). At most KEPT_MAX: every failed one; the oldest fine ones go first. -> how many are kept."""
+    if cv2 is None:
+        return 0
+    folder = _kept_folder(data_dir)
+    labels = _kept_labels(data_dir)
+    now = time.time() if now is None else now
+    changed = False
+    for key, path, label in _originals(data_dir):
+        name = re.sub(r"[^A-Za-z0-9_.-]+", "_", key) + ".jpg"
+        entry = labels.get(name)
+        if entry and os.path.isfile(os.path.join(folder, name)):
+            if entry.get("label") != label:   # the person changed the answer: the label follows
+                entry["label"] = label
+                changed = True
+            continue
+        picture = cv2.imread(path)
+        if picture is None:
+            continue
+        height, width = picture.shape[:2]
+        scale = min(1.0, KEPT_WIDTH / float(width))
+        os.makedirs(folder, exist_ok=True)
+        if not cv2.imwrite(os.path.join(folder, name), cv2.resize(picture, (max(1, int(width * scale)), max(1, int(height * scale))), interpolation=cv2.INTER_AREA),
+                           [cv2.IMWRITE_JPEG_QUALITY, 80]):
+            continue
+        labels[name] = {"key": key, "label": label, "at": round(now)}
+        changed = True
+    if len(labels) > KEPT_MAX:
+        fine = sorted((entry.get("at") or 0, name) for name, entry in labels.items() if entry.get("label") == 0)
+        for _, name in fine[: len(labels) - KEPT_MAX]:
+            labels.pop(name, None)
+            try:
+                os.remove(os.path.join(folder, name))
+            except OSError:
+                pass
+        changed = True
+    if changed:
+        os.makedirs(folder, exist_ok=True)
+        path = os.path.join(folder, "labels.json")
+        with open(path + ".tmp", "w", encoding="utf-8") as handle:
+            json.dump({"format": 1, "pictures": labels}, handle)
+        os.replace(path + ".tmp", path)
+    return len(labels)
+
+
+def forget_kept(data_dir, prefix):
+    """Forgets the kept copies whose key starts with `prefix` (e.g. "rec/<id>/" when the person removes a print's label)."""
+    folder = _kept_folder(data_dir)
+    labels = _kept_labels(data_dir)
+    gone = [name for name, entry in labels.items() if str(entry.get("key", "")).startswith(prefix)]
+    for name in gone:
+        labels.pop(name, None)
+        try:
+            os.remove(os.path.join(folder, name))
+        except OSError:
+            pass
+    if gone:
+        with open(os.path.join(folder, "labels.json"), "w", encoding="utf-8") as handle:
+            json.dump({"format": 1, "pictures": labels}, handle)
+    return len(gone)
+
+
+def examples_of(data_dir):
+    """-> [(key, picture path, label 1 failed / 0 fine)] from the reviews, the recordings and the imported examples.
+    Of a recording (a picture every few seconds, much alike) one fine picture in OK_EVERY and one failed in two.
+    1.125: the copies kept apart stand in for the originals that are gone (same key: the same cached embedding)."""
+    out = _originals(data_dir)
+    have = {key for key, _, _ in out}
+    folder = _kept_folder(data_dir)
+    for name, entry in sorted(_kept_labels(data_dir).items()):
+        key, path = entry.get("key"), os.path.join(folder, name)
+        if key and key not in have and entry.get("label") in (0, 1) and os.path.isfile(path):
+            out.append((key, path, entry["label"]))
+    return out + _imported(data_dir)
+
+
+def _imported(data_dir):
+    """The examples imported from another printer: [(key, path, label)]."""
+    out = []
     for labels_file in glob.glob(os.path.join(data_dir, "personal", "imported", "*", "labels.json")):
         folder = os.path.dirname(labels_file)
         try:

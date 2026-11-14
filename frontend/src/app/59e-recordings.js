@@ -713,6 +713,94 @@ function RecordingRow({ session, onOpen }) {
   );
 }
 
+/**
+ * 1.125: the recorded prints, and several deleted at once: «Choose» puts a tick on each row (the print being recorded
+ * cannot be chosen), «Delete (n)» asks first. What the local model learned from them stays (kept apart).
+ */
+function RecordedPrints({ sessions, enabled, onOpen, onDeleted }) {
+  const [choosing, setChoosing] = useState(false);
+  const [chosen, setChosen] = useState(() => new Set());
+  const [ask, setAsk] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState("");
+  const done = sessions.filter((session) => session.ended);
+  const picked = done.filter((session) => chosen.has(session.id));
+  const toggle = (id) => {
+    const next = new Set(chosen);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setChosen(next);
+    setAsk(false);
+  };
+  const stop = () => {
+    setChoosing(false);
+    setChosen(new Set());
+    setAsk(false);
+    setProblem("");
+  };
+  const remove = async () => {
+    setBusy(true);
+    const reply = await backendPost("/api/recordings/delete", { ids: picked.map((session) => session.id) });
+    setBusy(false);
+    if (!reply.ok) {
+      setProblem(reply.message || tx("The recordings were not deleted."));
+      setAsk(false);
+      return;
+    }
+    stop();
+    onDeleted();
+  };
+  const tools =
+    done.length > 1 &&
+    (choosing
+      ? h(
+          "div",
+          { className: "rec-pick" },
+          h(
+            "div",
+            { className: "rec-pick__bar" },
+            h("button", { type: "button", className: "oui-btn oui-btn--sm", "data-rec-all": "", onClick: () => setChosen(new Set(picked.length === done.length ? [] : done.map((session) => session.id))) }, picked.length === done.length ? tx("Untick all") : tx("Tick all")),
+            h("button", { type: "button", className: "oui-btn oui-btn--sm oui-btn--danger", "data-rec-delete": picked.length, disabled: !picked.length || busy, onClick: () => setAsk(true) }, h(Icons.Trash, { size: 16 }), tx("Delete ({count})", { count: picked.length })),
+            h("button", { type: "button", className: "oui-btn oui-btn--sm oui-btn--quiet", onClick: stop }, tx("Cancel")),
+          ),
+          ask &&
+            h(
+              "div",
+              { className: "set-confirm", role: "alertdialog", "aria-label": tx("Delete the chosen recordings?") },
+              h("span", null, tx("The pictures of {count} prints are deleted for good. What the local model learned from them stays. Confirm?", { count: picked.length })),
+              h("div", { className: "set-confirm__buttons" }, h("button", { type: "button", className: "oui-btn", onClick: () => setAsk(false) }, tx("No")), h("button", { type: "button", className: "oui-btn oui-btn--danger", disabled: busy, "data-rec-confirm": "", onClick: remove }, tx("Yes, delete"))),
+            ),
+          problem && h("p", { className: "set-field__error", role: "alert" }, problem),
+        )
+      : h("button", { type: "button", className: "oui-btn oui-btn--quiet oui-btn--sm set-inline-btn", "data-rec-choose": "", onClick: () => setChoosing(true) }, h(Icons.Check, { size: 16 }), tx("Choose several to delete")));
+  return h(
+    SettingsGroup,
+    { title: tx("Recorded prints"), help: ["recordings", "judge"], note: sessions.length ? (choosing ? tx("Tick the prints to delete.") : tx("Open a print to judge its alarms and look through its pictures.")) : null },
+    sessions.length === 0
+      ? h("p", { className: "set-group__note" }, enabled ? tx("No print recorded yet: the next one will be.") : tx("No print recorded. Turn on «Record the prints» below."))
+      : h(
+          "div",
+          { className: "oui-list" },
+          sessions.map((session) =>
+            choosing
+              ? h(
+                  "label",
+                  { key: session.id, className: cx("set-entry rec-row rec-row--pick", !session.ended && "is-disabled"), "data-recording-pick": session.id },
+                  h("input", { type: "checkbox", checked: chosen.has(session.id), disabled: !session.ended, onChange: () => toggle(session.id) }),
+                  h(
+                    "span",
+                    { className: "oui-row__text" },
+                    h("span", { className: "oui-row__name" }, session.file || tx("(no file name)")),
+                    h("span", { className: "oui-row__meta set-entry__meta" }, formatWhen(session.started) + " • " + (session.ended ? formatSpace(session.bytes) : tx("recording now"))),
+                  ),
+                )
+              : h(RecordingRow, { key: session.id, session, onOpen: () => onOpen(session.id) }),
+          ),
+        ),
+    tools,
+  );
+}
+
 function RecordingsPage({ active }) {
   const config = useBackendConfig(active);
   const list = useBackendJson("/api/recordings", active);
@@ -742,13 +830,7 @@ function RecordingsPage({ active }) {
     null,
     h("div", { className: cx("set-status", data.status === "recording" ? "set-status--ok" : data.enabled ? "" : "set-status--warn") }, h("span", { className: "set-status__dot" }), recorderStatusText(data.status)),
     // 1.26: the prints first; their alarms are judged inside each of them
-    h(
-      SettingsGroup,
-      { title: tx("Recorded prints"), help: ["recordings", "judge"], note: sessions.length ? tx("Open a print to judge its alarms and look through its pictures.") : null },
-      sessions.length === 0
-        ? h("p", { className: "set-group__note" }, data.enabled ? tx("No print recorded yet: the next one will be.") : tx("No print recorded. Turn on «Record the prints» below."))
-        : h("div", { className: "oui-list" }, sessions.map((session) => h(RecordingRow, { key: session.id, session, onOpen: () => setOpenId(session.id) }))),
-    ),
+    h(RecordedPrints, { sessions, enabled: data.enabled, onOpen: setOpenId, onDeleted: list.reload }),
     h(AiPrecisionGroup, { active }),
     h(MeasureGroup, { sessions }),
     h(

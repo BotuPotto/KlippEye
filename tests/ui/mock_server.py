@@ -1360,6 +1360,15 @@ def mock_measure():
     return jsonify(dict(S["measure"], ok=True))
 
 
+@app.route("/api/recordings/delete", methods=["POST"])
+def mock_recordings_delete_many():   # 1.125
+    ids = (request.get_json(silent=True) or {}).get("ids") or []
+    deleted = [i for i in ids if rec_find(i) is not None]
+    S["recordings"] = [x for x in S["recordings"] if x["id"] not in ids]
+    S["rec_posts"].append(["delete_many", ids, None])
+    return jsonify(ok=True, deleted=deleted, missing=[i for i in ids if i not in deleted])
+
+
 @app.route("/api/recordings/<sid>", methods=["GET", "DELETE"])
 def mock_recording(sid):
     r = rec_find(sid)

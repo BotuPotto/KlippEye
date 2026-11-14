@@ -3033,7 +3033,7 @@ detector = LightDetector()
 detector.apply_config(backend_config.snapshot())  # the saved thresholds (or the defaults) apply from the first check
 recorder.configure(backend_config.snapshot()["record"], backend_config.snapshot()["record_max_mb"])
 from print_review import PrintReviews, PROBLEMS as REVIEW_PROBLEMS  # noqa: E402  (1.103: how each print went)
-from personal_layer import PersonalLayer  # noqa: E402  (1.107: the local model's layer of each printer)
+from personal_layer import PersonalLayer, keep_examples, forget_kept  # noqa: E402  (1.107: the local model's layer of each printer)
 import local_model  # noqa: E402  (1.106: the local model)
 
 LOCAL_MODEL_OWN_DIR = os.path.join(DATA_DIR, "model")             # a model trained by the person (ml/), if any
@@ -3094,6 +3094,25 @@ personal = PersonalLayer(DATA_DIR, np, cv2 if HAS_CV2 else None)   # 1.107: what
 from false_alarms import FalseAlarms  # noqa: E402  (1.125: the false alarms the local model learns live)
 false_memory = FalseAlarms(DATA_DIR, np, cv2 if HAS_CV2 else None)
 personal.configure(backend_config.snapshot()["personal_learning"])
+
+
+_keep_lock = threading.Lock()
+
+
+def keep_examples_now():
+    """1.125: the examples of the answers and the labelled recordings copied apart (personal_layer.keep_examples), so
+    deleting recordings or old answers takes nothing from the personal layer. Also when the layer is off: what the
+    person taught is there the day it is switched on."""
+    with _keep_lock:
+        try:
+            return keep_examples(DATA_DIR, cv2 if HAS_CV2 else None)
+        except Exception as error:  # a help only
+            print("[PERSONAL] examples not kept apart: %s" % error)
+            return 0
+
+
+def keep_examples_later():
+    threading.Thread(target=keep_examples_now, name="keep-examples", daemon=True).start()
 
 
 def train_personal_later(why=""):
@@ -3889,6 +3908,7 @@ def api_print_review_answer(rid):
                     print("[REVIEW] recording not labelled: %s" % error)
                 break
     if answer["outcome"] in ("ok", "failed"):
+        keep_examples_later()
         train_personal_later("print answered")
     return jsonify({"ok": True, "review": _review_public(review), "alarms_marked": marked})
 
@@ -3985,15 +4005,34 @@ def api_recording_label(sid):
     except ValueError as error:
         return jsonify({"ok": False, "error": str(error)}), 400
     if label and label.get("outcome") in ("ok", "failed"):
+        keep_examples_later()
         train_personal_later("recording labelled")
+    elif not label:
+        forget_kept(DATA_DIR, "rec/%s/" % sid)   # the label taken away: its pictures are no examples any more
     return jsonify({"ok": True, "label": label})
 
 
 @app.route("/api/recordings/<sid>", methods=["DELETE"])
 def api_recording_delete(sid):
+    keep_examples_now()   # 1.125: its examples stay with the personal layer
     if not recorder.delete(sid):
         return jsonify({"ok": False, "error": "no such recording"}), 404
     return jsonify({"ok": True})
+
+
+@app.route("/api/recordings/delete", methods=["POST"])
+def api_recordings_delete_many():
+    """1.125: {"ids": [...]}: several recordings deleted at once (their examples kept apart first). -> the ones deleted
+    and the ones not found."""
+    body = request.get_json(silent=True)
+    ids = body.get("ids") if isinstance(body, dict) else None
+    if not isinstance(ids, list) or not ids or len(ids) > 500 or not all(isinstance(i, str) and recorder_id_ok(i) for i in ids):
+        return jsonify({"ok": False, "error": "ids must be a list of recordings"}), 400
+    keep_examples_now()
+    deleted, missing = [], []
+    for sid in dict.fromkeys(ids):
+        (deleted if recorder.delete(sid) else missing).append(sid)
+    return jsonify({"ok": True, "deleted": deleted, "missing": missing})
 
 
 def _measure_state():
@@ -5066,6 +5105,7 @@ if __name__ == "__main__":
     threading.Thread(target=_repair_at_startup, name="repair", daemon=True).start()
     threading.Thread(target=_schedule_loop, name="schedule", daemon=True).start()
     threading.Thread(target=refresh_false_alarms, name="false-alarms", daemon=True).start()   # 1.125: a new base model came with an update
+    keep_examples_later()   # 1.125: the examples taught before this release, copied apart once
     _https_apply(_https_settings())  # 1.93: the encrypted entrance, when it was switched on
     _mqtt_apply(_mqtt_settings())  # 1.100: Home Assistant / MQTT, when set up
     print(f"KlippEye backend {RELEASE} (api {API_LEVEL}) - data in {DATA_DIR} - settings {'read from ' + MONITOR_CONFIG_PATH if backend_config.saved else 'default (no saved file)'}")

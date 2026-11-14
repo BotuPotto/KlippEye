@@ -1559,6 +1559,27 @@ j = cr.get("/api/recordings/measure").get_json()
 check("GET: done, with the result (one print, the thresholds in use now)", j["state"] == "done" and j["result"]["settings"] == "current" and j["result"]["total"]["recordings"] == 1, j)
 r = cr.delete("/api/recordings/" + sid)
 check("DELETE: the recording goes, then 404", r.status_code == 200 and cr.get("/api/recordings/" + sid).status_code == 404 and cr.delete("/api/recordings/" + sid).status_code == 404)
+# 1.125: several at once; the examples of a labelled one stay with the personal layer
+import cv2 as _cv  # noqa: E402
+import numpy as _np  # noqa: E402
+import personal_layer as _pl  # noqa: E402
+_many = []
+for _k, _id in enumerate(("20261114-010000-a", "20261114-020000-b", "20261114-030000-c")):
+    _f = os.path.join(mr.RECORDINGS_DIR, _id)
+    os.makedirs(_f, exist_ok=True)
+    with open(os.path.join(_f, "frames.jsonl"), "w") as _h:
+        for _n in range(1, 13):
+            _cv.imwrite(os.path.join(_f, "%06d.jpg" % _n), _np.full((120, 160, 3), 40 + _n * 10, _np.uint8))
+            _h.write(json.dumps({"n": _n, "t": 7000 + _n * 10}) + "\n")
+    json.dump({"id": _id, "file": "x.gcode", "started": 7000, "ended": 7130, "label": {"outcome": "ok"} if _k == 0 else None}, open(os.path.join(_f, "session.json"), "w"))
+    _many.append(_id)
+_before = sorted(k for k, _, _ in _pl.examples_of(mr.DATA_DIR) if k.startswith("rec/" + _many[0]))
+r = cr.post("/api/recordings/delete", json={"ids": _many + ["20990101-000000"]})
+check("1.125: several recordings deleted at once; one that is not there is said", r.status_code == 200 and r.get_json()["deleted"] == _many
+      and r.get_json()["missing"] == ["20990101-000000"] and not any(os.path.isdir(os.path.join(mr.RECORDINGS_DIR, i)) for i in _many), r.get_json())
+_after = sorted(k for k, _, _ in _pl.examples_of(mr.DATA_DIR) if k.startswith("rec/" + _many[0]))
+check("... the labelled one's examples are still there for the personal layer (kept apart)", _before and _after == _before, (len(_before), len(_after)))
+check("... a wrong list is refused", cr.post("/api/recordings/delete", json={"ids": ["../x"]}).status_code == 400 and cr.post("/api/recordings/delete", json={"ids": []}).status_code == 400)
 check("CPU of the monitor: time of a check in the status", isinstance(mr.detector.stats.get("check_ms"), float), mr.detector.stats)
 check("the recording settings are in the menu's list (group 'recording')", [s["key"] for s in cr.get("/api/backend/config").get_json()["spec"] if s["group"] == "recording"] == ["record", "record_max_mb", "print_review"])
 check("turning recording off from the menu reaches the recorder", cr.post("/api/backend/config", json={"values": {"record": False}}).status_code == 200 and mr.recorder.enabled is False and mr.recorder.status == "off")

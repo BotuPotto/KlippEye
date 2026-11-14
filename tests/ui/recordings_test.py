@@ -288,6 +288,39 @@ with sync_playwright() as p:
     ok("... which sets the minimum AI confidence", wait_until(lambda: any(e.get("ai_min_confidence") == 60 for e in state()["brain_cfg_log"]), 4), state()["brain_cfg_log"][-2:])
     P.ctx.close()
 
+    # --- 1.125: several deleted at once
+    third = dict(SESSIONS[1], id="20261026-200000-clip", file="clip.gcode", started=T0 - 180000, ended=T0 - 176000)
+    live = dict(SESSIONS[1], id="20261029-090000-now", file="now.gcode", started=T0 + 900, ended=None)
+    P = fresh(b, recordings=SESSIONS + [third, live])
+    open_recordings(P)
+    P.pg.locator("[data-rec-choose]").click()
+    P.settle(300)
+    ok("1.125: «Choose several»: a tick on each print; the one being recorded cannot be chosen",
+       P.pg.locator("[data-recording-pick]").count() == 4 and P.pg.locator('[data-recording-pick="20261029-090000-now"] input').is_disabled()
+       and P.pg.locator('[data-rec-delete="0"]').is_disabled())
+    P.pg.locator("[data-rec-all]").click()
+    P.settle(200)
+    ok("... «Tick all» ticks every finished print (not the one being recorded)", P.pg.locator('[data-rec-delete="3"]').count() == 1)
+    P.pg.locator("[data-rec-all]").click()
+    P.settle(200)
+    ok("... and «Untick all» takes them away", P.pg.locator('[data-rec-delete="0"]').count() == 1)
+    P.pg.locator('[data-recording-pick="20261027-200000-cube"]').click()
+    P.pg.locator('[data-recording-pick="20261026-200000-clip"]').click()
+    P.settle(200)
+    ok("... two ticked: «Delete (2)»", P.pg.locator('[data-rec-delete="2"]').count() == 1 and "2" in P.pg.locator("[data-rec-delete]").inner_text())
+    P.pg.locator("[data-rec-delete]").click()
+    P.settle(200)
+    P.shot(os.path.join(out, "rec_pick_ask.png"))
+    ok("... it asks first, and says what the local model learned stays", P.pg.locator(".rec-pick .set-confirm").count() == 1 and "resta" in P.pg.locator(".rec-pick .set-confirm").inner_text()
+       and not [x for x in state()["rec_posts"] if x[0] == "delete_many"])
+    P.pg.locator("[data-rec-confirm]").click()
+    ok("... confirmed: the two go in one request, the list is read again", wait_until(lambda: [x for x in state()["rec_posts"] if x[0] == "delete_many"]
+       and P.pg.locator("[data-recording]").count() == 2, 5) and sorted([x for x in state()["rec_posts"] if x[0] == "delete_many"][-1][1]) == ["20261026-200000-clip", "20261027-200000-cube"],
+       [x for x in state()["rec_posts"] if x[0] == "delete_many"])
+    ok("... one finished print left: nothing to choose among", P.pg.locator("[data-rec-choose]").count() == 0)
+    P.shot(os.path.join(out, "rec_pick.png"))
+    P.ctx.close()
+
     # --- 360 px
     P = fresh(b, w=360, h=740, recordings=SESSIONS, rec_frames={SESSIONS[0]["id"]: FRAMES}, alerts=ALERTS[1:])   # 1.26.2: the alarm of the print has left the history
     open_recordings(P)

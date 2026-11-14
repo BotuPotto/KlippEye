@@ -300,7 +300,10 @@ smette di usare la calibrazione finché non la rifai.
 A fine stampa una card chiede **Com'è andata la stampa?**. Rispondi *Andata bene* oppure *C'era un problema* (con il momento
 in cui è comparso): ci vuole un secondo. Con **Impara dalle stampe di questa stampante** acceso (Impostazioni → Monitor IA →
 Modello locale), il modello locale usa le tue risposte per imparare com'è la tua stampante. Impara sul Raspberry, e le foto
-non escono mai da lì. Comincia a contare quando ha almeno 5 foto di stampe fallite e 20 di stampe riuscite.
+non escono mai da lì. Comincia a contare quando ha almeno 5 foto di stampe fallite e 20 di stampe riuscite. Una piccola
+copia di ogni foto che diventa un esempio viene salvata a parte, anche con l'interruttore spento: cancellare le
+registrazioni, o le risposte più vecchie che se ne vanno (si tengono le ultime 60 stampe), non toglie niente a quello che
+impara.
 
 ### Misurarlo
 
@@ -308,6 +311,7 @@ Per sapere se un cambio delle impostazioni aiuta davvero, **Impostazioni → Mon
 tiene le foto che il monitor ha guardato (circa 150 MB per una stampa di quattro ore; le più vecchie si cancellano quando lo
 spazio è pieno). Dopo una stampa, digli se è andata bene o da quale foto è fallita. **Misura adesso** fa girare di nuovo il
 monitor su quelle stampe e ti dice quanti allarmi all'ora avresti, quanti erano falsi e se ogni guasto è stato preso.
+**Scegli più registrazioni da eliminare**, sotto *Stampe registrate*, ne elimina tante insieme.
 
 ### Se non si comporta bene
 

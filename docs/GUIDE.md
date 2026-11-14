@@ -293,7 +293,9 @@ the calibration until you redo it.
 At the end of each print a card asks **How did the print go?**. Answer *Went fine* or *There was a problem* (with the
 moment it appeared): it takes a second. With **Learn from this printer's prints** switched on (Settings → AI monitor →
 Local model), the local model uses your answers to learn what your printer looks like. It learns on the Raspberry, and the
-pictures never leave it. It starts counting once it has at least 5 failed and 20 good pictures.
+pictures never leave it. It starts counting once it has at least 5 failed and 20 good pictures. A small copy of every
+picture that becomes an example is kept apart, also while this switch is off: deleting recordings, or the oldest answers
+going (the last 60 prints are kept), takes nothing away from what it learns.
 
 ### Measuring it
 
@@ -301,6 +303,7 @@ To see whether a change of the settings really helps, **Settings → AI monitor 
 pictures the monitor looked at (about 150 MB for a four-hour print; the oldest are deleted when the space is full). After a
 print, tell it whether it went fine or from which picture it failed. **Measure now** then replays the monitor on those
 prints and tells you how many alarms per hour you'd get, how many were false and whether each failure was caught.
+**Choose several to delete** under *Recorded prints* deletes many recordings at once.
 
 ### If it doesn't behave
 

@@ -67,3 +67,11 @@
 .rec-thresholds__row.is-current { font-weight: 600; background: var(--oui-accent-soft, rgba(var(--oui-accent-rgb), 0.12)); }
 .rec-thresholds__row.is-best { box-shadow: inset 3px 0 0 var(--oui-ok); }
 .rec-thresholds__warn { color: var(--oui-warn, #f5a524); }
+
+/* 1.125: several recordings chosen and deleted at once */
+.rec-row--pick { cursor: pointer; gap: 12px; }
+.rec-row--pick input { flex-shrink: 0; width: 20px; height: 20px; accent-color: var(--oui-accent); }
+.rec-row--pick.is-disabled { cursor: default; opacity: 0.55; }
+.rec-pick { display: grid; gap: 10px; margin-top: 10px; }
+.rec-pick__bar { display: flex; flex-wrap: wrap; gap: 8px; }
+.rec-pick__bar .oui-btn { flex: 0 0 auto; white-space: nowrap; }
