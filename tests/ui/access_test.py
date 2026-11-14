@@ -43,7 +43,15 @@ threading.Thread(target=server.serve_forever, daemon=True).start()
 BASE = "http://127.0.0.1:%d" % port
 
 
-def wait(pg, fn, timeout=6.0):
+def text(locator):
+    """The text of an element, or "" when it is not there (never the 30 s wait of inner_text)."""
+    try:
+        return locator.inner_text(timeout=2000)
+    except Exception:
+        return ""
+
+
+def wait(pg, fn, timeout=12.0):   # the CI machine can be slow: the steps that go through the backend get time
     end = time.time() + timeout
     while time.time() < end:
         try:
@@ -64,20 +72,20 @@ with sync_playwright() as p:
     ok("senza password la dashboard si apre come prima", A.url.endswith("/") and A.locator(".app-header").count() == 1)
     A.click('button[aria-label="Impostazioni"]'); A.wait_for_selector(".drawer"); A.wait_for_timeout(450)
     entry = A.locator('.set-entry[data-page="access"]')
-    ok("nel menu c'e' il gruppo 'Accesso'", entry.count() == 1 and "Accesso" in entry.inner_text(), A.locator(".set-entry").all_inner_texts())
-    ok("... il riassunto dice 'Password non attiva'", wait(A, lambda: "Password non attiva" in entry.inner_text()), entry.inner_text())
+    ok("nel menu c'e' il gruppo 'Accesso'", entry.count() == 1 and "Accesso" in text(entry), A.locator(".set-entry").all_inner_texts())
+    ok("... il riassunto dice 'Password non attiva'", wait(A, lambda: "Password non attiva" in text(entry)), text(entry))
     entry.click(); A.wait_for_timeout(500)
-    ok("la pagina dice che la password non e' attiva", wait(A, lambda: "Password non attiva" in A.locator(".drawer").inner_text()))
+    ok("la pagina dice che la password non e' attiva", wait(A, lambda: "Password non attiva" in text(A.locator(".drawer"))))
     A.screenshot(path=os.path.join(out, "accesso_spenta.png"))
     A.fill("#access-new", "abc"); A.fill("#access-repeat", "abc")
     A.click("text=Attiva la password")
-    ok("password troppo corta: lo dice e non la attiva", wait(A, lambda: "almeno 6 caratteri" in A.locator(".drawer").inner_text()))
+    ok("password troppo corta: lo dice e non la attiva", wait(A, lambda: "almeno 6 caratteri" in text(A.locator(".drawer"))))
     A.fill("#access-new", "segreta123"); A.fill("#access-repeat", "segreta124")
     A.click("text=Attiva la password")
-    ok("le due password diverse: lo dice", wait(A, lambda: "non coincidono" in A.locator(".drawer").inner_text()))
+    ok("le due password diverse: lo dice", wait(A, lambda: "non coincidono" in text(A.locator(".drawer"))))
     A.fill("#access-repeat", "segreta123")
     A.click("text=Attiva la password")
-    ok("attivata: messaggio e stato 'Password attiva'", wait(A, lambda: "Password attivata" in A.locator(".drawer").inner_text() and "Password attiva" in A.locator(".drawer").inner_text()), A.locator(".drawer").inner_text()[:300])
+    ok("attivata: messaggio e stato 'Password attiva'", wait(A, lambda: "Password attivata" in text(A.locator(".drawer")) and "Password attiva" in text(A.locator(".drawer"))), text(A.locator(".drawer"))[:300])
     ok("... compaiono 'Fai uscire tutti' e 'Rimuovi la password'", A.locator("text=Disconnetti tutti gli altri dispositivi").count() == 1 and A.locator("button:has-text('Rimuovi la password')").count() == 1)
     A.screenshot(path=os.path.join(out, "accesso_attiva.png"))
     A.reload(); A.wait_for_timeout(1500)
@@ -86,13 +94,13 @@ with sync_playwright() as p:
     # 1.82: the guest password: a guest looks, never commands
     A.click('button[aria-label="Impostazioni"]'); A.wait_for_selector(".drawer"); A.wait_for_timeout(400)
     A.click('.set-entry[data-page="access"]'); A.wait_for_timeout(500)
-    ok("ospiti: il gruppo c'e', password ospiti spenta", wait(A, lambda: A.locator("[data-guest-group]").count() == 1 and "Password ospiti spenta" in A.locator("[data-guest-group]").inner_text()))
+    ok("ospiti: il gruppo c'e', password ospiti spenta", wait(A, lambda: A.locator("[data-guest-group]").count() == 1 and "Password ospiti spenta" in text(A.locator("[data-guest-group]"))))
     A.fill("#guest-current", "segreta123"); A.fill("#guest-new", "segreta123"); A.fill("#guest-repeat", "segreta123")
     A.click("[data-guest-set]")
-    ok("ospiti: uguale alla principale -> rifiutata", wait(A, lambda: "diversa da quella principale" in A.locator("[data-guest-group]").inner_text()), A.locator("[data-guest-group]").inner_text()[-200:])
+    ok("ospiti: uguale alla principale -> rifiutata", wait(A, lambda: "diversa da quella principale" in text(A.locator("[data-guest-group]"))), text(A.locator("[data-guest-group]"))[-200:])
     A.fill("#guest-current", "segreta123"); A.fill("#guest-new", "guarda123"); A.fill("#guest-repeat", "guarda123")
     A.click("[data-guest-set]")
-    ok("ospiti: attivata", wait(A, lambda: "Password ospiti attiva" in A.locator("[data-guest-group]").inner_text()), A.locator("[data-guest-group]").inner_text()[-200:])
+    ok("ospiti: attivata", wait(A, lambda: "Password ospiti attiva" in text(A.locator("[data-guest-group]"))), text(A.locator("[data-guest-group]"))[-200:])
     A.screenshot(path=os.path.join(out, "ospiti_attiva.png"), full_page=True)
     A.reload(); A.wait_for_timeout(1500)
     ok("ospiti: chi ha la principale non e' un ospite (pulsanti in alto ci sono)", A.locator("[data-guest]").count() == 0 and A.locator('.app-header button[aria-label="Arresto di emergenza"]').count() == 1)
@@ -107,7 +115,7 @@ with sync_playwright() as p:
        and G.locator('.app-header button[aria-label="Arresto di emergenza"]').count() == 0 and G.locator('.app-header button[aria-label="Salva configurazione"]').count() == 0)
     G.screenshot(path=os.path.join(out, "ospite_home.png"))
     status = G.evaluate("() => fetch('/printer/gcode/script?script=G28', { method: 'POST' }).then(r => r.status)")
-    ok("ospite: un comando dalla pagina non parte (403) e lo dice", status == 403 and wait(G, lambda: "possono solo guardare" in G.inner_text("body")), status)
+    ok("ospite: un comando dalla pagina non parte (403) e lo dice", status == 403 and wait(G, lambda: "possono solo guardare" in text(G.locator("body"))), status)
     req = G.context.request
     r = req.post(BASE + "/api/gcode", data={"gcode": "G28"}, headers={"Content-Type": "application/json"})
     ok("ospite: il servizio rifiuta i comandi anche senza la pagina (403 guest)", r.status == 403 and r.json().get("error") == "guest", (r.status, r.text()[:200]))
@@ -122,7 +130,7 @@ with sync_playwright() as p:
     A.click('button[aria-label="Impostazioni"]'); A.wait_for_selector(".drawer"); A.wait_for_timeout(400)
     A.click('.set-entry[data-page="access"]'); A.wait_for_timeout(500)
     A.fill("#guest-current", "segreta123"); A.click("[data-guest-remove]")
-    ok("ospiti: password ospiti tolta", wait(A, lambda: "Password ospiti spenta" in A.locator("[data-guest-group]").inner_text()))
+    ok("ospiti: password ospiti tolta", wait(A, lambda: "Password ospiti spenta" in text(A.locator("[data-guest-group]"))))
     ok("... e l'ospite torna alla pagina di accesso", wait(G, lambda: G.url.endswith("/login"), 12), G.url)
     A.keyboard.press("Escape"); A.wait_for_timeout(300)
     A.reload(); A.wait_for_timeout(1200)
@@ -132,7 +140,7 @@ with sync_playwright() as p:
     ok("un altro dispositivo finisce sulla pagina di accesso", B.url.endswith("/login") and B.locator("input[name=password]").count() == 1, B.url)
     B.screenshot(path=os.path.join(out, "login.png"))
     B.fill("input[name=password]", "sbagliata"); B.click("button[type=submit]")
-    ok("... password sbagliata: resta li' e lo dice", "Password sbagliata" in B.inner_text("body") and B.url.endswith("/login"))
+    ok("... password sbagliata: resta li' e lo dice", "Password sbagliata" in text(B.locator("body")) and B.url.endswith("/login"))
     B.fill("input[name=password]", "segreta123"); B.click("button[type=submit]")
     B.wait_for_selector('.app-header button[aria-label="Impostazioni"]', timeout=15000)
     ok("... password giusta: entra nella dashboard", B.url.endswith("/") and B.locator(".app-header").count() == 1, B.url)
@@ -143,7 +151,7 @@ with sync_playwright() as p:
     A.click('button[aria-label="Impostazioni"]'); A.wait_for_selector(".drawer"); A.wait_for_timeout(400)
     A.click('.set-entry[data-page="access"]'); A.wait_for_timeout(500)
     A.click("text=Disconnetti tutti gli altri dispositivi")
-    ok("'fai uscire tutti gli altri': conferma", wait(A, lambda: "dovranno rifare l'accesso" in A.locator(".drawer").inner_text()))
+    ok("'fai uscire tutti gli altri': conferma", wait(A, lambda: "dovranno rifare l'accesso" in text(A.locator(".drawer"))))
     ok("... l'altro dispositivo torna da solo alla pagina di accesso", wait(B, lambda: B.url.endswith("/login"), 10), B.url)
     ok("... questo no", A.url.endswith("/") and A.locator(".drawer").count() == 1)
 
@@ -157,7 +165,7 @@ with sync_playwright() as p:
     ok("'Rimuovi la password' e' spento finche' non scrivi la password attuale", not A.locator("button:has-text('Rimuovi la password')").is_enabled())
     A.fill("#access-current", "segreta123")
     A.click("button:has-text('Rimuovi la password')")
-    ok("tolta: 'Password non attiva'", wait(A, lambda: "Password rimossa" in A.locator(".drawer").inner_text()), A.locator(".drawer").inner_text()[:300])
+    ok("tolta: 'Password non attiva'", wait(A, lambda: "Password rimossa" in text(A.locator(".drawer"))), text(A.locator(".drawer"))[:300])
     C = browser.new_context(locale="it-IT").new_page(); C.goto(BASE + "/")
     ok("... e un dispositivo nuovo entra senza accesso", C.url.endswith("/"), C.url)
     ok("nessun errore JavaScript", not errors, errors[:3])
@@ -170,23 +178,23 @@ with sync_playwright() as p:
     ok("HTTPS: off at first, with its port", wait(A, lambda: A.locator('[data-https-status="off"]').count() == 1 and A.locator("[data-https-port]").input_value() == "8443"))
     A.fill("[data-https-port]", str(port))
     A.locator(".https-port button").click()
-    ok("HTTPS: the service's own port refused", wait(A, lambda: "1024" in A.locator(".set-status--warn[role=alert]").last.inner_text()))
+    ok("HTTPS: the service's own port refused", wait(A, lambda: "1024" in text(A.locator(".set-status--warn[role=alert]").last)))
     A.fill("[data-https-port]", str(hport))
     A.locator(".https-port button").click()
-    ok("HTTPS: another port kept", wait(A, lambda: A.locator(".https-port button").count() == 0 and "%d" % hport in A.locator(".set-switch__detail").last.inner_text()))
+    ok("HTTPS: another port kept", wait(A, lambda: A.locator(".https-port button").count() == 0 and "%d" % hport in text(A.locator(".set-switch__detail").last)))
     A.locator('button[role=switch]', has_text="Ingresso cifrato").click()
     ok("HTTPS: switched on: running, its addresses, the certificate's fingerprint", wait(A, lambda: A.locator('[data-https-status="on"]').count() == 1 and A.locator("[data-https-links] a").count() >= 1
-       and len(A.locator("[data-https-fingerprint]").inner_text().split(":")) == 32, 15), A.locator(".set-group").last.inner_text() if A.locator(".set-group").count() else "")
+       and len(text(A.locator("[data-https-fingerprint]")).split(":")) == 32, 15), text(A.locator(".set-group").last) if A.locator(".set-group").count() else "")
     A.screenshot(path=out + "/https_on.png", full_page=True)
     S = browser.new_context(locale="it-IT", ignore_https_errors=True).new_page()
     S.goto("https://127.0.0.1:%d/" % hport)
     ok("HTTPS: the dashboard opens on https://…:%d" % hport, wait(S, lambda: S.locator('.app-header button[aria-label="Impostazioni"]').count() == 1, 15), S.url)
     S.click('.app-header button[aria-label="Impostazioni"]'); S.wait_for_timeout(500)
     S.click('.set-entry[data-page="access"]'); S.wait_for_timeout(500)
-    ok("HTTPS: the page knows it came encrypted", wait(S, lambda: "arrivata cifrata" in S.locator('[data-https-status="on"]').inner_text()))
-    first_print = A.locator("[data-https-fingerprint]").inner_text()
+    ok("HTTPS: the page knows it came encrypted", wait(S, lambda: "arrivata cifrata" in text(S.locator('[data-https-status="on"]'))))
+    first_print = text(A.locator("[data-https-fingerprint]"))
     A.locator("[data-https-renew]").click()
-    ok("HTTPS: a new certificate (another fingerprint), still running", wait(A, lambda: A.locator("[data-https-fingerprint]").inner_text() != first_print and A.locator('[data-https-status="on"]').count() == 1, 15))
+    ok("HTTPS: a new certificate (another fingerprint), still running", wait(A, lambda: text(A.locator("[data-https-fingerprint]")) != first_print and A.locator('[data-https-status="on"]').count() == 1, 15))
     A.locator('button[role=switch]', has_text="Ingresso cifrato").click()
     ok("HTTPS: switched off", wait(A, lambda: A.locator('[data-https-status="off"]').count() == 1))
     import socket as _socket
