@@ -16,6 +16,9 @@ they should be. The picture it looks for is updated on the way, as what is behin
 the way is left to tap by hand instead of being guessed. With a detail of the toolhead, tap the tip and the detail at
 the first place, then **Find the other 10 points by themselves**.
 
+**Monitor thresholds:** the two cards of the watched rectangle (used without a camera calibration) touched each
+other with no space between them. They are now spaced like the others.
+
 ## 1.127.0
 
 **The AI monitor watches the bed, not the whole travel.** Until now the watched area went from the toolhead's minimum
