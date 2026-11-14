@@ -1,5 +1,17 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.129.0
+
+**More room for Klipper on the Raspberry.** The KlippEye service now runs at a lower priority than Klipper and
+Moonraker, so a picture being judged never keeps the printer waiting. Services installed before change by themselves at
+the next start. OpenCV (the camera checks and the local model) uses at most 2 cores at once and always leaves one free;
+`KLIPPEYE_CV_THREADS` chooses another number.
+
+**`klippeye benchmark` times the local model.** It shows how long the local model takes per picture on this Raspberry,
+with 1 core, with the cores KlippEye lets it use, and with all of them, and what that costs at the monitor's pace.
+`klippeye benchmark --models download` also times the networks that could replace it (MobileNetV4-Small,
+EfficientNet-Lite0), published with KlippEye's releases only for timing. Best run during a print.
+
 ## 1.128.0
 
 **Calibrating the camera without printing anything.** When Z moves the bed, the calibration needed six markers printed

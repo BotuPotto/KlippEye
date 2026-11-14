@@ -511,8 +511,9 @@ notifications and the online AI need it.
 **Is it free?** Yes, KlippEye is free software. Online AI services have free plans with daily limits; paid plans are up to
 you.
 
-**Will it slow down my prints?** The monitor runs at low priority and Klipper comes first. On older Raspberry Pis (3 or
-Zero 2), `klippeye benchmark` tells you whether there is room to spare.
+**Will it slow down my prints?** The monitor runs at low priority and Klipper comes first; it uses at most 2 cores at once
+and always leaves one free. On older Raspberry Pis (3 or Zero 2), `klippeye benchmark` tells you whether there is room to
+spare; `klippeye benchmark --models download` also times the networks that could replace the local model.
 
 **iPhone?** The dashboard works in Safari, and notifications arrive through the ntfy app. The KlippEye app is Android only.
 

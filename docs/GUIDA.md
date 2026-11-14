@@ -521,8 +521,9 @@ il modello locale* non esce niente dal Raspberry.
 **È gratis?** Sì, KlippEye è software libero. I servizi di IA online hanno piani gratuiti con un limite al giorno; quelli a
 pagamento li scegli tu.
 
-**Rallenta le stampe?** Il monitor gira a bassa priorità e Klipper ha la precedenza. Sui Raspberry Pi più vecchi (3 o Zero
-2), `klippeye benchmark` ti dice se c'è margine.
+**Rallenta le stampe?** Il monitor gira a bassa priorità e Klipper ha la precedenza; usa al massimo 2 core alla volta e ne
+lascia sempre uno libero. Sui Raspberry Pi più vecchi (3 o Zero 2), `klippeye benchmark` ti dice se c'è margine;
+`klippeye benchmark --models download` misura anche le reti che potrebbero sostituire il modello locale.
 
 **E l'iPhone?** La dashboard funziona in Safari e le notifiche arrivano con l'app ntfy. L'app KlippEye esiste solo per
 Android.

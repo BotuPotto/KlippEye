@@ -18,6 +18,8 @@ ExecStartPre=-/bin/bash @CODE@/scripts/repair.sh --quiet
 ExecStart=@PYTHON@ @CODE@/backend/klippeye_backend.py
 Restart=always
 RestartSec=5
+# 1.129: a lower priority than Klipper and Moonraker: a picture being judged never keeps the printer waiting.
+Nice=10
 
 [Install]
 WantedBy=multi-user.target

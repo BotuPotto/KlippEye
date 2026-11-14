@@ -13,6 +13,7 @@ where the toolhead and the gantry are at that moment. They are left out of every
 (each background picture keeps its own mask and the background is the median of the pictures that saw that point free) and
 of the "the whole picture changed" check.
 """
+import os
 import time
 from collections import deque
 
@@ -24,6 +25,24 @@ except ImportError:  # the backend still starts without them; the monitor stays 
     cv2 = None
     np = None
     HAS_CV2 = False
+
+
+def opencv_threads(cores=None):
+    """1.129: how many cores OpenCV (the camera checks and the local model) may use at once: at most 2, and always one
+    left free on a Raspberry with 2 or more, so that Klipper is never kept waiting by a picture being judged. The
+    environment variable KLIPPEYE_CV_THREADS (1..8) chooses another number."""
+    wanted = os.environ.get("KLIPPEYE_CV_THREADS", "")
+    if wanted.isdigit() and 1 <= int(wanted) <= 8:
+        return int(wanted)
+    cores = cores or os.cpu_count() or 1
+    return max(1, min(2, cores - 1))
+
+
+if HAS_CV2:
+    try:
+        cv2.setNumThreads(opencv_threads())
+    except Exception:  # noqa: BLE001 - an OpenCV built without threads: nothing to limit
+        pass
 
 OPENCV_WIDTH = 1080   # the pictures are looked at in this size (the filter works at half of it)
 OPENCV_HEIGHT = 720

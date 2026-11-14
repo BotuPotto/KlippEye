@@ -174,6 +174,7 @@ klippeye password guest-set|guest-remove          a second password for guests, 
 klippeye access host-add NAME   allow one more host name (e.g. printer.example.com)   (also: host-remove NAME, network-checks on|off, status)
 klippeye diagnose [--save]   a report to share when asking for help (nothing secret in it; --save writes it to a file)
 klippeye benchmark [--seconds 30]   how much processor and memory KlippEye and the printer's services use (best while printing)
+klippeye benchmark --models download   also times the networks that could replace the local model
 klippeye replay [--current] [--set KEY=VALUE]   measure the AI monitor on the recorded prints: alarms per hour, how many false
 klippeye web main            KlippEye at the Raspberry's own address (http://IP, no port); the previous page moves to port 81
 klippeye web restore         give the Raspberry's own address back to the previous page   (also: status)
