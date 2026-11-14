@@ -29,15 +29,14 @@ def build(source, name):
     if source == "torchvision":
         import torchvision
 
-        net = getattr(torchvision.models, name)(weights=None)
-        features = torch.nn.Sequential(net.features, net.avgpool, torch.nn.Flatten())
-        width = net.classifier[0].in_features
+        net = getattr(torchvision.models, name)(weights=None)   # as ml/train.py: pooled features, then Linear(576, 1024) + Hardswish
+        features = torch.nn.Sequential(net.features, net.avgpool, torch.nn.Flatten(), net.classifier[0], net.classifier[1])
     else:
         import timm
 
-        net = timm.create_model(name, pretrained=False, num_classes=0)   # num_classes=0: the pooled features
-        features = net
-        width = net.num_features
+        features = timm.create_model(name, pretrained=False, num_classes=0)   # num_classes=0: the pooled features
+    with torch.no_grad():   # the width as it comes out (some networks add a last layer after the one they announce)
+        width = int(features.eval()(torch.zeros(1, 3, SIZE, SIZE)).shape[-1])
 
     class Scored(torch.nn.Module):   # the local model's two outputs: score and description
         def __init__(self):
