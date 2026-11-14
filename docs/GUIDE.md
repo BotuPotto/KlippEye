@@ -183,6 +183,17 @@ print. OpenCV's score goes back to 0% once a change stops changing: a part that 
 of its background. That is normal, and it is why the local model keeps an eye on it. **Try the local model now** rates
 the camera's picture there and then: put something in front of the camera and see whether it recognises it.
 
+**It learns from its false alarms.** Mark an alarm as *False alarm* (on the print card or in the alarm list) and the local
+model remembers that scene: a picture like it, rated not much higher, no longer counts as a doubt or as sure, so no alarm,
+no pause and no online question. When the online AI finds nothing where the local model had a doubt, the scene is
+remembered for a few hours. What it learned is kept apart from the recordings (deleting them forgets nothing) and
+survives a new local model. *Real problem* on the same alarm forgets the scene; **Settings → AI monitor → Local model →
+Forget the false alarms it learned** forgets them all.
+
+**The purge is hidden.** With a calibrated camera, KlippEye compares the bed when the print starts with the bed when the
+real print starts. What appeared outside the parts (a purge line, also an adaptive one next to the print area, a blob)
+is covered with the empty bed before the local model looks, and OpenCV ignores it.
+
 What happens next depends on your choice in **Settings → AI monitor → The AI service → Who judges the pictures**:
 
 - **Online AI and local model** (the usual choice): when the local model has a doubt, or is sure there is a problem, the
@@ -282,7 +293,9 @@ the calibration until you redo it.
 At the end of each print a card asks **How did the print go?**. Answer *Went fine* or *There was a problem* (with the
 moment it appeared): it takes a second. With **Learn from this printer's prints** switched on (Settings → AI monitor →
 Local model), the local model uses your answers to learn what your printer looks like. It learns on the Raspberry, and the
-pictures never leave it. It starts counting once it has at least 5 failed and 20 good pictures.
+pictures never leave it. It starts counting once it has at least 5 failed and 20 good pictures. A small copy of every
+picture that becomes an example is kept apart, also while this switch is off: deleting recordings, or the oldest answers
+going (the last 60 prints are kept), takes nothing away from what it learns.
 
 ### Measuring it
 
@@ -290,12 +303,14 @@ To see whether a change of the settings really helps, **Settings → AI monitor 
 pictures the monitor looked at (about 150 MB for a four-hour print; the oldest are deleted when the space is full). After a
 print, tell it whether it went fine or from which picture it failed. **Measure now** then replays the monitor on those
 prints and tells you how many alarms per hour you'd get, how many were false and whether each failure was caught.
+**Choose several to delete** under *Recorded prints* deletes many recordings at once.
 
 ### If it doesn't behave
 
 | What happens | What to try |
 |---|---|
 | alarms when the toolhead passes | calibrate the camera; check the outline of toolhead and gantry; in *Monitor thresholds* choose *Few false alarms* |
+| the local model rates a fine print high (spaghetti) | mark its alarms *False alarm*: it learns the scene; calibrate the camera so the purge is hidden |
 | OpenCV shows 0% with an obvious failure | normal once the failure stops moving: look at *highest* and at the local model's tile, or press *Try the local model now* |
 | alarms when the light changes | fix the camera's exposure; soften a bright LED; leave *Light change* at 30 |
 | the AI reports doubtful problems | raise *Minimum AI confidence* from 70% to 80% |

@@ -81,6 +81,13 @@ with sync_playwright() as p:
     ok("... a sure score is marked as such", wait_until(lambda: P.pg.locator("[data-local-try].is-sure").count() == 1) and "sicuro" in P.pg.locator("[data-local-try]").inner_text())
     P.close()
 
+    P = panel(b, local_model=MODEL, printing=True, detector_status="scanning (whole bed, outside the parts)",
+              detector_extra={"local": {"score": 74.0, "peak": 74.0, "known": {"source": "person", "score": 72.0}, "known_looks": 12}, "purge": 1.6})
+    ok("1.125: a scene marked as a false alarm: the panel says the local model does not count it", P.pg.locator('[data-known="person"]').count() == 1
+       and "falso allarme" in P.pg.locator('[data-known="person"]').inner_text(), P.pg.locator(".monitor-grid").inner_text())
+    ok("1.125: the purge recognised: said", P.pg.locator("[data-purge]").count() == 1 and "Spurgo" in P.pg.locator("[data-purge]").inner_text())
+    P.close()
+
     P = panel(b, printing=True, detector_status="scanning")
     ok("no local model: «none», no test button", "nessun" in tile(P, "local").lower() and P.pg.locator("[data-local-test]").count() == 0, tile(P, "local"))
     P.close()

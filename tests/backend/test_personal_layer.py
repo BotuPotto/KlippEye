@@ -177,5 +177,36 @@ check("... nothing written outside its folder", not os.path.exists(os.path.join(
 target.forget_imported()
 check("forgetting what was imported", target.imported() == [] and not [e for e in pl.examples_of(other)])
 
+# ---- 1.125: the examples kept apart
+import shutil  # noqa: E402
+
+kept_data = tempfile.mkdtemp()
+review(kept_data, "k1", "failed", 1000 + 12 * 60)
+folder = os.path.join(kept_data, "recordings", "s9")
+os.makedirs(folder)
+with open(os.path.join(folder, "frames.jsonl"), "w") as handle:
+    for n in range(1, 21):
+        picture(os.path.join(folder, "%06d.jpg" % n), 0.9 if n > 14 else 0.1, 640, 480)
+        handle.write(json.dumps({"n": n, "t": 5000 + n * 10}) + "\n")
+json.dump({"id": "s9", "label": {"outcome": "failed", "failed_at": 5000 + 10 * 10}}, open(os.path.join(folder, "session.json"), "w"))
+before = sorted((k, label) for k, _, label in pl.examples_of(kept_data))
+kept = pl.keep_examples(kept_data, cv2)
+check("1.125: every example gets a small copy apart", kept == len(before) and all(
+    cv2.imread(p_).shape[1] <= pl.KEPT_WIDTH for p_ in [os.path.join(kept_data, "personal", "kept", n) for n in os.listdir(os.path.join(kept_data, "personal", "kept")) if n.endswith(".jpg")]), (kept, len(before)))
+shutil.rmtree(folder)
+shutil.rmtree(os.path.join(kept_data, "reviews", "k1"))
+after = sorted((k, label) for k, _, label in pl.examples_of(kept_data))
+check("... the recording and the answer deleted: the same examples, same keys and labels (from the copies)", after == before, (len(after), len(before)))
+check("... and the copies are what is read now", all("/kept/" in p_ for _, p_, _ in pl.examples_of(kept_data)))
+check("... keeping again changes nothing", pl.keep_examples(kept_data, cv2) == kept)
+gone = pl.forget_kept(kept_data, "rec/s9/")
+check("... a label taken away forgets that print's copies", gone > 0 and not any(k.startswith("rec/s9/") for k, _, _ in pl.examples_of(kept_data)), gone)
+old_max = pl.KEPT_MAX
+pl.KEPT_MAX = 15
+pl.keep_examples(kept_data, cv2)
+left = pl.examples_of(kept_data)
+check("... over the limit: the oldest fine ones go, every failed one stays", len(left) == 15 and sum(1 for e in left if e[2] == 1) == sum(1 for k, label in before if label == 1 and k.startswith("rev/")), (len(left), sum(1 for e in left if e[2] == 1)))
+pl.KEPT_MAX = old_max
+
 print("\n%d failure(s)" % len(FAILS) + (": " + ", ".join(FAILS) if FAILS else ""))
 sys.exit(1 if FAILS else 0)

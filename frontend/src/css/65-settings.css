@@ -104,6 +104,11 @@
 .set-inline-btn { align-self: flex-start; }
 .set-personal-actions { flex-wrap: wrap; gap: 8px; }
 .set-personal-actions .oui-btn { flex: 0 0 auto; white-space: nowrap; }
+/* 1.125: the false alarms the local model learned */
+.set-learned { display: grid; gap: 4px; padding: 12px 0 2px; border-top: 1px solid var(--oui-line); }
+.set-learned__title { font-size: 14px; font-weight: 600; color: var(--oui-text); }
+.set-learned .oui-caption { margin: 0; }
+.set-learned .set-inline-btn { justify-self: start; margin-top: 4px; }
 
 /* a line with a switch / a line with a tick */
 .set-switch,

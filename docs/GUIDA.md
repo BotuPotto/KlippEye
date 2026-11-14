@@ -186,6 +186,19 @@ diventa parte del suo sfondo. È normale, ed è per questo che il modello locale
 il modello locale** valuta la foto della telecamera in quel momento: metti qualcosa davanti alla telecamera e guarda se lo
 riconosce.
 
+**Impara dai falsi allarmi.** Segna un allarme come *Falso allarme* (sulla scheda della stampa o nell'elenco degli
+allarmi) e il modello locale si ricorda quella scena: una foto simile, con un voto non molto più alto, non conta più come
+dubbio o come certezza, quindi niente allarme, niente pausa e niente domanda all'IA online. Quando l'IA online non trova
+niente dove il modello locale aveva un dubbio, la scena viene ricordata per qualche ora. Quello che ha imparato è salvato a
+parte dalle registrazioni (cancellarle non fa dimenticare niente) e resta anche con un modello locale nuovo. *Problema
+reale* sullo stesso allarme dimentica la scena; **Impostazioni → Monitor IA → Modello locale → Dimentica i falsi allarmi
+imparati** li dimentica tutti.
+
+**Lo spurgo viene nascosto.** Con la telecamera calibrata, KlippEye confronta il piatto quando parte la stampa con il
+piatto quando comincia la stampa vera. Quello che è comparso fuori dai pezzi (una linea di spurgo, anche quella adattiva
+accanto all'area di stampa, un blob) viene coperto con il piatto vuoto prima che il modello locale guardi, e OpenCV lo
+ignora.
+
 Cosa succede dopo dipende dalla tua scelta in **Impostazioni → Monitor IA → Il servizio IA → Chi giudica le foto**:
 
 - **IA online e modello locale** (la scelta di partenza): quando il modello locale ha un dubbio, o è sicuro che ci sia un
@@ -287,7 +300,10 @@ smette di usare la calibrazione finché non la rifai.
 A fine stampa una card chiede **Com'è andata la stampa?**. Rispondi *Andata bene* oppure *C'era un problema* (con il momento
 in cui è comparso): ci vuole un secondo. Con **Impara dalle stampe di questa stampante** acceso (Impostazioni → Monitor IA →
 Modello locale), il modello locale usa le tue risposte per imparare com'è la tua stampante. Impara sul Raspberry, e le foto
-non escono mai da lì. Comincia a contare quando ha almeno 5 foto di stampe fallite e 20 di stampe riuscite.
+non escono mai da lì. Comincia a contare quando ha almeno 5 foto di stampe fallite e 20 di stampe riuscite. Una piccola
+copia di ogni foto che diventa un esempio viene salvata a parte, anche con l'interruttore spento: cancellare le
+registrazioni, o le risposte più vecchie che se ne vanno (si tengono le ultime 60 stampe), non toglie niente a quello che
+impara.
 
 ### Misurarlo
 
@@ -295,12 +311,14 @@ Per sapere se un cambio delle impostazioni aiuta davvero, **Impostazioni → Mon
 tiene le foto che il monitor ha guardato (circa 150 MB per una stampa di quattro ore; le più vecchie si cancellano quando lo
 spazio è pieno). Dopo una stampa, digli se è andata bene o da quale foto è fallita. **Misura adesso** fa girare di nuovo il
 monitor su quelle stampe e ti dice quanti allarmi all'ora avresti, quanti erano falsi e se ogni guasto è stato preso.
+**Scegli più registrazioni da eliminare**, sotto *Stampe registrate*, ne elimina tante insieme.
 
 ### Se non si comporta bene
 
 | Cosa succede | Cosa provare |
 |---|---|
 | allarmi quando passa la testina | calibra la telecamera; controlla il contorno di testina e gantry; in *Soglie del monitor* scegli *Pochi falsi allarmi* |
+| il modello locale dà voti alti a una stampa riuscita (spaghetti) | segna i suoi allarmi *Falso allarme*: impara la scena; calibra la telecamera così lo spurgo viene nascosto |
 | OpenCV segna 0% con un guasto evidente | normale quando il guasto smette di muoversi: guarda il *massimo* e il riquadro del modello locale, oppure premi *Prova adesso il modello locale* |
 | allarmi quando cambia la luce | sistema l'esposizione della telecamera; attenua un LED troppo forte; lascia il cambio di luce a 30 |
 | l'IA segnala problemi dubbi | alza *Fiducia minima dell'IA* dal 70% all'80% |

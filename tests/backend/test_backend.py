@@ -1559,6 +1559,27 @@ j = cr.get("/api/recordings/measure").get_json()
 check("GET: done, with the result (one print, the thresholds in use now)", j["state"] == "done" and j["result"]["settings"] == "current" and j["result"]["total"]["recordings"] == 1, j)
 r = cr.delete("/api/recordings/" + sid)
 check("DELETE: the recording goes, then 404", r.status_code == 200 and cr.get("/api/recordings/" + sid).status_code == 404 and cr.delete("/api/recordings/" + sid).status_code == 404)
+# 1.125: several at once; the examples of a labelled one stay with the personal layer
+import cv2 as _cv  # noqa: E402
+import numpy as _np  # noqa: E402
+import personal_layer as _pl  # noqa: E402
+_many = []
+for _k, _id in enumerate(("20261114-010000-a", "20261114-020000-b", "20261114-030000-c")):
+    _f = os.path.join(mr.RECORDINGS_DIR, _id)
+    os.makedirs(_f, exist_ok=True)
+    with open(os.path.join(_f, "frames.jsonl"), "w") as _h:
+        for _n in range(1, 13):
+            _cv.imwrite(os.path.join(_f, "%06d.jpg" % _n), _np.full((120, 160, 3), 40 + _n * 10, _np.uint8))
+            _h.write(json.dumps({"n": _n, "t": 7000 + _n * 10}) + "\n")
+    json.dump({"id": _id, "file": "x.gcode", "started": 7000, "ended": 7130, "label": {"outcome": "ok"} if _k == 0 else None}, open(os.path.join(_f, "session.json"), "w"))
+    _many.append(_id)
+_before = sorted(k for k, _, _ in _pl.examples_of(mr.DATA_DIR) if k.startswith("rec/" + _many[0]))
+r = cr.post("/api/recordings/delete", json={"ids": _many + ["20990101-000000"]})
+check("1.125: several recordings deleted at once; one that is not there is said", r.status_code == 200 and r.get_json()["deleted"] == _many
+      and r.get_json()["missing"] == ["20990101-000000"] and not any(os.path.isdir(os.path.join(mr.RECORDINGS_DIR, i)) for i in _many), r.get_json())
+_after = sorted(k for k, _, _ in _pl.examples_of(mr.DATA_DIR) if k.startswith("rec/" + _many[0]))
+check("... the labelled one's examples are still there for the personal layer (kept apart)", _before and _after == _before, (len(_before), len(_after)))
+check("... a wrong list is refused", cr.post("/api/recordings/delete", json={"ids": ["../x"]}).status_code == 400 and cr.post("/api/recordings/delete", json={"ids": []}).status_code == 400)
 check("CPU of the monitor: time of a check in the status", isinstance(mr.detector.stats.get("check_ms"), float), mr.detector.stats)
 check("the recording settings are in the menu's list (group 'recording')", [s["key"] for s in cr.get("/api/backend/config").get_json()["spec"] if s["group"] == "recording"] == ["record", "record_max_mb", "print_review"])
 check("turning recording off from the menu reaches the recorder", cr.post("/api/backend/config", json={"values": {"record": False}}).status_code == 200 and mr.recorder.enabled is False and mr.recorder.status == "off")
@@ -3024,6 +3045,112 @@ _r = _lc.post("/api/local_model", json={"test": True})
 check("... without a model: said so", _r.status_code == 409 and _r.get_json()["error"], _r.get_json())
 _s = _lc.get("/api/print/detector/status").get_json()
 check("1.124: the status says whether the local model is there, and the highest OpenCV score", _s["local_available"] is False and "peak_score" in _s["stats"], _s)
+
+print("== 1.125: the purge is hidden, false alarms are learned live")
+import cv2  # noqa: E402
+import numpy as np  # noqa: E402
+import purge_marks as _pm  # noqa: E402
+_bed = np.zeros((360, 540), np.uint8)
+cv2.rectangle(_bed, (40, 40), (500, 320), 255, -1)
+_part = np.zeros((360, 540), np.uint8)
+cv2.rectangle(_part, (220, 140), (320, 240), 255, -1)
+_empty = np.full((720, 1080, 3), 80, np.uint8)
+_purged = _empty.copy()
+cv2.line(_purged, (300, 600), (700, 600), (220, 220, 220), 6)        # a purge line in front of the part
+cv2.rectangle(_purged, (440, 280), (640, 480), (200, 200, 200), -1)  # the part's first layer
+_marks = _pm.find(cv2, np, _empty, _purged, _bed, _part)
+check("1.125: the purge line is found on the bed, the part's first layer is not", _marks is not None and int((_marks[140:240, 220:320] > 0).sum()) == 0
+      and _marks[300, 250] > 0, None if _marks is None else _pm.share(np, _marks, _bed))
+check("... a change of the light is not taken for a purge", _pm.find(cv2, np, _empty, np.full((720, 1080, 3), 130, np.uint8), _bed, _part) is None)
+_covered = _pm.cover(cv2, np, _purged, _empty, _marks)
+check("... the local model sees the line covered by the empty bed, the part as it is", int(_covered[600, 500, 0]) == 80 and int(_covered[380, 540, 0]) == 200 and int(_purged[600, 500, 0]) == 220)
+_det.purge = {"before": _empty, "marks": _marks, "done": True}
+_seen = []
+_lb.local_ai.model = type("M", (), {"version": "test-1", "predict": lambda self, f: (_seen.append(int(f[600, 500, 0])), (0.1, None))[1]})()
+_det.change_box, _det.change_at = None, None
+_det.local_judge(_purged, 100.0)
+check("... and the local model gets the covered picture", _seen[:1] == [80], _seen)
+_det.in_print = False
+_det._follow_print("printing")
+check("... a new print forgets the purge of the last one", _det.purge is None)
+_det.purge = None
+
+
+class _VecModel:
+    version, threshold, size, info = "test-1", 0.5, 96, {"trained_on": {"pictures": 10}}
+
+    def __init__(self, looks):
+        self.looks = list(looks)
+
+    def predict(self, frame):
+        return self.looks.pop(0) if self.looks else (0.0, None)
+
+
+_rng = np.random.default_rng(7)
+_scene = _rng.normal(size=1024)
+_lb.false_memory.forget()
+_lb.false_memory.add(_scene, 70, "person", "20261114-001000", "test-1")
+_lb.personal.layer = None
+_lb.local_ai.model = _VecModel([(0.74, _scene + _rng.normal(scale=0.15, size=1024))] * 3)
+_det.local_state, _det.cooldown_until = {}, 0
+_det.local_enabled, _det.ai_online, _det.local_doubt, _det.local_sure, _det.local_alone = True, True, 35, 80, False
+_det.change_box, _det.change_at = None, None
+for _t in (5000.0, 5015.0, 5030.0):
+    _asked = _det._local_look(_frame, _t, False)
+check("1.125: a scene the person marked as a false alarm: three looks at 74% are no doubt (no question, no boost)",
+      not _asked and _det.local_state.get("doubt_run") == 0 and (_det.local_state.get("known") or {}).get("source") == "person"
+      and _det.local_state.get("known_looks") == 3 and "doubt_until" not in _det.local_state, _det.local_state)
+_lb.local_ai.model = _VecModel([(0.95, _scene)])
+_det._local_look(_frame, 5045.0, False)
+check("... the same scene much worse (95%, more than 15 points above): it counts again", _det.local_state.get("doubt_run") == 1 and _det.local_state.get("sure_run") == 1
+      and _det.local_state.get("known") is None, _det.local_state)
+_lb.local_ai.model = _VecModel([(0.74, _rng.normal(size=1024))])
+_det._local_look(_frame, 5060.0, False)
+check("... another scene at 74%: a doubt as before", _det.local_state.get("doubt_run") == 2, _det.local_state)
+
+# the person's label teaches it, «right» forgets it
+_lb.false_memory.forget()
+_pic = os.path.join(tempfile.mkdtemp(), "alarm.jpg")
+cv2.imwrite(_pic, _frame)
+_alarm = _lb.record_alert({"outcome": "local model", "action": "PAUSE", "confidence": 82, "summary": "spaghetti?"}, _pic)
+_other = _rng.normal(size=1024)
+_lb.local_ai.model = _VecModel([(0.82, _other)])
+_r = _lc.post("/api/print/alerts/%s/label" % _alarm["id"], json={"label": "false"})
+check("1.125: «false alarm» on an alarm of the local model: it learns that scene (the person's, kept)", _r.status_code == 200
+      and _lb.false_memory.info("test-1") == {"person": 1, "online": 0}, (_r.get_json(), _lb.false_memory.info()))
+check("... with the alarm's score", _lb.false_memory.match(_other, 90, "test-1") is not None and _lb.false_memory.match(_other, 99, "test-1") is None)
+_lb.local_ai.model = _VecModel([(0.82, _other)])
+_lc.post("/api/print/alerts/%s/label" % _alarm["id"], json={"label": "right"})
+check("... marked «right» after all: forgotten", _lb.false_memory.info("test-1") == {"person": 0, "online": 0}, _lb.false_memory.info())
+_lb.local_ai.model = _VecModel([(0.82, _other)])
+_lc.post("/api/print/alerts/%s/label" % _alarm["id"], json={"label": "false"})
+_g = _lc.get("/api/local_model").get_json()
+check("1.125: the local model's page says how many false alarms it learned", (_g.get("false_alarms") or {}).get("person") == 1, _g.get("false_alarms"))
+_kept = os.path.join(_lb.DATA_DIR, "personal", "false_alarms", "%s.jpg" % _alarm["id"])
+check("1.125: a small copy of the marked picture is kept apart (not in the recordings): for a new base model", os.path.isfile(_kept)
+      and cv2.imread(_kept).shape[1] <= 320, _kept)
+_newer = _rng.normal(size=1024)
+_lb.local_ai.model = _VecModel([(0.82, _newer)])
+_lb.local_ai.model.version = "test-2"
+_lb.refresh_false_alarms()
+check("... a new base model: the person's false alarm described again from it, still known", _lb.false_memory.info("test-2") == {"person": 1, "online": 0}
+      and _lb.false_memory.match(_newer, 80, "test-2") is not None, _lb.false_memory.items)
+_r = _lc.post("/api/local_model", json={"forget_false_alarms": True})
+check("... «Forget» empties it, the small pictures too", _r.get_json().get("forgotten") == 1 and _lb.false_memory.info() == {"person": 0, "online": 0}
+      and not os.path.isfile(_kept), _r.get_json())
+
+# the online AI's «fine» teaches it for a while
+post, calls = _chain_post({"groq": ["CONTINUE"]})
+b_ai, cur, prev = _two_services(post)
+b_ai.false_memory.forget()
+b_ai.detector.local_doubt = 35
+b_ai.detector.call_ai_analysis(cur, prev, 60, local={"score": 72.0, "why": "local_doubt", "vector": _scene, "model": "test-1"})
+check("1.125: the online AI answers «fine» to a doubt of the local model: that scene is learned (online, for some hours)",
+      b_ai.false_memory.info("test-1") == {"person": 0, "online": 1} and b_ai.false_memory.items[-1]["until"] is not None, b_ai.false_memory.items)
+b_ai.false_memory.forget()
+b_ai.detector.call_ai_analysis(cur, prev, 60, local={"score": 20.0, "why": None, "vector": _scene, "model": "test-1"})
+check("... not when the local model had no doubt (20%)", b_ai.false_memory.info("test-1") == {"person": 0, "online": 0})
+_lb.local_ai.model = None
 
 stop_all()
 fake.close()
