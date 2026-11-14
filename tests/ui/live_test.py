@@ -1,144 +1,160 @@
-"""Does the dashboard come back to life after the phone slept / the page was in the background?
-A proxy stands between browser and mock and, on freeze(), kills the connections that exist at that moment without
-closing them (what a sleeping phone's connections do): requests on them hang for ever, new connections work.
-Usage: live_test.py <html> <outdir> <port> [--repro]   (--repro: only print, never fail)"""
-import sys, os, time
+"""Release 1.126: the dashboard stays connected by itself. Against the mock, with the watchdog's times shortened
+(localStorage klippeye.live.scale = 0.1: «quiet» 1.5 s, reload after 4.5 s, away for long 60 s).
+  - an answer that stops in the middle (headers and a piece, then nothing): the reads go on, no reload needed;
+  - no answers at all while the printer's server still answers: «Reconnecting…», then the page reloads by itself;
+  - the same with unsaved changes in the editor: never reloaded;
+  - the printer does not answer at all: «The printer does not answer», no reload; back: the page comes back;
+  - away for long (hidden): reloaded on coming back.
+Usage: live_test.py <html> <outdir> <port>"""
+import json
+import os
+import re
+import sys
+import time
+import urllib.request
 from playwright.sync_api import sync_playwright
 from lib import *
-from blackhole_proxy import Proxy
 
-html, out, port = sys.argv[1], sys.argv[2], int(sys.argv[3]); os.makedirs(out, exist_ok=True)
-REPRO = "--repro" in sys.argv
+html, out, port = sys.argv[1], sys.argv[2], int(sys.argv[3])
+os.makedirs(out, exist_ok=True)
 mock = Mock(html, port)
-proxy = Proxy(port + 1, port)
-import atexit; atexit.register(mock.stop); atexit.register(proxy.stop)
-
-
-class Via:                        # the page talks to the proxy; the test talks to the mock directly
-    base = f"http://127.0.0.1:{port + 1}"
-
-
+import atexit
+atexit.register(mock.stop)
 FAILS = []
-VIS = """(hidden) => { Object.defineProperty(document, 'hidden', {configurable: true, get: () => hidden});
-  Object.defineProperty(document, 'visibilityState', {configurable: true, get: () => hidden ? 'hidden' : 'visible'});
-  document.dispatchEvent(new Event('visibilitychange')); }"""
+SCALE = 0.1
 
 
 def ok(name, cond, extra=""):
-    if not cond and not REPRO: FAILS.append(name)
-    print(("PASS " if cond else "FAIL ") + name + ((" :: " + str(extra)) if extra != "" else ""))
+    if not cond:
+        FAILS.append(name)
+    print(("PASS " if cond else "FAIL ") + name + ((" :: " + str(extra)[:600]) if (extra != "" and not cond) else ""), flush=True)
 
 
-def fresh(tab="home", **state):
+def state():
+    return json.loads(urllib.request.urlopen(mock.base + "/__mock/state").read())
+
+
+CURRENT = [None]   # the page whose events are pumped while waiting (the harness routes every request through Python)
+
+
+def pause(seconds):
+    if CURRENT[0] is not None:
+        CURRENT[0].pg.wait_for_timeout(int(seconds * 1000))
+    else:
+        time.sleep(seconds)
+
+
+def wait_until(fn, seconds=8.0):
+    end = time.time() + seconds
+    while time.time() < end:
+        try:
+            if fn():
+                return True
+        except Exception:
+            pass
+        pause(0.15)
+    return False
+
+
+def page(b, w=390, h=844):
     mock.reset()
-    if state: mock.set(**state)
-    P = Page(b, Via, 390, 844)
-    P.answers = []                                   # (time, path) of every answer that came back
-    P.pg.add_init_script("(() => { const W = window.WebSocket; let n = 0; window.__wsCount = () => n; window.WebSocket = new Proxy(W, { construct(t, a) { n++; return new t(...a); } }); })();")
-    P.pg.on("response", lambda r: P.answers.append((time.time(), r.url.replace(Via.base, "").split("?")[0])))
-    P.goto(tab, 3000)
+    P = Page(b, mock, w, h, locale="it-IT")
+    CURRENT[0] = P
+    P.ctx.add_init_script("try { localStorage.setItem('klippeye.live.scale', '%s'); } catch (e) {}" % SCALE)
+    P.goto("home", 1800)
+    P.pg.evaluate("() => { window.__notReloaded = true; }")
     return P
 
 
-def answered_after(P, t0, path, limit):
-    """Seconds after t0 until `path` is answered (None: never within `limit`)."""
-    while time.time() - t0 < limit:
-        for t, u in P.answers:
-            if t >= t0 and u == path: return round(t - t0, 1)
-        P.pg.wait_for_timeout(100)
-    return None
+def reloaded(P):
+    return P.pg.evaluate("() => window.__notReloaded !== true")
 
 
-def hot(P): return P.pg.locator("button.heater-tile").first.inner_text().replace("\n", " ")
-def errs(P): return [e for e in P.errors if "pageerror" in e or "console.error" in e]
-def vis(P, hidden): P.pg.evaluate(VIS, hidden)
+def banner(P):
+    strip = P.pg.locator("#live-banner")
+    return strip.inner_text(timeout=1000) if strip.count() else ""
 
 
-def wait_for(P, pred, limit):
-    t0 = time.time()
-    while time.time() - t0 < limit:
-        try:
-            if pred(): return round(time.time() - t0, 1)
-        except Exception:
-            pass
-        P.pg.wait_for_timeout(100)
-    return None
+HANG = []   # requests held for ever by a route (a connection that never answers)
+DEAD = re.compile(r".*/(api|printer|machine|access|server)/.*")
+
+
+def hang(route):
+    if "probe=" in route.request.url:   # the watchdog's own probe reaches the printer's server
+        route.continue_()
+        return
+    HANG.append(route)   # never answered
 
 
 with sync_playwright() as p:
     b = p.chromium.launch()
 
-    # ------------------------------------------------ 1. sleep with the usual signals (hidden ... visible)
-    for tab in ("home", "files"):
-        P = fresh(tab)
-        vis(P, True); proxy.freeze(); mock.set(ext_t=222.0)
-        P.pg.wait_for_timeout(4000)                     # the phone sleeps
-        vis(P, False); t0 = time.time()
-        t = answered_after(P, t0, "/api/printer", 30)
-        ok(f"[{tab}: sleep + visible] data flowing again within 3 s of coming back", t is not None and t <= 3, t)
-        if tab == "home":
-            t = wait_for(P, lambda: "222.0" in hot(P), 5)
-            ok("[home: sleep + visible] the new temperature is shown", t is not None and t <= 3, t)
-            mock.set(ext_t=223.0)
-            t2 = wait_for(P, lambda: "223.0" in hot(P), 5)
-            ok("[home: sleep + visible] and it keeps following", t2 is not None and t2 <= 3, t2)
-        ok(f"[{tab}: sleep + visible] no page errors", not errs(P), errs(P)[:2]); P.close()
-
-    # ------------------------------------------------ 2. connections die, the page never learns it was away
-    for tab in ("home", "files"):
-        P = fresh(tab)
-        proxy.freeze(); t0 = time.time()
-        t = answered_after(P, t0, "/api/printer", 40)
-        ok(f"[{tab}: dead connections, no signal] recovers by itself within 10 s", t is not None and t <= 10, t)
-        ok(f"[{tab}: dead connections, no signal] no page errors", not errs(P), errs(P)[:2]); P.close()
-
-    # ------------------------------------------------ 3. in the background: no traffic; coming back: at once
-    P = fresh()
-    vis(P, True); P.pg.wait_for_timeout(300); P.take_reqs()
-    P.pg.wait_for_timeout(3000)
-    polls = [r for r in P.take_reqs() if is_poll(r)]
-    ok("[hidden] no polling while the page is hidden (3 s)", len(polls) <= 2, len(polls))
-    mock.set(ext_t=230.0)
-    vis(P, False)
-    t = wait_for(P, lambda: "230.0" in hot(P), 3)
-    ok("[hidden -> visible] refreshes at once (<= 0.8 s)", t is not None and t <= 0.8, t)
-    ok("[hidden -> visible] no page errors", not errs(P), errs(P)[:2]); P.close()
-
-    # ------------------------------------------------ 4. the clock jumps (timers were frozen): detected without any event
-    P = fresh()
-    P.pg.evaluate("() => { const real = Date.now.bind(Date); window.__off = 0; Date.now = () => real() + window.__off; }")
-    P.pg.evaluate("() => { document.querySelector('iframe').dataset.mark = 'old'; }")
-    P.take_reqs(); ws0 = P.pg.evaluate("() => __wsCount()")
-    P.pg.evaluate("() => { window.__off = 30000; }")      # 30 s vanish
-    P.pg.wait_for_timeout(2500)
-    probes = [r for r in P.take_reqs() if r["m"] == "GET" and r["u"].startswith("/printer/info")]
-    ok("[clock jump] noticed: connection check sent", len(probes) >= 4, len(probes))
-    ok("[clock jump] camera view restarted (away 30 s)", P.pg.evaluate("() => document.querySelector('iframe').dataset.mark") is None)
-    ok("[clock jump] console socket reopened", P.pg.evaluate("() => __wsCount()") == ws0 + 1, (ws0, P.pg.evaluate("() => __wsCount()")))
-    ok("[clock jump] no page errors", not errs(P), errs(P)[:2]); P.close()
-
-    # ------------------------------------------------ 5. short absence: nothing is torn down
-    P = fresh()
-    P.pg.evaluate("() => { document.querySelector('iframe').dataset.mark = 'old'; }")
-    ws0 = P.pg.evaluate("() => __wsCount()")
-    vis(P, True); P.pg.wait_for_timeout(1200); vis(P, False); P.pg.wait_for_timeout(1500)
-    ok("[1 s away] console socket left alone", P.pg.evaluate("() => __wsCount()") == ws0)
-    ok("[1 s away] camera left alone", P.pg.evaluate("() => document.querySelector('iframe').dataset.mark") == "old")
-    ok("[1 s away] no new connection check storm", len([r for r in P.take_reqs() if r["u"].startswith("/printer/info")]) <= 8)
+    # --- an answer stopped in the middle: the reads go on by themselves
+    P = page(b)
+    mock.set(stall_body=True)
+    before = state()["printer_reads"]
+    pause(14.0)
+    during = state()["printer_reads"]
+    ok("an answer stopped in the middle: the status keeps being asked (the stuck read is given up, not waited on for ever)",
+       during - before >= 3, (before, during))
+    mock.set(stall_body=False)
+    ok("... answers again: the page goes on, never reloaded", wait_until(lambda: state()["printer_reads"] > during + 2, 8) and not reloaded(P))
     P.close()
 
-    # ------------------------------------------------ 6. the case light after a sleep
-    P = fresh()
-    vis(P, True); proxy.freeze(); mock.set(light=1)
-    P.pg.wait_for_timeout(3500)
-    vis(P, False)
-    t = wait_for(P, lambda: P.pg.evaluate("() => document.querySelector('.light-btn').classList.contains('is-on')"), 15)
-    ok("[light after sleep] shown on within 4 s", t is not None and t <= 4, t)
-    P.pg.locator(".light-btn").click()
-    t = wait_for(P, lambda: mock.gcode() and mock.gcode()[-1].lower() == "luci_off", 3)
-    ok("[light after sleep] the button works", t is not None, t)
+    # --- nothing answers, but the printer's server does: reconnecting, then a reload
+    P = page(b)
+    P.pg.route(DEAD, hang)
+    ok("no answers for a while: «Reconnecting…»", wait_until(lambda: "Riconnessione" in banner(P), 6), banner(P))
+    P.shot(os.path.join(out, "live_reconnecting.png"), tall=False)
+    ok("... still nothing, the printer's server answers: the page reloads by itself", wait_until(lambda: reloaded(P), 12))
+    P.pg.unroute_all(behavior="ignoreErrors")
+    HANG.clear()
+    P.pg.wait_for_load_state()
+    ok("... and it works again after the reload", wait_until(lambda: P.pg.locator(".app-header").count() == 1, 8))
     P.close()
 
+    # --- unsaved changes: never reloaded
+    P = page(b, 1280, 860)
+    P.goto("config", 1800)
+    P.pg.evaluate("() => { window.__notReloaded = true; }")
+    P.pg.locator(".cfg-row", has=P.pg.locator(".cfg-row__name", has_text=re.compile("^printer.cfg$"))).first.locator(".cfg-row__main").click()
+    wait_until(lambda: P.pg.locator(".cm-content").count() == 1, 6)
+    P.pg.locator(".cm-content").click()
+    P.pg.keyboard.type("# a change not saved\n")
+    P.pg.route(DEAD, hang)
+    ok("unsaved changes in the editor: «Reconnecting…» but no reload", wait_until(lambda: "Riconnessione" in banner(P), 6) and (pause(7) or True) and not reloaded(P), banner(P))
+    P.pg.unroute_all(behavior="ignoreErrors")
+    HANG.clear()
+    ok("... answers again: the strip goes, the change is still there", wait_until(lambda: banner(P) == "", 8) and "a change not saved" in P.pg.locator(".cm-content").inner_text())
+    P.close()
+
+    # --- the printer does not answer at all: said, no reload; back: the page comes back
+    P = page(b)
+    P.pg.route(re.compile(r".*/(api|printer|machine|access|server)/.*"), lambda route: route.abort())
+    ok("the printer does not answer at all: «The printer does not answer», no reload",
+       wait_until(lambda: "non risponde" in banner(P), 12) and not reloaded(P), banner(P))
+    P.shot(os.path.join(out, "live_unreachable.png"), tall=False)
+    P.pg.unroute_all(behavior="ignoreErrors")
+    ok("... back: the page comes back (reloaded, or the reads resume) and the strip goes",
+       wait_until(lambda: (reloaded(P) or banner(P) == "") and P.pg.locator(".app-header").count() == 1, 15), banner(P))
+    P.close()
+
+    # --- away for long: reloaded on coming back
+    P = page(b)
+    hide = "() => { Object.defineProperty(document, 'hidden', { configurable: true, get: () => %s }); document.dispatchEvent(new Event('visibilitychange')); }"
+    P.pg.evaluate(hide % "true")
+    pause(600 * SCALE + 3)
+    P.pg.evaluate(hide % "false")
+    ok("away for long: reloaded on coming back", wait_until(lambda: reloaded(P), 8))
+    P.close()
+    P = page(b)
+    P.pg.evaluate(hide % "true")
+    pause(2)
+    P.pg.evaluate(hide % "false")
+    pause(2)
+    ok("away for a moment: not reloaded", not reloaded(P))
+    P.close()
     b.close()
-print("\nFAILS:", FAILS if FAILS else "none")
+
+print("%d FAIL" % len(FAILS))
 sys.exit(1 if FAILS else 0)

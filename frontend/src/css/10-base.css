@@ -94,3 +94,28 @@ details[open] > summary::after { transform: translateY(2px) rotate(-135deg); }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: rgba(var(--oui-ink-rgb), 0.16); border-radius: 10px; }
 ::-webkit-scrollbar-thumb:hover { background: rgba(var(--oui-ink-rgb), 0.26); }
+
+/* 1.126: the strip of the connection watchdog (app/15-live.js), a glass pill like the toasts, at the top: above
+   everything, also on a page that is stuck */
+.live-banner {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + var(--oui-header-h) + 8px); /* just under the header */
+  left: 50%;
+  z-index: 99999;
+  width: max-content;
+  max-width: calc(100% - 32px);
+  padding: 9px 18px;
+  transform: translateX(-50%);
+  background: var(--oui-glass);
+  -webkit-backdrop-filter: blur(var(--oui-blur)) saturate(1.6);
+  backdrop-filter: blur(var(--oui-blur)) saturate(1.6);
+  border: 1px solid var(--oui-stroke-strong);
+  border-radius: var(--oui-r-pill);
+  box-shadow: var(--oui-shadow-float);
+  color: var(--oui-text);
+  font-size: 14px;
+  font-weight: 500;
+  text-align: center;
+  pointer-events: none;
+}
+.live-banner[data-state="unreachable"] { border-color: var(--oui-warn); color: var(--oui-warn); }

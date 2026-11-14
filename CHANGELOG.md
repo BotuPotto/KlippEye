@@ -1,5 +1,23 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.126.0
+
+**The dashboard no longer gets stuck after a while.** On a page left open, or coming back to it, it could stop
+updating until the page was reloaded by hand, on every device.
+
+* An answer whose connection fell asleep halfway (the start arrived, the rest never did) kept its read waiting for
+  ever. The status, temperatures and the rest then stopped updating, also with the page in front of you. Reads now give
+  up when nothing more arrives for a few seconds. A long download that keeps arriving, such as a G-code in the viewer,
+  is never cut.
+* A refresh that takes far too long is dropped, and the next one starts.
+* A watchdog notices when no answer at all has arrived for 15 seconds. It shows «Reconnecting…» at the top and gets the
+  connection back by itself. If nothing comes within a minute and the printer answers again, it reloads the page on the
+  same tab.
+* Away for more than 10 minutes, the page is reloaded as soon as you come back: quicker than bringing old data back to
+  life.
+* Never with unsaved changes in the configuration editor, never twice in a row, and never while the printer does not
+  answer: then it says «The printer does not answer: trying again…» and tries again, further and further apart.
+
 ## 1.125.0
 
 **The local model learns from its false alarms, live.**

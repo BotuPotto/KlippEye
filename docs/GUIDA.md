@@ -464,6 +464,8 @@ diagnostica**, oppure `klippeye diagnose --save` sul Raspberry. Non contiene pas
 | Cosa vedi | Cosa fare |
 |---|---|
 | la dashboard non si apre | sul Raspberry: `klippeye status`, poi `klippeye restart`. `klippeye log` mostra le ultime righe del log |
+| «Riconnessione…» in alto | niente da fare: la dashboard riprende la connessione da sola, e se serve ricarica la pagina (mai con modifiche non salvate nell'editor) |
+| «La stampante non risponde: riprovo…» | il Raspberry non è raggiungibile: controlla che sia acceso e in rete; la dashboard torna da sola |
 | «questo nome non è permesso» | aprila con l'indirizzo IP, oppure permetti il nome: `klippeye access host-add NOME` |
 | Moonraker non conosce KlippEye | rilancia `bash ~/klippeye/scripts/install.sh`, poi riavvia Moonraker |
 | la telecamera resta nera | vedi il capitolo [4](#4-la-telecamera) |

@@ -534,6 +534,9 @@ function EditorScreen({ session, onClose, inline, onDirtyChange }) {
     onDirtyChange(dirty);
     return () => onDirtyChange(false);
   }, [dirty]);
+  // 1.126: unsaved changes: the dashboard never reloads itself while they are there (app/15-live.js)
+  useEffect(() => holdPage("editor:" + session.token, dirty), [dirty]);
+  useEffect(() => () => holdPage("editor:" + session.token, false), []);
 
   /* --- search --- */
   const toggleSearch = () => {
