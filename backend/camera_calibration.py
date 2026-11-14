@@ -42,11 +42,48 @@ TRAVEL_FEED = 6000
 Z_FEED = 900
 DEFAULT_TOOLHEAD = {"width": 60, "depth": 70, "height": 70}   # mm around the nozzle (box from the tip upwards)
 WATCH_EVERY_S = 600
+WATCH_SOON_S = 60          # 1.127: while a small move of the camera waits to be confirmed
+CORRECT_AFTER = 3          # 1.127: looks in a row that must find the same small move before it is corrected
 BUSY_STATES = ("printing", "paused")
 FIND_SHIFT = 90.0     # mm the toolhead moves aside while the nozzle is looked for (more than its width: the two do not overlap)
 SETTLE_S = 1.2            # after a move, before the picture: the camera's stream is a little late
 IDLE_DURING_CALIBRATION_S = 3600   # 1.29.1: the motors stay on this long during the calibration (Klipper's idle timeout)
 SETTINGS_TTL_S = 60        # Klipper's configuration is read again after this long
+BED_FROM_MESH_MM = 10.0    # 1.127: the bed worked out from the mesh area, this much wider on each side (the probe stays off the edges)
+
+
+def _pair(value):
+    """A Klipper "x, y" setting (a list, or a text "x,y") -> [x, y] or None."""
+    if isinstance(value, str):
+        value = value.split(",")
+    try:
+        x, y = (float(v) for v in value)
+        return [x, y]
+    except (TypeError, ValueError):
+        return None
+
+
+def bed_from_mesh(settings, travel=None):
+    """1.127: the bed from Klipper's [bed_mesh] (mesh_min / mesh_max, or mesh_origin and mesh_radius on a round bed), a
+    little wider (the probe stays off the edges), inside the travel when known; None without a mesh.
+    The travel itself (position_min..max) often goes beyond the plate: a purge bucket, a brush, the frame."""
+    mesh = (settings or {}).get("bed_mesh") or {}
+    low, high = _pair(mesh.get("mesh_min")), _pair(mesh.get("mesh_max"))
+    if (low is None or high is None) and mesh.get("mesh_radius") is not None:
+        try:
+            radius = float(mesh["mesh_radius"])
+            centre = _pair(mesh.get("mesh_origin")) or [0.0, 0.0]
+            low, high = [centre[0] - radius, centre[1] - radius], [centre[0] + radius, centre[1] + radius]
+        except (TypeError, ValueError):
+            return None
+    if low is None or high is None or high[0] - low[0] < 10 or high[1] - low[1] < 10:
+        return None
+    low = [low[0] - BED_FROM_MESH_MM, low[1] - BED_FROM_MESH_MM]
+    high = [high[0] + BED_FROM_MESH_MM, high[1] + BED_FROM_MESH_MM]
+    if travel:
+        low = [max(low[0], travel[0][0]), max(low[1], travel[0][1])]
+        high = [min(high[0], travel[1][0]), min(high[1], travel[1][1])]
+    return [[round(low[0], 1), round(low[1], 1)], [round(high[0], 1), round(high[1], 1)]]
 
 
 class HomingRisk(Exception):
@@ -151,6 +188,7 @@ class CameraCalibration:
         self._auto_thread = None
         self._auto_stop = False
         self.last_watch = 0.0
+        self.moves = []   # 1.127: the looks that found the same small movement, waiting to be confirmed
 
     # ---------------------------------------------------------------- the printer
     def printer(self):
@@ -584,6 +622,7 @@ class CameraCalibration:
             _write_json(self.path, saved)
             self.saved = saved
             self.watch = saved["watch"]
+            self.moves = []   # 1.127: a new calibration and a new reference picture: no move pending, no correction
             self.reset()
         return saved
 
@@ -611,16 +650,74 @@ class CameraCalibration:
         result = camera_watch.compare(self.cv2, self.np, reference, image)
         result["time"] = int(time.time())
         with self.lock:
-            if result["state"] != "unknown" or self.watch.get("state") != "moved":  # an unclear look does not clear a "moved"
-                self.watch = result
+            self._judge_move(result)
             self.saved["watch"] = self.watch
             _write_json(self.path, self.saved)
         self.last_watch = time.time()
         return self.watch
 
+    def _judge_move(self, result):
+        """1.127: what a look at the camera means (under the lock).
+          - still ("ok"): no correction (the camera is back where it was);
+          - moved a little, the same way in CORRECT_AFTER looks in a row (camera_watch.small / agree): the movement becomes a
+            correction of the projections (saved["shift_fix"]; calibration() hands it on as "correction": the calibration
+            itself is not changed) and the state is
+            "corrected"; a look that agrees with the correction in use keeps it;
+          - moved a lot, or a little but not yet confirmed: "moved" as before (masks and zones off: calibrate again), and
+            the camera is looked at again soon (WATCH_SOON_S) while a small movement waits to be confirmed;
+          - an unclear look ("unknown") changes nothing."""
+        state = result["state"]
+        correction = self.saved.get("shift_fix")
+        if state == "unknown":
+            if self.watch.get("state") not in ("moved", "corrected"):
+                self.watch = result
+            return
+        if state == "ok":
+            self.saved.pop("shift_fix", None)
+            self.moves = []
+            self.watch = result
+            return
+        if correction and camera_watch.agree(result, correction):
+            self.watch = dict(result, state="corrected")
+            return
+        if camera_watch.small(result):
+            self.moves = [m for m in self.moves if camera_watch.agree(m, result)] + [result]
+            if len(self.moves) >= CORRECT_AFTER:
+                self.saved["shift_fix"] = {"matrix": result["matrix"], "shift_px": result["shift_px"], "rotation_deg": result["rotation_deg"],
+                                            "time": result["time"], "looks": len(self.moves)}
+                self.moves = []
+                self.watch = dict(result, state="corrected")
+                return
+        else:
+            self.moves = []
+        self.saved.pop("shift_fix", None)
+        self.watch = dict(result, waiting=len(self.moves)) if self.moves else result
+
+    def calibration(self):
+        """1.127: the saved calibration as the masks and zones use it: with the correction of a small move of the camera."""
+        saved = self.saved
+        fix = (saved or {}).get("shift_fix")
+        if not saved or not fix:
+            return saved
+        return dict(saved, correction=fix["matrix"])
+
+    def undo_correction(self):
+        """1.127: the person does not trust the correction: it goes, and the camera counts as moved (calibrate again)."""
+        with self.lock:
+            if not self.saved or not self.saved.get("shift_fix"):
+                return self.watch
+            self.saved.pop("shift_fix", None)
+            self.moves = []
+            self.watch = dict(self.watch, state="moved", undone=True)
+            self.saved["watch"] = self.watch
+            _write_json(self.path, self.saved)
+        return self.watch
+
     def maybe_check(self):
-        """Called often by the monitor: looks again every WATCH_EVERY_S seconds."""
-        if self.saved and time.time() - self.last_watch > WATCH_EVERY_S:
+        """Called often by the monitor: looks again every WATCH_EVERY_S seconds (1.127: every WATCH_SOON_S while a small move
+        waits to be confirmed)."""
+        every = WATCH_SOON_S if self.moves else WATCH_EVERY_S
+        if self.saved and time.time() - self.last_watch > every:
             self.last_watch = time.time()
             try:
                 self.check_moved()
@@ -630,11 +727,12 @@ class CameraCalibration:
     def usable(self):
         """True when the saved calibration can be trusted: masks and zones use it only then (never half masks)."""
         return bool(self.saved) and self.saved.get("quality") in ("good", "fair") and self.watch.get("state") != "moved"
+        # 1.127: "corrected" (moved a little, corrected by itself) is usable
 
     # ---------------------------------------------------------------- what the page draws over the picture
     def overlay(self, use_draft=False):
         """The nozzle, the toolhead box and the bed outline at the printer's current position, as fractions of the picture."""
-        calibration = (self.draft.get("fit") if use_draft else None) or self.saved
+        calibration = (self.draft.get("fit") if use_draft else None) or self.calibration()
         if not calibration:
             return None
         z_moves = calibration.get("z_moves") or self.z_moves() or "toolhead"
@@ -644,7 +742,8 @@ class CameraCalibration:
         shape = self.get_shape()
         parts = machine_masks.polygons(dict(calibration, z_moves=z_moves), shape, [x, y, z], [printer["minimum"][0], printer["maximum"][0]])
         bed_z = -z if z_moves == "bed" else 0.0
-        (bx0, by0), (bx1, by1) = printer["minimum"][:2], printer["maximum"][:2]
+        area = self.bed_area()[0] if not use_draft else None   # 1.127: the bed the monitor watches
+        (bx0, by0), (bx1, by1) = area if area else (printer["minimum"][:2], printer["maximum"][:2])
         bed = []
         for (ax, ay), (cx, cy) in (((bx0, by0), (bx1, by0)), ((bx1, by0), (bx1, by1)), ((bx1, by1), (bx0, by1)), ((bx0, by1), (bx0, by0))):
             for s in [i / 12.0 for i in range(12)]:
@@ -679,9 +778,16 @@ class CameraCalibration:
         for part in machine_masks.DEFAULT_SHAPE:
             given = data.get(part) if isinstance(data, dict) else None
             merged[part] = dict(current[part], **given) if isinstance(given, dict) else dict(current[part])
-        for key in ("x_range", "limits"):
+        for key in ("x_range", "limits", "bed", "bed_auto"):
             if key in current:
                 merged[key] = current[key]
+        if isinstance(data, dict) and "bed" in data:   # 1.127: the bed area set by the person; None: worked out again
+            if data["bed"] is None:
+                merged.pop("bed", None)
+            elif machine_masks.clean_area(data["bed"]) is None:
+                raise machine_masks.ShapeError("bed", machine_masks.BED_MIN_MM, 10000)
+            else:
+                merged["bed"] = data["bed"]
         shape = machine_masks.clean_shape(merged)
         with self.lock:
             self.shape = shape
@@ -709,6 +815,29 @@ class CameraCalibration:
                 self._limits = (time.time(), known)
         return known
 
+    def bed_area(self):
+        """1.127: the bed the monitor watches, ([x min, y min], [x max, y max]) in mm, and where it comes from: "person"
+        (set on the calibration page), "mesh" (Klipper's bed_mesh, a little wider), "travel" (the toolhead's travel, which
+        often goes beyond the plate). (None, None) when nothing is known. The one worked out is kept in machine_shape.json
+        («bed_auto») for the replay."""
+        shape = self.get_shape()
+        if shape.get("bed"):
+            return (shape["bed"][0], shape["bed"][1]), "person"
+        travel = self.limits()
+        try:
+            mesh = bed_from_mesh(self.settings(), travel)
+        except Exception:
+            mesh = None
+        if mesh is None and shape.get("bed_auto"):
+            mesh = shape["bed_auto"]
+        if mesh:
+            if shape.get("bed_auto") != mesh:
+                with self.lock:
+                    shape["bed_auto"] = mesh
+                    _write_json(self.shape_path, shape)
+            return (mesh[0], mesh[1]), "mesh"
+        return (travel, "travel") if travel else (None, None)
+
     def x_range(self):
         known = self.limits()
         return [known[0][0], known[1][0]] if known else self.get_shape().get("x_range")
@@ -716,23 +845,27 @@ class CameraCalibration:
     def zone_masks(self, objects, z, width, height):
         """Phase 4c: (watched, expected, settled) pictures for the monitor with the machine at Z = z (print_zone.masks), or None when
         the calibration cannot be trusted, the bed size is not known or there are no objects."""
-        known = self.limits()
+        known = self.bed_area()[0]
         if not objects or not known or not self.usable() or self.cv2 is None:
             return None
-        return print_zone.masks(self.cv2, self.np, self.saved, objects, z, known[0], known[1], width, height)
+        return print_zone.masks(self.cv2, self.np, self.calibration(), objects, z, known[0], known[1], width, height)
 
     def monitor_mask(self, positions, width, height):
         """The machine mask for one check of the monitor (positions: where the toolhead was before and after the picture),
         or None when the calibration cannot be trusted (never half masks) or no position is known."""
         if not self.usable() or self.cv2 is None:
             return None
-        return machine_masks.mask(self.cv2, self.np, self.saved, self.get_shape(), positions, width, height, self.x_range())
+        return machine_masks.mask(self.cv2, self.np, self.calibration(), self.get_shape(), positions, width, height, self.x_range())
 
     def summary(self):
         saved = self.saved
         brief = None
         if saved:
-            brief = {k: saved.get(k) for k in ("saved", "z_moves", "model", "rms_px", "rms", "quality", "toolhead", "camera_position", "width", "height")}
+            brief = {k: saved.get(k) for k in ("saved", "z_moves", "model", "rms_px", "rms", "quality", "toolhead", "camera_position", "width", "height", "shift_fix")}
             brief["points"] = len(saved.get("points") or {})
+        area, source = self.bed_area() if saved else (None, None)
+        travel = self.limits() if saved else None
         return {"saved": brief, "watch": self.watch, "usable": self.usable(), "draft": self.draft, "marks": self.marks, "shape": self.get_shape(),
-                "auto": self.auto, "template": self.has_template()}
+                "auto": self.auto, "template": self.has_template(),
+                "bed": {"area": [list(area[0]), list(area[1])] if area else None, "source": source,
+                        "travel": [list(travel[0]), list(travel[1])] if travel else None}}

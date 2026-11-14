@@ -744,7 +744,24 @@ function WatchLine({ state, run, busy }) {
   const watch = state.watch || {};
   if (!state.saved) return null;
   const when = watch.time ? formatWhen(watch.time) : "";
+  // 1.127: moved a little and corrected by itself (from what stays still in the picture: the frame, the bed's edges)
+  if (watch.state === "corrected") {
+    const correction = (state.saved && state.saved.shift_fix) || {};
+    return h(
+      "div",
+      { className: "cal-watch", "data-watch": "corrected" },
+      h("span", null, tx("The camera moved a little ({px} px, {deg}°): corrected by itself from what stays still in the picture (checked {when}).", { px: formatNumber(correction.shift_px || watch.shift_px || 0), deg: formatNumber(correction.rotation_deg || watch.rotation_deg || 0), when })),
+      h("button", { type: "button", className: "oui-btn oui-btn--quiet oui-btn--sm", disabled: busy, "data-undo-correction": "1", onClick: () => run("calibration/correction", { undo: true }) }, tx("Do not trust it")),
+    );
+  }
   if (watch.state === "moved") {
+    if (watch.waiting)
+      return h(
+        "div",
+        { className: "cal-watch", "data-watch": "waiting" },
+        h("span", null, tx("The camera seems to have moved a little: checking again before correcting it ({n} of {total}).", { n: watch.waiting, total: 3 })),
+        h("button", { type: "button", className: "oui-btn oui-btn--quiet oui-btn--sm", disabled: busy, "data-check": "1", onClick: () => run("check") }, tx("Check now")),
+      );
     return h(
       "div",
       { className: "set-status set-status--warn", role: "alert" },
@@ -808,6 +825,7 @@ function CameraCalibrationPage({ active }) {
               { title: tx("Toolhead and gantry on the live picture"), note: tx("What is inside the outlines is left out of the AI monitor's checks (Settings → Monitor thresholds → False alarms). Adjust the sizes until the outlines cover the toolhead and the gantry wherever they are.") },
               h(LiveCheck, { camera, draft: false, editShape: true }),
             ),
+          saved && h(BedArea, { state, reload }),
           saved && h(MaskSwitches, { active }),
           h(
             SettingsGroup,
@@ -824,6 +842,52 @@ function CameraCalibrationPage({ active }) {
                 )
               : h("button", { type: "button", className: "oui-btn oui-btn--quiet oui-btn--block", onClick: () => setAskForget(true) }, h(Icons.Trash, { size: 18 }), tx("Forget the calibration"))),
         ),
+  );
+}
+
+/**
+ * 1.127: the bed the monitor watches (the dashed outline on the live picture). Worked out from Klipper's mesh area (a
+ * little wider), else the toolhead's travel, which often goes beyond the plate (a purge bucket, a brush, the frame):
+ * changes there are no failures. The person can set it with − and +.
+ */
+const BED_STEP_MM = 5;
+function BedArea({ state, reload }) {
+  const bed = state.bed || {};
+  const area = bed.area;
+  const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState("");
+  if (!area) return null;
+  const send = async (next) => {
+    setBusy(true);
+    const reply = await camcalPost("shape", { bed: next });
+    setBusy(false);
+    setProblem(reply.ok ? "" : reply.message);
+    reload();
+  };
+  const fields = [
+    { key: "x0", label: tx("Left edge (X min)"), get: (a) => a[0][0], set: (a, v) => [[v, a[0][1]], a[1]] },
+    { key: "x1", label: tx("Right edge (X max)"), get: (a) => a[1][0], set: (a, v) => [a[0], [v, a[1][1]]] },
+    { key: "y0", label: tx("Front edge (Y min)"), get: (a) => a[0][1], set: (a, v) => [[a[0][0], v], a[1]] },
+    { key: "y1", label: tx("Back edge (Y max)"), get: (a) => a[1][1], set: (a, v) => [a[0], [a[1][0], v]] },
+  ];
+  const source =
+    bed.source === "person" ? tx("Set by you.") : bed.source === "mesh" ? tx("Worked out from the area of the bed mesh (a little wider).") : tx("The toolhead's travel: it may go beyond the plate.");
+  return h(
+    SettingsGroup,
+    { title: tx("Bed area"), note: tx("The dashed outline on the live picture: the AI monitor watches the bed inside it. Leave out what is not the plate (a purge bucket, a brush, the frame): changes there are no failures.") },
+    h("p", { className: "set-group__note", "data-bed-source": bed.source }, source),
+    fields.map((field) =>
+      h(
+        "div",
+        { key: field.key, className: "cal-size" },
+        h("span", { className: "cal-size__label" }, field.label),
+        h("button", { type: "button", className: "oui-btn oui-btn--sm", "aria-label": field.label + " −", "data-bed": field.key + ".minus", disabled: busy, onClick: () => send(field.set(area, field.get(area) - BED_STEP_MM)) }, "−"),
+        h("span", { className: "cal-size__value", "data-bed-value": field.key }, formatNumber(field.get(area)), " mm"),
+        h("button", { type: "button", className: "oui-btn oui-btn--sm", "aria-label": field.label + " +", "data-bed": field.key + ".plus", disabled: busy, onClick: () => send(field.set(area, field.get(area) + BED_STEP_MM)) }, "+"),
+      ),
+    ),
+    bed.source === "person" && h("button", { type: "button", className: "oui-btn oui-btn--quiet oui-btn--sm set-inline-btn", "data-bed-auto": "1", disabled: busy, onClick: () => send(null) }, h(Icons.RotateCcw, { size: 16 }), tx("Work it out again by itself")),
+    problem && h("p", { className: "set-field__error", role: "alert" }, problem),
   );
 }
 

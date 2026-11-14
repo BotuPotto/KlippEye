@@ -291,9 +291,15 @@ muove da sola: tieni le mani lontane.
    sbagliato: rifai solo quelli. Poi **Salva la calibrazione** e togli i segni dal piatto.
 7. Testina e gantry: l'immagine dal vivo li mostra contornati in viola e arancione. Trascina i pallini (o usa − e +) in
    modo che i contorni li coprano con un po' di margine.
+8. **Area del piatto**: il contorno tratteggiato è il piatto che il monitor sorveglia. KlippEye lo ricava dalla mesh del
+   piatto (un po' più largo), oppure usa la corsa della testina se la mesh non c'è. Se comprende qualcosa che non è il
+   piatto (cestino dello spurgo, spazzolino, telaio), sposta i bordi con − e +: i cambiamenti lì non sono problemi.
 
-Ogni dieci minuti KlippEye controlla che la telecamera non si sia spostata. Se si è spostata, la pagina lo dice e il monitor
-smette di usare la calibrazione finché non la rifai.
+Ogni dieci minuti KlippEye controlla che la telecamera non si sia spostata, guardando solo ciò che resta fermo
+nell'immagine (telaio, bordi del piatto) e mai l'ugello. Uno spostamento piccolo (fino a circa il 5% dell'immagine) viene
+ricontrollato un minuto dopo e, quando tre controlli di fila sono d'accordo, corretto da solo: la pagina dice di quanto, e
+**Non fidarti** annulla la correzione. La calibrazione in sé non viene mai cambiata. Dopo uno spostamento più grande la pagina
+chiede di ricalibrare, e fino ad allora il monitor non usa la calibrazione.
 
 ### Insegnargli com'è la tua stampante
 

@@ -77,7 +77,28 @@ def clean_shape(data):
     limits = data.get("limits")
     if isinstance(limits, (list, tuple)) and len(limits) == 2 and all(isinstance(c, (list, tuple)) and len(c) == 2 for c in limits):
         out["limits"] = [[float(limits[0][0]), float(limits[0][1])], [float(limits[1][0]), float(limits[1][1])]]
+    # 1.127: the bed the monitor watches: set by the person ("bed"), or worked out from the mesh ("bed_auto")
+    for key in ("bed", "bed_auto"):
+        area = clean_area(data.get(key)) if data.get(key) is not None else None
+        if area:
+            out[key] = area
     return out
+
+
+BED_MIN_MM = 20.0   # 1.127: a bed area at least this wide and deep
+
+
+def clean_area(area):
+    """[[x min, y min], [x max, y max]] (mm) checked, or None when it is not one. Raises ShapeError when too small."""
+    try:
+        (x0, y0), (x1, y1) = [[float(v) for v in corner] for corner in area]
+    except (TypeError, ValueError):
+        return None
+    if not all(abs(v) < 10000 for v in (x0, y0, x1, y1)):
+        return None
+    if x1 - x0 < BED_MIN_MM or y1 - y0 < BED_MIN_MM:
+        raise ShapeError("bed", BED_MIN_MM, 10000)
+    return [[round(x0, 1), round(y0, 1)], [round(x1, 1), round(y1, 1)]]
 
 
 def nozzle_frame(z_moves, position):

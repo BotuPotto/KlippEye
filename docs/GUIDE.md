@@ -284,9 +284,15 @@ calibration: keep your hands away.
    place: redo just those. Then **Save the calibration** and take the markers off the bed.
 7. Toolhead and gantry: the live picture shows them outlined in purple and orange. Drag the dots (or use − and +) so
    that the outlines cover them with a little room to spare.
+8. **Bed area**: the dashed outline is the bed the monitor watches. KlippEye works it out from your bed mesh (a little
+   wider), or uses the toolhead's travel when there is no mesh. If it takes in something that is not the plate (a purge
+   bucket, a brush, the frame), move its edges with − and +; changes there are no failures.
 
-Every ten minutes KlippEye checks that the camera hasn't moved. If it has, the page says so and the monitor stops using
-the calibration until you redo it.
+Every ten minutes KlippEye checks that the camera hasn't moved, looking only at what stays still in the picture (the
+frame, the bed's edges), never at the nozzle. A small move (up to about 5% of the picture) is checked again a minute
+later and, when three looks in a row agree, corrected by itself: the page says by how much, and **Do not trust it** undoes
+it. The calibration itself is never changed. After a bigger move the page asks you to calibrate again, and until then the
+monitor doesn't use the calibration.
 
 ### Teaching it about your printer
 
