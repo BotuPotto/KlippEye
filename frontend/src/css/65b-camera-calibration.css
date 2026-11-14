@@ -12,6 +12,7 @@
 .cal-cross--tap line { stroke: #ffd84a; }
 .cal-cross--saved line { stroke: var(--oui-ok); }
 .cal-cross--nozzle line { stroke: #ff5d5d; stroke-width: 2.5px; }
+.cal-cross--detail line { stroke: #6fe3ff; stroke-width: 2.5px; }
 .cal-toolhead { fill: rgba(var(--oui-accent-rgb), 0.22); stroke: var(--oui-accent); stroke-width: 2px; }
 .cal-bed { fill: none; stroke: rgba(255, 255, 255, 0.8); stroke-width: 1.5px; stroke-dasharray: 6 5; }
 
@@ -41,6 +42,10 @@
 .cal-hint { width: 96px; height: auto; background: var(--oui-surface-2); border-radius: 10px; }
 .cal-hint__block { fill: #6c6f7a; }
 .cal-hint__nozzle { fill: #c9a24a; }
+.cal-hint__screw { fill: #d9dbe2; stroke: #2b2d33; stroke-width: 1.5; }
+.cal-detail-list { margin: 4px 0 8px; padding-left: 20px; display: grid; gap: 4px; }
+.cal-detail-ref { display: flex; align-items: center; gap: 10px; margin: 6px 0; }
+.cal-detail-ref img { width: 72px; height: 72px; object-fit: contain; image-rendering: pixelated; border-radius: 8px; border: 2px solid #6fe3ff; background: #000; }
 .cal-hint__bed { stroke: var(--oui-text-3); stroke-width: 2; }
 .cal-hint__marker { fill: #3fbf6f; }
 .cal-hint__marker--faint { opacity: 0.35; }

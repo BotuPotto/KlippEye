@@ -63,8 +63,12 @@ def toolhead_region(cv2, np, here, aways):
     return cv2.dilate(mask, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * grow + 1, 2 * grow + 1)))
 
 
-def find(cv2, np, image, patch, region=None):
+NEAR_COST = 0.3               # 1.128: a match at the edge of the window counts this much less than one where it was expected
+
+
+def find(cv2, np, image, patch, region=None, near=None):
     """The template `patch` in `image`, at the sizes of SCALES, inside `region` when given.
+    near (1.128): (u, v, radius) where it is expected: of two matches alike, the nearer wins (a reflection next to the tip).
     -> {"found": bool, "u", "v", "score", "scale"} (u, v: where the centre of the template is: the tip)."""
     gray = _gray(cv2, image)
     h, w = gray.shape[:2]
@@ -81,9 +85,16 @@ def find(cv2, np, image, patch, region=None):
         if region is not None:
             inside = region[half:half + scores.shape[0], half:half + scores.shape[1]] > 0
             scores = np.where(inside, scores, -1.0)
-        _, score, _, (x, y) = cv2.minMaxLoc(scores)
-        if score > best["score"]:
-            best = {"found": False, "score": float(score), "u": (x + half) / float(w), "v": (y + half) / float(h), "scale": scale}
+        ranked = scores
+        if near is not None:
+            ys, xs = np.mgrid[0:scores.shape[0], 0:scores.shape[1]]
+            far = ((xs + half - near[0] * w) ** 2 + (ys + half - near[1] * h) ** 2) / float((near[2] * w) ** 2)
+            ranked = scores - NEAR_COST * far
+        _, rank, _, (x, y) = cv2.minMaxLoc(ranked.astype(np.float32))
+        score = float(scores[y, x])
+        if best.get("rank", -9.0) < rank:
+            best = {"found": False, "score": score, "u": (x + half) / float(w), "v": (y + half) / float(h), "scale": scale, "rank": rank}
+    best.pop("rank", None)
     best["found"] = best["score"] >= MIN_SCORE
     if best["u"] is not None:
         best["u"], best["v"], best["score"] = round(best["u"], 5), round(best["v"], 5), round(best["score"], 3)

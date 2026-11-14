@@ -136,12 +136,28 @@ def frame_point(z_moves, x, y, z, kind, height=0.0):
     on the bed, seen with the machine at Z = z (bed lowered by z when Z moves the bed)."""
     if kind == "mark":
         return [x, y, height - z] if z_moves == "bed" else [x, y, height]
+    # "nozzle", and "detail" (1.128): a detail of the toolhead is at an unknown offset from the tip: the tip's place here
     return [x, y, 0.0] if z_moves == "bed" else [x, y, z]
 
 
-def targets(z_moves, minimum, maximum, markers=None):
+METHODS = ("detail", "markers")   # 1.128: Z moves the bed: a detail of the toolhead (nothing printed), or markers on the bed
+DETAIL_Z = 20.0                    # 1.128: the bed this far under the nozzle while the detail points are taken
+WALK_PROBE = 4.0                   # 1.128: the first two small moves (mm) that tell how the picture moves per mm
+WALK_STEP = 25.0                   # ... then this far at a time towards the next place
+WALK_FIRST = 0.025                 # how far (widths of the picture) the point is looked for after the first small moves
+WALK_WINDOW = 0.03                 # ... and after each step
+WALK_KEEP = 0.7                    # a match this good gives the picture looked for next (how the point looks there)
+
+
+def _gap(a, b, ratio):
+    """The distance between two places in the picture (fractions), in widths of the picture (ratio: height / width)."""
+    return ((a[0] - b[0]) ** 2 + ((a[1] - b[1]) * ratio) ** 2) ** 0.5
+
+
+def targets(z_moves, minimum, maximum, markers=None, method="markers"):
     """The points to take, in order (little travel). Each: id, kind, x, y, z (the machine Z to go to), height (markers).
-    Z moves the bed: nothing until the markers are known (printed and read from their G-code, or blobs)."""
+    Z moves the bed: with method "detail" (1.128) the nozzle tip and a detail of the toolhead at six places, nothing on
+    the bed; with "markers", nothing until the markers are known (printed and read from their G-code, or blobs)."""
     x0, y0, x1, y1 = minimum[0], minimum[1], maximum[0], maximum[1]
     xs = [round(x0 + (x1 - x0) * f, 1) for f in GRID_X]
     ys = [round(y0 + (y1 - y0) * f, 1) for f in GRID_Y]
@@ -153,6 +169,10 @@ def targets(z_moves, minimum, maximum, markers=None):
             out.append({"id": "low%d" % n, "kind": "nozzle", "x": x, "y": y, "z": LOW_Z_TOOLHEAD, "step": 1})
         for n, (x, y) in enumerate(reversed(grid), 1):
             out.append({"id": "high%d" % n, "kind": "nozzle", "x": x, "y": y, "z": high, "step": 2})
+    elif method == "detail":
+        for n, (x, y) in enumerate(grid, 1):
+            out.append({"id": "tip%d" % n, "kind": "nozzle", "x": x, "y": y, "z": DETAIL_Z, "step": 1, "pair": n})
+            out.append({"id": "feat%d" % n, "kind": "detail", "x": x, "y": y, "z": DETAIL_Z, "step": 1, "pair": n})
     elif markers:
         for n, (x, y, h) in enumerate(markers, 1):
             out.append({"id": "tip%d" % n, "kind": "nozzle", "x": x, "y": y, "z": round(h + NOZZLE_OVER_MARKER, 2), "height": h, "step": 1})
@@ -169,6 +189,7 @@ class CameraCalibration:
         self.path = os.path.join(data_dir, "camera.json")
         self.draft_path = os.path.join(data_dir, "camera_draft.json")
         self.template_path = os.path.join(data_dir, "camera_tip.png")   # 1.29: the nozzle tip as tapped once, to find it again
+        self.detail_path = os.path.join(data_dir, "camera_detail.png")  # 1.128: the detail of the toolhead as tapped once
         self.reference_path = os.path.join(data_dir, "camera_reference.jpg")
         self.query, self.gcode, self.snapshot = query, gcode, snapshot
         self.cv2, self.np = cv2, np
@@ -222,13 +243,20 @@ class CameraCalibration:
     def z_moves(self):
         return self.draft.get("z_moves") or (self.saved or {}).get("z_moves") or None
 
-    def set_options(self, z_moves=None, toolhead=None):
+    def method(self):
+        """1.128: how the second height is given when Z moves the bed: "detail" or "markers" (drafts from before: markers)."""
+        if self.z_moves() != "bed":
+            return None
+        return self.draft.get("method") or "markers"
+
+    def set_options(self, z_moves=None, toolhead=None, method=None):
         with self.lock:
             if z_moves is not None:
                 if z_moves not in Z_MOVES:
                     raise ValueError("z_moves must be bed or toolhead")
                 if z_moves != self.draft.get("z_moves"):
-                    self.draft = {"z_moves": z_moves, "points": {}, "toolhead": self.draft.get("toolhead")}
+                    self.draft = {"z_moves": z_moves, "points": {}, "toolhead": self.draft.get("toolhead"),
+                                  "method": "detail" if z_moves == "bed" else None}   # 1.128: nothing to print by default
             if toolhead is not None:
                 clean = {}
                 for key in DEFAULT_TOOLHEAD:
@@ -237,6 +265,12 @@ class CameraCalibration:
                         raise ValueError("the toolhead size must be 10 to 300 mm")
                     clean[key] = float(value)
                 self.draft["toolhead"] = clean
+            if method is not None:   # 1.128: Z moves the bed: a detail of the toolhead, or markers on the bed
+                if method not in METHODS:
+                    raise ValueError("the method must be detail or markers")
+                if method != self.method():
+                    self.draft.update(method=method, points={}, proposals={})
+                    self.draft.pop("fit", None)
             self.draft.setdefault("points", {})
             self._save_draft()
             return self.draft
@@ -245,7 +279,7 @@ class CameraCalibration:
         self.restore_idle()
         with self.lock:
             self.draft = {}
-            for path in (self.draft_path, self.template_path):
+            for path in (self.draft_path, self.template_path, self.detail_path):
                 try:
                     os.remove(path)
                 except OSError:
@@ -257,7 +291,7 @@ class CameraCalibration:
             return []
         printer = printer or self.printer()
         markers = (self.draft.get("markers") or {}).get("points")
-        return targets(z_moves, printer["minimum"], printer["maximum"], markers)
+        return targets(z_moves, printer["minimum"], printer["maximum"], markers, self.method())
 
     def _target(self, target_id, printer):
         for t in self.target_list(printer):
@@ -379,8 +413,8 @@ class CameraCalibration:
         printer = self.printer()
         t = self._target(target_id, printer)
         point = self._store_point(t, printer["position"], u, v)
-        if t["kind"] == "nozzle":
-            self._save_template(u, v)
+        if t["kind"] in ("nozzle", "detail") and point.get("source") is None:
+            self._save_template(u, v, t["kind"])
         return point
 
     def _store_point(self, t, position, u, v, source="tap"):
@@ -399,19 +433,69 @@ class CameraCalibration:
         return point
 
     # ---------------------------------------------------------------- 1.29: the nozzle found by itself
-    def _save_template(self, u, v):
+    def _template_path(self, kind="nozzle"):
+        return self.detail_path if kind == "detail" else self.template_path
+
+    def _save_template(self, u, v, kind="nozzle"):
         if self.cv2 is None:
             return
         try:
             _, image = self._picture()
             patch = nozzle_finder.template(self.cv2, self.np, image, u, v)
             if patch is not None:
-                self.cv2.imwrite(self.template_path, patch)
+                self.cv2.imwrite(self._template_path(kind), patch)
         except Exception as error:
-            print("[CAMERA] nozzle template not kept: %s" % error)
+            print("[CAMERA] template not kept: %s" % error)
 
-    def has_template(self):
-        return os.path.isfile(self.template_path)
+    def has_template(self, kind="nozzle"):
+        return os.path.isfile(self._template_path(kind))
+
+    def template_png(self, kind="nozzle"):
+        """1.128: the small picture tapped first (to show the person which detail to tap again), PNG bytes or None."""
+        try:
+            with open(self._template_path(kind), "rb") as handle:
+                return handle.read()
+        except OSError:
+            return None
+
+    def can_find(self):
+        """Whether the points can be looked for by themselves: the nozzle tapped by hand once (and, with a detail of the
+        toolhead, the detail too: 1.128)."""
+        return self.has_template("nozzle") and (self.method() != "detail" or self.has_template("detail"))
+
+    # ---------------------------------------------------------------- 1.128: where a point should be, from those taken
+    def _known(self):
+        """The points taken and the proposals found so far: {id: {"u", "v", "machine", "kind"}}."""
+        out = {}
+        for pid, p in (self.draft.get("proposals") or {}).items():
+            if p.get("found"):
+                out[pid] = {"u": p["u"], "v": p["v"], "machine": p["machine"], "kind": p.get("kind")}
+        for pid, p in (self.draft.get("points") or {}).items():
+            out[pid] = {"u": p["u"], "v": p["v"], "machine": p["machine"], "kind": p["kind"]}
+        return out
+
+    def predict(self, t, printer=None):
+        """Where the point `t` should appear (fractions) and how far from there it may be: {"u", "v", "radius"} or None.
+        From the points of the same kind on the same plane (same machine Z), at least 3 not all in a row: an affine map (the
+        window wider when it does not fit them well: a lens that bends). The search is limited to there: a reflection or the background far away cannot be taken."""
+        if self.cv2 is None:
+            return None
+        known = self._known()
+        same = [k for pid, k in known.items() if pid != t["id"] and k.get("kind") == t["kind"] and abs(float(k["machine"][2]) - float(t["z"])) < 0.6]
+        guess = None
+        if len(same) >= 3:   # two, or all in a row: the picture may be mirrored, nothing sure (the step to the detail still is)
+            src = self.np.array([[k["machine"][0], k["machine"][1]] for k in same], float)
+            dst = self.np.array([[k["u"], k["v"]] for k in same], float)
+            spread = self.np.linalg.svd(src - src.mean(axis=0), compute_uv=False)
+            if spread[0] > 0 and spread[-1] / spread[0] >= 0.15:
+                rows = self.np.hstack([src, self.np.ones((len(src), 1))])
+                matrix = self.np.linalg.lstsq(rows, dst, rcond=None)[0]   # an affine map, least squares
+                miss = float(self.np.max(self.np.linalg.norm(rows @ matrix - dst, axis=1))) if len(src) > 3 else 0.0
+                q = self.np.array([t["x"], t["y"], 1.0]) @ matrix
+                guess = {"u": float(q[0]), "v": float(q[1]), "radius": min(0.15, 0.07 + 2 * miss)}
+        if guess and not (-0.2 <= guess["u"] <= 1.2 and -0.2 <= guess["v"] <= 1.2):
+            return None
+        return guess
 
     def _fresh_picture(self):
         time.sleep(SETTLE_S)
@@ -420,16 +504,29 @@ class CameraCalibration:
 
     def find_tip(self, target_id):
         """Goes to a nozzle point and looks for the nozzle tip with the template: the toolhead moves aside for a moment
-        (to see where it is), then back. -> the proposal {u, v, score, found}, kept in the draft until accepted."""
+        (to see where it is), then back. -> the proposal {u, v, score, found}, kept in the draft until accepted.
+        1.128: only near where the points taken say it should be, or where it was followed to from a place known; with a
+        detail of the toolhead, the tip and the detail of the same place are looked for together."""
         if self.cv2 is None:
             raise NotReady("OpenCV is missing on the Raspberry")
-        patch = self.cv2.imread(self.template_path, self.cv2.IMREAD_GRAYSCALE) if self.has_template() else None
-        if patch is None:
-            raise ValueError("tap the nozzle by hand at one point first: KlippEye then finds it at the others")
         printer = self.printer()
         t = self._target(target_id, printer)
-        if t["kind"] != "nozzle":
+        if t["kind"] not in ("nozzle", "detail"):
             raise ValueError("only the nozzle points can be found by themselves")
+        taken = self.draft.get("points") or {}
+        group = [t]
+        if self.method() == "detail" and t.get("pair"):
+            group = [o for o in self.target_list(printer) if o.get("pair") == t["pair"] and (o["id"] == target_id or o["id"] not in taken)]
+        patches = {}
+        for o in group:
+            patch = self.cv2.imread(self._template_path(o["kind"]), self.cv2.IMREAD_GRAYSCALE) if self.has_template(o["kind"]) else None
+            if patch is None:
+                if self.method() == "detail":
+                    raise ValueError("tap the nozzle tip and the detail of the toolhead by hand at the first place: KlippEye then finds both at the others")
+                raise ValueError("tap the nozzle by hand at one point first: KlippEye then finds it at the others")
+            patches[o["id"]] = patch
+        walked = self._walk(group, printer)   # 1.128: followed there from the nearest place known; else where the others say
+        expected = {o["id"]: walked.get(o["id"]) or self.predict(o, printer) for o in group}
         self.goto(target_id)
         printer = self.printer()
         position = printer["position"]
@@ -449,28 +546,141 @@ class CameraCalibration:
             aways.append(self._fresh_picture())
         self.gcode("G90\nG0 X%.2f Y%.2f F%d\nM400" % (position[0], position[1], TRAVEL_FEED), 60)
         region = nozzle_finder.toolhead_region(self.cv2, self.np, here, aways)
-        result = nozzle_finder.find(self.cv2, self.np, here, patch, region)
-        proposal = {"u": result["u"], "v": result["v"], "score": result["score"], "found": result["found"], "moved": region is not None,
-                    "machine": position, "time": int(time.time())}
+        results = {o["id"]: self._look(here, (expected[o["id"]] or {}).get("patch", patches[o["id"]]), region, expected[o["id"]]) for o in group}
+        now = int(time.time())
         with self.lock:
-            self.draft.setdefault("proposals", {})[target_id] = proposal
+            for o in group:
+                r, e = results[o["id"]], expected[o["id"]]
+                self.draft.setdefault("proposals", {})[o["id"]] = {
+                    "u": r["u"], "v": r["v"], "score": r["score"], "found": r["found"], "moved": region is not None, "machine": position, "time": now,
+                    "kind": o["kind"], "expected": [round(e["u"], 4), round(e["v"], 4), round(e["radius"], 4)] if e else None,
+                    "lost": bool(r.get("lost"))}
             self._save_draft()
-        return proposal
+            return dict(self.draft["proposals"][target_id])
+
+    def _look(self, here, patch, region, expected, strict=False):
+        """The template looked for in the toolhead's region, and only near `expected` when given: {u, v, score, found}."""
+        if expected and expected.get("lost"):
+            return {"u": None, "v": None, "score": 0.0, "found": False, "lost": True}
+        if expected:
+            window = self.np.zeros(here.shape[:2], self.np.uint8)
+            hh, ww = here.shape[:2]
+            self.cv2.circle(window, (int(expected["u"] * ww), int(expected["v"] * hh)), max(4, int(expected["radius"] * ww)), 255, -1)
+            inside = self.cv2.bitwise_and(region, window) if region is not None else window
+            region = inside if (strict or self.cv2.countNonZero(inside)) else window
+            if not self.cv2.countNonZero(region):
+                return {"u": None, "v": None, "score": 0.0, "found": False}
+        near = (expected["u"], expected["v"], expected["radius"]) if expected else None
+        result = dict(nozzle_finder.find(self.cv2, self.np, here, patch, region, near))
+        if expected and result.get("u") is not None and _gap((result["u"], result["v"]), (expected["u"], expected["v"]), here.shape[0] / float(here.shape[1])) > expected["radius"]:
+            result["found"] = False
+        return result
+
+    def _walk(self, group, printer):
+        """1.128: where the points of `group` (the same place) appear, followed from the nearest place already known a few
+        mm at a time: each small move is looked for only next to where the moves before say it went, so a reflection or the
+        background a little further away is never taken. -> {id: {"u", "v", "radius"}} for those followed to the end."""
+        t = group[0]
+        tallest = max([p[2] for p in (self.draft.get("markers") or {}).get("points") or []] + [0.0])
+        if self.z_moves() != "bed" and t["z"] < max(10.0, tallest + 5.0):
+            return {}   # never dragged across the bed low down
+        known = self._known()
+        level = (lambda k: True) if self.z_moves() == "bed" else (lambda k: abs(float(k["machine"][2]) - float(t["z"])) < 0.6)
+        starts = [k for k in known.values() if k.get("kind") == t["kind"] and level(k)]
+        if not starts:
+            return {}
+        start = min(starts, key=lambda k: (k["machine"][0] - t["x"]) ** 2 + (k["machine"][1] - t["y"]) ** 2)
+        sx, sy = float(start["machine"][0]), float(start["machine"][1])
+        follow = {}
+        for o in group:   # each point of the group known at the start place
+            here = next((k for k in known.values() if k.get("kind") == o["kind"] and abs(k["machine"][0] - sx) < 0.6 and abs(k["machine"][1] - sy) < 0.6), None)
+            patch = self.cv2.imread(self._template_path(o["kind"]), self.cv2.IMREAD_GRAYSCALE) if self.has_template(o["kind"]) else None
+            if here and patch is not None:
+                follow[o["id"]] = {"uv": self.np.array([here["u"], here["v"]], float), "patch": patch, "jac": None}
+        goal = self.np.array([t["x"], t["y"]], float)
+        at = self.np.array([sx, sy])
+        if not follow or self.np.linalg.norm(goal - at) < 1.0:
+            return {}
+        self.gcode("G90\nG0 Z%.2f F%d\nG0 X%.2f Y%.2f F%d\nG0 Z%.2f F%d\nM400"
+                   % (max(t["z"], printer["position"][2], 10.0, tallest + 5.0), Z_FEED, sx, sy, TRAVEL_FEED, t["z"], Z_FEED), 120)
+        ahead = (goal - at) / self.np.linalg.norm(goal - at)
+        side = self.np.array([-ahead[1], ahead[0]])
+        (x0, y0), (x1, y1) = printer["minimum"][:2], printer["maximum"][:2]
+        if not (x0 <= sx + side[0] * WALK_PROBE <= x1 and y0 <= sy + side[1] * WALK_PROBE <= y1):
+            side = -side
+
+        def look(spot, window):
+            self.gcode("G90\nG0 X%.2f Y%.2f F%d\nM400" % (spot[0], spot[1], TRAVEL_FEED), 60)
+            picture = self._fresh_picture()
+            seen = {}
+            for pid, f in follow.items():
+                if f.get("lost"):
+                    continue
+                guess = f["uv"] + (f["jac"] @ (spot - at) if f["jac"] is not None else 0.0)
+                r = self._look(picture, f["patch"], None, {"u": float(guess[0]), "v": float(guess[1]), "radius": window}, strict=True)
+                if r["found"]:
+                    seen[pid] = self.np.array([r["u"], r["v"]], float)
+                    fresh = nozzle_finder.template(self.cv2, self.np, picture, r["u"], r["v"])
+                    if fresh is not None and r["score"] >= WALK_KEEP:   # how it looks here: what is behind it changes on the way
+                        f["patch"] = fresh
+                else:   # lost on the way: not looked for anywhere else at the end (the person taps it)
+                    f["lost"] = True
+                    f["uv"] = self.np.array([float(guess[0]), float(guess[1])])
+            return seen if any(not f.get("lost") for f in follow.values()) else None
+
+        def lost():   # nothing followed to the end: nothing to look for there
+            return {pid: {"u": float(f["uv"][0]), "v": float(f["uv"][1]), "radius": WALK_WINDOW, "lost": True} for pid, f in follow.items()}
+
+        # two small moves (ahead and aside) tell how the picture moves per mm
+        moves = {}
+        for name, way in (("ahead", ahead), ("side", side)):
+            seen = look(at + way * WALK_PROBE, WALK_FIRST)
+            if seen is None:
+                return lost()
+            moves[name] = seen
+        for pid, f in follow.items():
+            if f.get("lost"):
+                continue
+            d = self.np.column_stack([moves["ahead"][pid] - f["uv"], moves["side"][pid] - f["uv"]]) / WALK_PROBE
+            f["jac"] = d @ self.np.linalg.inv(self.np.column_stack([ahead, side]))
+        while True:
+            left = goal - at
+            spot = goal if self.np.linalg.norm(left) <= WALK_STEP else at + left / self.np.linalg.norm(left) * WALK_STEP
+            seen = look(spot, WALK_WINDOW)
+            if seen is None:
+                return lost()
+            for pid, f in follow.items():   # how the picture moves per mm, kept up to date as the lens bends
+                if pid not in seen:
+                    continue
+                moved, step = seen[pid] - f["uv"], spot - at
+                f["jac"] = f["jac"] + self.np.outer(moved - f["jac"] @ step, step) / float(step @ step)
+                f["uv"] = seen[pid]
+            at = spot
+            if self.np.linalg.norm(goal - at) < 0.5:
+                return {pid: {"u": float(f["uv"][0]), "v": float(f["uv"][1]), "radius": WALK_WINDOW, "lost": bool(f.get("lost")), "patch": f["patch"]}
+                        for pid, f in follow.items()}
 
     def find_all(self):
         """Every nozzle point not taken yet, one after the other, in the background (self.auto says how far it is)."""
         if self._auto_thread and self._auto_thread.is_alive():
             return self.auto
-        if not self.has_template():
+        if not self.can_find():
+            if self.method() == "detail":
+                raise ValueError("tap the nozzle tip and the detail of the toolhead by hand at the first place: KlippEye then finds both at the others")
             raise ValueError("tap the nozzle by hand at one point first: KlippEye then finds it at the others")
         printer = self.printer()
         self._ready_to_move(printer)
-        todo = [t["id"] for t in self.target_list(printer) if t["kind"] == "nozzle" and t["id"] not in (self.draft.get("points") or {})]
+        todo = [t["id"] for t in self.target_list(printer) if t["kind"] in ("nozzle", "detail") and t["id"] not in (self.draft.get("points") or {})]
         self._auto_stop = False
 
         def run():
             found = 0
+            began = int(time.time())
             for n, target_id in enumerate(todo):
+                done = (self.draft.get("proposals") or {}).get(target_id)
+                if done and done.get("time", 0) >= began:   # 1.128: looked at with the other point of the same place
+                    found += bool(done.get("found"))
+                    continue
                 if self._auto_stop:
                     self.auto = {"state": "stopped", "done": n, "total": len(todo), "found": found, "time": int(time.time())}
                     return
@@ -589,9 +799,16 @@ class CameraCalibration:
             raise ValueError("at least 8 points are needed")
         _, image = self._picture()
         height, width = image.shape[:2]
-        frame = [p["frame"] for _, p in points]
-        pixels = [[p["u"] * width, p["v"] * height] for _, p in points]
-        result = camera_model.fit(frame, pixels, width, height)
+        details = [(pid, p) for pid, p in points if p["kind"] == "detail"]
+        if details:   # 1.128: the detail of the toolhead: its offset from the tip is found with the camera
+            fixed = [(pid, p) for pid, p in points if p["kind"] != "detail"]
+            points = fixed + details
+            result = camera_model.fit_offset([p["frame"] for _, p in fixed], [[p["u"] * width, p["v"] * height] for _, p in fixed],
+                                             [p["frame"] for _, p in details], [[p["u"] * width, p["v"] * height] for _, p in details], width, height)
+        else:
+            frame = [p["frame"] for _, p in points]
+            pixels = [[p["u"] * width, p["v"] * height] for _, p in points]
+            result = camera_model.fit(frame, pixels, width, height)
         median = sorted(result["errors_px"])[len(points) // 2]
         result["point_errors"] = {pid: round(err, 1) for (pid, _), err in zip(points, result["errors_px"])}
         result["redo"] = [pid for (pid, _), err in zip(points, result["errors_px"]) if err > max(3 * median, 0.01 * (width ** 2 + height ** 2) ** 0.5)]
@@ -619,6 +836,8 @@ class CameraCalibration:
                      "width": result["width"], "height": result["height"], "rms_px": result["rms_px"], "rms": result["rms"], "quality": result["quality"],
                      "points": self.draft.get("points"), "toolhead": self.draft.get("toolhead") or dict(DEFAULT_TOOLHEAD),
                      "camera_position": result["camera_position"], "watch": {"state": "ok", "time": int(time.time())}}
+            if result.get("offset") is not None:   # 1.128: where the detail of the toolhead is, from the nozzle tip (mm)
+                saved.update(method="detail", offset=[round(float(c), 2) for c in result["offset"]])
             _write_json(self.path, saved)
             self.saved = saved
             self.watch = saved["watch"]
@@ -750,7 +969,11 @@ class CameraCalibration:
                 bed.append([ax + (cx - ax) * s, ay + (cy - ay) * s, bed_z])
         bed_uv, bed_front = camera_model.project(calibration, bed)
         nozzle_uv, nozzle_front = camera_model.project(calibration, [tip])
-        return {"position": printer["position"], "z_moves": z_moves,
+        detail = None
+        if calibration.get("offset"):   # 1.128: the detail of the toolhead that was tapped, where the calibration puts it
+            d_uv, d_front = camera_model.project(calibration, [[tip[i] + float(calibration["offset"][i]) for i in range(3)]])
+            detail = [round(float(c), 4) for c in d_uv[0]] if d_front[0] else None
+        return {"position": printer["position"], "z_moves": z_moves, "detail": detail,
                 "nozzle": [round(float(c), 4) for c in nozzle_uv[0]] if nozzle_front[0] else None,
                 "toolhead": [[round(a, 4), round(b, 4)] for a, b in (parts["toolhead"][0] if parts["toolhead"] else [])],
                 "gantry": [[[round(a, 4), round(b, 4)] for a, b in piece] for piece in parts["gantry"]],
@@ -861,11 +1084,13 @@ class CameraCalibration:
         saved = self.saved
         brief = None
         if saved:
-            brief = {k: saved.get(k) for k in ("saved", "z_moves", "model", "rms_px", "rms", "quality", "toolhead", "camera_position", "width", "height", "shift_fix")}
+            brief = {k: saved.get(k) for k in ("saved", "z_moves", "model", "rms_px", "rms", "quality", "toolhead", "camera_position", "width", "height", "shift_fix",
+                                             "method", "offset")}
             brief["points"] = len(saved.get("points") or {})
         area, source = self.bed_area() if saved else (None, None)
         travel = self.limits() if saved else None
         return {"saved": brief, "watch": self.watch, "usable": self.usable(), "draft": self.draft, "marks": self.marks, "shape": self.get_shape(),
-                "auto": self.auto, "template": self.has_template(),
+                "auto": self.auto, "template": self.has_template(), "detail_template": self.has_template("detail"),
+                "can_find": self.can_find(), "method": self.method(),
                 "bed": {"area": [list(area[0]), list(area[1])] if area else None, "source": source,
                         "travel": [list(travel[0]), list(travel[1])] if travel else None}}

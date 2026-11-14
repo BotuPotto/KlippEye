@@ -280,15 +280,28 @@ muove da sola: tieni le mani lontane.
 2. **Come si muove l'asse Z?** Il piatto (la maggior parte delle CoreXY) o la testina. KlippEye propone la risposta leggendo
    la tua configurazione. Le stampanti con il piatto che va avanti e indietro (bed slinger) non sono ancora supportate.
 3. Fai l'**homing** della stampante.
-4. Segni (solo quando Z muove il piatto). Il modo migliore: **Scarica i segni (STL)**, sei piccole piramidi già messe al
-   posto giusto per il tuo piatto, stampale con le tue impostazioni di sempre e lasciale sul piatto; poi scegli il G-code che
-   hai stampato e **Leggi i segni da questo file**. Il modo veloce: **Crea le 6 gocce**, sei gocce di filamento.
+4. **Come calibrare** (solo quando Z muove il piatto). Con il piatto che si muove, la punta dell'ugello è sempre alla
+   stessa altezza, quindi a KlippEye serve una seconda altezza. Il modo consigliato non stampa niente: **un dettaglio della
+   testina**. Guarda la testina nell'immagine della telecamera e scegli un dettaglio piccolo e netto, chiaramente più in alto
+   della punta dell'ugello (1 cm o più): la testa di una vite, un angolo della cover, la punta di una clip. La telecamera
+   deve vederlo da ogni punto del piatto. Evita riflessi, luci, cavi che si muovono e superfici lisce senza spigoli. Va bene
+   anche un pezzetto di nastro con un puntino disegnato. Quanto è più in alto lo calcola KlippEye da solo.
+   L'altro modo, **Segni sul piatto**: **Scarica i segni (STL)**, sei piccole piramidi già messe al posto giusto per il tuo
+   piatto, stampale con le tue impostazioni di sempre e lasciale sul piatto; poi scegli il G-code che hai stampato e
+   **Leggi i segni da questo file**. Il modo veloce: **Crea le 6 gocce**, sei gocce di filamento. Usalo quando la testina
+   non ha un dettaglio che la telecamera vede sempre.
 5. I 12 punti. Per ognuno premi **Vai al punto**, tocca l'immagine dove sta il punto, toccalo di nuovo con precisione
-   nella vista ingrandita e premi **Tieni questo punto**. La pagina mostra un piccolo disegno di cosa toccare: la punta
-   dell'ugello, oppure la cima di un segno. Dopo il primo punto, **Trova l'ugello da solo** può fare per te gli altri punti
-   dell'ugello.
+   nella vista ingrandita e premi **Tieni questo punto**. La pagina mostra un piccolo disegno di cosa toccare. Con un
+   dettaglio della testina, ognuna delle sei posizioni ha due punti: la punta dell'ugello, poi il dettaglio che hai scelto
+   (sempre lo stesso: dal terzo punto in poi la pagina te lo mostra come l'hai toccato). Con i segni: la punta dell'ugello,
+   oppure la cima di un segno.
+   **Trovare i punti da solo:** con un dettaglio della testina, tocca a mano la punta e il dettaglio nella prima posizione,
+   poi premi **Trova da solo gli altri 10 punti**. Da una posizione già nota la stampante si sposta di pochi mm alla volta e
+   segue la punta e il dettaglio nell'immagine, cercando solo vicino a dove devono essere: un riflesso o lo sfondo più
+   lontano non viene preso. Un punto che perde per strada resta da toccare a te. Con i segni, **Trova l'ugello da solo** fa
+   gli altri punti dell'ugello dopo il primo. I numeri blu sono trovati ma non ancora controllati.
 6. **Calcola la calibrazione.** Un buon risultato ha un errore di pochi pixel; i punti in rosso sono stati toccati nel posto
-   sbagliato: rifai solo quelli. Poi **Salva la calibrazione** e togli i segni dal piatto.
+   sbagliato: rifai solo quelli. Poi **Salva la calibrazione** (e togli i segni dal piatto, se li hai usati).
 7. Testina e gantry: l'immagine dal vivo li mostra contornati in viola e arancione. Trascina i pallini (o usa − e +) in
    modo che i contorni li coprano con un po' di margine.
 8. **Area del piatto**: il contorno tratteggiato è il piatto che il monitor sorveglia. KlippEye lo ricava dalla mesh del
