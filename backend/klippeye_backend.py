@@ -2467,10 +2467,10 @@ class LightDetector(FrameJudge):
         """Where the printed objects are in the picture (x, y, w, h in fractions), from the camera calibration; or None."""
         try:
             objects, z = self.zone.get("objects"), self._height_now()
-            known = camera_cal.limits()
+            known = camera_cal.bed_area()[0]
             if not objects or z is None or not known or not camera_cal.usable() or not camera_cal.saved:
                 return None
-            points = [p for polygon in print_zone.outlines(camera_cal.saved, objects, z, known[0], known[1])["expected"] for p in (polygon or [])]
+            points = [p for polygon in print_zone.outlines(camera_cal.calibration(), objects, z, known[0], known[1])["expected"] for p in (polygon or [])]
             if not points:
                 return None
             xs, ys = [min(max(p[0], 0.0), 1.0) for p in points], [min(max(p[1], 0.0), 1.0) for p in points]
@@ -2699,7 +2699,7 @@ class LightDetector(FrameJudge):
                 return None
             width, height = OPENCV_WIDTH // 4, OPENCV_HEIGHT // 4
             head = camera_cal.monitor_mask([position], width, height)
-            part = print_zone.part_mask(cv2, np, camera_cal.saved, objects, z, width, height)
+            part = print_zone.part_mask(cv2, np, camera_cal.calibration(), objects, z, width, height)
             area = cv2.countNonZero(part)
             if head is None or area < 12:
                 return None
@@ -2739,11 +2739,11 @@ class LightDetector(FrameJudge):
     def _part_places(self, objects, z):
         """Where the objects are in the picture (centres, fractions 0..1), when the camera is calibrated; else None."""
         try:
-            known = camera_cal.limits()
+            known = camera_cal.bed_area()[0]
             if not objects or z is None or not known or not camera_cal.usable() or not camera_cal.saved:
                 return None
             places = []
-            for polygon in print_zone.outlines(camera_cal.saved, objects, z, known[0], known[1])["expected"]:
+            for polygon in print_zone.outlines(camera_cal.calibration(), objects, z, known[0], known[1])["expected"]:
                 if polygon:
                     places.append((sum(p[0] for p in polygon) / len(polygon), sum(p[1] for p in polygon) / len(polygon)))
             return places or None
@@ -4568,6 +4568,12 @@ def api_camera_shape():
     return _camera_call(lambda: {"shape": camera_cal.set_shape(_camera_body())})
 
 
+@app.route("/api/camera/calibration/correction", methods=["POST"])
+def api_camera_correction_undo():
+    """1.127: {"undo": true}: the correction of a small move of the camera is not trusted: it goes (calibrate again)."""
+    return _camera_call(lambda: {"watch": camera_cal.undo_correction(), "usable": camera_cal.usable()})
+
+
 @app.route("/api/camera/overlay", methods=["GET"])
 def api_camera_overlay():
     """Where the nozzle, the toolhead and the bed are in the picture right now (saved calibration, or ?draft=1 the one
@@ -4577,10 +4583,10 @@ def api_camera_overlay():
         if overlay is None:
             raise ValueError("the camera is not calibrated")
         # phase 4c: the objects of the print running now (where the part is expected), when they are known
-        objects, known = detector.zone.get("objects"), camera_cal.limits()
+        objects, known = detector.zone.get("objects"), camera_cal.bed_area()[0]
         overlay["zone"] = None
         if objects and known and camera_cal.saved and request.args.get("draft") != "1":
-            parts = print_zone.outlines(camera_cal.saved, objects, overlay["position"][2], known[0], known[1])
+            parts = print_zone.outlines(camera_cal.calibration(), objects, overlay["position"][2], known[0], known[1])
             overlay["zone"] = {"source": detector.zone.get("source"), "objects": len(objects),
                                "expected": [[[round(u, 4), round(v, 4)] for u, v in p] for p in parts["expected"]]}
         return overlay

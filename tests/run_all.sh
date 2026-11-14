@@ -38,6 +38,7 @@ step "backend: scheduled prints" python3 "$HERE/backend/test_print_schedule.py"
 step "backend: the local model's personal layer" python3 "$HERE/backend/test_personal_layer.py"
 step "backend: the macro catalogue" python3 "$HERE/backend/test_macro_catalog.py"
 step "backend: calibration found by itself" python3 "$HERE/backend/test_calibration_auto.py"
+step "backend: the bed and a camera that moved a little" python3 "$HERE/backend/test_bed_and_shift.py"
 step "local model: tools" python3 "$ROOT/ml/tests/test_tools.py"
 step "notifier: logic" python3 "$HERE/notifier/test_watcher.py"
 step "notifier: integration" python3 "$HERE/notifier/test_integration.py" "$ROOT/frontend/klippeye_frontend.html" 9701

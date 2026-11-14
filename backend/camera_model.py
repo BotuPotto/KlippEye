@@ -203,9 +203,15 @@ def camera_position(calibration):
 
 
 def project(calibration, points):
-    """Points (N, 3) in mm -> (N, 2) fractions of the picture (0..1, may fall outside), and (N,) True when in front of the camera."""
+    """Points (N, 3) in mm -> (N, 2) fractions of the picture (0..1, may fall outside), and (N,) True when in front of the camera.
+    1.127: a calibration with a "correction" (the camera moved a little since: camera_watch) has it applied."""
     pixels, z = project_params(np.asarray(calibration["params"], float), np.atleast_2d(np.asarray(points, float)), calibration["model"])
-    return pixels / [calibration["width"], calibration["height"]], z > 0
+    uv = pixels / [calibration["width"], calibration["height"]]
+    correction = calibration.get("correction")
+    if isinstance(correction, (list, tuple)) and len(correction) == 2:
+        m = np.asarray(correction, float)
+        uv = uv @ m[:, :2].T + m[:, 2]
+    return uv, z > 0
 
 
 def box_corners(x0, x1, y0, y1, z0, z1):

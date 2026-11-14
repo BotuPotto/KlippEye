@@ -15,6 +15,31 @@ WORK_WIDTH = 960
 MOVED_PX = 6.0        # at 960 px wide: about 12 px on a 1920 px picture
 MOVED_DEGREES = 0.6
 MIN_INLIERS = 25
+CORRECT_MAX_PX = 48.0       # 1.127: a move up to this (at 960 px wide: 5% of the picture)...
+CORRECT_MAX_DEGREES = 3.0   # ...and this much turned is corrected by itself; more: calibrate again
+AGREE_PX = 3.0              # two looks agree when the centre goes to places this close...
+AGREE_DEGREES = 0.4         # ...and they are turned about the same
+
+
+def small(result):
+    """Whether a "moved" look is small enough to be corrected (1.127)."""
+    return (result.get("state") == "moved" and result.get("matrix") is not None and (result.get("shift_px") or 0) <= CORRECT_MAX_PX
+            and abs(result.get("rotation_deg") or 0) <= CORRECT_MAX_DEGREES)
+
+
+def agree(one, other):
+    """Whether two looks found the same movement (centre within AGREE_PX at 960 px wide, rotation within AGREE_DEGREES)."""
+    if not one or not other or one.get("matrix") is None or other.get("matrix") is None:
+        return False
+    a, b = one["matrix"], other["matrix"]
+    du = (a[0][0] * 0.5 + a[0][1] * 0.5 + a[0][2]) - (b[0][0] * 0.5 + b[0][1] * 0.5 + b[0][2])
+    dv = (a[1][0] * 0.5 + a[1][1] * 0.5 + a[1][2]) - (b[1][0] * 0.5 + b[1][1] * 0.5 + b[1][2])
+    return math.hypot(du * WORK_WIDTH, dv * WORK_WIDTH) <= AGREE_PX and abs((one.get("rotation_deg") or 0) - (other.get("rotation_deg") or 0)) <= AGREE_DEGREES
+
+
+def apply(matrix, uv):
+    """Points (fractions, N x 2) moved by a correction matrix (fractions)."""
+    return [[matrix[0][0] * u + matrix[0][1] * v + matrix[0][2], matrix[1][0] * u + matrix[1][1] * v + matrix[1][2]] for u, v in uv]
 
 
 def _prepare(cv2, image):
@@ -52,7 +77,12 @@ def compare(cv2, np, reference, current):
     h, w = ref.shape
     centre = np.array([w / 2.0, h / 2.0, 1.0])
     shift = float(np.linalg.norm(matrix @ centre - centre[:2]))
-    result = {"shift_px": round(shift, 1), "rotation_deg": round(rotation, 2), "inliers": count, "matches": len(good), "still": still}
+    # 1.127: the movement as fractions of the picture (u' = a u + b v + c, v' = d u + e v + f), to correct a small one
+    sx, sy = float(w), float(h)
+    fractions = [[float(matrix[0, 0]), float(matrix[0, 1]) * sy / sx, float(matrix[0, 2]) / sx],
+                 [float(matrix[1, 0]) * sx / sy, float(matrix[1, 1]), float(matrix[1, 2]) / sy]]
+    result = {"shift_px": round(shift, 1), "rotation_deg": round(rotation, 2), "inliers": count, "matches": len(good), "still": still,
+              "matrix": [[round(v, 6) for v in row] for row in fractions]}
     if still >= MIN_INLIERS and still >= 0.5 * count:
         return dict(result, state="ok")
     if count < MIN_INLIERS:

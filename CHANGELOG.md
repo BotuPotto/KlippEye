@@ -1,5 +1,23 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.127.0
+
+**The AI monitor watches the bed, not the whole travel.** Until now the watched area went from the toolhead's minimum
+to its maximum travel, which on many printers goes beyond the plate: a purge bucket, a brush, the frame. Changes there
+counted as possible failures. The bed is now worked out from Klipper's bed mesh (its area, a little wider), and the
+calibration page has a **Bed area** with its four edges to adjust with − and +; the dashed outline on the live picture
+follows. Without a mesh the travel is used as before.
+
+**A camera that moved a little is corrected by itself.** Before, any move of more than a few pixels switched the
+calibration off until it was done again. A small move (up to about 5% of the picture) is now checked again a minute
+later and, when three looks in a row agree, corrected from what stays still in the picture: the frame and the bed's
+edges, never the nozzle. The calibration itself is not changed; the page says by how much it was corrected, and **Do not
+trust it** undoes it. A bigger move asks to calibrate again, as before.
+
+**The same margin on every side of the parts.** The 6 mm around each part was made by pushing its corners away from
+the centre: a long thin part got almost no margin along its long sides, and its edge (elephant foot, brim) could count
+as a change. The margin is now the same all around.
+
 ## 1.126.0
 
 **The dashboard no longer gets stuck after a while.** On a page left open, or coming back to it, it could stop

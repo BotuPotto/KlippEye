@@ -98,7 +98,12 @@ def load_masks(data_dir):
         shape = machine_masks.clean_shape(stored) if stored else machine_masks.from_toolhead_box(calibration.get("toolhead"))
     except ValueError:
         shape = machine_masks.from_toolhead_box(calibration.get("toolhead"))
-    return {"calibration": calibration, "shape": shape, "x_range": shape.get("x_range"), "limits": shape.get("limits")}
+    # 1.127: the bed the monitor watched (set by the person, or from the mesh), else the travel as before; a correction of
+    # a small move of the camera is in the calibration file and applies here too
+    bed = shape.get("bed") or shape.get("bed_auto") or shape.get("limits")
+    if calibration and (calibration.get("shift_fix") or {}).get("matrix"):
+        calibration = dict(calibration, correction=calibration["shift_fix"]["matrix"])
+    return {"calibration": calibration, "shape": shape, "x_range": shape.get("x_range"), "limits": bed}
 
 
 def decode(cv2, np, raw):

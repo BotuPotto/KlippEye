@@ -90,15 +90,18 @@ def objects_from_gcode(lines):
     return out
 
 
-def grow(polygon, margin):
-    """A convex polygon made `margin` mm larger (each corner pushed out from the centre; good enough for a margin)."""
-    cx = sum(p[0] for p in polygon) / len(polygon)
-    cy = sum(p[1] for p in polygon) / len(polygon)
-    out = []
+def grow(polygon, margin, corners=8):
+    """The polygon made `margin` mm larger all around (1.127: the same margin on every side; before, the corners were
+    pushed out from the centre, so a long thin part got almost no margin on its long sides). The result is the convex
+    outline of the polygon with a circle of `margin` around each corner (corners rounded with `corners` points)."""
+    if margin <= 0:
+        return [list(p) for p in polygon]
+    ring = []
     for x, y in polygon:
-        d = math.hypot(x - cx, y - cy) or 1.0
-        out.append([x + (x - cx) / d * margin, y + (y - cy) / d * margin])
-    return out
+        for k in range(corners):
+            angle = 2 * math.pi * k / corners
+            ring.append((x + margin * math.cos(angle) / math.cos(math.pi / corners), y + margin * math.sin(angle) / math.cos(math.pi / corners)))
+    return [[round(x, 3), round(y, 3)] for x, y in camera_model.convex_hull(ring)]
 
 
 def _densify(polygon, step=10.0):
