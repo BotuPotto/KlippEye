@@ -1,5 +1,21 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.128.0
+
+**Calibrating the camera without printing anything.** When Z moves the bed, the calibration needed six markers printed
+on the bed (or six blobs), because the nozzle tip is always at the same height and a second height was missing. Now the
+recommended way gives that height with **a detail of the toolhead**: a screw head, a corner of the cover, anything small
+and sharp higher than the nozzle. At each of six places you tap the nozzle tip and that detail, and KlippEye works out
+by itself how much higher the detail is. The page explains how to choose it. The markers and the blobs stay as the
+other way.
+
+**Finding the points by itself no longer takes reflections.** It searched the whole moving toolhead for something that
+looked like the nozzle, and often chose a reflection or a piece of the background. Now it starts from a place already
+tapped and moves a few mm at a time, following the tip (and the detail) in the picture and looking only next to where
+they should be. The picture it looks for is updated on the way, as what is behind the nozzle changes. A point lost on
+the way is left to tap by hand instead of being guessed. With a detail of the toolhead, tap the tip and the detail at
+the first place, then **Find the other 10 points by themselves**.
+
 ## 1.127.0
 
 **The AI monitor watches the bed, not the whole travel.** Until now the watched area went from the toolhead's minimum

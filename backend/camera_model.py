@@ -119,10 +119,14 @@ def _residuals(params, points, pixels, model):
     return np.where(behind, 1e4, res)
 
 
-def _levenberg_marquardt(params, points, pixels, model, iterations=200):
+def _levenberg_marquardt(params, points, pixels, model, iterations=200, residuals=None):
+    """Least squares on `params`. `residuals(params)` (1.128) replaces the usual camera residuals when given."""
     params = np.asarray(params, float)
+    if residuals is None:
+        def residuals(q):
+            return _residuals(q, points, pixels, model)
     lam = 1e-3
-    res = _residuals(params, points, pixels, model)
+    res = residuals(params)
     cost = float(res @ res)
     steps = np.maximum(np.abs(params) * 1e-6, 1e-6)
     for _ in range(iterations):
@@ -130,7 +134,7 @@ def _levenberg_marquardt(params, points, pixels, model, iterations=200):
         for i in range(params.size):
             d = np.zeros_like(params)
             d[i] = steps[i]
-            jac[:, i] = (_residuals(params + d, points, pixels, model) - _residuals(params - d, points, pixels, model)) / (2 * steps[i])
+            jac[:, i] = (residuals(params + d) - residuals(params - d)) / (2 * steps[i])
         jtj, jtr = jac.T @ jac, jac.T @ res
         improved = done = False
         for _ in range(10):
@@ -140,7 +144,7 @@ def _levenberg_marquardt(params, points, pixels, model, iterations=200):
                 lam *= 10
                 continue
             trial = params + delta
-            trial_res = _residuals(trial, points, pixels, model)
+            trial_res = residuals(trial)
             trial_cost = float(trial_res @ trial_res)
             if trial_cost < cost:
                 params, res, improved = trial, trial_res, True
@@ -190,6 +194,62 @@ def fit(points, pixels, width, height):
     if best is None:
         raise ValueError("no camera fits these points: check that each tap is on the nozzle tip")
     best.update(width=int(width), height=int(height), points=len(points), rms=best["rms_px"] / diag,
+                quality="good" if best["rms_px"] / diag <= GOOD_RMS else "fair" if best["rms_px"] / diag <= FAIR_RMS else "poor")
+    best["camera_position"] = [float(x) for x in camera_position(best)]
+    return best
+
+
+OFFSET_GUESSES = ([0.0, 0.0, 25.0], [0.0, 0.0, 50.0], [0.0, -25.0, 35.0], [0.0, 25.0, 35.0], [25.0, 0.0, 35.0], [-25.0, 0.0, 35.0])
+MIN_OFFSET_HEIGHT = 8.0   # the detail of the toolhead must be at least this much higher than the nozzle tip
+
+
+def fit_offset(points, pixels, base, base_pixels, width, height):
+    """1.128: the camera from points whose place is known (the nozzle tip: all at one height when Z moves the bed) and
+    points of a detail of the toolhead: always at the same unknown offset d from the nozzle tip (`base`: where the nozzle
+    tip was for each). d is found with the camera. The second height the camera needs comes from the detail, so nothing has
+    to be printed. With points on two parallel planes the centre of the picture cannot be told apart from d: it is taken
+    as the middle of the picture (true for almost every camera to within a few percent).
+    -> the same dict as fit(), plus "offset": d (mm) and "errors_px" for the known points then the detail's."""
+    points, pixels = np.asarray(points, float), np.asarray(pixels, float)
+    base, base_pixels = np.asarray(base, float), np.asarray(base_pixels, float)
+    if len(points) < 4 or len(base) < 4 or len(points) + len(base) < MIN_POINTS:
+        raise ValueError("at least 8 points are needed")
+    cx, cy = width / 2.0, height / 2.0
+    all_pixels = np.vstack([pixels, base_pixels])
+    diag = math.hypot(width, height)
+    best = None
+
+    def unpack(q):
+        return np.r_[q[0], cx, cy, q[1], q[2], q[3:9]], q[9:12]
+
+    for model in MODELS:
+        for f0 in (width / math.pi, width / 2.4, width / 1.6, width / 1.1):
+            for d0 in OFFSET_GUESSES:
+                try:
+                    norm = _unproject_guess(all_pixels, f0, cx, cy, model)
+                    rot, t = _pose_dlt(np.vstack([points, base + d0]), norm)
+                except (ValueError, np.linalg.LinAlgError):
+                    continue
+                q0 = np.r_[f0, 0.0, 0.0, rotation_to_vector(rot), t, d0]
+
+                def residuals(q, model=model):
+                    params, d = unpack(q)
+                    return _residuals(params, np.vstack([points, base + d]), all_pixels, model)
+                q, _ = _levenberg_marquardt(q0, None, None, model, residuals=residuals)
+                params, d = unpack(q)
+                projected, z = project_params(params, np.vstack([points, base + d]), model)
+                if np.any(z <= 0) or params[0] <= 0:
+                    continue
+                err = np.linalg.norm(projected - all_pixels, axis=1)
+                rms = float(np.sqrt(np.mean(err ** 2)))
+                if best is None or rms < best["rms_px"] - 1e-9:
+                    best = {"model": model, "params": [float(x) for x in params], "rms_px": rms, "errors_px": [float(e) for e in err],
+                            "offset": [round(float(v), 2) for v in d]}
+    if best is None:
+        raise ValueError("no camera fits these points: check that each tap is on the nozzle tip")
+    if best["offset"][2] < MIN_OFFSET_HEIGHT:
+        raise ValueError("the detail of the toolhead must be clearly higher than the nozzle tip: choose one higher up")
+    best.update(width=int(width), height=int(height), points=len(points) + len(base), rms=best["rms_px"] / diag,
                 quality="good" if best["rms_px"] / diag <= GOOD_RMS else "fair" if best["rms_px"] / diag <= FAIR_RMS else "poor")
     best["camera_position"] = [float(x) for x in camera_position(best)]
     return best

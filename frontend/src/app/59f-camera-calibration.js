@@ -169,9 +169,10 @@ function LiveCheck({ camera, draft, editShape }) {
       overlay && (overlay.gantry || []).map((piece, index) => h("polygon", { key: "g" + index, className: "cal-gantry", points: pointsAttr(piece) })),
       overlay && overlay.toolhead.length > 2 && h("polygon", { className: "cal-toolhead", points: pointsAttr(overlay.toolhead) }),
       overlay && overlay.nozzle && h(Cross, { u: overlay.nozzle[0], v: overlay.nozzle[1], tone: "nozzle" }),
+      overlay && overlay.detail && h(Cross, { u: overlay.detail[0], v: overlay.detail[1], tone: "detail" }),
     ),
     editShape && h("div", { className: cx("cal-handle-line", dragging && "is-active"), "data-handle-line": dragging ? dragging.key : "" }, dragging ? handleLabel(dragging.key) + ": " + formatNumber(dragging.value) + " mm" : tx("Drag the dots on the picture to make the outlines bigger or smaller.")),
-    h("p", { className: "set-group__note" }, tx("Purple: the toolhead; orange: the gantry; dashed: the bed. Move the toolhead: the drawing must follow it.") + (overlay ? " X " + overlay.position[0] + " • Y " + overlay.position[1] + " • Z " + overlay.position[2] : "")),
+    h("p", { className: "set-group__note" }, tx("Purple: the toolhead; orange: the gantry; dashed: the bed. Move the toolhead: the drawing must follow it.") + (overlay && overlay.detail ? " " + tx("The light blue cross: the detail of the toolhead you tapped.") : "") + (overlay ? " X " + overlay.position[0] + " • Y " + overlay.position[1] + " • Z " + overlay.position[2] : "")),
     overlay &&
       overlay.zone &&
       h("p", { className: "set-group__note", "data-zone": overlay.zone.source }, tx("Green: where the parts of this print are expected ({count} from {source}). The monitor watches the whole bed around them.", { count: overlay.zone.objects, source: overlay.zone.source === "exclude_object" ? tx("Klipper's exclude_object") : tx("the G-code") })),
@@ -339,8 +340,18 @@ function TapHint({ kind }) {
   const cross = (x, y) => h("g", { className: "cal-hint__cross" }, h("circle", { cx: x, cy: y, r: 7 }), h("line", { x1: x - 12, y1: y, x2: x + 12, y2: y }), h("line", { x1: x, y1: y - 12, x2: x, y2: y + 12 }));
   return h(
     "svg",
-    { className: "cal-hint", viewBox: "0 0 160 90", role: "img", "aria-label": kind === "mark" ? tx("Tap the top tip of the marker") : tx("Tap the lowest point of the nozzle") },
-    kind === "mark"
+    { className: "cal-hint", viewBox: "0 0 160 90", role: "img", "aria-label": kind === "mark" ? tx("Tap the top tip of the marker") : kind === "detail" ? tx("Tap a small sharp detail high on the toolhead") : tx("Tap the lowest point of the nozzle") },
+    kind === "detail"
+      ? h(
+          React.Fragment,
+          null,
+          h("rect", { className: "cal-hint__block", x: 40, y: 8, width: 80, height: 40, rx: 4 }),
+          h("circle", { className: "cal-hint__screw", cx: 104, cy: 20, r: 5 }),
+          h("polygon", { className: "cal-hint__nozzle cal-hint__marker--faint", points: "70,48 90,48 85,62 75,62" }),
+          h("polygon", { className: "cal-hint__nozzle cal-hint__marker--faint", points: "75,62 85,62 80,70" }),
+          cross(104, 20),
+        )
+      : kind === "mark"
       ? h(React.Fragment, null, h("line", { className: "cal-hint__bed", x1: 10, y1: 78, x2: 150, y2: 78 }), h("polygon", { className: "cal-hint__marker", points: "50,78 80,30 110,78" }), cross(80, 30))
       : h(
           React.Fragment,
@@ -369,6 +380,35 @@ function KindStep({ state, onChange, busy }) {
     { title: tx("How does the Z axis move?"), note: (state.guess && !chosen ? tx("From Klipper's configuration it looks like: {kind}.", { kind: options.find((o) => o.id === state.guess).label }) + " " : "") + tx("Printers whose bed moves in Y (Prusa, Ender) are not supported yet.") },
     h(ChoiceRows, { options, value: chosen || state.guess, label: tx("How does the Z axis move?"), onChange: (id) => onChange({ z_moves: id }) }),
     !chosen && h("button", { type: "button", className: "oui-btn oui-btn--primary oui-btn--block", disabled: busy || !state.guess, onClick: () => onChange({ z_moves: state.guess }) }, tx("Go on")),
+  );
+}
+
+/** 1.128: Z moves the bed: how the second height is given: a detail of the toolhead (nothing printed), or markers. */
+function MethodStep({ state, onChange, busy }) {
+  const method = state.method || "detail";
+  const options = [
+    { id: "detail", label: tx("A detail of the toolhead (nothing to print)"), detail: tx("Recommended. At each place you tap the nozzle tip and one small detail higher up on the toolhead.") },
+    { id: "markers", label: tx("Markers on the bed"), detail: tx("Six small pyramids printed on the bed, or six blobs of filament. Use it when the toolhead has no detail the camera always sees.") },
+  ];
+  return h(
+    SettingsGroup,
+    { title: tx("How to calibrate"), note: tx("KlippEye needs to see points at two heights. With the bed moving, the nozzle tip is always at the same height: a detail of the toolhead higher up gives the second one, and KlippEye works out by itself how much higher it is.") },
+    h(ChoiceRows, { options, value: method, label: tx("How to calibrate"), onChange: (id) => !busy && id !== method && onChange({ method: id }) }),
+    method === "detail" &&
+      h(
+        "div",
+        { className: "cal-detail-help", "data-detail-help": "1" },
+        h("p", { className: "set-group__note" }, h("strong", null, tx("Which detail to choose")), " " + tx("Look at the toolhead in the camera picture and pick ONE detail that:")),
+        h(
+          "ul",
+          { className: "set-group__note cal-detail-list" },
+          h("li", null, tx("is small and sharp: the head of a screw, a corner of the cover, the tip of a clip, a dot or a mark on the cover;")),
+          h("li", null, tx("is clearly higher than the nozzle tip (at least 1 cm, better 2–5 cm);")),
+          h("li", null, tx("the camera sees from every place on the bed, never hidden by the toolhead itself or by the gantry;")),
+          h("li", null, tx("is not a reflection, a light, a cable that moves or a smooth surface without corners.")),
+        ),
+        h("p", { className: "set-group__note" }, tx("You tap the same detail at every place, so pick one you will recognise. A small piece of tape with a dot drawn on it works too.")),
+      ),
   );
 }
 
@@ -541,7 +581,8 @@ function PointsStep({ state, camera, run, busy }) {
   const target = targets.find((t) => t.id === current) || todo || targets[0];
   const at = draft.at === (target && target.id);
   const done = targets.filter((t) => points[t.id]).length;
-  const needsMarks = draft.z_moves === "bed";
+  const detailWay = draft.z_moves === "bed" && state.method === "detail"; // 1.128: nothing printed
+  const needsMarks = draft.z_moves === "bed" && !detailWay;
   const src = "/api/print/snapshot?t=" + stamp;
   useEffect(() => setTap(null), [target && target.id]);
   const go = async () => {
@@ -564,7 +605,9 @@ function PointsStep({ state, camera, run, busy }) {
   const finding = auto.state === "running";
   const proposal = target ? proposals[target.id] : null;
   const [findNote, setFindNote] = useState("");
-  const nozzleLeft = targets.filter((t) => t.kind === "nozzle" && !points[t.id]);
+  const nozzleLeft = targets.filter((t) => (t.kind === "nozzle" || t.kind === "detail") && !points[t.id]);
+  const canFind = state.can_find !== undefined ? state.can_find : state.template;
+  const firstDetail = targets.find((t) => t.kind === "detail" && points[t.id]);
   const foundLeft = targets.filter((t) => !points[t.id] && proposals[t.id] && proposals[t.id].found);
   useEffect(() => setFindNote(""), [target && target.id]);
   const findHere = async () => {
@@ -577,14 +620,15 @@ function PointsStep({ state, camera, run, busy }) {
     if (p.found) {
       setTap({ u: p.u, v: p.v });
       setFindNote(tx("Found (match {score}%): check it in the magnified view, then keep it.", { score: Math.round(p.score * 100) }));
-    } else setFindNote(p.moved ? tx("Not found with enough certainty: tap it by hand.") : tx("The toolhead did not show moving in the picture: tap it by hand."));
+    } else
+      setFindNote(p.lost ? tx("Lost on the way (hidden, or it looks different there): tap it by hand.") : p.moved ? tx("Not found with enough certainty: tap it by hand.") : tx("The toolhead did not show moving in the picture: tap it by hand."));
   };
   return h(
     React.Fragment,
     null,
     h(
       SettingsGroup,
-      { title: tx("Before starting"), note: tx("Clean bed (only the markers on it); the light as during prints; the printer idle. The printer moves by itself: keep your hands out.") },
+      { title: tx("Before starting"), note: detailWay ? tx("Empty bed; the light as during prints; the printer idle. The printer moves by itself: keep your hands out.") : tx("Clean bed (only the markers on it); the light as during prints; the printer idle. The printer moves by itself: keep your hands out.") },
       !state.printer || !/x/.test(state.printer.homed) || !/z/.test(state.printer.homed)
         ? h(SafeHomeButton, { run, busy })
         : h("p", { className: "set-group__note" }, tx("Printer homed.")),
@@ -620,14 +664,22 @@ function PointsStep({ state, camera, run, busy }) {
           h(
             "p",
             { className: "set-group__note cal-instruction", "data-kind": target.kind },
-            target.kind === "mark"
+            target.kind === "detail"
+              ? firstDetail && firstDetail.id !== target.id
+                ? tx("Point {n}: tap the SAME detail of the toolhead you tapped at point {first} (shown here), exactly on the same spot.", { n: targets.indexOf(target) + 1, first: targets.indexOf(firstDetail) + 1 })
+                : tx("Point {n}: the toolhead stays where it is. Tap the DETAIL OF THE TOOLHEAD you chose (see «Which detail to choose» above): small, sharp, higher than the nozzle. You will tap the same one at every place.", { n: targets.indexOf(target) + 1 })
+              : detailWay
+                ? tx("Point {n}: the nozzle goes to X {x}, Y {y} (the bed {z} mm below it). Tap the LOWEST POINT OF THE NOZZLE (the metal tip).", { n: targets.indexOf(target) + 1, x: target.x, y: target.y, z: target.z })
+                : target.kind === "mark"
               ? tx("Point {n}: the bed goes down and the nozzle moves to the back. Tap the TOP TIP of the marker at X {x}, Y {y} (for a blob: its centre).", { n: targets.indexOf(target) + 1, x: target.x, y: target.y })
               : tx("Point {n}: the nozzle goes to X {x}, Y {y}, Z {z}. Tap the LOWEST POINT OF THE NOZZLE (the metal tip), not the marker under it.", { n: targets.indexOf(target) + 1, x: target.x, y: target.y, z: target.z }),
           ),
         ),
-        h(AutoFind, { state, run, busy, finding, auto, nozzleLeft, foundLeft }),
+        target.kind === "detail" && firstDetail && firstDetail.id !== target.id && state.detail_template &&
+          h("div", { className: "cal-detail-ref", "data-detail-ref": "1" }, h("img", { src: "/api/camera/calibration/template/detail?t=" + firstDetail.time, alt: tx("The detail tapped at point {n}", { n: targets.indexOf(firstDetail) + 1 }) }), h("span", { className: "set-group__note" }, tx("The detail tapped at point {n}", { n: targets.indexOf(firstDetail) + 1 }))),
+        h(AutoFind, { state, run, busy, finding, auto, nozzleLeft, foundLeft, canFind, detailWay }),
         h("button", { type: "button", className: "oui-btn oui-btn--primary oui-btn--block", "data-go": target.id, disabled: busy || finding, onClick: go }, at ? tx("Go there again") : tx("Go to point {n}", { n: targets.indexOf(target) + 1 })),
-        target.kind === "nozzle" && state.template && !points[target.id] && h("button", { type: "button", className: "oui-btn oui-btn--block", "data-find": target.id, disabled: busy || finding, onClick: findHere }, tx("Go there and find the nozzle by itself")),
+        (target.kind === "nozzle" || target.kind === "detail") && canFind && !points[target.id] && h("button", { type: "button", className: "oui-btn oui-btn--block", "data-find": target.id, disabled: busy || finding, onClick: findHere }, detailWay ? tx("Go there and find the tip and the detail by themselves") : tx("Go there and find the nozzle by itself")),
         findNote && h("p", { className: "set-group__note", "data-find-note": "1" }, findNote),
         at &&
           h(
@@ -677,9 +729,16 @@ function PointsStep({ state, camera, run, busy }) {
 }
 
 /** 1.29: «Find all the nozzle points by itself», its progress, and «Use the points found». */
-function AutoFind({ state, run, busy, finding, auto, nozzleLeft, foundLeft }) {
-  if (!state.template) {
-    return nozzleLeft.length > 1 ? h("p", { className: "set-group__note", "data-auto": "no-template" }, tx("Tap the nozzle by hand at one point: then KlippEye can find it by itself at the other nozzle points.")) : null;
+function AutoFind({ run, busy, finding, auto, nozzleLeft, foundLeft, canFind, detailWay }) {
+  if (!canFind) {
+    if (nozzleLeft.length <= 1) return null;
+    return h(
+      "p",
+      { className: "set-group__note", "data-auto": "no-template" },
+      detailWay
+        ? tx("Tap by hand the nozzle tip and the detail of the toolhead at the first place (points 1 and 2): then KlippEye follows them to the other places by itself.")
+        : tx("Tap the nozzle by hand at one point: then KlippEye can find it by itself at the other nozzle points."),
+    );
   }
   return h(
     "div",
@@ -688,17 +747,23 @@ function AutoFind({ state, run, busy, finding, auto, nozzleLeft, foundLeft }) {
       ? h(
           React.Fragment,
           null,
-          h("div", { className: "set-status" }, h("span", { className: "set-status__dot" }), tx("Finding the nozzle: point {done} of {total} ({found} found so far)…", { done: auto.done + 1, total: auto.total, found: auto.found })),
+          h("div", { className: "set-status" }, h("span", { className: "set-status__dot" }), (detailWay ? tx("Finding the points: {done} of {total} ({found} found so far)…", { done: auto.done + 1, total: auto.total, found: auto.found }) : tx("Finding the nozzle: point {done} of {total} ({found} found so far)…", { done: auto.done + 1, total: auto.total, found: auto.found }))),
           h("button", { type: "button", className: "oui-btn oui-btn--sm", "data-auto-stop": "1", onClick: () => run("calibration/find-all", { stop: true }) }, tx("Stop")),
         )
       : nozzleLeft.length > foundLeft.length &&
           h(
             React.Fragment,
             null,
-            h("button", { type: "button", className: "oui-btn oui-btn--block", "data-find-all": "1", disabled: busy, onClick: () => run("calibration/find-all") }, tx("Find the nozzle by itself at the other {count} points", { count: nozzleLeft.length - foundLeft.length })),
-            h("p", { className: "set-group__note" }, tx("The printer goes to each point and moves the toolhead aside for a moment: about 15 seconds per point. Keep your hands out.")),
+            h("button", { type: "button", className: "oui-btn oui-btn--block", "data-find-all": "1", disabled: busy, onClick: () => run("calibration/find-all") }, (detailWay ? tx("Find the other {count} points by themselves", { count: nozzleLeft.length - foundLeft.length }) : tx("Find the nozzle by itself at the other {count} points", { count: nozzleLeft.length - foundLeft.length }))),
+            h(
+              "p",
+              { className: "set-group__note" },
+              detailWay
+                ? tx("From a place already known, the printer moves a few mm at a time and follows the tip and the detail in the picture, looking only next to where they should be: a reflection or the background further away is never taken. About 30 seconds per place. Keep your hands out.")
+                : tx("The printer goes to each point and moves the toolhead aside for a moment: about 15 seconds per point. Keep your hands out."),
+            ),
           ),
-    auto.state === "done" && h("p", { className: "set-group__note", "data-auto-done": "1" }, tx("Done: the nozzle found at {found} of {total} points. The others are to tap by hand.", { found: auto.found, total: auto.total })),
+    auto.state === "done" && h("p", { className: "set-group__note", "data-auto-done": "1" }, (detailWay ? tx("Done: {found} of {total} points found. The others are to tap by hand.", { found: auto.found, total: auto.total }) : tx("Done: the nozzle found at {found} of {total} points. The others are to tap by hand.", { found: auto.found, total: auto.total }))),
     auto.state === "error" && h("p", { className: "set-field__error", role: "alert" }, tx("Stopped: ") + (auto.message || "")),
     foundLeft.length > 0 &&
       !finding &&
@@ -815,7 +880,10 @@ function CameraCalibrationPage({ active }) {
     state.printer === null && h("div", { className: "set-status set-status--warn" }, h("span", { className: "set-status__dot" }), tx("Klipper does not answer: the printer cannot be moved now.")),
     problem && h("div", { className: "set-status set-status--warn", role: "alert" }, h("span", { className: "set-status__dot" }), problem),
     drafting
-      ? h(React.Fragment, null, h(KindStep, { state, busy, onChange: (body) => run("calibration/options", body) }), state.draft && state.draft.z_moves && h(PointsStep, { state, camera, run, busy }))
+      ? h(React.Fragment, null, h(KindStep, { state, busy, onChange: (body) => run("calibration/options", body) }),
+          state.draft && state.draft.z_moves === "bed" && h(MethodStep, { state, busy, onChange: (body) => run("calibration/options", body) }),
+          state.draft && state.draft.z_moves && h(PointsStep, { state, camera, run, busy }),
+        )
       : h(
           React.Fragment,
           null,
