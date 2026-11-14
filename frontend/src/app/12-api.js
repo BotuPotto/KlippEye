@@ -112,11 +112,69 @@ function fetchFresh(url, options = {}) {
   if (signal) signal.aborted ? abort() : signal.addEventListener("abort", abort, { once: true });
   const timer = setTimeout(abort, timeout);
   readsInFlight.add(controller);
-  return fetch(url, { cache: "no-store", ...init, signal: controller.signal }).finally(() => {
-    clearTimeout(timer);
+  let finished = false;
+  const done = () => {
+    if (finished) return;
+    finished = true;
     readsInFlight.delete(controller);
     if (signal) signal.removeEventListener("abort", abort);
+  };
+  return fetch(url, { cache: "no-store", ...init, signal: controller.signal }).then(
+    (response) => {
+      clearTimeout(timer);
+      return watchBody(response, abort, timeout, done);
+    },
+    (error) => {
+      clearTimeout(timer);
+      done();
+      throw error;
+    },
+  );
+}
+
+/**
+ * 1.126: the answer's body under the same time limit, counted between two pieces of it: a connection that falls asleep
+ * in the middle of an answer (headers come, the rest never does) used to keep the reader (and the poller waiting on it)
+ * stuck for ever, on a page left open in front of the person. A long download that keeps arriving is never cut; a
+ * body nobody starts reading is given up after the same time, so its connection goes back to the browser.
+ * The reads still in flight stay cancellable by abortReadsInFlight() until the body has ended.
+ */
+function watchBody(response, abort, limit, done) {
+  if (!response.body || typeof response.body.getReader !== "function" || typeof ReadableStream === "undefined") {
+    done();
+    liveAnswered();
+    return response;
+  }
+  const reader = response.body.getReader();
+  let timer = setTimeout(abort, limit);
+  const stop = () => {
+    clearTimeout(timer);
+    done();
+  };
+  const stream = new ReadableStream({
+    async pull(sink) {
+      try {
+        const piece = await reader.read();
+        clearTimeout(timer);
+        if (piece.done) {
+          stop();
+          liveAnswered();
+          sink.close();
+          return;
+        }
+        timer = setTimeout(abort, limit);
+        sink.enqueue(piece.value);
+      } catch (error) {
+        stop();
+        sink.error(error);
+      }
+    },
+    cancel(reason) {
+      stop();
+      return reader.cancel(reason);
+    },
   });
+  return new Response(stream, { status: response.status, statusText: response.statusText, headers: response.headers });
 }
 
 async function fetchJson(url, options) {

@@ -454,6 +454,8 @@ diagnostic report**, or `klippeye diagnose --save` on the Raspberry. It contains
 | What you see | What to do |
 |---|---|
 | the dashboard doesn't open | on the Raspberry: `klippeye status`, then `klippeye restart`. `klippeye log` shows the last lines of the log |
+| «Reconnecting…» at the top | nothing to do: the dashboard gets its connection back by itself, and reloads the page if needed (never with unsaved changes in the editor) |
+| «The printer does not answer: trying again…» | the Raspberry can't be reached: check that it is on and on the network; the dashboard comes back by itself |
 | "this name is not allowed" | open it with the IP address, or allow the name: `klippeye access host-add NAME` |
 | Moonraker doesn't know KlippEye | run `bash ~/klippeye/scripts/install.sh` again, then restart Moonraker |
 | the camera stays black | see [4](#4-the-camera) |
