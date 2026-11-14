@@ -249,6 +249,8 @@ with sync_playwright() as p:
     P = fresh(b, brain_cfg_fail=500)
     pg = P.pg
     open_menu(P); go(P, "detector")
+    gaps = pg.evaluate("() => { const t = [...document.querySelectorAll('[data-fallback] > *')].map(e => e.getBoundingClientRect()); return t.slice(1).map((r, i) => Math.round(r.top - t[i].bottom)); }")
+    ok("1.128: the cards of the watched rectangle do not touch or overlap", gaps and all(g >= 8 for g in gaps), gaps)
     type_into(num_box(P, "Soglia di cambiamento"), "60")
     ok("a failed save is told", wait_until(lambda: "La modifica non è stata salvata" in pg.locator(".drawer__body").inner_text(), 4.0), pg.locator(".drawer__body").inner_text()[:300])
     pg.locator(".drawer__title").click()
