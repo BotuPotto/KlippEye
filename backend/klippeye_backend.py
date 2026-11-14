@@ -5121,7 +5121,23 @@ def serve_forever():
     app.run(host="0.0.0.0", port=PORT, debug=False, threaded=True)
 
 
+BACKEND_NICE = 10   # 1.129: lower than Klipper and Moonraker (0): judging a picture never keeps the printer waiting
+
+
+def lower_priority(target=BACKEND_NICE):
+    """Raises this process's niceness to `target` when it is lower (the service file does it too, since 1.129: this covers
+    the services installed before, whose file is rewritten only by a new install). -> the niceness now, or None."""
+    try:
+        now = os.nice(0)
+        if now < target:
+            now = os.nice(target - now)
+        return now
+    except (OSError, AttributeError):
+        return None
+
+
 if __name__ == "__main__":
+    lower_priority()
     threading.Thread(target=_repair_at_startup, name="repair", daemon=True).start()
     threading.Thread(target=_schedule_loop, name="schedule", daemon=True).start()
     threading.Thread(target=refresh_false_alarms, name="false-alarms", daemon=True).start()   # 1.125: a new base model came with an update
