@@ -1629,7 +1629,13 @@ r = cc.post("/api/camera/calibration/options", json={"z_moves": "sideways"})
 check("options: an unknown kind is refused (400)", r.status_code == 400)
 r = cc.post("/api/camera/calibration/options", json={"z_moves": "bed", "toolhead": {"width": 60, "depth": 70, "height": 70}})
 j = cc.get("/api/camera/calibration").get_json()
-check("Z moves the bed: no points before the markers are on the bed", r.status_code == 200 and j["targets"] == [], j["targets"])
+check("1.128: Z moves the bed: by default nothing to print, the tip and a detail of the toolhead at six places", r.status_code == 200 and j["method"] == "detail"
+      and [t["kind"] for t in j["targets"]] == ["nozzle", "detail"] * 6, j["targets"])
+check("1.128: an unknown method is refused (400)", cc.post("/api/camera/calibration/options", json={"method": "paint"}).status_code == 400)
+check("1.128: no detail tapped yet: no picture of it", cc.get("/api/camera/calibration/template/detail").status_code == 404)
+r = cc.post("/api/camera/calibration/options", json={"method": "markers"})
+j = cc.get("/api/camera/calibration").get_json()
+check("Z moves the bed, with markers: no points before the markers are on the bed", r.status_code == 200 and j["method"] == "markers" and j["targets"] == [], j["targets"])
 import camera_markers as _mk  # noqa: E402
 r = cc.get("/api/camera/markers.stl")
 _stl = r.data
