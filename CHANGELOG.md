@@ -1,5 +1,12 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.129.1
+
+**`klippeye benchmark --models download` works on Debian Bookworm.** The networks it downloads were refused by OpenCV
+4.6, the version on Raspberry Pi OS Bookworm ("ERROR during processing node ... Identity"). They are now exported
+without the nodes that version cannot read, and they are checked with OpenCV 4.6 before being published. Future local
+models get the same treatment.
+
 ## 1.129.0
 
 **More room for Klipper on the Raspberry.** The KlippEye service now runs at a lower priority than Klipper and

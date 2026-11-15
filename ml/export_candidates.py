@@ -60,6 +60,10 @@ def export(name, out):
     with torch.no_grad():
         torch.onnx.export(model, torch.zeros(1, 3, SIZE, SIZE), path, input_names=["picture"], output_names=["logit", "embedding"],
                           opset_version=13, dynamo=False)
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import onnx_tidy
+
+    onnx_tidy.without_identities(path)   # OpenCV 4.6 (Debian Bookworm's) refuses them
     return path
 
 

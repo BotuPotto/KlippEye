@@ -29,6 +29,11 @@ jobs:
           pip install timm onnx opencv-python-headless numpy
       - name: Export the networks
         run: python ml/export_candidates.py --out out
+      - name: They run in OpenCV 4.6 (Debian Bookworm's, on the Raspberry)
+        run: |
+          python -m venv /tmp/cv46
+          /tmp/cv46/bin/pip install -q "numpy<2" opencv-python-headless==4.6.0.66
+          /tmp/cv46/bin/python scripts/benchmark.py --models out --model-only --rounds 2
       - name: Attach them to the newest release
         env:
           GH_TOKEN: ${{ github.token }}

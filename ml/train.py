@@ -131,6 +131,12 @@ def export(model, size, out, info):
     # opset 13: Hardswish becomes HardSigmoid x Mul, which OpenCV's DNN module runs
     torch.onnx.export(model, dummy, path, input_names=["image"], output_names=["logit", "embedding"], opset_version=13, do_constant_folding=True,
                       dynamo=False)
+    try:   # 1.129: newer PyTorch versions write Identity nodes that OpenCV 4.6 (Debian Bookworm's) refuses
+        import onnx_tidy
+    except ImportError:
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import onnx_tidy
+    onnx_tidy.without_identities(path)
     with open(os.path.join(out, "model.json"), "w", encoding="utf-8") as handle:
         json.dump(info, handle, indent=1)
     # the same answer from OpenCV as from PyTorch (what the Raspberry will run)
