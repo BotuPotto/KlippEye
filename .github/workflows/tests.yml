@@ -88,6 +88,11 @@ jobs:
           pip install timm
           python ml/export_candidates.py --out /tmp/candidates
           python scripts/benchmark.py --models /tmp/candidates --model-only --rounds 3
+      - name: ... and in OpenCV 4.6, the one of Debian Bookworm on the Raspberry
+        run: |
+          python -m venv /tmp/cv46
+          /tmp/cv46/bin/pip install -q "numpy<2" opencv-python-headless==4.6.0.66
+          /tmp/cv46/bin/python scripts/benchmark.py --models /tmp/candidates --model-only --rounds 2
 
   app:
     name: Android app compiles

@@ -15,10 +15,11 @@ import os
 import sys
 
 # name -> (where it comes from, the model's name there). MobileNetV3-Small is the network used now: the reference.
+# EfficientNet-Lite0 is not here: OpenCV 4.6 (Debian Bookworm's) cannot run its ReLU6 ("Clip" with 3 inputs), and it is
+# the slowest of the three on a processor anyway.
 CANDIDATES = {
     "mobilenetv3_small": ("torchvision", "mobilenet_v3_small"),
     "mobilenetv4_conv_small": ("timm", "mobilenetv4_conv_small"),
-    "efficientnet_lite0": ("timm", "efficientnet_lite0"),
 }
 SIZE = 224
 
@@ -60,6 +61,10 @@ def export(name, out):
     with torch.no_grad():
         torch.onnx.export(model, torch.zeros(1, 3, SIZE, SIZE), path, input_names=["picture"], output_names=["logit", "embedding"],
                           opset_version=13, dynamo=False)
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import onnx_tidy
+
+    onnx_tidy.without_identities(path)   # OpenCV 4.6 (Debian Bookworm's) refuses them
     return path
 
 
