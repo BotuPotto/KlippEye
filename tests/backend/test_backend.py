@@ -777,7 +777,14 @@ _d._hides_part = lambda: _hide["on"]
 check("1.123: the part hidden: not asked now, the question waits", _d._put_off_when_hidden(True, 1000.0) is False and _d.ask_waiting == 1000.0)
 check("... still hidden at the next round: still waiting", _d._put_off_when_hidden(False, 1003.0) is False and _d.ask_waiting == 1000.0)
 _hide["on"] = False
-check("... the head moved away: asked at once, nothing waits any more", _d._put_off_when_hidden(False, 1006.0) is True and _d.ask_waiting is None)
+_d.cooldown_until, _d.cooldown_sec = 1000.0 + 90, 90   # the rest a local «sure» starts with its question
+_d.ask_waiting, _hide["on"] = None, True
+_d._put_off_when_hidden(True, 1000.0)
+check("1.132.4: put off, the question does not start the monitor's rest (it would not look again, and the question would be lost)", _d.cooldown_until <= 1000.0, _d.cooldown_until)
+_hide["on"] = False
+check("... the head moved away: asked at once, nothing waits any more, and the rest starts now", _d._put_off_when_hidden(False, 1006.0) is True and _d.ask_waiting is None
+      and _d.cooldown_until == 1006.0 + 90, _d.cooldown_until)
+_d.cooldown_until = 0
 _hide["on"] = True
 _d._put_off_when_hidden(True, 2000.0)
 _hide["on"] = False
@@ -3206,6 +3213,14 @@ check("1.125: the online AI answers «fine» to a doubt of the local model: that
 b_ai.false_memory.forget()
 b_ai.detector.call_ai_analysis(cur, prev, 60, local={"score": 20.0, "why": None, "vector": _scene, "model": "test-1"})
 check("... not when the local model had no doubt (20%)", b_ai.false_memory.info("test-1") == {"person": 0, "online": 0})
+post, calls = _chain_post({"groq": ["PAUSE"], "gemini": ["CONTINUE"]})
+b_ai, cur, prev = _two_services(post)
+b_ai.false_memory.forget()
+b_ai.detector.local_doubt = 35
+b_ai.detector.call_ai_analysis(cur, prev, 60, local={"score": 95.0, "why": "local_sure", "vector": _scene, "model": "test-1"})
+check("1.132.4: a stop the second look did not confirm is no «fine» to learn: the first look saw a problem there",
+      (b_ai.detector.last_analysis.get("analysis") or {}).get("original_action") == "PAUSE" and b_ai.false_memory.info("test-1") == {"person": 0, "online": 0},
+      (b_ai.detector.last_analysis.get("analysis"), b_ai.false_memory.info()))
 _lb.local_ai.model = None
 
 stop_all()

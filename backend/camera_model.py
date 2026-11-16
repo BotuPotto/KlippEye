@@ -106,9 +106,6 @@ def _pose_dlt(points, normalised):
     rot = u @ vt2
     if np.linalg.det(rot) < 0:
         rot, t = -rot, -t
-    if np.mean(np.asarray(points) @ rot[2] + t[2]) < 0:  # the points must be in front of the camera
-        rot = np.diag([-1, -1, 1]) @ rot
-        t = np.diag([-1, -1, 1]) @ t
     return rot, t
 
 
