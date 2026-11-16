@@ -697,6 +697,7 @@ CONFIG_GROUPS = [
 ]
 
 LOCAL_DOUBT_DEFAULT, LOCAL_SURE_DEFAULT = 35, 80   # the local model's levels by default (1.130: or its own, see model_levels)
+# (CONFIG_SPEC below repeats the numbers: it is read as plain data by the tests' mock server)
 
 CONFIG_SPEC = [
     {"key": "enabled", "type": "bool", "default": True, "group": "monitor", "label": "Monitor on",
@@ -749,10 +750,10 @@ CONFIG_SPEC = [
     {"key": "local_every", "type": "int", "default": 15, "min": 5, "max": 120, "step": 5, "unit": "s", "group": "local",
      "label": "How often the local model looks by itself",
      "help": "Besides every change OpenCV sees, which it looks at at once. Each look takes a fraction of a second of the Raspberry."},
-    {"key": "local_doubt", "type": "int", "default": LOCAL_DOUBT_DEFAULT, "min": 5, "max": 95, "step": 5, "unit": "%", "group": "local",
+    {"key": "local_doubt", "type": "int", "default": 35, "min": 5, "max": 95, "step": 5, "unit": "%", "group": "local",
      "label": "In doubt from",
      "help": "From this rating the local model has a doubt: an alarm of the motion detection goes to the online AI, three doubtful looks in a row ask it too, and for a minute OpenCV raises an alarm sooner."},
-    {"key": "local_sure", "type": "int", "default": LOCAL_SURE_DEFAULT, "min": 10, "max": 99, "step": 1, "unit": "%", "group": "local",
+    {"key": "local_sure", "type": "int", "default": 80, "min": 10, "max": 99, "step": 1, "unit": "%", "group": "local",
      "label": "Sure from",
      "help": "From this rating the local model is sure there is a failure: two sure looks in a row ask the online AI at once, even without an alarm of the motion detection."},
     {"key": "personal_learning", "type": "bool", "default": False, "group": "local", "label": "Learn from this printer's prints",
