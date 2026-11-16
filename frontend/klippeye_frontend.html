@@ -10288,7 +10288,7 @@ function usePrinterFunctions() {
    ========================================================================== */
 
 /** Written by build.py from the VERSION file of the release; stays as it is when the page is built by hand. */
-const DASHBOARD_RELEASE = "1.130.0";
+const DASHBOARD_RELEASE = "1.131.0";
 const dashboardRelease = () => (DASHBOARD_RELEASE.startsWith("__") ? "sviluppo" : DASHBOARD_RELEASE);
 
 /** The interface level this page needs from the backend (the backend says its own in /api/version). */
@@ -25555,7 +25555,7 @@ function MonitorTile({ label, children, foot, name }) {
   );
 }
 
-const LOCAL_VIEW_NAMES = { whole: tx("whole picture"), part: tx("on the part"), change: tx("where it changed") };
+const LOCAL_VIEW_NAMES = { whole: tx("whole picture"), bed: tx("the bed"), part: tx("on the part"), change: tx("where it changed") };
 
 /** 1.124: the local model's score of the camera's picture now: to see whether it recognises a defect put in front of it. */
 function LocalTry() {

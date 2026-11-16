@@ -10,6 +10,10 @@ caught and how long after the moment the person chose.
 An alarm is counted when the score stays over the threshold for --consecutive pictures in a row; after an alarm the
 next one is counted only --cooldown seconds later (as the monitor rests between two AI calls).
 Writes a table for several thresholds and, with --json, the details.
+
+1.130: --box x,y,w,h (fractions of the picture) judges only that part of each picture, as the monitor judges the bed of a
+calibrated camera instead of the whole picture (the box is "bed_view" in http://RASPBERRY:8085/api/local_model).
+Without it, the whole picture, as a monitor without calibration.
 """
 import argparse
 import json
@@ -44,7 +48,16 @@ def main(argv=None):
     parser.add_argument("--consecutive", type=int, default=1)
     parser.add_argument("--cooldown", type=float, default=120)
     parser.add_argument("--json", help="write the details here")
+    parser.add_argument("--box", default="", help="x,y,w,h in fractions: judge only that part of each picture (the bed)")
     args = parser.parse_args(argv)
+    box = None
+    if args.box:
+        try:
+            box = [float(v) for v in args.box.split(",")]
+            assert len(box) == 4 and all(0 <= v <= 1 for v in box) and box[2] > 0 and box[3] > 0
+        except (ValueError, AssertionError):
+            print("--box: four numbers from 0 to 1, x,y,w,h (for example 0.15,0.36,0.70,0.61)")
+            return 1
     import cv2
     import numpy as np
     model = local_model.load(args.model, cv2, np)
@@ -63,6 +76,9 @@ def main(argv=None):
         for _, t, path in pictures:
             image = cv2.imread(path)
             if image is not None:
+                if box:
+                    h, w = image.shape[:2]
+                    image = image[int(box[1] * h):int((box[1] + box[3]) * h), int(box[0] * w):int((box[0] + box[2]) * w)]
                 scored.append((t, model.predict(image)[0]))
         one = dict(one, scored=scored)
         one.pop("pictures")

@@ -1,5 +1,18 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.131.0
+
+**The local model looks at the bed, not at the whole picture.** With a calibrated camera it now judges the bed and the
+space above it, instead of the whole picture: around the bed, the frame, the cables and the toolhead look like tangles
+to it, and the highest of its views is its score. On 14 judged prints of a close fisheye camera this is the difference
+between 1.5 false alarms an hour and a rating that is high all the time. Without a calibration it looks at the whole
+picture as before; the closer looks at the part and at what changed stay.
+
+- What each printer learns (the personal layer) is taught on the same view of its examples, again by itself when the
+  view changes.
+- `/api/local_model` says which part of the picture is the bed (`bed_view`), and `ml/evaluate.py --box` measures a model
+  on that part only, as the monitor judges it.
+
 ## 1.130.0
 
 **A new local model, for every printer, with far fewer false alarms on prints going well.** It was trained only on

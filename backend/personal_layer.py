@@ -204,6 +204,7 @@ class PersonalLayer:
         self.folder = os.path.join(data_dir, "personal")
         self.lock = threading.Lock()
         self.layer = None          # {"w": array, "b", "version", ...}
+        self.view = None           # 1.130: (x, y, w, h) the part of each picture the examples are looked at (the bed), or None
         self.enabled = False
         self.training = False
         self.last_error = ""
@@ -247,14 +248,31 @@ class PersonalLayer:
         return (1 - weight) * base_score + weight * personal
 
     # ------------------------------------------------------------------ training
+    def signature(self, model_version):
+        """The base model and the view the embeddings were computed with (1.130: a new view means new embeddings)."""
+        view = self.view
+        return model_version if not view else "%s|%s" % (model_version, ",".join("%.3f" % v for v in view))
+
+    def _look(self, image):
+        """The part of an example picture the monitor would judge: the bed (1.130), or the whole picture."""
+        view = self.view
+        if not view or image is None:
+            return image
+        h, w = image.shape[:2]
+        x0, y0 = max(0, int(view[0] * w)), max(0, int(view[1] * h))
+        x1, y1 = min(w, int((view[0] + view[2]) * w)), min(h, int((view[1] + view[3]) * h))
+        return image[y0:y1, x0:x1] if x1 - x0 >= 16 and y1 - y0 >= 16 else image
+
     def _embeddings(self, model, examples):
-        """The embeddings of the examples, from the cache when the base model is the same; the others computed now."""
+        """The embeddings of the examples, from the cache when the base model (and the view) is the same; the others
+        computed now."""
         np = self.np
         path = os.path.join(self.folder, "cache.npz")
         cache = {}
+        signature = self.signature(model.version)
         try:
             stored = np.load(path, allow_pickle=False)
-            if str(stored["__version__"]) == model.version:
+            if str(stored["__version__"]) == signature:
                 cache = {k: stored[k] for k in stored.files if k != "__version__"}
         except (OSError, KeyError, ValueError):
             cache = {}
@@ -266,7 +284,7 @@ class PersonalLayer:
                 image = self.cv2.imread(picture) if self.cv2 is not None else None
                 if image is None:
                     continue
-                _, vector = model.predict(image)
+                _, vector = model.predict(self._look(image))
                 if vector is None:
                     continue
                 vector = np.asarray(vector, dtype=np.float32)
@@ -276,7 +294,7 @@ class PersonalLayer:
         if fresh:
             os.makedirs(self.folder, exist_ok=True)
             tmp = path + ".tmp.npz"
-            np.savez_compressed(tmp, __version__=np.array(model.version), **cache)
+            np.savez_compressed(tmp, __version__=np.array(signature), **cache)
             os.replace(tmp, path)
         return out
 
@@ -319,7 +337,7 @@ class PersonalLayer:
                             "failed_caught": round(float(predicted[truth].mean()), 3) if truth.any() else None,
                             "false_alarms": round(float(predicted[~truth].mean()), 3) if (~truth).any() else None}
                 w, b = fit(np, x, y)
-                layer = {"version": model.version, "w": w.tolist(), "b": float(b), "examples": len(y), "failed": failed, "fine": fine,
+                layer = {"version": model.version, "view": list(self.view) if self.view else None, "w": w.tolist(), "b": float(b), "examples": len(y), "failed": failed, "fine": fine,
                          "weight": weight_for(failed), "trained_at": round(time.time()), "measured": measured}
                 os.makedirs(self.folder, exist_ok=True)
                 with open(os.path.join(self.folder, "layer.json.tmp"), "w", encoding="utf-8") as handle:
