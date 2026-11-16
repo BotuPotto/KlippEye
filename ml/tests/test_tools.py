@@ -128,6 +128,8 @@ import hard_cases  # noqa: E402
 check("1.130: «Successful Print», «Normal print», «No defect» are fine; «Print Failure» failed",
       [datasets.kind_of(n) for n in ("Successful Print", "Normal print", "good_print", "No Defect", "Print Failure")] == [0, 0, 0, 0, 1],
       [datasets.kind_of(n) for n in ("Successful Print", "Normal print", "good_print", "No Defect", "Print Failure")])
+check("pictures nobody labelled («Unlabeled», «background») are left out, not counted as failures",
+      [datasets.kind_of(n) for n in ("Unlabeled", "background", "None")] == [None] * 3)
 check("licences: CC BY 4.0, MIT, public domain shareable; ShareAlike, NonCommercial, private not; not written: neither",
       [download.licence_is_open(t) for t in ("CC BY 4.0", "MIT", "Public Domain")] == [True] * 3
       and [download.licence_is_closed(t) for t in ("CC BY-SA 4.0", "CC BY-NC 4.0", "Private", "CC BY 4.0", "see the dataset's page")] == [True, True, True, False, False])

@@ -179,8 +179,9 @@ def bambu(out, model_dir, doubt, videos=None):
             return None
         print("downloading the Bambu Timelapse Dataset's timelapses (~3 GB)…")
         snapshot_download(BAMBU_REPO, repo_type="dataset", local_dir=os.path.join(folder, "source"),
-                          allow_patterns=["originals/timelapses/**", "metadata/*", "README.md"])
-        videos = sorted(glob.glob(os.path.join(folder, "source", "originals", "timelapses", "**", "*.*"), recursive=True))
+                          allow_patterns=["train/timelapses/**", "originals/timelapses/**", "metadata/*", "README.md"])
+        # train/timelapses/<contributor>/*.mp4 (the card speaks of originals/timelapses: both are looked at)
+        videos = sorted(glob.glob(os.path.join(folder, "source", "*", "timelapses", "**", "*.*"), recursive=True))
         videos = [v for v in videos if v.lower().endswith((".mp4", ".avi", ".mkv", ".mov"))]
     sys.path.insert(0, os.path.join(HERE, "..", "backend"))
     import local_model

@@ -50,9 +50,15 @@ NORMAL = re.compile(r"^(ok|good|normal|nominal|success\w*|fine|correct|no.?defec
                     r"extrusor|head|hotend|printhead|print.?head|toolhead|tool|nozzle.?tip|person|hand)$", re.I)
 
 
+UNKNOWN = re.compile(r"^(unlabel\w*|unknown|none|null|background|other|misc\w*|-|_)$", re.I)
+
+
 def kind_of(name, fail_classes=()):
-    """-> 1 (a failure), 0 (fine: a normal print or a part of the printer), None (a defect of quality: left out)."""
+    """-> 1 (a failure), 0 (fine: a normal print or a part of the printer), None (a defect of quality, or pictures nobody
+    labelled: left out)."""
     name = str(name).strip()
+    if UNKNOWN.match(name):
+        return None
     if fail_classes:
         return 1 if name.lower() in fail_classes else 0 if NORMAL.match(name) else None
     if NORMAL.match(name):
