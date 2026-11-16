@@ -2097,6 +2097,10 @@ check("the macros of the files of that folder are listed (review 1.116)", _mj["o
       and _mj["macros"][0]["file"] == "macros.cfg" and _mj["macros"][0]["source"] == "filesystem", _mj)
 _lj = _pbc.get("/api/logs/list").get_json()
 check("the logs page lists the logs of that folder", _lj.get("dir") == os.path.join(_proot, "lg") and [f["name"] for f in _lj["files"]] == ["klippy.log"], _lj)
+_codes = {n: _pbc.get("/api/logs/download", query_string={"file": n}).status_code
+          for n in ("klippy.log", "../cfg/macros.cfg", "..\\cfg\\macros.cfg", os.path.join(_proot, "cfg", "macros.cfg"), "..", "")}
+check("1.132.1: a log downloads; a path out of the logs folder (the config, the AI keys next to it) never does",
+      _codes == {"klippy.log": 200, "../cfg/macros.cfg": 400, "..\\cfg\\macros.cfg": 400, os.path.join(_proot, "cfg", "macros.cfg"): 400, "..": 400, "": 400}, _codes)
 _pp.forget()
 fake.state["roots"] = None
 _home = tmp()
