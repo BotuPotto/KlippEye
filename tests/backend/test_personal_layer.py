@@ -208,5 +208,15 @@ left = pl.examples_of(kept_data)
 check("... over the limit: the oldest fine ones go, every failed one stays", len(left) == 15 and sum(1 for e in left if e[2] == 1) == sum(1 for k, label in before if label == 1 and k.startswith("rev/")), (len(left), sum(1 for e in left if e[2] == 1)))
 pl.KEPT_MAX = old_max
 
+# 1.130: the examples looked at as the monitor looks at the picture: the bed
+viewed = pl.PersonalLayer(data, np, cv2)
+plain = viewed.signature("v1")
+viewed.view = (0.25, 0.5, 0.5, 0.5)
+image = np.zeros((480, 640, 3), np.uint8)
+check("1.130: with a view (the bed) each example is cut to it, and the cache knows the view",
+      viewed._look(image).shape == (240, 320, 3) and viewed.signature("v1") != plain and viewed.signature("v1").startswith("v1|"), viewed.signature("v1"))
+viewed.view = (0.0, 0.0, 0.01, 0.01)
+check("... a view too small: the whole picture", viewed._look(image).shape == image.shape)
+
 print("\n%d failure(s)" % len(FAILS) + (": " + ", ".join(FAILS) if FAILS else ""))
 sys.exit(1 if FAILS else 0)

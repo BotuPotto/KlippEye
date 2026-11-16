@@ -3017,6 +3017,16 @@ _views = _det.local_views(_frame, 100.0)
 check("... a change seen by OpenCV: also a closer look at it (a square crop of the picture)",
       [n for n, _ in _views] == ["whole", "change"] and _views[1][1].shape[0] == _views[1][1].shape[1] < _frame.shape[0], [(n, v.shape) for n, v in _views])
 check("... forgotten after 5 minutes", [n for n, _ in _det.local_views(_frame, 100.0 + _lb.LOCAL_CHANGE_MEMORY_S + 1)] == ["whole"])
+_det._bed_box = lambda: (0.15, 0.36, 0.70, 0.61)   # 1.130: a calibrated camera: where the bed is
+_views = _det.local_views(_frame, 100.0)
+_fh, _fw = _frame.shape[:2]
+check("1.130: a calibrated camera: the bed instead of the whole picture (the frame and the cables around it look like tangles)",
+      [n for n, _ in _views] == ["bed", "change"] and abs(_views[0][1].shape[1] - 0.70 * 1.08 * _fw) <= 2 and abs(_views[0][1].shape[0] - 0.61 * 1.08 * _fh) <= 2,
+      [(n, v.shape) for n, v in _views])
+check("... the bed's view is not squared, with a small margin; almost the whole picture or nothing: no bed view",
+      _lb.bed_rect((0.1, 0.2, 0.5, 0.4), 1000, 500) == (80, 92, 620, 308) and _lb.bed_rect((0.0, 0.0, 1.0, 1.0), 1000, 500) is None
+      and _lb.bed_rect(None, 1000, 500) is None and _lb.bed_rect((0.5, 0.5, 0.01, 0.01), 1000, 500) is None, _lb.bed_rect((0.1, 0.2, 0.5, 0.4), 1000, 500))
+_det._bed_box = lambda: None
 _with_scores([0.10, 0.70])
 check("... the highest of the looks counts, and which one gave it", _det.local_judge(_frame, 100.0) == (70.0, {"whole": 10.0, "change": 70.0}, "change"))
 _with_scores([0.10] * 9)

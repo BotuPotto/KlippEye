@@ -1762,6 +1762,23 @@ def same_place(box, other, apart=0.08):
             and abs((box[1] + box[3] / 2.0) - (other[1] + other[3] / 2.0)) < apart)
 
 
+BED_MARGIN = 0.04   # 1.130: around the bed's view, in shares of its size
+
+
+def bed_rect(box, width, height, margin=BED_MARGIN):
+    """The bed's view: `box` (x, y, w, h in fractions) with a small margin, inside the picture, not squared (the model
+    stretches it to its size, as it was measured) -> (x0, y0, x1, y1) in pixels, or None when it would be almost the
+    whole picture or too small to say anything."""
+    if not box:
+        return None
+    x, y, w, h = (float(v) for v in box)
+    x0, y0 = max(0, int((x - w * margin) * width)), max(0, int((y - h * margin) * height))
+    x1, y1 = min(width, int((x + w * (1 + margin)) * width)), min(height, int((y + h * (1 + margin)) * height))
+    if x1 - x0 < 32 or y1 - y0 < 32 or (x1 - x0) * (y1 - y0) > 0.92 * width * height:
+        return None
+    return x0, y0, x1, y1
+
+
 def crop_rect(box, width, height, margin=CROP_MARGIN, minimum=CROP_MIN):
     """A square around `box` (x, y, w, h in fractions of the picture), with a margin, at least `minimum` of the picture's
     height and inside the picture -> (x0, y0, x1, y1) in pixels, or None."""
@@ -2481,13 +2498,35 @@ class LightDetector(FrameJudge):
             print("[LOCAL] where the part is: %s" % error)
             return None
 
+    def _bed_box(self):
+        """1.130: where the watched bed is in the picture (x, y, w, h in fractions: the bed and the space above it up to the
+        nozzle, from the camera calibration), or None."""
+        try:
+            known = camera_cal.bed_area()[0]
+            if not known or not camera_cal.usable() or not camera_cal.saved:
+                return None
+            z = self._height_now()
+            points = [p for polygon in print_zone.outlines(camera_cal.calibration(), [], z if z is not None else 0.0, known[0], known[1])["watched"]
+                      for p in (polygon or [])]
+            if not points:
+                return None
+            xs, ys = [min(max(p[0], 0.0), 1.0) for p in points], [min(max(p[1], 0.0), 1.0) for p in points]
+            w, h = max(xs) - min(xs), max(ys) - min(ys)
+            return (min(xs), min(ys), w, h) if w > 0.05 and h > 0.05 else None
+        except Exception as error:  # a help only
+            print("[LOCAL] where the bed is: %s" % error)
+            return None
+
     def local_views(self, frame, now=None):
         """The pictures the local model judges (1.124): the whole picture; with a calibrated camera, a closer look at the
         printed part; when the motion detection saw a change in the last minutes, a closer look at it.
+        1.130: with a calibrated camera, the bed (and the space above it) instead of the whole picture: the frame, the
+        cables and the toolhead around it look like tangles to the model, and the picture's highest view is the score.
         -> [(name, picture)]."""
         now = time.time() if now is None else now
         height, width = frame.shape[:2]
-        views = [("whole", frame)]
+        bed = bed_rect(self._bed_box(), width, height)
+        views = [("bed", frame[bed[1]:bed[3], bed[0]:bed[2]])] if bed else [("whole", frame)]
         for name, box in (("part", self._part_box()),
                           ("change", self.change_box if self.change_at is not None and now - self.change_at <= LOCAL_CHANGE_MEMORY_S else None)):
             rect = crop_rect(box, width, height)
@@ -3141,6 +3180,21 @@ def keep_examples_later():
     threading.Thread(target=keep_examples_now, name="keep-examples", daemon=True).start()
 
 
+def personal_view():
+    """1.130: the part of the picture the monitor's main view is (the bed, rounded), for the personal layer's examples."""
+    box = detector._bed_box() if HAS_CV2 else None
+    return tuple(round(float(v), 3) for v in box) if box else None
+
+
+def personal_stale():
+    """1.130: the personal layer was taught to another base model, or on another view of the pictures."""
+    layer, model = personal.layer, local_ai.model
+    if not layer or model is None:
+        return False
+    view = personal_view()
+    return layer.get("version") != model.version or tuple(layer.get("view") or ()) != tuple(view or ())
+
+
 def train_personal_later(why=""):
     """Trains the personal layer again in the background (after an answer, an import, a new base model): only when it
     is on and there is a model; one training at a time."""
@@ -3148,6 +3202,7 @@ def train_personal_later(why=""):
         return False
 
     def run():
+        personal.view = personal_view()   # 1.130: the examples looked at as the monitor looks: the bed
         info = personal.train(local_ai.model)
         print("[PERSONAL] trained%s: %s" % (" (" + why + ")" if why else "", {k: info.get(k) for k in ("trained", "examples", "failed", "fine", "error")}))
     threading.Thread(target=run, daemon=True).start()
@@ -3789,13 +3844,14 @@ def api_local_model():
         local_ai.reload()
         detector.apply_config(effective_config(backend_config.snapshot()))   # 1.130: another model, maybe other levels
         model = local_ai.model
-        if model is not None and personal.layer and personal.layer.get("version") != model.version:
+        if personal_stale():
             train_personal_later("new base model")   # the embeddings change with the model: computed again
         refresh_false_alarms()
     state = detector.local_state
     model = local_ai.model
     levels = model_levels()
     return _no_store(jsonify(dict(local_ai.info(), ok=True, enabled=detector.local_enabled, personal=personal.info(),
+                                  bed_view=personal_view(),   # 1.130: the bed's box the local model judges (x, y, w, h) or None
                                   levels={"doubt": detector.local_doubt, "sure": detector.local_sure, "model": list(levels) if levels else None,
                                           "from_model": bool(levels) and (detector.local_doubt, detector.local_sure) == levels},
                                   false_alarms=false_memory.info(model.version if model is not None else None),
@@ -3837,6 +3893,7 @@ def api_local_model_personal():
     if body.get("train") or body.get("forget_imported"):
         if local_ai.model is None:
             return jsonify({"ok": False, "error": "no local model installed", "personal": personal.info()}), 409
+        personal.view = personal_view()
         personal.train(local_ai.model)
     return jsonify({"ok": True, "personal": personal.info()})
 
@@ -5171,8 +5228,8 @@ if __name__ == "__main__":
     threading.Thread(target=_repair_at_startup, name="repair", daemon=True).start()
     threading.Thread(target=_schedule_loop, name="schedule", daemon=True).start()
     threading.Thread(target=refresh_false_alarms, name="false-alarms", daemon=True).start()   # 1.125: a new base model came with an update
-    if local_ai.model is not None and personal.layer and personal.layer.get("version") != local_ai.model.version:
-        train_personal_later("new base model")   # 1.130: what this printer learned, taught again to the new model from its examples
+    if personal_stale():
+        train_personal_later("new base model or view")   # 1.130: what this printer learned, taught again from its examples
     keep_examples_later()   # 1.125: the examples taught before this release, copied apart once
     _https_apply(_https_settings())  # 1.93: the encrypted entrance, when it was switched on
     _mqtt_apply(_mqtt_settings())  # 1.100: Home Assistant / MQTT, when set up

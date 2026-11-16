@@ -232,7 +232,7 @@ function MonitorTile({ label, children, foot, name }) {
   );
 }
 
-const LOCAL_VIEW_NAMES = { whole: tx("whole picture"), part: tx("on the part"), change: tx("where it changed") };
+const LOCAL_VIEW_NAMES = { whole: tx("whole picture"), bed: tx("the bed"), part: tx("on the part"), change: tx("where it changed") };
 
 /** 1.124: the local model's score of the camera's picture now: to see whether it recognises a defect put in front of it. */
 function LocalTry() {
