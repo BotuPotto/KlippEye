@@ -2505,14 +2505,14 @@ class LightDetector(FrameJudge):
             print("[LOCAL] where the part is: %s" % error)
             return None
 
-    def _bed_box(self):
+    def _bed_box(self, z=None):
         """1.130: where the watched bed is in the picture (x, y, w, h in fractions: the bed and the space above it up to the
-        nozzle, from the camera calibration), or None."""
+        nozzle, from the camera calibration), or None. z: the height (mm) to look up to; default the nozzle's now."""
         try:
             known = camera_cal.bed_area()[0]
             if not known or not camera_cal.usable() or not camera_cal.saved:
                 return None
-            z = self._height_now()
+            z = self._height_now() if z is None else z
             points = [p for polygon in print_zone.outlines(camera_cal.calibration(), [], z if z is not None else 0.0, known[0], known[1])["watched"]
                       for p in (polygon or [])]
             if not points:
@@ -3194,7 +3194,7 @@ def keep_examples_later():
 
 def personal_view():
     """1.130: the part of the picture the monitor's main view is (the bed, rounded), for the personal layer's examples."""
-    box = detector._bed_box() if HAS_CV2 else None
+    box = detector._bed_box(z=0.0) if HAS_CV2 else None   # the bed alone: the nozzle's height of the last print would change it
     return tuple(round(float(v), 3) for v in box) if box else None
 
 

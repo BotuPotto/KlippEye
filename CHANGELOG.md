@@ -1,5 +1,11 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.132.1
+
+- The personal layer is no longer taught again, all of its examples looked at anew, after every restart and every
+  answer to «How did the print go?»: the part of the picture it learns on (the bed) was taken up to the height the last
+  print ended at, so it changed from one time to the next. It is now the bed alone, always the same.
+
 ## 1.132.0
 
 **A calmer start of the print for the local model.** In the first five minutes after the monitor starts checking a
