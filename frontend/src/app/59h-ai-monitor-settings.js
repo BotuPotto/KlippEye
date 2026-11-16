@@ -89,7 +89,7 @@ function AiPage({ active, menu }) {
         "div",
         { className: "oui-list" },
         h(SubpageRow, { entry: AI_SUBPAGES[0], meta: cameraCalibrationSummary(calibration), menu }),
-        h(SubpageRow, { entry: AI_SUBPAGES[1], meta: config.phase === "ok" && config.values ? tx("How watchful: {level}", { level: watchLevelName(config.values) }) : tx("How watchful it is, fine adjustments"), menu }),
+        h(SubpageRow, { entry: AI_SUBPAGES[1], meta: config.phase === "ok" && config.values ? tx("How watchful: {level}", { level: watchLevelName(config.values, modelLevelsOf(localModel)) }) : tx("How watchful it is, fine adjustments"), menu }),
         h(SubpageRow, { entry: AI_SUBPAGES[2], meta: recordingsSummary(recordings), menu }),
       ),
     ),

@@ -20,12 +20,21 @@ import train  # noqa: E402
 root = tempfile.mkdtemp(prefix="ke-ml-smoke-")
 paths = synthetic.make(root, n=80)
 work, out = os.path.join(root, "work"), os.path.join(root, "model")
-assert datasets.main(["--yolo", paths["yolo"], "--folders", paths["sorted"], "--klippeye", paths["klippeye"], "--out", work]) == 0
+assert datasets.main(["--yolo", paths["yolo"], "--folders", paths["sorted"], "--klippeye", paths["klippeye"], "--out", work,
+                      "--hard-cases", "0.3", "--mine", os.path.join(HERE, "..", "..", "models", "base")]) == 0
 code = train.main(["--manifest", os.path.join(work, "manifest.csv"), "--out", out, "--epochs", "30", "--size", "96", "--batch", "16",
                    "--workers", "0", "--no-pretrained", "--lr", "3e-3"])
 assert code == 0, "train.py: %s (2: OpenCV answers differently from PyTorch)" % code
 info = json.load(open(os.path.join(out, "model.json")))
 assert info["format"] == 1 and info["size"] == 96 and 0.3 <= info["threshold"] <= 0.99 and info["embedding"] == 1024, info
+# 1.130: the scores made honest (the temperature inside the model), the threshold within the false alarms wanted
+cal = info["measured"]["calibration_error"]
+assert info["temperature"] > 0 and cal["after"] <= cal["before"] + 0.5, cal
+assert "false_alarm_rate" in info["measured"], info["measured"]
+assert info["levels"]["doubt"] < info["levels"]["sure"] == round(info["threshold"] * 100), info["levels"]
+assert train.levels_for(0.86) == {"doubt": 75, "sure": 86} and train.levels_for(0.3) == {"doubt": 20, "sure": 30}
+assert abs(train.fit_temperature([4.0, -4.0, 4.0, -4.0], [1, 0, 0, 1]) - 8.0) < 0.5   # always half wrong: as unsure as can be
+print("calibration:", cal, "threshold", info["threshold"])
 model = local_model.load(out, cv2, np)
 score, embedding = model.predict(cv2.imread(os.path.join(paths["klippeye"], "recordings", "20261101-100000-good", "000001.jpg")))
 assert 0.0 <= score <= 1.0 and embedding.shape == (1024,), (score, embedding.shape)

@@ -2140,6 +2140,8 @@
  "The logs cannot be read now: try again shortly": "Сейчас логи нельзя прочитать: попробуйте ещё раз в ближайшее время",
  "The logs have their own service and model: the gear of the System logs card.": "У логов своя служба и модель: шестерёнка карточки «Системные логи».",
  "The materials offered in the temperature window: a tap sets the nozzle and the bed together. They are a starting point: the temperatures on the label of the spool come first.": "Материалы, предлагаемые в окне температуры: одно нажатие задаёт сопло и стол вместе. Это отправная точка: сначала важны температуры на этикетке катушки.",
+ "The model in use has its own levels, used while these two are at 35% and 80%: in doubt from {doubt}%, sure from {sure}%. Change them here to choose yours.": "У используемой модели свои уровни, они действуют, пока эти два на 35% и 80%: сомнение с {doubt}%, уверенность с {sure}%. Измени их здесь, чтобы выбрать свои.",
+ "The model in use suggests: in doubt from {doubt}%, sure from {sure}%. Put these two back to 35% and 80% to use its levels.": "Используемая модель советует: сомнение с {doubt}%, уверенность с {sure}%. Верни эти два на 35% и 80%, чтобы использовать её уровни.",
  "The monitor goes back to working without the calibration. Confirm?": "Монитор вернётся к работе без калибровки. Подтвердить?",
  "The monitor is off: it does not watch the camera and does not call the AI.": "Монитор выключен: он не наблюдает камеру и не обращается к ИИ.",
  "The monitor is on: it watches the camera during prints.": "Монитор включён: он наблюдает камеру во время печати.",

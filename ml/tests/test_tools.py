@@ -121,5 +121,87 @@ except local_model.ModelError as error:
     raised = "format" in str(error)
 check("... a model.json of another format: refused", raised)
 
+# ---------------------------------------------------------------- 1.130: a model for every printer
+import download  # noqa: E402
+import hard_cases  # noqa: E402
+
+check("1.130: «Successful Print», «Normal print», «No defect» are fine; «Print Failure» failed",
+      [datasets.kind_of(n) for n in ("Successful Print", "Normal print", "good_print", "No Defect", "Print Failure")] == [0, 0, 0, 0, 1],
+      [datasets.kind_of(n) for n in ("Successful Print", "Normal print", "good_print", "No Defect", "Print Failure")])
+check("pictures nobody labelled («Unlabeled», «background») are left out, not counted as failures",
+      [datasets.kind_of(n) for n in ("Unlabeled", "background", "None")] == [None] * 3)
+check("licences: CC BY 4.0, MIT, public domain shareable; ShareAlike, NonCommercial, private not; not written: neither",
+      [download.licence_is_open(t) for t in ("CC BY 4.0", "MIT", "Public Domain")] == [True] * 3
+      and [download.licence_is_closed(t) for t in ("CC BY-SA 4.0", "CC BY-NC 4.0", "Private", "CC BY 4.0", "see the dataset's page")] == [True, True, True, False, False])
+
+multi = os.path.join(root, "multi", "train")
+os.makedirs(multi)
+for i in range(5):
+    cv2.imwrite(os.path.join(multi, "m%d_jpg.rf.%d.jpg" % (i, i)), np.full((40, 40, 3), 90, np.uint8))
+with open(os.path.join(multi, "_classes.csv"), "w") as handle:
+    handle.write("filename, Print Failure, Successful Print\n" + "".join("m%d_jpg.rf.%d.jpg,%d,%d\n" % (i, i, f, o) for i, (f, o) in enumerate([(1, 0), (0, 1), (0, 1), (0, 0), (1, 1)])))
+rows = datasets.from_multiclass(os.path.join(root, "multi"))
+check("multi-label (Roboflow «multiclass»): failure -> failed, only «Successful Print» -> fine, nothing -> left out, both -> failed",
+      sorted(r[1] for r in rows) == [0, 0, 1, 1] and all(r[3] == "multiclass" for r in rows), [(os.path.basename(r[0]), r[1]) for r in rows])
+
+# the Bambu timelapses: pictures taken from each video, a print whose end looks failed left out, failed.txt honoured
+videos = []
+for name, bad in (("printA", False), ("printB", False), ("printC", True)):
+    path = os.path.join(root, "videos", "contributor", name + ".avi")
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    writer = cv2.VideoWriter(path, cv2.VideoWriter_fourcc(*"MJPG"), 10, (96, 64))
+    for k in range(40):
+        frame = np.full((64, 96, 3), 70 + k, np.uint8)
+        if bad and k > 30:
+            frame[:] = 255
+        writer.write(frame)
+    writer.release()
+    videos.append(path)
+
+
+class Judge:
+    threshold = 0.5
+
+    def predict(self, image):
+        return (0.9 if image.mean() > 200 else 0.1), None
+
+
+real_load = local_model.load
+local_model.load = lambda folder, cv2_, np_: Judge()
+data = os.path.join(root, "data")
+line = download.bambu(data, root, 0.5, videos=videos)
+local_model.load = real_load
+frames = os.path.join(data, download.BAMBU_FOLDER, "frames")
+kept = sorted(os.listdir(frames))
+check("Bambu: %d pictures from each timelapse, the last one kept apart to look at, a print whose end looks failed left out" % download.BAMBU_FRAMES,
+      len(kept) == 2 and all(len(os.listdir(os.path.join(frames, k))) == download.BAMBU_FRAMES for k in kept)
+      and len(os.listdir(os.path.join(data, download.BAMBU_FOLDER, "last-pictures"))) == 3 and "printC" in open(os.path.join(data, download.BAMBU_FOLDER, "doubtful.txt")).read()
+      and line and "CC BY 4.0" in line, (kept, line))
+with open(os.path.join(data, download.BAMBU_FOLDER, "failed.txt"), "a") as handle:
+    handle.write(kept[0] + "\n")
+rows = datasets.from_auto(data, os.path.join(root, "work2"), set(), False, cv2)
+check("... read by --auto as prints going well (fine), one group per print, the ones in failed.txt left out",
+      rows and all(r[1] == 0 and r[3] == "frames" for r in rows) and {r[2] for r in rows} == {"frames:" + kept[1]}, {r[2] for r in rows})
+
+# the look-alikes
+fine_rows = [(p, 0, "g%d" % i, "folders") for i, p in enumerate(sorted(datasets.images_in(os.path.join(paths["sorted"], "mine", "ok"))))]
+failed_rows = [(p, 1, "f%d" % i, "folders") for i, p in enumerate(sorted(datasets.images_in(os.path.join(paths["sorted"], "mine", "fail"))))]
+drawn = hard_cases.make(fine_rows + failed_rows, os.path.join(root, "hard"), 0.5, cv2, np)
+on_fine = [r for r in drawn if r[1] == 0]
+on_failed = [r for r in drawn if r[1] == 1]
+check("look-alikes: drawn on half the fine pictures (fine) and on a few failed ones (still failed), every kind, the group of their picture",
+      len(on_fine) == len(fine_rows) // 2 and 0 < len(on_failed) <= len(on_fine) * 0.2 + 1 and {r[3] for r in drawn} == {"hard-" + k for k in hard_cases.KINDS}
+      and {r[2] for r in on_fine} <= {r[2] for r in fine_rows}, (len(on_fine), len(on_failed), {r[3] for r in drawn}))
+first = cv2.imread(fine_rows[0][0])
+changed = [float(np.mean(cv2.absdiff(hard_cases.draw(first, k, "s", cv2, np), first))) for k in hard_cases.KINDS]
+check("... each kind changes the picture, a little (a detail, not a new picture)", all(0.05 < c < 25 for c in changed), changed)
+check("... the same seed draws the same", np.array_equal(hard_cases.draw(first, "strand", "s", cv2, np), hard_cases.draw(first, "strand", "s", cv2, np)))
+
+out = os.path.join(root, "work3")
+code = datasets.main(["--folders", paths["sorted"], "--hard-cases", "0.3", "--mine", os.path.join(HERE, "..", "..", "models", "base"), "--out", out])
+manifest = list(csv.DictReader(open(os.path.join(out, "manifest.csv"))))
+check("datasets.py --hard-cases --mine: look-alikes in the list, a weight per picture (fine pictures the model doubts weigh more)",
+      code == 0 and any(r["source"].startswith("hard-") for r in manifest) and all(r["weight"] in ("1", "2", "3") for r in manifest), (code, manifest[:2]))
+
 print("%d FAIL" % len(FAILS))
 sys.exit(1 if FAILS else 0)

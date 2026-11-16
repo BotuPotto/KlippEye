@@ -377,6 +377,7 @@ def run_scenario(path, fake, frames, seconds, brain_json=None, state=None, inter
     if state:
         fake.state.update(state)
     values = {"enabled": False, "persistent_filter": False}  # i test di una volta provano il rilevamento di prima; il filtro nuovo ha la sua sezione
+    values["local_enabled"] = False   # 1.130: OpenCV alone here (the local model's doubt makes it readier: it has its own tests)
     values.update(brain_json or {})
     m = load_brain(path, tmp(), fake, brain_json={"values": values} if path == NEW_BRAIN else None)
     m.detector.last_ai_call = time.time() + 99999  # niente chiamata all'IA: qui conta solo quando scatta
@@ -2829,10 +2830,20 @@ check("1.114: KlippEye's own model (models/base/) is loaded when there is none o
       and _g["version"] == json.load(open(os.path.join(ROOT, "models", "base", "model.json")))["version"], _g)
 _s, _e = _lb.local_ai.model.predict(fakes.frame())
 check("... it rates a camera picture (a score from 0 to 1, its embedding)", 0.0 <= _s <= 1.0 and _e is not None and len(_e) == 1024, (_s, None if _e is None else len(_e)))
+_levels = json.load(open(os.path.join(ROOT, "models", "base", "model.json"))).get("levels")
+if _levels:
+    check("1.130: the model's own levels («in doubt», «sure») are used while the settings are the defaults",
+          (_lb.detector.local_doubt, _lb.detector.local_sure) == (_levels["doubt"], _levels["sure"]) and _g["levels"]["from_model"] is True, (_g.get("levels"), _levels))
+    _lc.post("/api/backend/config", json={"values": {"local_doubt": 40, "local_sure": 90}})
+    check("... values chosen by the person win", (_lb.detector.local_doubt, _lb.detector.local_sure) == (40, 90)
+          and _lc.get("/api/local_model").get_json()["levels"]["from_model"] is False)
+    _lc.post("/api/backend/config", json={"values": {"local_doubt": 35, "local_sure": 80}})
+    check("... back to the defaults: the model's again", (_lb.detector.local_doubt, _lb.detector.local_sure) == (_levels["doubt"], _levels["sure"]))
 _lb.LOCAL_MODEL_BASE_DIR = tmp()     # from here on: as if KlippEye had no model of its own
-_lb.local_ai.reload()
+_lc.post("/api/local_model", json={"reload": True})
 _g = _lc.get("/api/local_model").get_json()
 check("1.106: no model in models/base or the data folder: none in use, the monitor as before", _g["ok"] and _g["available"] is False, _g)
+check("1.130: without a model the levels are the settings' (35 %, 80 %)", _g["levels"]["model"] is None and (_lb.detector.local_doubt, _lb.detector.local_sure) == (35, 80), _g["levels"])
 _det = _lb.detector
 _frame = fakes.frame()
 _lb.AI_CONFIG_PATH = os.path.join(tmp(), "ai.json")

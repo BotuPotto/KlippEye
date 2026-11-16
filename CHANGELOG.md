@@ -1,5 +1,34 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.130.0
+
+**A new local model, for every printer, with far fewer false alarms on prints going well.** It was trained only on
+public pictures: 20 collections, 344 real timelapses of prints going well (the failed ones looked at and left out) and
+4,403 look-alikes of a failure drawn on fine pictures. On 14 judged prints it never saw, the bed area of a close fisheye
+camera: 1.5 false alarms an hour on the prints that went well, against 38 with the previous model, and 3 of the 4 failed
+prints caught. Its scores are calibrated, and it brings its own levels: in doubt from 75%, sure from 86%. They are used
+while «In doubt from» and «Sure from» are left at 35% and 80%; the settings page says so, and «Few false alarms» and
+«Notices more» move from them. The layer each printer learns is taught again by itself to the new model, from the examples kept on the Raspberry, at
+the first start after the update (before, it waited for the next answer); the false alarms marked by hand are kept too.
+
+**The tools that train it** (the Colab notebook does all of it):
+
+- **Pictures of prints going well, from many printers.** The public collections are almost all failures. Now
+  `ml/download.py --bambu` also takes pictures from the Bambu Timelapse Dataset (real prints, CC BY 4.0), leaving out
+  the timelapses whose end looks like a failure. Another collection with a «Successful Print» class is added.
+- **Look-alikes of a failure that are not failures.** A purge line, a purge blob, a single loose strand and a brim
+  outline are drawn on part of the fine pictures, labelled fine (`--hard-cases`), so that a line of filament on the bed
+  stops meaning «spaghetti».
+- **The current model's mistakes count more.** The fine pictures it takes for failures weigh more in training
+  (`--mine`).
+- **Honest scores.** After training the scores are calibrated (temperature scaling, inside the model: nothing changes on
+  the Raspberry): a 70% is right about 7 times in 10. The threshold now also keeps the false alarms on fine pictures at
+  3 in 100 at most.
+- **Only shareable licences.** Collections whose licence does not let the model be shared with everyone (ShareAlike,
+  NonCommercial, private) are left out by themselves.
+- **The base model learns only from public pictures.** The guides and the notebook now say so: each printer's own prints
+  stay in its personal layer.
+
 ## 1.129.1
 
 **`klippeye benchmark --models download` works on Debian Bookworm.** The networks it downloads were refused by OpenCV

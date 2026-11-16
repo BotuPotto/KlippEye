@@ -278,14 +278,35 @@ const WATCH_LEVELS = [
   },
 ];
 const WATCH_KEYS = Object.keys(WATCH_LEVELS[1].values);
+// 1.130: a local model with its own levels (model.json → levels: [in doubt, sure]): «Balanced» leaves 35/80, which means
+// «the model's own»; the other two move from the model's levels by these steps
+const MODEL_LEVEL_STEPS = { careful: [5, 5], watchful: [-10, -6] };
+
+/** The local model's own levels [in doubt, sure] from /api/local_model, or null. */
+function modelLevelsOf(localModel) {
+  const levels = localModel && localModel.phase === "ok" && localModel.data && localModel.data.levels && localModel.data.levels.model;
+  return Array.isArray(levels) && levels.length === 2 ? levels : null;
+}
+
+/** The numbers a level sets, with the local model's own levels when it has them. */
+function levelValues(item, modelLevels) {
+  const steps = modelLevels && MODEL_LEVEL_STEPS[item.id];
+  if (!steps) return item.values;
+  const doubt = Math.max(5, Math.min(95, Math.round((modelLevels[0] + steps[0]) / 5) * 5));
+  const sure = Math.max(doubt + 1, Math.min(99, modelLevels[1] + steps[1]));
+  return { ...item.values, local_doubt: doubt, local_sure: sure };
+}
 
 /** The level the values match, or "custom". */
-function watchLevel(values) {
-  const level = WATCH_LEVELS.find((item) => WATCH_KEYS.every((key) => Number(values[key]) === item.values[key]));
+function watchLevel(values, modelLevels) {
+  const level = WATCH_LEVELS.find((item) => {
+    const wanted = levelValues(item, modelLevels);
+    return WATCH_KEYS.every((key) => Number(values[key]) === wanted[key]);
+  });
   return level ? level.id : "custom";
 }
-const watchLevelName = (values) => {
-  const level = WATCH_LEVELS.find((item) => item.id === watchLevel(values));
+const watchLevelName = (values, modelLevels) => {
+  const level = WATCH_LEVELS.find((item) => item.id === watchLevel(values, modelLevels));
   return level ? level.label : tx("Custom");
 };
 
@@ -309,7 +330,8 @@ function DetectorPage({ active }) {
   const [askReset, setAskReset] = useState(false);
   const [fine, setFine] = useState(false);
   const data = useMemo(() => (config.data ? localizeBackendSchema(config.data) : null), [config.data]);
-  const customNow = config.phase === "ok" && config.values ? watchLevel(config.values) === "custom" : false;
+  const modelLevels = modelLevelsOf(localModel);
+  const customNow = config.phase === "ok" && config.values ? watchLevel(config.values, modelLevels) === "custom" : false;
   // numbers changed by hand open the fine adjustments; they stay open when a level or «Restore» puts them back in step
   useEffect(() => {
     if (customNow) setFine(true);
@@ -326,7 +348,7 @@ function DetectorPage({ active }) {
   const watching = data.running && values.enabled !== false;
   const online = values.ai_online !== false;
   const localReady = localModel.phase === "ok" && localModel.data.available && values.local_enabled !== false;
-  const level = watchLevel(values);
+  const level = watchLevel(values, modelLevels);
   const levelInfo = WATCH_LEVELS.find((item) => item.id === level);
   const showFine = fine || level === "custom";
   // a number that does nothing now is not offered: the pause between AI analyses without the online AI, the local
@@ -352,7 +374,7 @@ function DetectorPage({ active }) {
         value: level,
         onChange: (id) => {
           const chosen = WATCH_LEVELS.find((item) => item.id === id);
-          if (chosen) config.set({ ...chosen.values });
+          if (chosen) config.set({ ...levelValues(chosen, modelLevels) });
         },
       }),
       h("p", { className: "set-group__note", "data-watch-level": level }, levelInfo ? levelInfo.note : tx("Some numbers were changed by hand: they are below, in «Fine adjustments». Choose a level to put them back in step.")),
@@ -376,7 +398,21 @@ function DetectorPage({ active }) {
       FINE_GROUPS.map((group) => {
         const specs = group.keys.map((key) => byKey[key]).filter((spec) => spec && !hidden(spec.key));
         if (!specs.length) return null;
-        return h(SettingsGroup, { key: group.id, title: group.title }, specs.map((spec) => h(BackendSettingControl, { key: spec.key, spec, config })));
+        const levels = group.id === "local" && localModel.phase === "ok" ? localModel.data.levels : null;
+        return h(
+          SettingsGroup,
+          {
+            key: group.id,
+            title: group.title,
+            note:
+              levels && levels.model
+                ? levels.from_model
+                  ? tx("The model in use has its own levels, used while these two are at 35% and 80%: in doubt from {doubt}%, sure from {sure}%. Change them here to choose yours.", { doubt: levels.model[0], sure: levels.model[1] })
+                  : tx("The model in use suggests: in doubt from {doubt}%, sure from {sure}%. Put these two back to 35% and 80% to use its levels.", { doubt: levels.model[0], sure: levels.model[1] })
+                : undefined,
+          },
+          specs.map((spec) => h(BackendSettingControl, { key: spec.key, spec, config })),
+        );
       }),
     showFine && !localReady && h("p", { className: "set-group__note", "data-local-hidden": "" }, tx("The local model's thresholds appear here when a local model is in use (AI monitor → Local model).")),
     showFine &&

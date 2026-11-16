@@ -25,15 +25,31 @@ and run its cells from top to bottom (a free Roboflow key is all it needs).
    - your own prints: copy KlippEye's data folder from the Raspberry (`scp -r pi@ADDRESS:~/printer_data/klippeye ./klippeye-data`):
      the labelled recordings and the answers to «How did the print go?»;
    - pictures you sorted: a folder with `ok/` and `fail/`.
+   - prints going well, from many printers (1.130): `python ml/download.py --bambu` (or `--bambu-only`, no Roboflow key)
+     also downloads the [Bambu Timelapse Dataset](https://huggingface.co/datasets/v2thegreat/bambu-timelapse-dataset)
+     (CC BY 4.0, ~3 GB) and takes 8 pictures from each timelapse. A timelapse whose last picture the current model takes
+     for a failure is left out by itself (`doubtful.txt`); name more in `ml/data/bambu-timelapses/failed.txt` after
+     looking at `last-pictures/` (`python ml/contact_sheet.py ml/data/bambu-timelapses/last-pictures` puts them
+     on numbered sheets). `--auto` reads them as fine prints.
+
+   **The base model, the one shipped to everyone, is trained only on public, varied pictures**: never on one printer's.
+   Each printer's own prints go to its personal layer, which KlippEye learns on the Raspberry. Collections whose licence
+   does not let the model be shared (ShareAlike, NonCommercial, private) are deleted again by `download.py`.
 2. The list of pictures: `pip install -r ml/requirements.txt` then
    `python ml/datasets.py --yolo ./spaghetti --klippeye ./klippeye-data --out ml/work`
    (`--fail-classes a,b` to name the failure classes of a dataset; `--empty-is-ok` when its pictures without boxes are fine prints).
+   For a model that works on every printer add `--hard-cases 0.3` (look-alikes of a failure that are not failures — a
+   purge line, a purge blob, a single loose strand, a brim outline — drawn on 30% of the fine pictures, and on a few failed
+   ones too, so that a drawing says nothing by itself) and `--mine models/base` (the fine pictures the current model takes
+   for failures weigh 3 times as much in training: its mistakes).
    Public datasets are nearly all failures: pieces of the same photos away from the boxes become the fine examples, the
    whole photo is kept only when the failure covers at least a fifth of it, and each dataset gives at most 3000 pictures
    (`--max-per-dataset`).
 3. Training: `python ml/train.py --manifest ml/work/manifest.csv --out ml/out/model`. It takes minutes to an hour on a CPU,
    much less on [Google Colab](https://colab.research.google.com) with its free GPU. It writes `model.onnx` + `model.json`
-   (the threshold: the lowest that keeps at least 9 alarms out of 10 right) and checks that OpenCV answers as PyTorch does.
+   and checks that OpenCV answers as PyTorch does. The scores are calibrated (temperature scaling, put inside the model:
+   a 70% is right about 7 times in 10), and the threshold is the lowest that keeps 9 alarms out of 10 right while taking
+   at most 3 fine pictures in 100 for failures.
 4. Measuring: `python ml/evaluate.py --model ml/out/model --data ./klippeye-data` gives, for several thresholds, the false
    alarms per hour on fine prints and the failed prints caught (and how late). It also runs on the Raspberry.
 

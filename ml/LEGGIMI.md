@@ -38,6 +38,17 @@ Servono foto di **stampe fallite** e di **stampe andate bene**.
   scp -r pi@INDIRIZZO-DEL-RASPBERRY:~/printer_data/klippeye ./klippeye-data
   ```
 - **Foto tue già divise**: una cartella con dentro `ok/` e `fail/`.
+- **Stampe che vanno bene, da tante stampanti** (1.130): `python ml/download.py --bambu` (oppure `--bambu-only`, senza
+  chiave Roboflow) scarica anche il [Bambu Timelapse Dataset](https://huggingface.co/datasets/v2thegreat/bambu-timelapse-dataset)
+  (CC BY 4.0, circa 3 GB) e prende 8 foto da ogni timelapse. Un timelapse la cui ultima foto il modello attuale scambia
+  per un errore resta fuori da solo (`doubtful.txt`); altri li escludi scrivendone il nome in
+  `ml/data/bambu-timelapses/failed.txt`, dopo aver guardato `last-pictures/` (`python ml/contact_sheet.py
+  ml/data/bambu-timelapses/last-pictures` le mette su fogli numerati). `--auto` li legge come stampe buone.
+
+**Il modello base, quello che KlippEye dà a tutti, impara solo da foto pubbliche e varie**, mai da quelle di una
+stampante sola: le stampe di ognuno vanno nello strato personale che KlippEye impara sul Raspberry. Le raccolte con una
+licenza che non permette di condividere il modello (ShareAlike, non commerciale, privata) vengono scartate da
+`download.py`.
 
 ## 2. L'elenco delle foto
 
@@ -51,6 +62,13 @@ per misurare il modello su foto che non ha mai visto.
 Le raccolte pubbliche hanno quasi solo stampe fallite: come esempi di stampa che va bene vengono presi pezzi delle stesse
 foto lontani dai riquadri del difetto; la foto intera resta solo se il difetto ne copre almeno un quinto. Da ogni
 raccolta al massimo 3000 foto (`--max-per-dataset`), così nessuna pesa troppo e l'addestramento resta rapido.
+
+Per un modello che funzioni su ogni stampante aggiungi `--hard-cases 0.3 --mine models/base`:
+- `--hard-cases 0.3` disegna su un terzo delle foto di stampe buone i **sosia di un errore** che non sono errori (una linea
+  di spurgo, una goccia di spurgo, un filo singolo, il bordo di un brim), etichettati «buona»; gli stessi disegni anche su
+  alcune foto fallite, che restano «fallita», così un disegno da solo non vuol dire niente;
+- `--mine models/base`: il modello attuale dà un voto a ogni foto di stampa buona, e quelle che scambia per errori pesano
+  il triplo nell'addestramento: impara proprio dai suoi sbagli.
 
 Opzioni utili: `--fail-classes spaghetti,detached` per dire quali classi di una raccolta sono guasti (in automatico: tutte
 tranne quelle che si chiamano come ok / print / nozzle…); `--empty-is-ok` se nella raccolta le foto senza riquadri sono
@@ -69,8 +87,9 @@ meno:
 # carica i tuoi zip nel pannello File, estraili, poi gli stessi comandi di sopra con ! davanti
 ```
 A ogni giro stampa come va sulle foto tenute da parte. Alla fine scrive `ml/out/model/` con `model.onnx` e `model.json`
-(la soglia scelta: la più bassa che tiene giusti almeno 9 allarmi su 10) e controlla che OpenCV dia la stessa risposta
-di PyTorch, come farà il Raspberry.
+e controlla che OpenCV dia la stessa risposta di PyTorch, come farà il Raspberry. I voti vengono **calibrati**
+(temperature scaling, messo dentro il modello: un 70% vuol dire davvero 7 volte su 10) e la soglia è la più bassa che
+tiene giusti almeno 9 allarmi su 10 scambiando per errori al massimo 3 foto di stampe buone su 100.
 
 ## 4. La misura sulle tue stampe
 

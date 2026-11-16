@@ -696,6 +696,9 @@ CONFIG_GROUPS = [
      "note": "While a print runs the KlippEye service keeps the pictures the monitor looked at (small, about 30 KB each) with layer, position and score, so that the monitor can be measured afterwards. The oldest prints are deleted when the space is full."},
 ]
 
+LOCAL_DOUBT_DEFAULT, LOCAL_SURE_DEFAULT = 35, 80   # the local model's levels by default (1.130: or its own, see model_levels)
+# (CONFIG_SPEC below repeats the numbers: it is read as plain data by the tests' mock server)
+
 CONFIG_SPEC = [
     {"key": "enabled", "type": "bool", "default": True, "group": "monitor", "label": "Monitor on",
      "help": "When off, the KlippEye service does not watch the camera and does not call the AI."},
@@ -3090,6 +3093,30 @@ class LocalAi:
 
 
 local_ai = LocalAi()
+
+
+def model_levels():
+    """1.130: the «in doubt» and «sure» levels the local model in use was measured with (model.json "levels", in %), or
+    None: a model whose scores are calibrated says where its doubt and its certainty start."""
+    model = local_ai.model
+    levels = (model.info.get("levels") if model is not None else None) or None
+    try:
+        doubt, sure = int(levels["doubt"]), int(levels["sure"])
+    except (TypeError, KeyError, ValueError):
+        return None
+    return (doubt, sure) if 5 <= doubt < sure <= 99 else None
+
+
+def effective_config(values):
+    """The settings the monitor uses: the saved ones, except «in doubt from» and «sure from» while they are still the
+    defaults (35 %, 80 %): then the local model's own levels, when it has them (1.130)."""
+    levels = model_levels()
+    if levels and values.get("local_doubt") == LOCAL_DOUBT_DEFAULT and values.get("local_sure") == LOCAL_SURE_DEFAULT:
+        values = dict(values, local_doubt=levels[0], local_sure=levels[1])
+    return values
+
+
+detector.apply_config(effective_config(backend_config.snapshot()))   # 1.130: with the local model's levels, now it is loaded
 personal = PersonalLayer(DATA_DIR, np, cv2 if HAS_CV2 else None)   # 1.107: what this printer learned (optional)
 from false_alarms import FalseAlarms  # noqa: E402  (1.125: the false alarms the local model learns live)
 false_memory = FalseAlarms(DATA_DIR, np, cv2 if HAS_CV2 else None)
@@ -3139,7 +3166,7 @@ def set_backend_config(changes):
     if errors:
         return errors, changed
     values = backend_config.snapshot()
-    detector.apply_config(values)
+    detector.apply_config(effective_config(values))
     recorder.configure(values["record"], values["record_max_mb"])
     reviews.configure(values["print_review"])
     personal.configure(values["personal_learning"])
@@ -3761,13 +3788,17 @@ def api_local_model():
         return jsonify({"ok": True, "forgotten": gone, "false_alarms": false_memory.info()})
     if request.method == "POST":
         local_ai.reload()
+        detector.apply_config(effective_config(backend_config.snapshot()))   # 1.130: another model, maybe other levels
         model = local_ai.model
         if model is not None and personal.layer and personal.layer.get("version") != model.version:
             train_personal_later("new base model")   # the embeddings change with the model: computed again
         refresh_false_alarms()
     state = detector.local_state
     model = local_ai.model
+    levels = model_levels()
     return _no_store(jsonify(dict(local_ai.info(), ok=True, enabled=detector.local_enabled, personal=personal.info(),
+                                  levels={"doubt": detector.local_doubt, "sure": detector.local_sure, "model": list(levels) if levels else None,
+                                          "from_model": bool(levels) and (detector.local_doubt, detector.local_sure) == levels},
                                   false_alarms=false_memory.info(model.version if model is not None else None),
                                   last={k: state.get(k) for k in ("score", "at", "checks", "filtered", "asked", "why")},
                                   folders={"own": LOCAL_MODEL_OWN_DIR, "base": LOCAL_MODEL_BASE_DIR})))
@@ -5141,6 +5172,8 @@ if __name__ == "__main__":
     threading.Thread(target=_repair_at_startup, name="repair", daemon=True).start()
     threading.Thread(target=_schedule_loop, name="schedule", daemon=True).start()
     threading.Thread(target=refresh_false_alarms, name="false-alarms", daemon=True).start()   # 1.125: a new base model came with an update
+    if local_ai.model is not None and personal.layer and personal.layer.get("version") != local_ai.model.version:
+        train_personal_later("new base model")   # 1.130: what this printer learned, taught again to the new model from its examples
     keep_examples_later()   # 1.125: the examples taught before this release, copied apart once
     _https_apply(_https_settings())  # 1.93: the encrypted entrance, when it was switched on
     _mqtt_apply(_mqtt_settings())  # 1.100: Home Assistant / MQTT, when set up
