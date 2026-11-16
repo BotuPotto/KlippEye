@@ -3047,6 +3047,13 @@ _saved_box = _lb.detector._bed_box
 _lb.detector._bed_box = lambda z=None: (0.1, 0.2, 0.3, 0.4 + (0.1 if z is None else z / 100.0))   # taller with the nozzle's height
 check("1.132.1: the personal layer's view is the bed alone, whatever the height the last print ended at (no training again at each restart)",
       _lb.personal_view() == (0.1, 0.2, 0.3, 0.4), _lb.personal_view())
+_v_bed = _lb.memory_version()
+_lb.detector._bed_box = lambda z=None: (0.2, 0.2, 0.3, 0.4)   # the camera calibrated again: another view
+_v_other = _lb.memory_version()
+_lb.detector._bed_box = lambda z=None: None                   # no calibration: the whole picture
+check("1.132.2: the false alarms' embeddings belong to the model and the view (a new calibration: described again)",
+      _v_bed == _lb.local_ai.model.version + "|0.100,0.200,0.300,0.400" and _v_other != _v_bed and _lb.memory_version() == _lb.local_ai.model.version,
+      (_v_bed, _v_other, _lb.memory_version()))
 _lb.detector._bed_box = _saved_box
 _det._bed_box = lambda z=None: None
 _with_scores([0.10, 0.70])
