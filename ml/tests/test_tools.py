@@ -99,6 +99,14 @@ check("the manifest: every source, both kinds, a group never split between train
 check("alarms: over the threshold for N pictures in a row, then quiet for the cooldown",
       evaluate.alarms([(0, .9), (10, .9), (20, .2), (30, .95), (40, .95), (200, .99), (210, .99)], 0.8, 2, 120) == [10, 200]
       and evaluate.alarms([(0, .9), (10, .9)], 0.8, 1, 120) == [0])
+_sure = [(t, .9) for t in range(0, 60, 5)]   # a picture every 5 s, all «sure»
+check("1.132: monitor_asks: a look every 15 s, in the first minutes three sure looks in a row, then two; three doubtful ones",
+      evaluate.monitor_asks(_sure, 75, 86, 15, 300, 120) == [30]
+      and evaluate.monitor_asks([(t + 400, s) for t, s in _sure], 75, 86, 15, 0, 120) == [415]
+      and evaluate.monitor_asks([(t, .8) for t in range(0, 60, 5)], 75, 86, 15, 0, 120) == [30]
+      and evaluate.monitor_asks([(t, .8) for t in range(0, 60, 5)], 75, 86, 15, 300, 120) == [])
+check("... the levels: model.json's, else as ml/train.py chooses them", evaluate.levels_of({"levels": {"doubt": 70, "sure": 88}}, .9) == (70, 88)
+      and evaluate.levels_of({}, 0.86) == (75, 86))
 prints = evaluate.labelled_prints.prints_of(paths["klippeye"])
 check("evaluate: the labelled prints of a data folder (two recordings, one review)", sorted(p["kind"] for p in prints) == ["recording", "recording", "review"])
 

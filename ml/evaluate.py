@@ -11,6 +11,11 @@ An alarm is counted when the score stays over the threshold for --consecutive pi
 next one is counted only --cooldown seconds later (as the monitor rests between two AI calls).
 Writes a table for several thresholds and, with --json, the details.
 
+1.132: the last row, «monitor», counts the times the monitor's local model asks by itself, with its own rule: one look
+every --every-s seconds (local_every), two «sure» looks in a row or three «in doubt» in a row (the model's levels), and
+in the first --warmup seconds of the print (LOCAL_WARMUP_S) only three «sure» looks. The recordings start when the
+monitor starts checking, so their first picture is the print's real start.
+
 1.130: --box x,y,w,h (fractions of the picture) judges only that part of each picture, as the monitor judges the bed of a
 calibrated camera instead of the whole picture (the box is "bed_view" in http://RASPBERRY:8085/api/local_model).
 Without it, the whole picture, as a monitor without calibration.
@@ -40,6 +45,62 @@ def alarms(scored, threshold, consecutive, cooldown):
     return out
 
 
+def monitor_asks(scored, doubt, sure, every=15.0, warmup=300.0, cooldown=120.0):
+    """The times the monitor's local model asks the online AI by itself (klippeye_backend _local_look): scored =
+    [(time, score 0..1)], doubt and sure in %."""
+    out, sure_run, doubt_run, quiet_until, next_look = [], 0, 0, None, None
+    start = scored[0][0] if scored else 0
+    for t, score in scored:
+        if next_look is not None and t < next_look:
+            continue
+        next_look = t + every
+        sure_run = sure_run + 1 if score * 100 >= sure else 0
+        doubt_run = doubt_run + 1 if score * 100 >= doubt else 0
+        if quiet_until is not None and t < quiet_until:
+            continue
+        early = t - start < warmup
+        if sure_run >= (3 if early else 2) or (doubt_run >= 3 and not early):
+            out.append(t)
+            quiet_until, sure_run, doubt_run = t + cooldown, 0, 0
+    return out
+
+
+def levels_of(info, threshold):
+    """The model's «in doubt» and «sure» levels in % (model.json "levels", else as ml/train.py chooses them)."""
+    levels = info.get("levels") or {}
+    if levels.get("doubt") and levels.get("sure"):
+        return float(levels["doubt"]), float(levels["sure"])
+    sure = round(threshold * 100)
+    return float(5 * (sure // 5) - 10), float(sure)
+
+
+def count(results, times_of):
+    """-> (false alarms an hour on fine prints, false alarms, fine hours, caught, failed, median delay or None)."""
+    fine_hours, false_alarms, caught, failed, delays = 0.0, 0, 0, 0, []
+    for one in results:
+        if not one["scored"]:
+            continue
+        times = times_of(one["scored"])
+        span = (one["scored"][-1][0] - one["scored"][0][0]) / 3600.0
+        if one["outcome"] == "ok":
+            fine_hours += span
+            false_alarms += len(times)
+        else:
+            failed += 1
+            moment = one["failed_at"]
+            after = [t for t in times if moment is None or t >= moment - 30]
+            before = [t for t in times if moment is not None and t < moment - 30]
+            false_alarms += len(before)
+            fine_hours += ((moment - one["scored"][0][0]) / 3600.0) if moment else 0.0
+            if after:
+                caught += 1
+                if moment is not None:
+                    delays.append(max(0.0, after[0] - moment))
+    delays.sort()
+    per_hour = false_alarms / fine_hours if fine_hours > 0 else 0.0
+    return per_hour, false_alarms, fine_hours, caught, failed, (delays[len(delays) // 2] if delays else None)
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--model", required=True, help="the model's folder (model.onnx + model.json)")
@@ -47,6 +108,8 @@ def main(argv=None):
     parser.add_argument("--every", type=int, default=1, help="score one picture in N of the recordings (faster)")
     parser.add_argument("--consecutive", type=int, default=1)
     parser.add_argument("--cooldown", type=float, default=120)
+    parser.add_argument("--every-s", type=float, default=15, help="«monitor» row: how often the local model looks by itself (local_every)")
+    parser.add_argument("--warmup", type=float, default=300, help="«monitor» row: the first seconds of a print, with a stricter rule")
     parser.add_argument("--json", help="write the details here")
     parser.add_argument("--box", default="", help="x,y,w,h in fractions: judge only that part of each picture (the bed)")
     args = parser.parse_args(argv)
@@ -88,34 +151,21 @@ def main(argv=None):
     print("\nthreshold | false alarms/hour on fine prints | failures caught | median delay")
     table = []
     for threshold in thresholds:
-        fine_hours, false_alarms, caught, failed, delays = 0.0, 0, 0, 0, []
-        for one in results:
-            times = alarms(one["scored"], threshold, args.consecutive, args.cooldown)
-            if not one["scored"]:
-                continue
-            span = (one["scored"][-1][0] - one["scored"][0][0]) / 3600.0
-            if one["outcome"] == "ok":
-                fine_hours += span
-                false_alarms += len(times)
-            else:
-                failed += 1
-                moment = one["failed_at"]
-                after = [t for t in times if moment is None or t >= moment - 30]
-                before = [t for t in times if moment is not None and t < moment - 30]
-                false_alarms += len(before)
-                fine_hours += ((moment - one["scored"][0][0]) / 3600.0) if moment else 0.0
-                if after:
-                    caught += 1
-                    if moment is not None:
-                        delays.append(max(0.0, after[0] - moment))
-        per_hour = false_alarms / fine_hours if fine_hours > 0 else 0.0
-        delays.sort()
-        median = delays[len(delays) // 2] if delays else None
+        per_hour, false_alarms, fine_hours, caught, failed, median = count(
+            results, lambda scored: alarms(scored, threshold, args.consecutive, args.cooldown))
         mark = " ← the model's" if abs(threshold - model.threshold) < 1e-6 else ""
         print("   %.2f   | %6.2f (%d in %.1f h)               | %d of %d        | %s%s" % (
             threshold, per_hour, false_alarms, fine_hours, caught, failed, ("%.0f s" % median) if median is not None else "-", mark))
         table.append({"threshold": threshold, "false_alarms_per_hour": round(per_hour, 3), "false_alarms": false_alarms, "fine_hours": round(fine_hours, 2),
                       "caught": caught, "failed": failed, "median_delay_s": median})
+    doubt, sure = levels_of(model.info, model.threshold)
+    per_hour, false_alarms, fine_hours, caught, failed, median = count(
+        results, lambda scored: monitor_asks(scored, doubt, sure, args.every_s, args.warmup, args.cooldown))
+    print(" monitor  | %6.2f (%d in %.1f h)               | %d of %d        | %s  (in doubt %.0f%%, sure %.0f%%, a look every %.0f s, warm-up %.0f s)" % (
+        per_hour, false_alarms, fine_hours, caught, failed, ("%.0f s" % median) if median is not None else "-", doubt, sure, args.every_s, args.warmup))
+    table.append({"monitor": True, "doubt": doubt, "sure": sure, "every_s": args.every_s, "warmup_s": args.warmup,
+                  "false_alarms_per_hour": round(per_hour, 3), "false_alarms": false_alarms, "fine_hours": round(fine_hours, 2),
+                  "caught": caught, "failed": failed, "median_delay_s": median})
     if args.json:
         with open(args.json, "w", encoding="utf-8") as handle:
             json.dump({"model": model.info, "table": table, "prints": results}, handle)

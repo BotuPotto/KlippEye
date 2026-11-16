@@ -2891,6 +2891,19 @@ check("... three doubtful looks in a row (50%): asked at the third", _r == [Fals
 _with_scores([0.5, 0.1, 0.5, 0.5])
 _r = [_det._local_look(_frame, 5000.0 + 15 * k, False) for k in range(4)]
 check("... a calm look in between starts the count again", _r == [False, False, False, False], _r)
+_det.print_real_at = 5500.0   # 1.132: the print really started 100 s ago
+_with_scores([0.5, 0.5, 0.5, 0.5])
+_r = [_det._local_look(_frame, 5600.0 + 15 * k, False) for k in range(4)]
+check("1.132: in the first minutes of the print, doubtful looks alone do not ask", _r == [False] * 4 and _det.local_state["early"] is True, _r)
+_with_scores([0.9, 0.9, 0.9])
+_r = [_det._local_look(_frame, 5600.0 + 15 * k, False) for k in range(3)]
+check("... sure looks: three in a row instead of two", _r == [False, False, True] and _det.local_state["why"] == "local_sure", _r)
+_with_scores([0.5])
+check("... an alarm of the motion detection with a doubt is asked as before", _det._local_look(_frame, 5700.0, True) is True)
+_with_scores([0.9, 0.9])
+_r = [_det._local_look(_frame, 5500.0 + _lb.LOCAL_WARMUP_S + 15 * k, False) for k in range(2)]
+check("... after the first minutes: two sure looks again", _r == [False, True] and _det.local_state["early"] is False, _r)
+_det.print_real_at = None
 _lb.AI_CONFIG_PATH = os.path.join(tmp(), "ai.json")   # no key at all: no online AI can answer
 _det.local_alone = True
 _with_scores([0.95, 0.95, 0.95])

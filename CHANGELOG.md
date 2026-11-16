@@ -1,5 +1,20 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.132.0
+
+**A calmer start of the print for the local model.** In the first five minutes after the monitor starts checking a
+print, the local model asks the online AI by itself only after three «sure» looks in a row (two later on), and doubtful
+looks alone do not ask at all. In those minutes the bed is still almost empty, with a first small layer under the
+toolhead, and the model took that for a failure: on 14 judged recordings it asked by itself 3 times when the print was
+fine, at one look every 15 s, and these rules leave 1, catching the same failures as quickly. An alarm of the motion
+detection with a doubt still goes to the online AI from the first minute.
+
+- `ml/evaluate.py` adds a «monitor» row: it counts the times the local model would ask by itself with the monitor's own
+  rule (one look every `--every-s` seconds, two «sure» or three «in doubt» in a row with the model's levels, the first
+  `--warmup` seconds stricter), next to the table of single thresholds.
+- A smoothed score (an average over time) and a level raised by each print's normal score were measured too, and left
+  out: on the same recordings they caught fewer failures, later, without fewer false alarms.
+
 ## 1.131.0
 
 **The local model looks at the bed, not at the whole picture.** With a calibrated camera it now judges the bed and the
