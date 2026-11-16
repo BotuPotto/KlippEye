@@ -13,6 +13,7 @@ import cv2  # noqa: E402
 import numpy as np  # noqa: E402
 import datasets  # noqa: E402
 import evaluate  # noqa: E402
+import hard_cases  # noqa: E402
 import local_model  # noqa: E402
 import synthetic  # noqa: E402
 
@@ -73,6 +74,11 @@ os.symlink(paths["yolo"], os.path.join(auto_root, "a__yolo"))
 os.symlink(cls_root, os.path.join(auto_root, "b__cls"))
 rows = datasets.from_auto(auto_root, os.path.join(root, "w3"), set(), False, cv2)
 check("--auto: each downloaded dataset read as what it is (YOLO, class folders)", {r[3] for r in rows} == {"yolo", "yolo-crop", "yolo-bg", "classes"}, {r[3] for r in rows})
+pasted = hard_cases.paste(rows, os.path.join(root, "pasted"), 1.0, cv2, np)
+_crop_groups = {r[2] for r in rows if r[3] in ("yolo-crop", "yolo-bg")}
+check("1.134: paste: as many public failures (failed) as pieces of clean bed (fine), each with its piece's group, the picture changed",
+      pasted and sum(r[1] for r in pasted) * 2 == len(pasted) and {r[2] for r in pasted} <= _crop_groups
+      and all(cv2.imread(r[0]) is not None for r in pasted), [(r[1], r[3]) for r in pasted])
 
 rows = datasets.from_folders(paths["sorted"])
 check("folders: ok/ fine, fail/ failed", len([r for r in rows if r[1] == 0]) == 20 and len([r for r in rows if r[1] == 1]) == 20)
@@ -123,7 +129,6 @@ check("... a model.json of another format: refused", raised)
 
 # ---------------------------------------------------------------- 1.130: a model for every printer
 import download  # noqa: E402
-import hard_cases  # noqa: E402
 
 check("1.130: «Successful Print», «Normal print», «No defect» are fine; «Print Failure» failed",
       [datasets.kind_of(n) for n in ("Successful Print", "Normal print", "good_print", "No Defect", "Print Failure")] == [0, 0, 0, 0, 1],

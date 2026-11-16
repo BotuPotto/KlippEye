@@ -25,6 +25,8 @@ Sources, any number of each:
                      on a few failed pictures too, still failed, so that «something drawn» says nothing by itself.
   --mine MODEL       the current model (a folder with model.onnx) scores every fine picture: those it takes for a
                      failure (its mistakes: what it must unlearn) get a weight of 3 in training, 2 when in doubt.
+  --paste 0.2        1.134: the spaghetti cut out of the public photos pasted on that share of the fine pictures (failed),
+                     and as many pieces of clean bed pasted the same way (fine): failures in new places and scenes.
 
 Usage: python ml/datasets.py --yolo ~/data/spaghetti --klippeye ~/klippeye-data --out ml/work
 """
@@ -356,6 +358,7 @@ def main(argv=None):
     parser.add_argument("--klippeye", action="append", default=[])
     parser.add_argument("--frames", action="append", default=[])
     parser.add_argument("--hard-cases", type=float, default=0.0, help="the share of fine pictures that get a look-alike drawn (0.3 is good)")
+    parser.add_argument("--paste", type=float, default=0.0, help="the share of fine pictures that get a public failure pasted on (0.2 is good)")
     parser.add_argument("--mine", default="", help="a model folder: the fine pictures it takes for failures weigh more")
     parser.add_argument("--fail-classes", default="")
     parser.add_argument("--empty-is-ok", action="store_true")
@@ -391,6 +394,13 @@ def main(argv=None):
         print("look-alikes drawn: %d on fine pictures (fine), %d on failed ones (failed)" % (
             sum(1 for r in drawn if r[1] == 0), sum(1 for r in drawn if r[1] == 1)))
         rows += drawn
+    if rows and args.paste > 0 and cv2 is not None:
+        import hard_cases
+
+        pasted = hard_cases.paste(rows, os.path.join(args.out, "pasted"), args.paste, cv2, __import__("numpy"), seed=args.seed)
+        print("pasted: %d failures on fine pictures (failed), %d pieces of clean bed (fine)" % (
+            sum(1 for r in pasted if r[1] == 1), sum(1 for r in pasted if r[1] == 0)))
+        rows += pasted
     weights = mine(rows, args.mine, cv2) if args.mine and cv2 is not None else {}
     if not rows:
         print("No pictures found: see --help for the folders each source expects.")

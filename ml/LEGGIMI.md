@@ -63,12 +63,14 @@ Le raccolte pubbliche hanno quasi solo stampe fallite: come esempi di stampa che
 foto lontani dai riquadri del difetto; la foto intera resta solo se il difetto ne copre almeno un quinto. Da ogni
 raccolta al massimo 3000 foto (`--max-per-dataset`), così nessuna pesa troppo e l'addestramento resta rapido.
 
-Per un modello che funzioni su ogni stampante aggiungi `--hard-cases 0.3 --mine models/base`:
+Per un modello che funzioni su ogni stampante aggiungi `--hard-cases 0.3 --mine models/base --paste 0.2`:
 - `--hard-cases 0.3` disegna su un terzo delle foto di stampe buone i **sosia di un errore** che non sono errori (una linea
   di spurgo, una goccia di spurgo, un filo singolo, il bordo di un brim), etichettati «buona»; gli stessi disegni anche su
   alcune foto fallite, che restano «fallita», così un disegno da solo non vuol dire niente;
 - `--mine models/base`: il modello attuale dà un voto a ogni foto di stampa buona, e quelle che scambia per errori pesano
-  il triplo nell'addestramento: impara proprio dai suoi sbagli.
+  il triplo nell'addestramento: impara proprio dai suoi sbagli;
+- `--paste 0.2` incolla gli spaghetti ritagliati dalle foto pubbliche sul 20% delle foto di stampe buone («fallita») e
+  altrettanti pezzi di piatto pulito allo stesso modo («buona»): errori in posti e scene nuovi.
 
 Opzioni utili: `--fail-classes spaghetti,detached` per dire quali classi di una raccolta sono guasti (in automatico: tutte
 tranne quelle che si chiamano come ok / print / nozzle…); `--empty-is-ok` se nella raccolta le foto senza riquadri sono

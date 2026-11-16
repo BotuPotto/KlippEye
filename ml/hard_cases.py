@@ -120,3 +120,39 @@ def make(rows, out, share, cv2, np, seed=11, on_failed=0.15):
         cv2.imwrite(path, drawn, [cv2.IMWRITE_JPEG_QUALITY, 90])
         new.append((path, label, row[2], "hard-" + kind))
     return new
+
+
+def paste(rows, out, share, cv2, np, seed=13):
+    """1.134: failures in new places: the spaghetti cut out of the public photos («yolo-crop») pasted on a share of the
+    whole fine pictures, with soft round edges, labelled failed; as many pieces of clean bed («yolo-bg») pasted the same
+    way, labelled fine, so that the model cannot learn «a pasted piece = failure». Each new row keeps the group of the
+    piece pasted (its photo is never in training and measuring both). -> the new rows."""
+    os.makedirs(out, exist_ok=True)
+    rng = random.Random(seed)
+    targets = [r for r in rows if r[1] == 0 and r[3] not in ("yolo-bg", "yolo-crop") and not r[3].startswith(("hard-", "paste-"))]
+    failed = [r for r in rows if r[3] == "yolo-crop"]
+    clean = [r for r in rows if r[3] == "yolo-bg"]
+    count = min(int(len(targets) * share), len(failed), len(clean) * 4)
+    picked = [(r, 1) for r in rng.sample(failed, count)] + [(r, 0) for r in rng.choices(clean, k=count)] if count else []
+    new = []
+    for n, (piece_row, label) in enumerate(picked):
+        image, piece = cv2.imread(rng.choice(targets)[0]), cv2.imread(piece_row[0])
+        if image is None or piece is None or min(image.shape[:2]) < 96:
+            continue
+        h, w = image.shape[:2]
+        side = int(min(w, h) * rng.uniform(0.2, 0.45))
+        piece = cv2.resize(piece, (side, max(8, int(side * piece.shape[0] / piece.shape[1]))), interpolation=cv2.INTER_AREA)
+        ph, pw = piece.shape[:2]
+        if ph >= h or pw >= w:
+            continue
+        cx, cy = _bed_point(rng, w, h)
+        x0, y0 = int(min(max(0, cx - pw / 2), w - pw)), int(min(max(0, cy - ph / 2), h - ph))
+        mask = np.zeros((h, w), np.uint8)
+        cv2.ellipse(mask, (x0 + pw // 2, y0 + ph // 2), (int(pw * 0.42), int(ph * 0.42)), 0, 0, 360, 255, -1)
+        layer = image.copy()
+        layer[y0:y0 + ph, x0:x0 + pw] = piece
+        drawn = _blend(image, layer, mask, cv2, np, softness=max(5, side * 0.15))
+        path = os.path.join(out, "%06d_%s.jpg" % (n, "failed" if label else "clean"))
+        cv2.imwrite(path, drawn, [cv2.IMWRITE_JPEG_QUALITY, 90])
+        new.append((path, label, piece_row[2], "paste-" + ("failed" if label else "clean")))
+    return new

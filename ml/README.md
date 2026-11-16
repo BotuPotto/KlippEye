@@ -41,7 +41,8 @@ and run its cells from top to bottom (a free Roboflow key is all it needs).
    For a model that works on every printer add `--hard-cases 0.3` (look-alikes of a failure that are not failures — a
    purge line, a purge blob, a single loose strand, a brim outline — drawn on 30% of the fine pictures, and on a few failed
    ones too, so that a drawing says nothing by itself) and `--mine models/base` (the fine pictures the current model takes
-   for failures weigh 3 times as much in training: its mistakes).
+   for failures weigh 3 times as much in training: its mistakes). `--paste 0.2` pastes the spaghetti cut out of the public
+   photos on 20% of the fine pictures (failed) and as many pieces of clean bed the same way (fine): failures in new places.
    Public datasets are nearly all failures: pieces of the same photos away from the boxes become the fine examples, the
    whole photo is kept only when the failure covers at least a fifth of it, and each dataset gives at most 3000 pictures
    (`--max-per-dataset`).
