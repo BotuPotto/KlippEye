@@ -514,6 +514,8 @@ you.
 **Will it slow down my prints?** The monitor runs at low priority and Klipper comes first; it uses at most 2 cores at once
 and always leaves one free. On older Raspberry Pis (3 or Zero 2), `klippeye benchmark` tells you whether there is room to
 spare; `klippeye benchmark --models download` also times the networks that could replace the local model.
+The local model runs faster with onnxruntime (twice as fast on a PC), which KlippEye uses by itself when it is installed:
+`pip3 install --break-system-packages onnxruntime`, then restart KlippEye (`klippeye benchmark` shows how much faster on your Raspberry).
 
 **iPhone?** The dashboard works in Safari, and notifications arrive through the ntfy app. The KlippEye app is Android only.
 

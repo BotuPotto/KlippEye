@@ -283,6 +283,7 @@ def model_cost(repo, folder=None, rounds=12, interval=3.0):
                     spent.append((time.perf_counter() - started) * 1000)
                 spent = sorted(spent[2:])
                 row["ms"][threads] = round(spent[len(spent) // 2], 1)
+            row["ort_ms"] = _ort_ms(path, allowed, frame, rounds, cv2, np)   # 1.133: None without onnxruntime
             ms = row["ms"][allowed]
             row["check_ms"] = round(ms * LOCAL_VIEWS, 1)
             row["core_percent"] = round(ms * LOCAL_VIEWS / 1000.0 / interval * 100, 1)
@@ -290,6 +291,25 @@ def model_cost(repo, folder=None, rounds=12, interval=3.0):
     finally:
         cv2.setNumThreads(before)
     return {"cores": cores, "allowed": allowed, "threads": thread_counts, "views": LOCAL_VIEWS, "interval_s": interval, "models": out}
+
+
+def _ort_ms(path, threads, frame, rounds, cv2, np):
+    """1.133: ms per view with onnxruntime (the monitor uses it when installed), with `threads` cores; None without it."""
+    try:
+        import onnxruntime
+        options = onnxruntime.SessionOptions()
+        options.intra_op_num_threads, options.inter_op_num_threads = threads, 1
+        session = onnxruntime.InferenceSession(path, options, providers=["CPUExecutionProvider"])
+    except Exception:  # noqa: BLE001 - not installed, or it cannot run the file
+        return None
+    name, spent = session.get_inputs()[0].name, []
+    for _ in range(rounds + 2):
+        started = time.perf_counter()
+        small = cv2.resize(frame, (224, 224), interpolation=cv2.INTER_AREA)
+        session.run(None, {name: cv2.dnn.blobFromImage(small, 1 / 255.0, (224, 224), swapRB=True)})
+        spent.append((time.perf_counter() - started) * 1000)
+    spent = sorted(spent[2:])
+    return round(spent[len(spent) // 2], 1)
 
 
 def model_report(cost):
@@ -304,6 +324,8 @@ def model_report(cost):
             continue
         lines.append("%-28s %6s " % (row["model"][:28], row["mb"]) + " ".join("%9s" % row["ms"][t] for t in cost["threads"])
                      + "   %6s ms   %6s%%" % (row["check_ms"], row["core_percent"]))
+        if row.get("ort_ms") is not None:
+            lines.append("%-28s %6s %9s   with onnxruntime, %d core%s" % ("", "", row["ort_ms"], cost["allowed"], "s" if cost["allowed"] > 1 else ""))
     return lines
 
 

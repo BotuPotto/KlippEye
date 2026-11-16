@@ -83,6 +83,10 @@ jobs:
           pip install -r ml/requirements.txt
       - name: Run the chain
         run: python ml/tests/smoke_train.py
+      - name: The local model with onnxruntime gives what OpenCV gives (1.133)
+        run: |
+          pip install onnxruntime
+          python ml/tests/test_tools.py
       - name: The candidate networks export and run in OpenCV (1.129, for scripts/benchmark.py --models)
         run: |
           pip install timm

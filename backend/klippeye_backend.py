@@ -3139,7 +3139,8 @@ class LocalAi:
         if model is None:
             return {"available": False, "error": self.error}
         return {"available": True, "source": self.source, "version": model.version, "threshold": model.threshold, "size": model.size,
-                "trained_on": model.info.get("trained_on"), "measured": model.info.get("measured"), "error": self.error}
+                "trained_on": model.info.get("trained_on"), "measured": model.info.get("measured"), "error": self.error,
+                "runtime": getattr(model, "runtime", "opencv")}   # 1.133: onnxruntime when installed
 
 
 local_ai = LocalAi()

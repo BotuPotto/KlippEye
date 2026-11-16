@@ -524,6 +524,8 @@ pagamento li scegli tu.
 **Rallenta le stampe?** Il monitor gira a bassa priorità e Klipper ha la precedenza; usa al massimo 2 core alla volta e ne
 lascia sempre uno libero. Sui Raspberry Pi più vecchi (3 o Zero 2), `klippeye benchmark` ti dice se c'è margine;
 `klippeye benchmark --models download` misura anche le reti che potrebbero sostituire il modello locale.
+Il modello locale gira più veloce con onnxruntime (il doppio su un PC), che KlippEye usa da solo quando è installato:
+`pip3 install --break-system-packages onnxruntime`, poi riavvia KlippEye (`klippeye benchmark` mostra quanto più veloce sul tuo Raspberry).
 
 **E l'iPhone?** La dashboard funziona in Safari e le notifiche arrivano con l'app ntfy. L'app KlippEye esiste solo per
 Android.

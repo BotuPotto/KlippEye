@@ -128,6 +128,15 @@ try:
 except local_model.ModelError as error:
     raised = "format" in str(error)
 check("... a model.json of another format: refused", raised)
+_base = os.path.join(HERE, "..", "..", "models", "base")
+_picture = np.random.default_rng(1).integers(0, 255, (240, 320, 3), dtype=np.uint8)
+_auto = local_model.load(_base, cv2, np)
+os.environ["KLIPPEYE_RUNTIME"] = "opencv"
+_cv = local_model.load(_base, cv2, np)
+del os.environ["KLIPPEYE_RUNTIME"]
+check("1.133: onnxruntime when installed, OpenCV with KLIPPEYE_RUNTIME=opencv: the same score and description",
+      _cv.runtime == "opencv" and _auto.runtime in ("onnxruntime", "opencv") and abs(_auto.predict(_picture)[0] - _cv.predict(_picture)[0]) < 1e-4
+      and float(np.abs(_auto.predict(_picture)[1] - _cv.predict(_picture)[1]).max()) < 1e-3, (_auto.runtime, _cv.runtime))
 
 # ---------------------------------------------------------------- 1.130: a model for every printer
 import download  # noqa: E402

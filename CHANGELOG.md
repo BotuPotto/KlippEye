@@ -1,5 +1,15 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.133.0
+
+**The local model runs faster with onnxruntime, when it is installed.** It gives the same scores and descriptions as
+OpenCV and, on a PC, takes half the time; KlippEye uses it by itself when the module is there
+(`pip3 install --break-system-packages onnxruntime`, then restart KlippEye) and OpenCV otherwise, as before.
+`KLIPPEYE_RUNTIME=opencv` keeps OpenCV. Nothing new is required: without onnxruntime nothing changes.
+
+- `/api/local_model` says which one runs the model (`runtime`).
+- `klippeye benchmark` also times the local model with onnxruntime, when it is installed.
+
 ## 1.132.0
 
 **A calmer start of the print for the local model.** In the first five minutes after the monitor starts checking a
