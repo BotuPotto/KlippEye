@@ -2097,6 +2097,10 @@ check("the macros of the files of that folder are listed (review 1.116)", _mj["o
       and _mj["macros"][0]["file"] == "macros.cfg" and _mj["macros"][0]["source"] == "filesystem", _mj)
 _lj = _pbc.get("/api/logs/list").get_json()
 check("the logs page lists the logs of that folder", _lj.get("dir") == os.path.join(_proot, "lg") and [f["name"] for f in _lj["files"]] == ["klippy.log"], _lj)
+_codes = {n: _pbc.get("/api/logs/download", query_string={"file": n}).status_code
+          for n in ("klippy.log", "../cfg/macros.cfg", "..\\cfg\\macros.cfg", os.path.join(_proot, "cfg", "macros.cfg"), "..", "")}
+check("1.132.1: a log downloads; a path out of the logs folder (the config, the AI keys next to it) never does",
+      _codes == {"klippy.log": 200, "../cfg/macros.cfg": 400, "..\\cfg\\macros.cfg": 400, os.path.join(_proot, "cfg", "macros.cfg"): 400, "..": 400, "": 400}, _codes)
 _pp.forget()
 fake.state["roots"] = None
 _home = tmp()
@@ -3030,7 +3034,7 @@ _views = _det.local_views(_frame, 100.0)
 check("... a change seen by OpenCV: also a closer look at it (a square crop of the picture)",
       [n for n, _ in _views] == ["whole", "change"] and _views[1][1].shape[0] == _views[1][1].shape[1] < _frame.shape[0], [(n, v.shape) for n, v in _views])
 check("... forgotten after 5 minutes", [n for n, _ in _det.local_views(_frame, 100.0 + _lb.LOCAL_CHANGE_MEMORY_S + 1)] == ["whole"])
-_det._bed_box = lambda: (0.15, 0.36, 0.70, 0.61)   # 1.130: a calibrated camera: where the bed is
+_det._bed_box = lambda z=None: (0.15, 0.36, 0.70, 0.61)   # 1.130: a calibrated camera: where the bed is
 _views = _det.local_views(_frame, 100.0)
 _fh, _fw = _frame.shape[:2]
 check("1.130: a calibrated camera: the bed instead of the whole picture (the frame and the cables around it look like tangles)",
@@ -3039,7 +3043,12 @@ check("1.130: a calibrated camera: the bed instead of the whole picture (the fra
 check("... the bed's view is not squared, with a small margin; almost the whole picture or nothing: no bed view",
       _lb.bed_rect((0.1, 0.2, 0.5, 0.4), 1000, 500) == (80, 92, 620, 308) and _lb.bed_rect((0.0, 0.0, 1.0, 1.0), 1000, 500) is None
       and _lb.bed_rect(None, 1000, 500) is None and _lb.bed_rect((0.5, 0.5, 0.01, 0.01), 1000, 500) is None, _lb.bed_rect((0.1, 0.2, 0.5, 0.4), 1000, 500))
-_det._bed_box = lambda: None
+_saved_box = _lb.detector._bed_box
+_lb.detector._bed_box = lambda z=None: (0.1, 0.2, 0.3, 0.4 + (0.1 if z is None else z / 100.0))   # taller with the nozzle's height
+check("1.132.1: the personal layer's view is the bed alone, whatever the height the last print ended at (no training again at each restart)",
+      _lb.personal_view() == (0.1, 0.2, 0.3, 0.4), _lb.personal_view())
+_lb.detector._bed_box = _saved_box
+_det._bed_box = lambda z=None: None
 _with_scores([0.10, 0.70])
 check("... the highest of the looks counts, and which one gave it", _det.local_judge(_frame, 100.0) == (70.0, {"whole": 10.0, "change": 70.0}, "change"))
 _with_scores([0.10] * 9)
