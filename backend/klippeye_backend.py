@@ -752,10 +752,10 @@ CONFIG_SPEC = [
      "help": "Besides every change OpenCV sees, which it looks at at once. Each look takes a fraction of a second of the Raspberry."},
     {"key": "local_doubt", "type": "int", "default": 35, "min": 5, "max": 95, "step": 5, "unit": "%", "group": "local",
      "label": "In doubt from",
-     "help": "From this rating the local model has a doubt: an alarm of the motion detection goes to the online AI, three doubtful looks in a row ask it too, and for a minute OpenCV raises an alarm sooner."},
+     "help": "From this rating the local model has a doubt: an alarm of the motion detection goes to the online AI, three doubtful looks in a row ask it too, and for a minute OpenCV raises an alarm sooner. In the first five minutes of the print the doubtful looks alone do not ask it."},
     {"key": "local_sure", "type": "int", "default": 80, "min": 10, "max": 99, "step": 1, "unit": "%", "group": "local",
      "label": "Sure from",
-     "help": "From this rating the local model is sure there is a failure: two sure looks in a row ask the online AI at once, even without an alarm of the motion detection."},
+     "help": "From this rating the local model is sure there is a failure: two sure looks in a row ask the online AI at once, even without an alarm of the motion detection. In the first five minutes of the print it waits for three: the bed is still almost empty."},
     {"key": "personal_learning", "type": "bool", "default": False, "group": "local", "label": "Learn from this printer's prints",
      "help": "The local model also learns from your answers to «How did the print go?» and from the labelled recordings: a small layer of its own, trained on the Raspberry in a few seconds after each answer. The pictures stay on this printer."},
     {"key": "roi", "type": "area", "default": [20, 20, 60, 60], "group": "area", "label": "Watched area",
@@ -1750,6 +1750,7 @@ CONFIRM_HIDDEN_WAIT_S = 30  # 1.123: the second look waits up to this long for t
 LOCAL_CHANGE_MEMORY_S = 300  # 1.124: a change the motion detection saw is looked at closer by the local model for 5 minutes,
                              # also once the background has absorbed it (a part come off does not move any more)
 LOCAL_SOON_S = 3             # 1.124: a new change: the local model looks at once, at most this often
+LOCAL_WARMUP_S = 300         # 1.132: the first minutes of a print: the bed is almost empty, the local model alone asks less
 LOCAL_BOOST_S = 60           # 1.124: after a doubtful look, the motion detection is more ready to raise an alarm for this long
 CROP_MARGIN = 0.5            # 1.124: a close look takes the box and half of its size around it on each side...
 CROP_MIN = 0.3               # ...and at least 30% of the picture's height, so the model still sees what is around
@@ -2181,6 +2182,7 @@ class LightDetector(FrameJudge):
         self.thread = None
         self.generation = 0  # every start() opens a new one: an old loop still asleep understands by itself that it must end
         self.last_ai_call = 0
+        self.print_real_at = None  # 1.132: when this print really started (the monitor's first check of it)
         self.local_state = {}  # 1.106: the local model's last look (score, when, runs of sure / doubtful looks, counts)
         self.local_vec = None  # 1.125: how the model described the picture of its last look (the view that counted)
         self.purge = None      # 1.125: {"before", "before_pos", "marks", "done", "share"} of this print
@@ -2379,6 +2381,7 @@ class LightDetector(FrameJudge):
                         self._reset_reference()  # a new print starts with a new background
                         if state != "paused":
                             self.zone, self.zone_reading = {}, None  # the next print has its own objects
+                            self.print_real_at = None
                         self.stats["status"] = f"idle (state={state})"
                         self.stats["real_print_started"] = False
                         self.stats["real_print_reason"] = f"state={state}"
@@ -2408,6 +2411,9 @@ class LightDetector(FrameJudge):
                         self.stats["status"] = f"heating/mesh - waiting for the real print ({'; '.join(reasons)[:80]})"
                         self._nap(generation, 3)
                         continue
+
+                    if self.print_real_at is None:
+                        self.print_real_at = time.time()
 
                 except Exception as e:
                     print(f"[DETECTOR] real_print check err: {e}")
@@ -2609,6 +2615,9 @@ class LightDetector(FrameJudge):
         seconds; -> whether to ask the online AI now (the reason in self.local_state["why"]):
           an alarm of the motion detection: when the model is at least «in doubt» (or always, with local_filter off);
           by itself: two «sure» looks in a row, or three «in doubt» in a row.
+        1.132: in the first LOCAL_WARMUP_S of the print, by itself only three «sure» looks in a row: the bed is still
+        almost empty, with a first small layer under the toolhead, and the model took that for a failure (measured on
+        labelled recordings: most of the times it asked by itself when the print was fine were in those minutes).
         Without a model (or switched off) only the motion detection decides, as before."""
         state = self.local_state
         # 1.124: a change the motion detection has just seen is judged at once, closer, without waiting for local_every
@@ -2646,15 +2655,17 @@ class LightDetector(FrameJudge):
             state["why"] = None
             return False
         why = None
+        early = self.print_real_at is not None and now - self.print_real_at < LOCAL_WARMUP_S
+        state["early"] = early
         if triggered:
             if doubt or not self.local_filter:
                 why = "motion+local"
             else:
                 state["filtered"] = state.get("filtered", 0) + 1
                 print("[LOCAL] alarm of the motion detection, the local model gives %.0f%%: the online AI is not asked" % score)
-        elif state["sure_run"] >= 2:
+        elif state["sure_run"] >= (3 if early else 2):
             why = "local_sure"
-        elif state["doubt_run"] >= 3:
+        elif state["doubt_run"] >= 3 and not early:
             why = "local_doubt"
         if why and why != "motion+local" and now < self.cooldown_until:
             why = None   # resting after an alarm: the local model waits too
