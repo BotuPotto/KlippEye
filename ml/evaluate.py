@@ -152,7 +152,7 @@ def main(argv=None):
     table = []
     for threshold in thresholds:
         per_hour, false_alarms, fine_hours, caught, failed, median = count(
-            results, lambda scored: alarms(scored, threshold, args.consecutive, args.cooldown))
+            results, lambda scored, threshold=threshold: alarms(scored, threshold, args.consecutive, args.cooldown))
         mark = " ← the model's" if abs(threshold - model.threshold) < 1e-6 else ""
         print("   %.2f   | %6.2f (%d in %.1f h)               | %d of %d        | %s%s" % (
             threshold, per_hour, false_alarms, fine_hours, caught, failed, ("%.0f s" % median) if median is not None else "-", mark))
