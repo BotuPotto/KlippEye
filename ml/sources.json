@@ -20,6 +20,7 @@
   "dark-eden-nuheg/3d-printing-fail-detection",
   "fyp-ul2aa/3d-printing-defects-wptsr",
   "xtremus3d/3d-printing-failures-old",
-  "stringing/fdm-failures-stringing-uxbbo"
+  "stringing/fdm-failures-stringing-uxbbo",
+  "3d-print-error-detection/3d-print-failure-detector"
  ]
 }

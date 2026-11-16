@@ -1,5 +1,27 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.130.0
+
+**The tools that train the local model now aim at a model for every printer, with fewer false alarms on prints going
+well.** This does not change the model in KlippEye yet: it changes how the next one is trained (the Colab notebook does
+all of it).
+
+- **Pictures of prints going well, from many printers.** The public collections are almost all failures. Now
+  `ml/download.py --bambu` also takes pictures from the Bambu Timelapse Dataset (real prints, CC BY 4.0), leaving out
+  the timelapses whose end looks like a failure. Another collection with a «Successful Print» class is added.
+- **Look-alikes of a failure that are not failures.** A purge line, a purge blob, a single loose strand and a brim
+  outline are drawn on part of the fine pictures, labelled fine (`--hard-cases`), so that a line of filament on the bed
+  stops meaning «spaghetti».
+- **The current model's mistakes count more.** The fine pictures it takes for failures weigh more in training
+  (`--mine`).
+- **Honest scores.** After training the scores are calibrated (temperature scaling, inside the model: nothing changes on
+  the Raspberry): a 70% is right about 7 times in 10. The threshold now also keeps the false alarms on fine pictures at
+  3 in 100 at most.
+- **Only shareable licences.** Collections whose licence does not let the model be shared with everyone (ShareAlike,
+  NonCommercial, private) are left out by themselves.
+- **The base model learns only from public pictures.** The guides and the notebook now say so: each printer's own prints
+  stay in its personal layer.
+
 ## 1.129.1
 
 **`klippeye benchmark --models download` works on Debian Bookworm.** The networks it downloads were refused by OpenCV

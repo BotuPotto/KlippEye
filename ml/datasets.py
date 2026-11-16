@@ -11,16 +11,27 @@ Sources, any number of each:
                    boxes are only of a normal print (nozzle, part, print…) is «fine»; one with only defects of quality
                    (stringing, zits…) is left out; with --empty-is-ok a picture without boxes counts as «fine».
                    --fail-classes NAME,NAME... : the classes that are failures (default: by their names, see FAILURE).
-  --classes DIR    a dataset of class folders (Roboflow «folder» export: train/<class>/*.jpg): the classes by their names.
+  --classes DIR    a dataset of class folders (Roboflow «folder» export: train/<class>/*.jpg): the classes by their names;
+                   or a multi-label one (Roboflow «multiclass» export: _classes.csv with a 0/1 column per class).
+  --frames DIR     pictures of prints going well, one folder per print (ml/download.py --bambu): all «fine», except the
+                   prints named in DIR/failed.txt.
   --klippeye DIR   KlippEye's data folder copied from the Raspberry (the folder with recordings/ and reviews/): the
                    labelled recordings and the answers to «How did the print go?». Fine prints give «fine» pictures; a
                    failed print gives «failed» pictures from FAILED_AFTER seconds after its moment on, «fine» before it.
+
+1.130, for a model that works on every printer:
+  --hard-cases 0.3   look-alikes of a failure that are not failures (a purge line, a purge blob, one loose strand, a
+                     brim) drawn on that share of the fine pictures, labelled fine (ml/hard_cases.py); the same drawings
+                     on a few failed pictures too, still failed, so that «something drawn» says nothing by itself.
+  --mine MODEL       the current model (a folder with model.onnx) scores every fine picture: those it takes for a
+                     failure (its mistakes: what it must unlearn) get a weight of 3 in training, 2 when in doubt.
 
 Usage: python ml/datasets.py --yolo ~/data/spaghetti --klippeye ~/klippeye-data --out ml/work
 """
 import argparse
 import csv
 import glob
+import json
 import os
 import random
 import re
@@ -34,7 +45,8 @@ IMAGE_EXT = (".jpg", ".jpeg", ".png", ".bmp", ".webp")
 # quality (the print goes on: left out, neither failed nor fine), a normal print or a part of the printer (fine)
 FAILURE = re.compile(r"spag|fail|error|detach|blob|shift|warp|clog|nest|knot|collaps|broken|defect|bad|fault|anomal|adhes|curl|messy|mess", re.I)
 QUALITY = re.compile(r"string|zit|under|over|gap|ring|ghost|crack|bridg|line|rough|elephant|seam|pillow|hair|z.?wobble|banding|burn", re.I)
-NORMAL = re.compile(r"^(ok|good|normal|nominal|success\w*|fine|correct|no.?defect\w*|nozzle|print|printing|printed|object|part|parts|model|bed|extruder|"
+NORMAL = re.compile(r"^(ok|good|normal|nominal|success\w*|fine|correct|no.?defect\w*|(successful|good|normal|ok|fine|correct)[ _-]?print\w*|"
+                    r"nozzle|print|printing|printed|object|part|parts|model|bed|extruder|"
                     r"extrusor|head|hotend|printhead|print.?head|toolhead|tool|nozzle.?tip|person|hand)$", re.I)
 
 
@@ -210,6 +222,58 @@ def from_classes(root, fail_classes=()):
     return rows
 
 
+def from_multiclass(root, fail_classes=()):
+    """A multi-label dataset (Roboflow «multiclass» export): <split>/_classes.csv, a row per picture with a 0/1 column per
+    class. A picture with a failure class is failed; one with only normal classes is fine; one with a defect of quality
+    (or nothing) is left out."""
+    rows, kinds = [], {}
+    for table in glob.glob(os.path.join(root, "**", "_classes.csv"), recursive=True):
+        with open(table, encoding="utf-8") as handle:
+            reader = csv.reader(handle)
+            header = [h.strip() for h in next(reader, [])]
+            for name in header[1:]:
+                kinds.setdefault(name, kind_of(name, fail_classes))
+            for line in reader:
+                if not line:
+                    continue
+                path = os.path.join(os.path.dirname(table), line[0].strip())
+                on = [header[i] for i, v in enumerate(line[1:], 1) if i < len(header) and v.strip() not in ("", "0")]
+                if not on or not os.path.isfile(path):
+                    continue
+                found = [kinds[n] for n in on]
+                label = 1 if 1 in found else None if None in found else 0
+                if label is not None:
+                    rows.append((path, label, "cls:" + os.path.basename(path).split(".rf.")[0], "multiclass"))
+    print("[multiclass] %s: %s" % (os.path.basename(root.rstrip(os.sep)), {k: ("failed" if v == 1 else "fine" if v == 0 else "left out") for k, v in kinds.items()}))
+    return rows
+
+
+def from_frames(root):
+    """Pictures of prints going well (ml/download.py --bambu): <root>/frames/<print>/*.jpg, all fine, one group per print;
+    the prints named in <root>/failed.txt left out."""
+    left_out = set()
+    failed = os.path.join(root, "failed.txt")
+    if os.path.isfile(failed):
+        with open(failed, encoding="utf-8") as handle:
+            left_out = {line.strip().removesuffix(".jpg") for line in handle if line.strip() and not line.startswith("#")}
+    frames = os.path.join(root, "frames") if os.path.isdir(os.path.join(root, "frames")) else root
+    rows = []
+    for name in sorted(os.listdir(frames)):
+        folder = os.path.join(frames, name)
+        if os.path.isdir(folder) and name not in left_out:
+            rows += [(path, 0, "frames:" + name, "frames") for path in images_in(folder)]
+    print("[frames] %s: %d prints going well (%d left out by failed.txt)" % (os.path.basename(root.rstrip(os.sep)), len({r[2] for r in rows}), len(left_out)))
+    return rows
+
+
+def _source_format(folder):
+    try:
+        with open(os.path.join(folder, "klippeye-source.json"), encoding="utf-8") as handle:
+            return json.load(handle).get("format", "")
+    except (OSError, ValueError):
+        return ""
+
+
 def from_auto(root, work, fail_classes, empty_is_ok, cv2, limit=MAX_PER_DATASET, seed=7):
     """Every dataset in `root` (one folder each, as ml/download.py writes them), each to at most `limit` pictures."""
     rows = []
@@ -217,11 +281,16 @@ def from_auto(root, work, fail_classes, empty_is_ok, cv2, limit=MAX_PER_DATASET,
         folder = os.path.join(root, name)
         if not os.path.isdir(folder):
             continue
-        if glob.glob(os.path.join(folder, "**", "data.yaml"), recursive=True):
+        fmt = _source_format(folder)
+        if fmt == "frames-fine":
+            found = from_frames(folder)
+        elif glob.glob(os.path.join(folder, "**", "data.yaml"), recursive=True):
             found = from_yolo(folder, work, fail_classes, empty_is_ok, cv2)
+        elif glob.glob(os.path.join(folder, "**", "_classes.csv"), recursive=True):
+            found = from_multiclass(folder, fail_classes)
         else:
             found = from_classes(folder, fail_classes)
-        kept = cap_groups(found, limit, seed)
+        kept = cap_groups(found, limit * (2 if fmt == "frames-fine" else 1), seed)   # prints going well: the rarest, more of them
         print("    %d pictures (%d failed, %d fine)%s" % (len(kept), sum(r[1] for r in kept), len(kept) - sum(r[1] for r in kept),
                                                         " of %d" % len(found) if len(kept) < len(found) else ""))
         rows += kept
@@ -244,6 +313,34 @@ def from_klippeye(root):
     return rows
 
 
+def mine(rows, model_dir, cv2):
+    """The weight of each picture in training: the fine pictures the current model takes for a failure weigh 3 (2 when
+    it is in doubt): its mistakes, what the new model must unlearn. -> {path: weight} (1 is not written)."""
+    import numpy as np
+    import local_model
+
+    model = local_model.load(model_dir, cv2, np)
+    if model is None:
+        print("--mine: no model in %s" % model_dir)
+        return {}
+    weights, scored = {}, 0
+    for row in rows:
+        if row[1] != 0:
+            continue
+        image = cv2.imread(row[0])
+        if image is None:
+            continue
+        score = model.predict(image)[0]
+        scored += 1
+        if score >= model.threshold:
+            weights[row[0]] = 3
+        elif score >= model.threshold * 0.6:
+            weights[row[0]] = 2
+    print("--mine: %d fine pictures scored, %d taken for a failure (weight 3), %d in doubt (weight 2)" % (
+        scored, sum(1 for w in weights.values() if w == 3), sum(1 for w in weights.values() if w == 2)))
+    return weights
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--auto", action="append", default=[])
@@ -251,6 +348,9 @@ def main(argv=None):
     parser.add_argument("--folders", action="append", default=[])
     parser.add_argument("--yolo", action="append", default=[])
     parser.add_argument("--klippeye", action="append", default=[])
+    parser.add_argument("--frames", action="append", default=[])
+    parser.add_argument("--hard-cases", type=float, default=0.0, help="the share of fine pictures that get a look-alike drawn (0.3 is good)")
+    parser.add_argument("--mine", default="", help="a model folder: the fine pictures it takes for failures weigh more")
     parser.add_argument("--fail-classes", default="")
     parser.add_argument("--empty-is-ok", action="store_true")
     parser.add_argument("--max-per-dataset", type=int, default=MAX_PER_DATASET, help="pictures from one --auto collection, at most (0: all)")
@@ -276,6 +376,16 @@ def main(argv=None):
         rows += from_auto(folder, args.out, fail_classes, args.empty_is_ok, cv2, args.max_per_dataset, args.seed)
     for folder in args.klippeye:
         rows += from_klippeye(folder)
+    for folder in args.frames:
+        rows += from_frames(folder)
+    if rows and args.hard_cases > 0 and cv2 is not None:
+        import hard_cases
+
+        drawn = hard_cases.make(rows, os.path.join(args.out, "hard-cases"), args.hard_cases, cv2, __import__("numpy"), seed=args.seed)
+        print("look-alikes drawn: %d on fine pictures (fine), %d on failed ones (failed)" % (
+            sum(1 for r in drawn if r[1] == 0), sum(1 for r in drawn if r[1] == 1)))
+        rows += drawn
+    weights = mine(rows, args.mine, cv2) if args.mine and cv2 is not None else {}
     if not rows:
         print("No pictures found: see --help for the folders each source expects.")
         return 1
@@ -285,9 +395,9 @@ def main(argv=None):
     path = os.path.join(args.out, "manifest.csv")
     with open(path, "w", newline="", encoding="utf-8") as handle:
         writer = csv.writer(handle)
-        writer.writerow(["path", "label", "group", "source", "split"])
+        writer.writerow(["path", "label", "group", "source", "split", "weight"])
         for row in rows:
-            writer.writerow(list(row) + ["val" if row[2] in held else "train"])
+            writer.writerow(list(row[:4]) + ["val" if row[2] in held else "train", weights.get(row[0], 1)])
     fails = sum(1 for r in rows if r[1] == 1)
     print("%d pictures (%d failed, %d fine) in %d groups -> %s" % (len(rows), fails, len(rows) - fails, len(groups), path))
     if not fails or fails == len(rows):

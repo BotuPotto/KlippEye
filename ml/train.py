@@ -28,6 +28,7 @@ from torchvision import models, transforms
 
 MEAN, STD = [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]
 WANTED_PRECISION = 0.9   # the threshold: the lowest that keeps 9 alarms out of 10 right on the pictures kept aside
+WANTED_FALSE_ALARMS = 0.03   # 1.130: ... and that takes at most 3 fine pictures in 100 for a failure
 
 
 class Monitor(nn.Module):
@@ -62,12 +63,18 @@ class Pictures(Dataset):
 
 
 def read_manifest(path):
-    train, val = [], []
+    """-> (train, val, weights): rows (path, label) and, for the training rows, how much each weighs (1.130: the fine
+    pictures the previous model took for failures weigh more, see ml/datasets.py --mine)."""
+    train, val, weights = [], [], []
     with open(path, encoding="utf-8") as handle:
         for row in csv.DictReader(handle):
             if os.path.isfile(row["path"]):
-                (val if row["split"] == "val" else train).append((row["path"], int(row["label"])))
-    return train, val
+                if row["split"] == "val":
+                    val.append((row["path"], int(row["label"])))
+                else:
+                    train.append((row["path"], int(row["label"])))
+                    weights.append(float(row.get("weight") or 1))
+    return train, val, weights
 
 
 def recalibrate(model, loader, device, batches=40):
@@ -91,15 +98,45 @@ def recalibrate(model, loader, device, batches=40):
         m.momentum = momentum
 
 
-def scores_of(model, loader, device):
+def logits_of(model, loader, device):
     model.eval()
     out, labels = [], []
     with torch.no_grad():
         for x, y in loader:
             logit, _ = model(x.to(device))
-            out += torch.sigmoid(logit).reshape(-1).tolist()
+            out += logit.reshape(-1).tolist()
             labels += y.reshape(-1).tolist()
     return np.array(out), np.array(labels)
+
+
+def scores_of(model, loader, device):
+    logits, labels = logits_of(model, loader, device)
+    return 1.0 / (1.0 + np.exp(-logits)), labels
+
+
+def fit_temperature(logits, labels):
+    """1.130: the temperature T that makes the scores honest (score = sigmoid(logit / T)): a model that says 70% is right
+    about 7 times in 10. It changes no ranking, only how sure the scores are (Guo et al. 2017, «On Calibration of Modern
+    Neural Networks»). Found on the pictures kept aside, by the least log-loss over a grid."""
+    logits, labels = np.asarray(logits, float), np.asarray(labels, float)
+    best, best_t = None, 1.0
+    for t in np.exp(np.linspace(np.log(0.25), np.log(8.0), 200)):
+        p = np.clip(1.0 / (1.0 + np.exp(-logits / t)), 1e-7, 1 - 1e-7)
+        loss = -np.mean(labels * np.log(p) + (1 - labels) * np.log(1 - p))
+        if best is None or loss < best:
+            best, best_t = loss, float(t)
+    return best_t
+
+
+def calibration_error(scores, labels, bins=10):
+    """How far the scores are from how often they are right (ECE, in points of percent): 0 is honest."""
+    scores, labels = np.asarray(scores, float), np.asarray(labels, float)
+    total = 0.0
+    for low in np.linspace(0, 1, bins, endpoint=False):
+        inside = (scores >= low) & (scores < low + 1.0 / bins)
+        if inside.any():
+            total += inside.mean() * abs(scores[inside].mean() - labels[inside].mean())
+    return round(100 * total, 2)
 
 
 def measure(scores, labels, threshold):
@@ -110,17 +147,22 @@ def measure(scores, labels, threshold):
     precision = tp / (tp + fp) if tp + fp else 1.0
     recall = tp / (tp + fn) if tp + fn else 0.0
     f1 = 2 * precision * recall / (precision + recall) if precision + recall else 0.0
+    fine = int(np.sum(labels == 0))
     return {"threshold": round(float(threshold), 3), "precision": round(precision, 3), "recall": round(recall, 3), "f1": round(f1, 3),
-            "false_alarms": fp, "missed": fn}
+            "false_alarms": fp, "missed": fn, "false_alarm_rate": round(fp / fine, 4) if fine else 0.0}
 
 
 def choose_threshold(scores, labels):
-    """The lowest threshold that keeps the precision at WANTED_PRECISION (the most failures caught with few false
-    alarms); if none does, the one with the best F1."""
+    """The lowest threshold that keeps the precision at WANTED_PRECISION and takes at most WANTED_FALSE_ALARMS of the
+    fine pictures for failures (the most failures caught with few false alarms); if none does, the best F1 among those
+    within the false alarms, else the best F1."""
     grid = [round(t, 2) for t in np.arange(0.3, 0.991, 0.01)]
     rows = [measure(scores, labels, t) for t in grid]
-    good = [r for r in rows if r["precision"] >= WANTED_PRECISION and r["recall"] > 0]
-    return min(good, key=lambda r: r["threshold"]) if good else max(rows, key=lambda r: r["f1"])
+    quiet = [r for r in rows if r["false_alarm_rate"] <= WANTED_FALSE_ALARMS and r["recall"] > 0]
+    good = [r for r in quiet if r["precision"] >= WANTED_PRECISION]
+    if good:
+        return min(good, key=lambda r: r["threshold"])
+    return max(quiet or rows, key=lambda r: r["f1"])
 
 
 def export(model, size, out, info):
@@ -172,7 +214,7 @@ def main(argv=None):
     args = parser.parse_args(argv)
     random.seed(args.seed)
     torch.manual_seed(args.seed)
-    train_rows, val_rows = read_manifest(args.manifest)
+    train_rows, val_rows, row_weights = read_manifest(args.manifest)
     if not train_rows or not val_rows:
         print("The manifest has no pictures for training or for measuring: run ml/datasets.py first.")
         return 1
@@ -191,7 +233,8 @@ def main(argv=None):
     # the two kinds equally often in each batch (there are usually far more fine pictures)
     labels = [l for _, l in train_rows]
     counts = {0: labels.count(0) or 1, 1: labels.count(1) or 1}
-    sampler = WeightedRandomSampler([1.0 / counts[l] for l in labels], num_samples=len(labels), replacement=True)
+    # (1.130: and the fine pictures the previous model took for failures more often: ml/datasets.py --mine)
+    sampler = WeightedRandomSampler([w / counts[l] for l, w in zip(labels, row_weights)], num_samples=len(labels), replacement=True)
     train_loader = DataLoader(Pictures(train_rows, train_tf), batch_size=args.batch, sampler=sampler, num_workers=args.workers)
     val_loader = DataLoader(Pictures(val_rows, val_tf), batch_size=args.batch, num_workers=args.workers)
     calib_loader = DataLoader(Pictures(train_rows, val_tf), batch_size=args.batch, shuffle=True, num_workers=args.workers)
@@ -220,9 +263,22 @@ def main(argv=None):
         if best is None or key > (best["f1"], best["recall"]):
             best, best_state = chosen, {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
     model.load_state_dict(best_state)
+    # 1.130: honest scores. The temperature is put into the last layer (its weights and bias divided by T): the exported
+    # model gives the calibrated score by itself, the Raspberry needs nothing new.
+    logits, val_labels = logits_of(model, val_loader, device)
+    before = calibration_error(1.0 / (1.0 + np.exp(-logits)), val_labels)
+    temperature = fit_temperature(logits, val_labels)
+    with torch.no_grad():
+        model.head.weight.div_(temperature)
+        model.head.bias.div_(temperature)
+    scores, val_labels = scores_of(model, val_loader, device)
+    best = choose_threshold(scores, val_labels)
+    best["calibration_error"] = {"before": before, "after": calibration_error(scores, val_labels), "temperature": round(temperature, 3)}
+    print("calibration: temperature %.2f, error %.1f -> %.1f points; threshold %s" % (temperature, before, best["calibration_error"]["after"], best))
     info = {"format": 1, "version": time.strftime("%Y%m%d-%H%M"), "size": args.size, "mean": MEAN, "std": STD,
             "threshold": best["threshold"], "embedding": model.head.in_features, "network": "mobilenet_v3_small",
-            "trained_on": {"pictures": len(train_rows), "failed": counts[1], "fine": counts[0]}, "measured": best}
+            "trained_on": {"pictures": len(train_rows), "failed": counts[1], "fine": counts[0]}, "measured": best,
+            "temperature": round(temperature, 3)}
     ok = export(model, args.size, args.out, info)
     print("model written to %s: threshold %.2f, %s" % (args.out, best["threshold"], best))
     return 0 if ok else 2
