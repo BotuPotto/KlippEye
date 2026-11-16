@@ -31,6 +31,8 @@ assert info["format"] == 1 and info["size"] == 96 and 0.3 <= info["threshold"] <
 cal = info["measured"]["calibration_error"]
 assert info["temperature"] > 0 and cal["after"] <= cal["before"] + 0.5, cal
 assert "false_alarm_rate" in info["measured"], info["measured"]
+assert info["levels"]["doubt"] < info["levels"]["sure"] == round(info["threshold"] * 100), info["levels"]
+assert train.levels_for(0.86) == {"doubt": 75, "sure": 86} and train.levels_for(0.3) == {"doubt": 20, "sure": 30}
 assert abs(train.fit_temperature([4.0, -4.0, 4.0, -4.0], [1, 0, 0, 1]) - 8.0) < 0.5   # always half wrong: as unsure as can be
 print("calibration:", cal, "threshold", info["threshold"])
 model = local_model.load(out, cv2, np)

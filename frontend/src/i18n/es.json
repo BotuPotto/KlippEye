@@ -2140,6 +2140,8 @@
  "The logs cannot be read now: try again shortly": "Los registros no se pueden leer ahora: inténtalo de nuevo en breve",
  "The logs have their own service and model: the gear of the System logs card.": "Los registros tienen su propio servicio y modelo: el engranaje de la tarjeta Registros del sistema.",
  "The materials offered in the temperature window: a tap sets the nozzle and the bed together. They are a starting point: the temperatures on the label of the spool come first.": "Los materiales que se ofrecen en la ventana de temperatura: un toque ajusta la boquilla y la cama a la vez. Son un punto de partida: primero cuentan las temperaturas de la etiqueta de la bobina.",
+ "The model in use has its own levels, used while these two are at 35% and 80%: in doubt from {doubt}%, sure from {sure}%. Change them here to choose yours.": "El modelo en uso tiene sus propios niveles, usados mientras estos dos sigan en 35 % y 80 %: en duda desde {doubt} %, seguro desde {sure} %. Cámbialos aquí para elegir los tuyos.",
+ "The model in use suggests: in doubt from {doubt}%, sure from {sure}%. Put these two back to 35% and 80% to use its levels.": "El modelo en uso recomienda: en duda desde {doubt} %, seguro desde {sure} %. Vuelve a poner estos dos en 35 % y 80 % para usar sus niveles.",
  "The monitor goes back to working without the calibration. Confirm?": "El monitor vuelve a trabajar sin la calibración. ¿Confirmar?",
  "The monitor is off: it does not watch the camera and does not call the AI.": "El monitor está apagado: no vigila la cámara ni llama a la IA.",
  "The monitor is on: it watches the camera during prints.": "El monitor está encendido: vigila la cámara durante las impresiones.",

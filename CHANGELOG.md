@@ -2,9 +2,15 @@
 
 ## 1.130.0
 
-**The tools that train the local model now aim at a model for every printer, with fewer false alarms on prints going
-well.** This does not change the model in KlippEye yet: it changes how the next one is trained (the Colab notebook does
-all of it).
+**A new local model, for every printer, with far fewer false alarms on prints going well.** It was trained only on
+public pictures: 20 collections, 344 real timelapses of prints going well (the failed ones looked at and left out) and
+4,403 look-alikes of a failure drawn on fine pictures. On 14 judged prints it never saw, the bed area of a close fisheye
+camera: 1.5 false alarms an hour on the prints that went well, against 38 with the previous model, and 3 of the 4 failed
+prints caught. Its scores are calibrated, and it brings its own levels: in doubt from 75%, sure from 86%. They are used
+while «In doubt from» and «Sure from» are left at 35% and 80%; the settings page says so, and «Few false alarms» and
+«Notices more» move from them. The layer each printer learns is computed again by itself for the new model.
+
+**The tools that train it** (the Colab notebook does all of it):
 
 - **Pictures of prints going well, from many printers.** The public collections are almost all failures. Now
   `ml/download.py --bambu` also takes pictures from the Bambu Timelapse Dataset (real prints, CC BY 4.0), leaving out

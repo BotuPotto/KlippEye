@@ -2140,6 +2140,8 @@
  "The logs cannot be read now: try again shortly": "Зараз логи не можна прочитати: спробуйте ще раз найближчим часом",
  "The logs have their own service and model: the gear of the System logs card.": "Логи мають власну службу й модель: шестірня картки «Системні логи».",
  "The materials offered in the temperature window: a tap sets the nozzle and the bed together. They are a starting point: the temperatures on the label of the spool come first.": "Матеріали, що пропонуються у вікні температури: одне натискання задає сопло і стіл разом. Це відправна точка: спершу важать температури на етикетці котушки.",
+ "The model in use has its own levels, used while these two are at 35% and 80%: in doubt from {doubt}%, sure from {sure}%. Change them here to choose yours.": "Модель, що використовується, має власні рівні, вони діють, поки ці два на 35% і 80%: сумнів від {doubt}%, упевненість від {sure}%. Зміни їх тут, щоб вибрати свої.",
+ "The model in use suggests: in doubt from {doubt}%, sure from {sure}%. Put these two back to 35% and 80% to use its levels.": "Модель, що використовується, радить: сумнів від {doubt}%, упевненість від {sure}%. Поверни ці два на 35% і 80%, щоб використовувати її рівні.",
  "The monitor goes back to working without the calibration. Confirm?": "Монітор повернеться до роботи без калібрування. Підтвердити?",
  "The monitor is off: it does not watch the camera and does not call the AI.": "Монітор вимкнено: він не спостерігає камеру й не звертається до ШІ.",
  "The monitor is on: it watches the camera during prints.": "Монітор увімкнено: він спостерігає камеру під час друку.",

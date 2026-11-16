@@ -2140,6 +2140,8 @@
  "The logs cannot be read now: try again shortly": "现在无法读取日志：请稍后再试",
  "The logs have their own service and model: the gear of the System logs card.": "日志有自己的服务和模型：“系统日志”卡片的齿轮。",
  "The materials offered in the temperature window: a tap sets the nozzle and the bed together. They are a starting point: the temperatures on the label of the spool come first.": "温度窗口中提供的材料：点击一次即可同时设置喷嘴和热床。它们只是起点：料盘标签上的温度优先。",
+ "The model in use has its own levels, used while these two are at 35% and 80%: in doubt from {doubt}%, sure from {sure}%. Change them here to choose yours.": "当前模型有自己的级别，只要这两项保持在 35% 和 80% 就会使用它们：{doubt}% 起为存疑，{sure}% 起为确定。在这里修改即可改用你自己的值。",
+ "The model in use suggests: in doubt from {doubt}%, sure from {sure}%. Put these two back to 35% and 80% to use its levels.": "当前模型建议：{doubt}% 起为存疑，{sure}% 起为确定。将这两项恢复为 35% 和 80% 即可使用它的级别。",
  "The monitor goes back to working without the calibration. Confirm?": "监控会恢复为不使用校准的工作方式。确认？",
  "The monitor is off: it does not watch the camera and does not call the AI.": "监控已关闭：不观察摄像头，也不调用 AI。",
  "The monitor is on: it watches the camera during prints.": "监控已开启：在打印过程中观察摄像头。",

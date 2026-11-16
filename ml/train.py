@@ -165,6 +165,12 @@ def choose_threshold(scores, labels):
     return max(quiet or rows, key=lambda r: r["f1"])
 
 
+def levels_for(threshold):
+    """{"doubt", "sure"} in % for a threshold (0..1): sure at the threshold, in doubt 10 points below (on a step of 5)."""
+    sure = max(10, min(99, int(round(threshold * 100))))
+    return {"doubt": max(5, min(sure - 5, 5 * (sure // 5) - 10)), "sure": sure}
+
+
 def export(model, size, out, info):
     os.makedirs(out, exist_ok=True)
     model.eval().cpu()
@@ -278,7 +284,10 @@ def main(argv=None):
     info = {"format": 1, "version": time.strftime("%Y%m%d-%H%M"), "size": args.size, "mean": MEAN, "std": STD,
             "threshold": best["threshold"], "embedding": model.head.in_features, "network": "mobilenet_v3_small",
             "trained_on": {"pictures": len(train_rows), "failed": counts[1], "fine": counts[0]}, "measured": best,
-            "temperature": round(temperature, 3)}
+            "temperature": round(temperature, 3),
+            # 1.130: where the monitor's «in doubt» and «sure» start with this model (KlippEye uses them while the person
+            # has not changed those settings): sure at the threshold, in doubt about 10 points below it
+            "levels": levels_for(best["threshold"])}
     ok = export(model, args.size, args.out, info)
     print("model written to %s: threshold %.2f, %s" % (args.out, best["threshold"], best))
     return 0 if ok else 2
