@@ -336,5 +336,27 @@ cal2._set_markers({"source": "blobs", "points": [list(u_) + [0.6] for u_ in usua
 check("blobs on the bed (0.6 mm): nothing to hit", cal2.homing_risks()[0] == [])
 STATE["homed"] = "xyz"
 
+# 1.132.3: a bed slinger (Z moves the toolhead, Y moves the bed) with the camera on the frame: refused, not rated «good»
+def _taps(still_y, seed, front):
+    rng = np.random.default_rng(seed)
+    pos = np.array([rng.uniform(0, 220), rng.uniform(-350, -150), rng.uniform(80, 350)]) if not front else np.array([110.0, -300.0, 60.0])
+    fwd = (np.array([110.0, 110.0, 0.0]) - pos) / np.linalg.norm(np.array([110.0, 110.0, 0.0]) - pos)
+    right = np.cross(fwd, [0, 0, 1]) / np.linalg.norm(np.cross(fwd, [0, 0, 1]))
+    rot = np.vstack([right, np.cross(fwd, right), fwd])
+    params = np.r_[700, W / 2, H / 2, 0, 0, cm.rotation_to_vector(rot), -rot @ pos]
+    out = []
+    for x in (20, 110, 200):
+        for y in (20, 110, 200):
+            for z in (5, 40):
+                pixel = cm.project_params(params, np.array([[x, 110 if still_y else y, z]], float), "pinhole")[0][0] + rng.normal(0, 1.5, 2)
+                out.append({"frame": [x, y, z], "u": pixel[0] / W, "v": pixel[1] / H})
+    return out
+
+
+_slingers = [cc.bed_moves_in_y(_taps(True, n, False), H / W) for n in range(8)]
+_others = [cc.bed_moves_in_y(_taps(False, n, False), H / W) for n in range(8)] + [cc.bed_moves_in_y(_taps(False, 0, True), H / W)]
+check("1.132.3: a bed slinger with the camera on the frame is recognised (the tip does not move with Y)", all(_slingers), _slingers)
+check("... a gantry moving in Z (or a camera on the bed) is not, even with the camera low in front", not any(_others), _others)
+
 print("\n%d FAIL" % len(FAILS) if FAILS else "\nall passed")
 sys.exit(1 if FAILS else 0)

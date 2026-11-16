@@ -154,6 +154,25 @@ def _gap(a, b, ratio):
     return ((a[0] - b[0]) ** 2 + ((a[1] - b[1]) * ratio) ** 2) ** 0.5
 
 
+STILL_IN_Y = 0.1   # 1.132.3: the tip moves less than this share as much per mm of Y as per mm of X: the bed moves in Y
+
+
+def bed_moves_in_y(points, ratio):
+    """1.132.3: with Z moving the toolhead, does the nozzle tip stay still in the picture when Y changes? Then the bed
+    moves in Y (a bed slinger) and the camera is on the frame: the model would be wrong whatever its rating. points: the
+    draft's {frame: [x, y, z], u, v}; ratio: height / width. A camera on the bed sees the tip move with Y: not this."""
+    def rate(axis, keep):   # the picture's movement per mm along `axis`, between points that differ only in it
+        found = []
+        for i, a in enumerate(points):
+            for b in points[i + 1:]:
+                fa, fb = a["frame"], b["frame"]
+                if all(abs(fa[k] - fb[k]) < 1 for k in keep) and abs(fa[axis] - fb[axis]) >= 20:
+                    found.append(_gap((a["u"], a["v"]), (b["u"], b["v"]), ratio) / abs(fa[axis] - fb[axis]))
+        return sorted(found)[len(found) // 2] if found else None
+    along_y, along_x = rate(1, (0, 2)), rate(0, (1, 2))
+    return along_y is not None and bool(along_x) and along_y < STILL_IN_Y * along_x
+
+
 def targets(z_moves, minimum, maximum, markers=None, method="markers"):
     """The points to take, in order (little travel). Each: id, kind, x, y, z (the machine Z to go to), height (markers).
     Z moves the bed: with method "detail" (1.128) the nozzle tip and a detail of the toolhead at six places, nothing on
@@ -799,6 +818,8 @@ class CameraCalibration:
             raise ValueError("at least 8 points are needed")
         _, image = self._picture()
         height, width = image.shape[:2]
+        if self.z_moves() == "toolhead" and bed_moves_in_y([p for _, p in points], height / float(width)):
+            raise ValueError("the nozzle tip does not move in the picture when Y moves: the bed moves forward and back (a bed slinger) and the camera is on the frame. These printers are not supported yet")
         details = [(pid, p) for pid, p in points if p["kind"] == "detail"]
         if details:   # 1.128: the detail of the toolhead: its offset from the tip is found with the camera
             fixed = [(pid, p) for pid, p in points if p["kind"] != "detail"]

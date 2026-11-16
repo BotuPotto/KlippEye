@@ -1,5 +1,12 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.132.3
+
+- The camera calibration refuses a printer whose bed moves forward and back (a bed slinger) with the camera on the frame,
+  instead of saving a calibration that is wrong whatever its rating (the nozzle tip stays in one place of the picture when
+  Y moves: it is the bed that moves). Simulated: 3 such cameras out of 8 got a «good» calibration before. These printers
+  are not supported yet; a camera on the bed (it moves with it) works as before.
+
 ## 1.132.2
 
 - After the camera is calibrated (or calibrated again, or its calibration deleted), the local model looks at another
