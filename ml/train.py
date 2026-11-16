@@ -136,7 +136,7 @@ def calibration_error(scores, labels, bins=10):
         inside = (scores >= low) & (scores < low + 1.0 / bins)
         if inside.any():
             total += inside.mean() * abs(scores[inside].mean() - labels[inside].mean())
-    return round(100 * total, 2)
+    return round(float(100 * total), 2)
 
 
 def measure(scores, labels, threshold):
