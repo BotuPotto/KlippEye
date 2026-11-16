@@ -5,7 +5,7 @@
 **`klippeye benchmark --models download` works on Debian Bookworm.** The networks it downloads were refused by OpenCV
 4.6, the version on Raspberry Pi OS Bookworm ("ERROR during processing node ... Identity"). They are now exported
 without the nodes that version cannot read, and they are checked with OpenCV 4.6 before being published. Future local
-models get the same treatment.
+models get the same treatment. EfficientNet-Lite0 is no longer among them: OpenCV 4.6 cannot run it.
 
 ## 1.129.0
 
