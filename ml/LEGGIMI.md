@@ -42,7 +42,8 @@ Servono foto di **stampe fallite** e di **stampe andate bene**.
   chiave Roboflow) scarica anche il [Bambu Timelapse Dataset](https://huggingface.co/datasets/v2thegreat/bambu-timelapse-dataset)
   (CC BY 4.0, circa 3 GB) e prende 8 foto da ogni timelapse. Un timelapse la cui ultima foto il modello attuale scambia
   per un errore resta fuori da solo (`doubtful.txt`); altri li escludi scrivendone il nome in
-  `ml/data/bambu-timelapses/failed.txt`, dopo aver guardato `last-pictures/`. `--auto` li legge come stampe buone.
+  `ml/data/bambu-timelapses/failed.txt`, dopo aver guardato `last-pictures/` (`python ml/contact_sheet.py
+  ml/data/bambu-timelapses/last-pictures` le mette su fogli numerati). `--auto` li legge come stampe buone.
 
 **Il modello base, quello che KlippEye dà a tutti, impara solo da foto pubbliche e varie**, mai da quelle di una
 stampante sola: le stampe di ognuno vanno nello strato personale che KlippEye impara sul Raspberry. Le raccolte con una

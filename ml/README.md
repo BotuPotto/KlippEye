@@ -29,7 +29,8 @@ and run its cells from top to bottom (a free Roboflow key is all it needs).
      also downloads the [Bambu Timelapse Dataset](https://huggingface.co/datasets/v2thegreat/bambu-timelapse-dataset)
      (CC BY 4.0, ~3 GB) and takes 8 pictures from each timelapse. A timelapse whose last picture the current model takes
      for a failure is left out by itself (`doubtful.txt`); name more in `ml/data/bambu-timelapses/failed.txt` after
-     looking at `last-pictures/`. `--auto` reads them as fine prints.
+     looking at `last-pictures/` (`python ml/contact_sheet.py ml/data/bambu-timelapses/last-pictures` puts them
+     on numbered sheets). `--auto` reads them as fine prints.
 
    **The base model, the one shipped to everyone, is trained only on public, varied pictures**: never on one printer's.
    Each printer's own prints go to its personal layer, which KlippEye learns on the Raspberry. Collections whose licence
