@@ -5171,6 +5171,8 @@ if __name__ == "__main__":
     threading.Thread(target=_repair_at_startup, name="repair", daemon=True).start()
     threading.Thread(target=_schedule_loop, name="schedule", daemon=True).start()
     threading.Thread(target=refresh_false_alarms, name="false-alarms", daemon=True).start()   # 1.125: a new base model came with an update
+    if local_ai.model is not None and personal.layer and personal.layer.get("version") != local_ai.model.version:
+        train_personal_later("new base model")   # 1.130: what this printer learned, taught again to the new model from its examples
     keep_examples_later()   # 1.125: the examples taught before this release, copied apart once
     _https_apply(_https_settings())  # 1.93: the encrypted entrance, when it was switched on
     _mqtt_apply(_mqtt_settings())  # 1.100: Home Assistant / MQTT, when set up

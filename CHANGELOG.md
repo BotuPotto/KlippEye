@@ -8,7 +8,8 @@ public pictures: 20 collections, 344 real timelapses of prints going well (the f
 camera: 1.5 false alarms an hour on the prints that went well, against 38 with the previous model, and 3 of the 4 failed
 prints caught. Its scores are calibrated, and it brings its own levels: in doubt from 75%, sure from 86%. They are used
 while «In doubt from» and «Sure from» are left at 35% and 80%; the settings page says so, and «Few false alarms» and
-«Notices more» move from them. The layer each printer learns is computed again by itself for the new model.
+«Notices more» move from them. The layer each printer learns is taught again by itself to the new model, from the examples kept on the Raspberry, at
+the first start after the update (before, it waited for the next answer); the false alarms marked by hand are kept too.
 
 **The tools that train it** (the Colab notebook does all of it):
 
