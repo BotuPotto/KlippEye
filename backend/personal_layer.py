@@ -30,6 +30,7 @@ import threading
 import time
 import zipfile
 
+import atomic
 import labelled_prints
 
 FAILED_AFTER = labelled_prints.FAILED_AFTER   # seconds after the person's moment from which the pictures show the failure
@@ -119,11 +120,7 @@ def keep_examples(data_dir, cv2, now=None):
                 pass
         changed = True
     if changed:
-        os.makedirs(folder, exist_ok=True)
-        path = os.path.join(folder, "labels.json")
-        with open(path + ".tmp", "w", encoding="utf-8") as handle:
-            json.dump({"format": 1, "pictures": labels}, handle)
-        os.replace(path + ".tmp", path)
+        atomic.write_text(os.path.join(folder, "labels.json"), json.dumps({"format": 1, "pictures": labels}))
     return len(labels)
 
 
@@ -138,9 +135,8 @@ def forget_kept(data_dir, prefix):
             os.remove(os.path.join(folder, name))
         except OSError:
             pass
-    if gone:
-        with open(os.path.join(folder, "labels.json"), "w", encoding="utf-8") as handle:
-            json.dump({"format": 1, "pictures": labels}, handle)
+    if gone:  # 1.133.1: written whole or not at all (a power cut here lost the labels of every kept example)
+        atomic.write_text(os.path.join(folder, "labels.json"), json.dumps({"format": 1, "pictures": labels}))
     return len(gone)
 
 
@@ -342,10 +338,7 @@ class PersonalLayer:
                 w, b = fit(np, x, y)
                 layer = {"version": model.version, "view": list(self.view) if self.view else None, "w": w.tolist(), "b": float(b), "examples": len(y), "failed": failed, "fine": fine,
                          "weight": weight_for(failed), "trained_at": round(time.time()), "measured": measured}
-                os.makedirs(self.folder, exist_ok=True)
-                with open(os.path.join(self.folder, "layer.json.tmp"), "w", encoding="utf-8") as handle:
-                    json.dump(layer, handle)
-                os.replace(os.path.join(self.folder, "layer.json.tmp"), os.path.join(self.folder, "layer.json"))
+                atomic.write_text(os.path.join(self.folder, "layer.json"), json.dumps(layer))
                 layer["w"] = w
                 self.layer = layer
                 self.last_error = ""
@@ -441,8 +434,7 @@ class PersonalLayer:
         if not kept:
             shutil.rmtree(folder, ignore_errors=True)
             raise ValueError("the file has no pictures")
-        with open(os.path.join(folder, "labels.json"), "w", encoding="utf-8") as handle:
-            json.dump({"format": 1, "printer": labels.get("printer") or origin, "pictures": kept}, handle)
+        atomic.write_text(os.path.join(folder, "labels.json"), json.dumps({"format": 1, "printer": labels.get("printer") or origin, "pictures": kept}))
         return len(kept)
 
     def forget_imported(self):

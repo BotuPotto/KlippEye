@@ -18,7 +18,7 @@
   transition: color var(--oui-dur-base) var(--oui-ease);
 }
 .zoffset-readout__value.is-set { color: var(--oui-text); }
-.zoffset-readout__unit { font-size: 18px; font-weight: 600; letter-spacing: 0; color: var(--oui-text-3); }
+.zoffset-readout__unit { font-size: 17px; font-weight: 600; letter-spacing: 0; color: var(--oui-text-3); }
 .zoffset-readout .oui-caption { margin-top: 4px; }
 
 .zoffset-steps { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 8px; margin-bottom: 12px; } /* one to four step sizes (settings menu), sharing the width */

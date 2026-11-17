@@ -5,7 +5,7 @@
    cards over a pale grey, dark text, deeper status colours (they must read on
    white). The accent is worked out by accentTokens() for the light page.
    The code wells (editor, G-code viewer, AI code blocks) and the camera stay
-   dark: they are drawn with the dark tokens (.oui-dark-island below).
+   dark: they are drawn with the dark tokens (the rule below).
    ========================================================================== */
 
 html[data-mode="light"] {
@@ -65,8 +65,7 @@ html[data-mode="light"] .editor-body,
 html[data-mode="light"] .ai-codeblock,
 html[data-mode="light"] .gcode-stage,
 html[data-mode="light"] .camera-full,
-html[data-mode="light"] .photo-viewer,
-html[data-mode="light"] .oui-dark-island {
+html[data-mode="light"] .photo-viewer {
   color-scheme: dark;
   --oui-ink-rgb: 255, 255, 255;
   --oui-surface: rgba(255, 255, 255, 0.058);

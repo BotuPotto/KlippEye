@@ -18,7 +18,7 @@ A dashboard and AI print monitor for **Klipper** printers, made to run on the pr
 | Part | Where | What it does |
 |---|---|---|
 | Backend | `backend/klippeye_backend.py` (+ modules in `backend/`) | Flask app served by waitress on **port 8085** (`SERVER_THREADS = 12`). Serves the dashboard, proxies Moonraker's API (`proxy_moonraker`), the camera, the AI monitor, settings, access control (`access.py`), recordings, print reviews, MQTT (`mqtt_bridge.py`), HTTPS relay (`https_relay.py`), printer functions/macros (`printer_macros.py`), the AI services (`ai_services.py`). |
-| Web front | `scripts/web_front.py` | Optional nginx site that puts KlippEye on **port 80** (`klippeye web main`); `/websocket` and the file uploads go straight to Moonraker; `restore` gives port 80 back. |
+| Web front | `scripts/web_front.py` | Optional nginx site that puts KlippEye on **port 80** (`klippeye web main`); `/websocket` and the file uploads go straight to Moonraker after nginx asks KlippEye (`auth_request` to `/api/auth/check`, 1.133.1: password and guests); `restore` gives port 80 back. |
 | Notifier | `notifier/klippeye_notifier.py` | Separate systemd service, standard library only. Reads Moonraker and the backend; sends notifications (ntfy, and Firebase for the app); the **automatic pause / cancel** on AI verdicts, only when the owner switched them on (N verdicts in a row, defect filters, once per print). Reads the dashboard's settings from Moonraker's database (namespace `klippeye`). |
 | Dashboard | `frontend/src/` → `frontend/klippeye_frontend.html` | One self-contained HTML page (React 18 without JSX, `h()` = `React.createElement`), built by `python3 frontend/build.py` (no npm, no network). Phone layout below 1100 px, desktop layout from 1100 px. |
 | Android app | `android/` | A full-screen WebView on the dashboard with push notifications, downloads, addresses (home / VPN), HTTPS pinning, in-app updates. Own version in `android/VERSION`; GitHub builds and publishes the APK into `apk/` (never by hand). |
@@ -66,6 +66,7 @@ Home Assistant / MQTT, updates, guided set-up. A help button (`HelpButton`) next
 | `notify_channels.py` | the notification channels (ntfy topic, …) |
 | `mqtt_bridge.py`, `mqtt_client.py` | Home Assistant / MQTT (standard-library client) |
 | `https_relay.py` | the optional HTTPS entrance |
+| `atomic.py` | the one safe way to write a file (1.133.1) |
 
 **Rules written twice (change both)**:
 - `backend/printer_lights.py` ↔ `frontend/src/app/13-capabilities.js` (`deriveParts`);
@@ -182,6 +183,10 @@ warm-up seconds, minimum progress, hotend at temperature), one check every `chec
    tests of the area (`tests/backend/test_personal_layer.py`, `test_calibration_auto.py`, `test_ai_services.py`,
    `test_bed_and_shift.py`, `ml/tests/test_tools.py`, `ml/tests/smoke_train.py` needs torch); everything but the
    browser: `bash tests/run_all.sh --no-ui`. Changes to `scripts/`, `systemd/` or updates need `tests/e2e/`.
+   Cloud sessions: use the personal environment «KlippEye» (17 Nov); its setup script installs OpenCV, Flask, Pillow
+   and `playwright==1.63.0` (the version of the Chromium in `/opt/pw-browsers`). Run the browser tests with
+   `PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers bash tests/ui/run_all.sh`. `settings_test` «a stream that does not
+   come» fails in the container on main too (the stream address does not answer the same way there); CI passes it.
 6. If a page shown in the guides changed, retake the pictures (`tests/ui/docs_screenshots.py`).
 7. Push, open the PR (what and why, how it was measured, the tests; `/humanizer`), watch CI until green, merge.
 
@@ -190,7 +195,8 @@ warm-up seconds, minimum progress, hotend at temperature), one check every `chec
 - Python: standard library first; `numpy`/`cv2` passed in or imported guarded (`HAS_CV2`): the backend starts without
   them. Comments and docstrings in plain English say **why**; a behaviour added in a release is marked with it
   (`# 1.130: …`). Optional helpers fail soft (`except Exception: # a help only`), never in the way of the monitor.
-  Writes are atomic (`write_json_atomic`, tmp + `os.replace`), private files mode 600.
+  Writes are atomic: `atomic.write_text` (`backend/atomic.py`: own temp name, fsync, `os.replace`; `write_json_atomic` uses
+  it), private files mode 600. Never a plain `open(path, "w")` on a file that holds settings or labels.
 - `CONFIG_SPEC` in the backend is read as plain data by the tests' mock server (`ast.literal_eval`): literals only.
 - Dashboard JS stays within **ES2020** (Android WebView). Texts in `tx()`; same English word, two meanings: `txc()`.
 - ruff settings in `pyproject.toml`.
@@ -211,14 +217,17 @@ keeps it readable).
   | danger | red (`oui-btn--danger`, `--oui-danger-soft`, `oui-tile--danger`) |
   | status | `--oui-ok` / `--oui-warn` / `--oui-danger`; heat `--oui-heat`, cool `--oui-cool` |
 - **Surfaces**: translucent «glass» (white at low alpha) over a dark backdrop with pools of the logo's dark violet;
-  thin outlines (`--oui-stroke`); cards 28 px radius, tiles 22 px, fields 16 px, rows 8 px, buttons are pills.
+  thin outlines (`--oui-stroke`); radii (1.133): cards 28 px, tiles 22 px, fields 16 px, small boxes 12 px, rows 8 px,
+  bars and chart marks 3 px, buttons are pills; no other value (the previews of the other looks in Appearance excepted).
   Floating bars (top bar, the floating tab bar) carry the only soft shadow; layers (dialogs, sheets, menus) use blur +
   dim and **no** shadow. Wells (`oui-well`: console, camera, code, previews) are inset and dark on both themes.
 - **Colours**: accent `#b79cff` (light violet of the logo), backdrop violet `#7a5cff`. **Never write a colour by hand**:
   use `--oui-*` variables (only the editor's syntax colours are exceptions). Text contrast ≥ 4.5:1 (`--oui-text-3`
   was raised for this).
 - **Type**: system font; the wordmark only in Outfit («Klipp» text colour, «Eye» accent); monospace only for console,
-  logs, code and technical values; numbers `tabular-nums`; no ALL-CAPS labels; text never under 12 px.
+  logs, code and technical values; numbers `tabular-nums`; no ALL-CAPS labels; text never under 12 px
+  (`a11y_test.py` checks every page and menu page). Sizes (1.133): 12, 13, 14, 15, 17, 20, 24, 28, 34, 48 px only;
+  form fields stay 16 px (iOS zooms on a smaller one). Still to do: 9 `text-transform: uppercase` labels in the CSS.
 - **Components** (use them, do not invent classes): `Card` (with `cardId` it can fold to its header), `CardHeader`,
   `SectionTitle`, `PageTitle`, `ConfirmDialog`, `Presence`, `Collapse`, `HelpButton`, `Icons.*` (stroke SVG icons)
   in `src/app/20-ui-primitives.js` / `22-motion.js`; CSS components in `15-surfaces.css`, `16-controls.css`:
@@ -290,6 +299,9 @@ keeps it readable).
   (pasted pieces must not look fake) → ship only if better (new `models/base/*`, `CREDITS.md`, measurements in
   `models/base/README.md`, CHANGELOG). Few pasted pictures → raise `--paste`. Distillation only if not enough.
 
+- Known limit (audit 17 Nov): `ml/train.py` picks the epoch, the temperature and the threshold on the same pictures
+  kept aside, and writes its «measured» from them too: optimistic. Only `ml/evaluate.py` on the owner's prints decides.
+
 ### Camera calibration: bed slingers (remind the owner now and then)
 - 1.132.3 refuses bed slingers with the camera on the frame (`bed_moves_in_y`); a camera on the bed works.
 - **Plan**: (1) option «the bed moves in Y»; (2) second set of points = a fixed detail **on the bed** (clip, corner,
@@ -308,5 +320,13 @@ keeps it readable).
 - Not checked yet: the purge comparison when the bed moves in Z between heating and the start (the 12% cap should
   switch it off; not simulated).
 
+### Dashboard look
+- 17 Nov: analysis and demos (phone and computer) of an optimised look in claude.ai artifacts; the owner likes the
+  current style and wants it refined, not replaced. 1.133.0 (#171) did: type scale, radii, «Nozzle» / «Bed» on the
+  heater tiles, «See the layers» and «More details» as light buttons under Pause / Cancel (one `MoreDetailsButton`).
+- Proposed, not done (waits for the owner): AI state and score strip under the camera on Home, the print card's two
+  big figures (ends at, remaining), temperatures folded during a print, 44 px hit areas (fold chevrons 36, fan −/+ 36,
+  file actions 28, AI badge 48×28), uppercase labels, the remaining hand-written colours (293 outside the tokens).
+
 ### Open PRs
-#168 → #170 (stacked) and #169 (this file), merged in this order once green. Update this line when merged.
+#171 (1.133.0, dashboard type scale and radii), merged once green. Update this line when merged.

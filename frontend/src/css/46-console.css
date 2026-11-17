@@ -9,16 +9,16 @@
   overflow: auto;
   border-radius: var(--oui-r-tile);
   font-family: var(--oui-font-mono);
-  font-size: 12.5px;
+  font-size: 13px;
   line-height: 22px;
 }
-.log-line { display: flex; gap: 12px; padding: 0 4px; border-radius: 6px; }
+.log-line { display: flex; gap: 12px; padding: 0 4px; border-radius: 8px; }
 .log-line--pick { cursor: pointer; }
 .log-line--pick:hover { background: var(--oui-surface-2); }
 .log-time { flex-shrink: 0; color: var(--oui-text-3); }
 .log-msg { min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 .console-well { overflow-anchor: none; } /* the line at the top is held by the console itself (1.69) */
-.log-cmd { color: var(--oui-accent-text); font-weight: 600; text-decoration: underline; text-decoration-color: color-mix(in srgb, currentColor 40%, transparent); text-underline-offset: 2px; cursor: pointer; border-radius: 4px; }
+.log-cmd { color: var(--oui-accent-text); font-weight: 600; text-decoration: underline; text-decoration-color: color-mix(in srgb, currentColor 40%, transparent); text-underline-offset: 2px; cursor: pointer; border-radius: 3px; }
 .log-cmd:hover, .log-cmd:focus-visible { background: var(--oui-accent-soft); outline: none; }
 .log-link { color: var(--oui-accent-text); text-decoration: underline; }
 .log-code { font-family: inherit; color: var(--oui-text); }
@@ -54,7 +54,7 @@
   background: var(--oui-bg);
 }
 .console-full__head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.console-full__title { display: flex; align-items: center; gap: 10px; font-size: 18px; font-weight: 700; color: var(--oui-text); }
+.console-full__title { display: flex; align-items: center; gap: 10px; font-size: 17px; font-weight: 700; color: var(--oui-text); }
 .console-full__log { flex: 1; min-height: 0; height: auto; }
 .console-full__input { display: flex; gap: 12px; }
 /* the options menu above the full-screen console */
@@ -79,7 +79,7 @@
   background: var(--oui-glass-solid);
   box-shadow: var(--oui-shadow-float);
 }
-.console-suggest__item { display: flex; flex-direction: column; align-items: flex-start; flex-shrink: 0; gap: 2px; min-height: 44px; padding: 8px 10px; border-radius: 10px; text-align: left; }
+.console-suggest__item { display: flex; flex-direction: column; align-items: flex-start; flex-shrink: 0; gap: 2px; min-height: 44px; padding: 8px 10px; border-radius: 12px; text-align: left; }
 .console-suggest__item:hover, .console-suggest__item:focus-visible { background: var(--oui-surface-2); outline: none; }
 .console-suggest__name { font-family: var(--oui-font-mono); font-size: 13px; font-weight: 600; color: var(--oui-accent-text); }
 .console-suggest__help { font-size: 12px; line-height: 1.35; color: var(--oui-text-3); overflow-wrap: anywhere; }
@@ -91,5 +91,5 @@
 .console-filters__add { display: flex; gap: 8px; }
 .console-filters__add input { flex: 1; min-width: 0; }
 .console-filters__list { display: flex; flex-direction: column; gap: 6px; max-height: 40vh; overflow-y: auto; }
-.console-filters__row { display: flex; align-items: center; gap: 8px; padding: 6px 6px 6px 12px; border-radius: 10px; background: var(--oui-surface-2); }
+.console-filters__row { display: flex; align-items: center; gap: 8px; padding: 6px 6px 6px 12px; border-radius: 12px; background: var(--oui-surface-2); }
 .console-filters__row code { flex: 1; min-width: 0; font-size: 13px; overflow-wrap: anywhere; }

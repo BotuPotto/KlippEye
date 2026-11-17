@@ -23,6 +23,7 @@ import os
 import threading
 import time
 
+import atomic
 import camera_markers
 import camera_model
 import camera_watch
@@ -104,10 +105,7 @@ class NotReady(Exception):
 
 
 def _write_json(path, data):
-    tmp = path + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=1)
-    os.replace(tmp, path)
+    atomic.write_text(path, json.dumps(data, ensure_ascii=False, indent=1))
 
 
 def _read_json(path):

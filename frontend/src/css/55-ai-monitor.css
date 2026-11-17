@@ -24,7 +24,7 @@
 .ai-dot--pulse { animation: oui-pulse 1.4s ease-in-out infinite; }
 .monitor-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-bottom: 14px; }
 .monitor-tile { padding: 12px; min-width: 0; }
-.ai-metric { margin-top: 4px; font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; overflow-wrap: break-word; }
+.ai-metric { margin-top: 4px; font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; overflow-wrap: break-word; }
 
 .ai-alert { box-sizing: border-box; max-width: 100%; margin-bottom: 14px; padding: 14px 16px; border-radius: var(--oui-r-field); overflow-wrap: break-word; }
 .ai-alert--warn { background: var(--oui-warn-soft); }
@@ -55,7 +55,7 @@ button.ai-header-badge { cursor: pointer; font: inherit; color: inherit; }
 .ai-question__done { margin: 0; font-size: 13px; color: var(--oui-text-2); }
 
 /* a picture that opens in the photo viewer */
-.zoom-photo { position: relative; display: block; padding: 0; border: 0; border-radius: 10px; overflow: hidden; background: #000; cursor: zoom-in; }
+.zoom-photo { position: relative; display: block; padding: 0; border: 0; border-radius: 12px; overflow: hidden; background: #000; cursor: zoom-in; }
 .zoom-photo img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .zoom-photo__hint { position: absolute; right: 4px; bottom: 4px; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: rgba(0, 0, 0, 0.55); color: #fff; }
 /* 1.67: the picture over the whole screen, like the camera's full screen */

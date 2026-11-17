@@ -736,13 +736,13 @@ sbp = b_ai.started_by_progress
 check("1.102: with the slicer's M73 its figure decides (0% while the file is at 1.5%: not started yet); without, the file as before",
       not sbp(0.0, 0.015, 2) and sbp(0.02, 0.03, 2) and sbp(0.012, 0.012, 2) and not sbp(0.005, 0.005, 2) and sbp(0.0, 0.0, 0))
 _empty = {"empty_bed": {"detected": True, "confidence": 95}, "spaghetti": {"detected": False, "confidence": 0}, "action": "CANCEL", "summary": "bed empty"}
-v, changed = b_ai.distrust_low_empty_bed(_empty, 0.2, 70, "it")
+v, changed = b_ai.distrust_empty_bed(_empty, 70, "it", z=0.2)
 check("1.102: «empty bed» on a print 0.2 mm high: not trusted, CANCEL becomes CONTINUE (the original kept), the reason in the language",
       changed and v["action"] == "CONTINUE" and v["original_action"] == "CANCEL" and v["empty_bed"]["detected"] is False and "2 mm" in v["summary"] and "piatto vuoto" in v["summary"], v)
 check("... 5 mm high, or the height unknown: as the AI said",
-      b_ai.distrust_low_empty_bed(_empty, 5.0, 70)[0]["action"] == "CANCEL" and b_ai.distrust_low_empty_bed(_empty, None, 70)[0]["action"] == "CANCEL")
+      b_ai.distrust_empty_bed(_empty, 70, z=5.0)[0]["action"] == "CANCEL" and b_ai.distrust_empty_bed(_empty, 70, z=None)[0]["action"] == "CANCEL")
 _both = dict(_empty, spaghetti={"detected": True, "confidence": 90})
-check("... spaghetti seen too on the flat print: the stop stays", b_ai.distrust_low_empty_bed(_both, 0.2, 70)[0]["action"] == "CANCEL")
+check("... spaghetti seen too on the flat print: the stop stays", b_ai.distrust_empty_bed(_both, 70, z=0.2)[0]["action"] == "CANCEL")
 print("== 1.121: «empty bed» needs the earlier picture, a part big enough and a sure AI")
 de = b_ai.distrust_empty_bed
 v, changed = de(_empty, 70, "it", z=8.0, with_reference=False, side=60)
@@ -1204,6 +1204,13 @@ check("... camera, Moonraker, file e log chiusi (401)", set(blocked.values()) ==
 check("... anche i comandi: /api/gcode e /api/update/channel", cb.post("/api/gcode", json={"script": "M112"}).status_code == 401 and cb.post("/api/update/channel", json={"channel": "dev"}).status_code == 401)
 check("... restano aperti: stato dell'accesso e aggiornamento dell'app", cb.get("/api/auth/status").status_code == 200 and cb.get("/api/app/version").status_code == 200)
 check("... lo stato dice: attiva, non sei dentro", cb.get("/api/auth/status").get_json()["enabled"] is True and cb.get("/api/auth/status").get_json()["logged_in"] is False)
+check("1.133.1: /api/auth/check (nginx asks it before Moonraker's WebSocket and uploads on port 80): 401 without logging in, 204 logged in",
+      cb.get("/api/auth/check").status_code == 401 and ca.get("/api/auth/check").status_code == 204)
+ca.post("/api/auth/guest", json={"current": "segreta123", "new": "guarda1234"})
+cg = ba.app.test_client()
+cg.post("/api/auth/login", json={"password": "guarda1234"})
+check("... a guest: 403 (looks, never commands: no WebSocket, no uploads)", cg.get("/api/version").status_code == 200 and cg.get("/api/auth/check").status_code == 403)
+ca.post("/api/auth/guest/remove", json={"current": "segreta123"})
 
 r = cb.post("/api/auth/login", json={"password": "sbagliata"})
 check("password sbagliata: 401 'password'", r.status_code == 401 and r.get_json()["error"] == "password")
@@ -1230,7 +1237,7 @@ check("i servizi del Raspberry (notifiche) passano col gettone interno", ba.app.
 check("... un gettone interno sbagliato no", ba.app.test_client().get("/api/version", headers={"X-KlippEye-Token": "a" * 64}).status_code == 401)
 check("un cookie falsificato non vale", ba.app.test_client().get("/api/version", headers={"Cookie": "klippeye_session=eyJ2IjoxLCJleHAiOjk5OTk5OTk5OTksImdlbiI6OTl9.firmafalsa"}).status_code == 401)
 _s = ba.ACCESS.load()
-check("un gettone scaduto non vale", not ba.access.token_valid(_s, ba.access.make_token(_s, now=time.time() - 200 * 86400)) and ba.access.token_valid(_s, ba.access.make_token(_s)))
+check("un gettone scaduto non vale", ba.access.token_role(_s, ba.access.make_token(_s, now=time.time() - 200 * 86400)) is None and ba.access.token_role(_s, ba.access.make_token(_s)) == "admin")
 
 r = ca.post("/api/auth/password", json={"current": "sbagliata", "new": "nuova4567"})
 check("cambiare la password vuole quella attuale", r.status_code == 401)
@@ -2452,7 +2459,7 @@ check("1.82: no guest without the main password", _acc.verify_guest_password(_ac
 _st = _acc.set_guest_password(_acc.set_password(_st, "segreta123"), "guarda123")
 check("1.82: the guest password opens as guest, the main one as admin", _acc.verify_guest_password(_st, "guarda123") and not _acc.verify_guest_password(_st, "segreta123") and _acc.verify_password(_st, "segreta123") and not _acc.verify_password(_st, "guarda123"))
 _tg, _ta = _acc.make_token(_st, role="guest"), _acc.make_token(_st)
-check("1.82: token roles", _acc.token_role(_st, _tg) == "guest" and _acc.token_role(_st, _ta) == "admin" and _acc.token_valid(_st, _tg))
+check("1.82: token roles", _acc.token_role(_st, _tg) == "guest" and _acc.token_role(_st, _ta) == "admin")
 _st2 = _acc.set_guest_password(dict(_st), "altra1234")
 check("1.82: a new guest password logs the guests out, not the admins", _acc.token_role(_st2, _tg) is None and _acc.token_role(_st2, _ta) == "admin")
 check("1.82: removing the main password removes the guests too", _acc.clear_password(dict(_st))["guest_enabled"] is False)
@@ -2628,6 +2635,8 @@ check("1.94: «main»: the page on port 80 moved to the next free port (81 is ta
 check("1.94: KlippEye's site: the camera as the previous page had it, Moonraker's WebSocket and uploads straight to Moonraker, the rest to the service",
       "proxy_pass http://mjpgstreamer1/;" in _ks and "location /websocket" in _ks and "location = /server/files/upload" in _ks and "location /api/files/" in _ks
       and "proxy_pass http://127.0.0.1:8085;" in _ks and "X-Forwarded-Proto $scheme" in _ks and "listen 443" not in _ks)
+check("1.133.1: ... nginx asks KlippEye before the WebSocket and the two upload paths (password, guests)",
+      _ks.count("auth_request /_klippeye_auth;") == 3 and "location = /_klippeye_auth" in _ks and "proxy_pass http://127.0.0.1:8085/api/auth/check;" in _ks, _ks[:600])
 _r2 = _web("main", "--https", os.path.join(_ng, "c.pem"), os.path.join(_ng, "k.pem")) if not _nginx else None
 if _nginx:  # the real nginx checks the certificate files: a real one
     _hc_cert, _hc_key = _hr.ensure_certificate(os.path.join(_ng, "cert"), names=["printer"], addresses=[])
@@ -2663,6 +2672,21 @@ _wc.get("/api/job")
 _wc.get("/api/printer", headers={"X-Api-Key": "abc"})
 check("1.94: OctoPrint's upload, job and printer questions go to Moonraker", _seen == ["api/files/local", "api/job", "api/printer"], _seen)
 _wb.proxy_moonraker = _orig_proxy
+# 1.133.1: an upload through the service goes on to Moonraker as it is read (a big G-code never whole in memory)
+_sent = {}
+_orig_request = _wb.requests.request
+def _capture(method, url, data=None, headers=None, **kw):
+    sent = _wb.requests.Request(method, url, data=data, headers=headers).prepare()  # the headers requests really sends
+    _sent.update(url=url, streamed=hasattr(data, "read"), length=sent.headers.get("Content-Length"), chunked="Transfer-Encoding" in sent.headers,
+                 timeout=kw.get("timeout"), body=data.read() if hasattr(data, "read") else data)
+    raise _wb.requests.RequestException("captured")
+_wb.requests.request = _capture
+_wc.post("/server/files/upload", data=b"G1 X1\n" * 1000, content_type="application/octet-stream")
+check("1.133.1: an upload goes on to Moonraker as a stream, with its length (not chunked too) and the long wait", _sent.get("streamed") is True and _sent.get("length") == "6000" and _sent.get("chunked") is False
+      and _sent.get("body") == b"G1 X1\n" * 1000 and _sent.get("timeout") == (5, 600), {k: v for k, v in _sent.items() if k != "body"})
+_wc.get("/server/info")
+check("... a question without a body is sent as before", _sent.get("streamed") is False and _sent.get("body") == b"", {k: v for k, v in _sent.items() if k != "body"})
+_wb.requests.request = _orig_request
 
 # 1.100.1 review: the logs read from their end (a log of hundreds of MB no longer read whole); /api/gcode's three ways
 _lf = os.path.join(tmp(), "klippy.log")
@@ -3097,6 +3121,17 @@ _det.boost = True
 _boosted = _det.limits()
 _det.boost = False
 check("... the threshold at 60% and one suspicious check fewer (never below one)", _boosted == (1.5, 2) and _det.limits() == (2.5, 3), _boosted)
+# 1.133.1: with the part hidden by the toolhead, a change outside it above the threshold in use (lowered by the doubt) counts
+import monitor_core as _mcz
+_jz = _mcz.FrameJudge()
+_jz.verbose, _jz.persist_checks, _jz.boost = False, 1, True
+_th = _np.zeros((360, 540), _np.uint8)
+_th[0:60, 0:65] = 255  # 2.0% of the bed changed, outside the part: above 1.5 (boosted), below 2.5
+_part = _np.zeros((360, 540), _np.uint8)
+_part[200:260, 200:260] = 255
+_keep = 255 - _part  # the toolhead hides the whole part
+_zs = _jz._zone_score(_th, _keep, (_np.full((360, 540), 255, _np.uint8), _np.zeros((360, 540), _np.uint8), _part))
+check("1.133.1: part hidden, the local model in doubt: 2% outside the part counts (the lowered threshold), not «no answer»", _zs is not None and abs(_zs - 2.006) < 0.01, _zs)
 _det.stats["peak_score"] = 7.5
 _det.in_print = False
 _det._follow_print("printing")

@@ -31,7 +31,7 @@
   background: var(--oui-inset);
   border-radius: var(--oui-r-field);
   font-family: var(--oui-font-mono);
-  font-size: 12.5px;
+  font-size: 13px;
   line-height: 1.5;
   color: var(--oui-text);
   white-space: pre-wrap;
@@ -68,7 +68,7 @@
 .klipper-state__line {
   overflow: hidden;
   font-family: var(--oui-font-mono);
-  font-size: 12.5px;
+  font-size: 13px;
   line-height: 1.5;
   color: var(--oui-text-2);
   text-overflow: ellipsis;

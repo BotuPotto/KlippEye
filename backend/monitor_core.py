@@ -433,7 +433,7 @@ class FrameJudge:
             return 0.0
         self._note_change(persistent, (0, 0), self._now)
         score = cv2.countNonZero(cv2.bitwise_and(persistent, area)) * 100.0 / total
-        if hidden_part and score <= self.score_threshold:
+        if hidden_part and score <= self.limits()[0]:  # 1.133.1: the threshold in use (lower while the local model doubts)
             return None  # neither a yes nor a no: an alarm building up on the part is not lowered by it
         if inside is not None:
             part = cv2.countNonZero(cv2.bitwise_and(persistent, inside)) * 100.0 / cv2.countNonZero(inside)

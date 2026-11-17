@@ -32,7 +32,6 @@ import shutil
 import socket
 import subprocess
 import sys
-import tempfile
 import threading
 import time
 import traceback
@@ -144,23 +143,7 @@ MONITOR_CONFIG_PATH = os.path.join(DATA_DIR, "monitor.json")   # the AI monitor 
 
 def write_json_atomic(path, data, private=False):
     """Writes a temporary file and swaps it in: a power cut never leaves half a file."""
-    folder = os.path.dirname(path)
-    os.makedirs(folder, exist_ok=True)
-    fd, tmp = tempfile.mkstemp(prefix=".tmp-", suffix=".json", dir=folder)
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2, ensure_ascii=False, sort_keys=True)
-            f.write("\n")
-            f.flush()
-            os.fsync(f.fileno())
-        os.chmod(tmp, 0o600 if private else 0o644)
-        os.replace(tmp, path)
-    except BaseException:
-        try:
-            os.unlink(tmp)
-        except OSError:
-            pass
-        raise
+    atomic.write_text(path, json.dumps(data, indent=2, ensure_ascii=False, sort_keys=True) + "\n", private)
 
 
 # === ACCESS (1.2.0): optional password, network checks, permissions of the secrets ===================================
@@ -173,6 +156,7 @@ def write_json_atomic(path, data, private=False):
 # With the password on, a request also needs the session cookie or the internal token of the services on the Raspberry.
 sys.path.insert(0, BACKEND_DIR)
 import access  # noqa: E402
+import atomic  # noqa: E402  (1.133.1: the one safe way to write a file)
 
 ACCESS = access.Store(DATA_DIR)
 ACCESS_THROTTLE = access.Throttle()
@@ -666,6 +650,12 @@ def access_remove_guest():
     return jsonify({"ok": True, "guest_enabled": False})
 
 
+@app.route("/api/auth/check", methods=["GET"])
+def access_check():
+    """1.133.1: nginx asks here before sending a request on to Moonraker (scripts/web_front.py): _access_guard decides."""
+    return "", 204
+
+
 @app.route("/api/auth/logout_all", methods=["POST"])
 def access_logout_all():
     settings = _access_settings()
@@ -1112,7 +1102,7 @@ def moonraker_status(query, timeout=3):
 
 
 # The operations Moonraker answers only when the work is done (updates, service restarts): 10 seconds are not enough.
-LONG_MOONRAKER_PATHS = ("machine/update/", "machine/services/")
+LONG_MOONRAKER_PATHS = ("machine/update/", "machine/services/", "server/files/upload", "api/files")  # 1.133.1: big uploads
 # Headers that describe one connection, not the content: never copied from one side of a proxy to the other (RFC 9110).
 HOP_BY_HOP = {"connection", "keep-alive", "proxy-authenticate", "proxy-authorization", "te", "trailer", "transfer-encoding", "upgrade"}
 PROXY_REQUEST_SKIP = HOP_BY_HOP | {"host", "content-length", "x-api-key", "cookie", access.HEADER_INTERNAL.lower()}
@@ -1130,6 +1120,20 @@ def relay(upstream):
     return response
 
 
+class SizedBody:
+    """A request body read as it goes, with its length known: requests then sends Content-Length and no chunked
+    encoding (a file-like object without a length got both, and Moonraker waited for a body that never ended)."""
+
+    def __init__(self, stream, length):
+        self.stream, self.length = stream, length
+
+    def __len__(self):
+        return self.length
+
+    def read(self, size=-1):
+        return self.stream.read(size)
+
+
 def proxy_moonraker(path):
     """The request, as it is, to Moonraker. Our own session cookie and internal token are not passed on."""
     url = "%s/%s" % (MOONRAKER_URL, path)
@@ -1137,8 +1141,12 @@ def proxy_moonraker(path):
         url += "?" + request.query_string.decode()
     headers = {name: value for name, value in request.headers if name.lower() not in PROXY_REQUEST_SKIP}
     wait = (5, 600) if path.startswith(LONG_MOONRAKER_PATHS) else 10
+    if request.content_length:  # 1.133.1: a G-code of hundreds of MB goes on as it is read, never whole in memory
+        body = SizedBody(request.stream, request.content_length)
+    else:
+        body = request.get_data()  # no body, or one without a length (chunked): small
     try:
-        return relay(requests.request(request.method, url, data=request.get_data(), headers=headers, timeout=wait, stream=True))
+        return relay(requests.request(request.method, url, data=body, headers=headers, timeout=wait, stream=True))
     except requests.RequestException as error:
         return jsonify({"error": str(error)}), 502
 
@@ -1867,14 +1875,6 @@ def distrust_empty_bed(parsed, minimum, language="en", z=None, with_reference=Tr
     return out, True
 
 
-def distrust_low_empty_bed(parsed, z, minimum, language="en"):
-    """The 1.102 rule alone (the height): kept for the callers that know nothing else."""
-    if z is None or z >= EMPTY_BED_MIN_Z:
-        return parsed, False
-    out, changed = distrust_empty_bed(parsed, minimum, language, z=z)
-    return out, changed and out.get("action") != parsed.get("action")
-
-
 def part_hint(objects, z, picture_places=None):
     """One line for the AI about the part (1.121): how many objects, how big, how tall now, and where they are in the
     picture when the camera is calibrated. Without it the AI judged «empty bed» without knowing what to look for."""
@@ -1960,9 +1960,7 @@ def record_alert(event, image_path=None, reference_path=None):
                 pass
             lines.append(json.dumps(event, ensure_ascii=False))
             lines = lines[-ALERT_HISTORY_KEEP:]
-            with open(log + ".tmp", "w", encoding="utf-8") as fh:
-                fh.write("\n".join(lines) + "\n")
-            os.replace(log + ".tmp", log)
+            atomic.write_text(log, "\n".join(lines) + "\n")
             keep = set()
             for line in lines:
                 try:
@@ -2083,9 +2081,6 @@ def real_print_check(status, min_progress, hotend_tol, warmup):
 
 
 AI_DEFECT_KEYS = ("spaghetti", "empty_bed", "layer_shift", "warping")
-
-
-AI_ACTIONS = ("CONTINUE", "PAUSE", "CANCEL")
 
 
 def normalize_action(value):
@@ -2319,9 +2314,6 @@ class LightDetector(FrameJudge):
         self.meta["zone"] = zone is not None
         self.stats["zone"] = self.zone.get("source") if zone is not None else None
         return zone
-
-    def set_roi(self, x, y, w, h):
-        self.roi = (x,y,w,h)
 
     def start(self):
         if not HAS_CV2:
@@ -3781,9 +3773,7 @@ def label_alert(alert_id, label, session=None):
                 if entry is not None:
                     return entry
             return None
-        with open(log + ".tmp", "w", encoding="utf-8") as fh:
-            fh.write("\n".join(lines) + "\n")
-        os.replace(log + ".tmp", log)
+        atomic.write_text(log, "\n".join(lines) + "\n")
     if found.get("session"):
         recorder.label_alert(found["session"], alert_id, label)
     _learn_from_label(found, label)
@@ -4977,10 +4967,7 @@ def api_https_set():
         if _HTTPS["relay"]:
             _HTTPS["relay"].stop()
             _HTTPS["relay"] = None
-    os.makedirs(DATA_DIR, exist_ok=True)
-    with open(HTTPS_FILE + ".tmp", "w", encoding="utf-8") as handle:
-        json.dump(settings, handle)
-    os.replace(HTTPS_FILE + ".tmp", HTTPS_FILE)
+    atomic.write_text(HTTPS_FILE, json.dumps(settings))
     _HTTPS["error"] = None
     if web_status().get("main"):  # 1.94: nginx on 443 with the certificate, or without it
         if settings["enabled"]:

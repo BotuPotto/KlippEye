@@ -79,9 +79,27 @@ CHECK = r"""() => {
 """
 
 
+# 1.133.0: the design system's smallest text is 12 px (an SVG's text is measured as drawn, after its scale)
+SMALL = r"""() => {
+  const out = [];
+  document.querySelectorAll("body *").forEach((e) => {
+    const r = e.getBoundingClientRect(); const s = getComputedStyle(e);
+    if (!r.width || !r.height || s.visibility === "hidden" || e.closest("[aria-hidden=true]")) return;
+    let own = ""; for (const n of e.childNodes) if (n.nodeType === 3) own += n.textContent;
+    if (!own.trim()) return;
+    let px = parseFloat(s.fontSize);
+    if (e instanceof SVGElement && e.getScreenCTM()) { const m = e.getScreenCTM(); px *= Math.hypot(m.a, m.b); }
+    if (px < 11.95) out.push(own.trim().slice(0, 20) + " " + px.toFixed(1) + "px");
+  });
+  return out;
+}"""
+
+
 def check_here(P, where):
     problems = P.pg.evaluate(CHECK)
     ok("%s: every control has a name, every picture an alt, no duplicate ids" % where, not problems, problems[:8])
+    small = P.pg.evaluate(SMALL)
+    ok("1.133.0 %s: no text under 12 px" % where, not small, small[:8])
     return problems
 
 

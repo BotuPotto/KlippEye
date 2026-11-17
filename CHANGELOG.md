@@ -1,5 +1,38 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.133.1
+
+- With KlippEye on port 80 (`klippeye web main`), the password and the guest limits now cover Moonraker's live
+  connection and the file uploads too. Before, those two went past KlippEye: a guest, or anyone without the password,
+  could send G-code through them. nginx now asks KlippEye first. With a password on, a slicer that uploads to port 80
+  must use KlippEye's address from a device that is logged in, or upload to Moonraker directly, as on port 8085.
+- A large G-code uploaded through port 8085 (by a slicer, for example) no longer passes through the Raspberry's memory
+  whole: it goes on to Moonraker as it arrives, and the upload may take up to ten minutes instead of ten seconds.
+- Settings, calibrations, the labels of the kept examples, the alarm history and the print reviews are written so that a
+  power cut leaves the old file or the new one, never half of one. Before, several files skipped the step that forces the
+  data to the card, and removing a print's label rewrote the kept examples' labels in place: a power cut at that moment
+  could lose the labels of every kept example.
+- While the local model has a doubt and the toolhead hides the part, a change outside the part now counts against the
+  lowered threshold, as everywhere else. Before, it counted against the normal one and the alarm could come one check
+  later.
+- KlippEye starts a little faster: the check of the program files after a power cut runs one git command instead of one
+  per file (about 0.7 s to 0.1 s here, more on a slow Raspberry).
+- Code that nothing used is gone: a second copy of the empty-bed rule, an unused list of notifications the notifier kept
+  for ever, an old confidence filter in the notifier that was always zero, and a few names in the dashboard and the tools.
+
+## 1.133.0
+
+- No text in the dashboard is smaller than 12 px any more. The labels of the tab bar were 11 px (10 px on the narrowest
+  phones), and so were the axes of the temperature and input shaper charts, the bed mesh values, the step numbers on the
+  movement pad and a few captions. The pad's numbers are still about 11 px on a 320 px phone, where the pad is smaller.
+  The other text sizes now follow one scale of ten sizes instead of 23; most moved by 1 px.
+- The heater tiles say «Nozzle» and «Bed» in the dashboard's language. They said HOTEND and BED, in English and in
+  capitals, in every language.
+- Corners follow fewer radii (19 before, 7 now). Small boxes such as the print's figures on a computer use 12 px.
+- In the print card, «See the layers» and «More details» are light text buttons. On the phone they sit under Pause and
+  Cancel print, so Pause and Cancel are the only full buttons in the card. On a computer they sit next to Pause.
+  «More details» opens the same list as before, on the phone too.
+
 ## 1.132.5
 
 - The text sent to the online AI no longer says the camera is above the bed in a corner (true for one printer only). It

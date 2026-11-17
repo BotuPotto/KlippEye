@@ -78,10 +78,10 @@
   height: 18px;
   padding: 0 5px;
   box-sizing: border-box;
-  border-radius: 9px;
+  border-radius: 8px;
   background: var(--oui-accent);
   color: var(--oui-on-accent);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   line-height: 1;
   font-variant-numeric: tabular-nums;

@@ -50,8 +50,8 @@ with sync_playwright() as p:
     mock.set(printing=True)
     P = Page(b, mock, 1024, 768)
     P.goto("home", 2400)
-    gap = P.pg.evaluate("() => { const a = document.querySelector('.gcode-view-btn').getBoundingClientRect(); const b = [...document.querySelectorAll('.oui-btn-row .oui-btn')].find(e => e.offsetParent).getBoundingClientRect(); return b.top - a.bottom; }")
-    ok("tablet: a gap between «Vedi i layer» and Pausa / Annulla", gap >= 8, gap)
+    gap = P.pg.evaluate("() => { const a = document.querySelector('.gcode-view-btn').getBoundingClientRect(); const b = [...document.querySelectorAll('.oui-btn-row .oui-btn')].find(e => e.offsetParent).getBoundingClientRect(); return a.top - b.bottom; }")
+    ok("tablet: a gap between Pausa / Annulla and «Vedi i layer» under them (1.133.0)", gap >= 8, gap)
     P.close()
     # computers
     mock.reset()

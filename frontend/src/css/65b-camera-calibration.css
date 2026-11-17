@@ -21,7 +21,7 @@
 
 /* the twelve points: done, to redo, the current one */
 .cal-targets { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
-.cal-target { min-height: 36px; border: 1px solid var(--oui-stroke-strong); border-radius: 10px; background: var(--oui-surface-2); color: var(--oui-text-2); font-weight: 600; font-variant-numeric: tabular-nums; }
+.cal-target { min-height: 36px; border: 1px solid var(--oui-stroke-strong); border-radius: 12px; background: var(--oui-surface-2); color: var(--oui-text-2); font-weight: 600; font-variant-numeric: tabular-nums; }
 .cal-target.is-done { background: var(--oui-ok-soft); color: var(--oui-ok); border-color: transparent; }
 .cal-target.is-redo { background: var(--oui-danger-soft); color: var(--oui-danger); border-color: var(--oui-danger); }
 .cal-target.is-current { box-shadow: 0 0 0 2px var(--oui-accent); color: var(--oui-text); }
@@ -39,7 +39,7 @@
 .cal-size__value { text-align: center; font-weight: 600; font-variant-numeric: tabular-nums; }
 .cal-size .oui-btn { min-width: 0; padding-left: 0; padding-right: 0; }
 .cal-instruction-row { display: grid; grid-template-columns: 96px 1fr; gap: 12px; align-items: center; }
-.cal-hint { width: 96px; height: auto; background: var(--oui-surface-2); border-radius: 10px; }
+.cal-hint { width: 96px; height: auto; background: var(--oui-surface-2); border-radius: 12px; }
 .cal-hint__block { fill: #6c6f7a; }
 .cal-hint__nozzle { fill: #c9a24a; }
 .cal-hint__screw { fill: #d9dbe2; stroke: #2b2d33; stroke-width: 1.5; }

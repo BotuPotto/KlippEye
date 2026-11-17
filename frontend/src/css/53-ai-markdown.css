@@ -11,7 +11,7 @@
 .ai-b { font-weight: 600; color: var(--oui-text); }
 .ai-code {
   padding: 1px 6px;
-  border-radius: 6px;
+  border-radius: 8px;
   background: var(--oui-surface-3);
   color: var(--oui-accent-text);
   font-family: var(--oui-font-mono);
@@ -57,7 +57,7 @@
 .ai-codeblock__lang { font-size: 12px; font-weight: 600; color: var(--oui-text-3); }
 .ai-codeblock__copy { min-height: 32px; padding: 0 14px; border: 0; border-radius: var(--oui-r-pill); background: var(--oui-accent-soft); color: var(--oui-accent-text); font: 600 13px var(--oui-font); }
 .ai-codeblock__copy:active { transform: scale(0.96); }
-.ai-codeblock__code { margin: 0; padding: 12px 14px; color: #d4d4d4; font: 12.5px/1.6 var(--oui-font-mono); white-space: pre-wrap; overflow-wrap: anywhere; tab-size: 2; }
+.ai-codeblock__code { margin: 0; padding: 12px 14px; color: #d4d4d4; font: 13px/1.6 var(--oui-font-mono); white-space: pre-wrap; overflow-wrap: anywhere; tab-size: 2; }
 
 /* ---- summary ---- */
 .ai-sum { padding: 14px 16px 16px; background: var(--oui-accent-soft); border-radius: var(--oui-r-tile); }
@@ -113,8 +113,8 @@
 .ai-field--inline .ai-field__text { font-weight: 600; }
 .ai-field__label { margin-bottom: 3px; font-size: 12px; font-weight: 500; color: var(--oui-text-3); }
 .ai-field__text { font-size: 14px; line-height: 1.55; color: var(--oui-text); white-space: pre-line; overflow-wrap: anywhere; }
-.ai-msg { padding: 9px 12px; background: var(--oui-surface); border-radius: 12px; color: var(--oui-text-2); font: 12.5px/1.55 var(--oui-font-mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+.ai-msg { padding: 9px 12px; background: var(--oui-surface); border-radius: 12px; color: var(--oui-text-2); font: 13px/1.55 var(--oui-font-mono); white-space: pre-wrap; overflow-wrap: anywhere; }
 
 /* ---- tools under the report, and the original text ---- */
 .ai-report__tools { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; }
-.ai-raw { margin: 0; padding: 14px; background: var(--oui-inset); border-radius: var(--oui-r-field); color: var(--oui-text-2); font: 12.5px/1.6 var(--oui-font-mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+.ai-raw { margin: 0; padding: 14px; background: var(--oui-inset); border-radius: var(--oui-r-field); color: var(--oui-text-2); font: 13px/1.6 var(--oui-font-mono); white-space: pre-wrap; overflow-wrap: anywhere; }
