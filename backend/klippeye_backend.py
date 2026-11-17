@@ -2776,6 +2776,8 @@ class LightDetector(FrameJudge):
         if ask:
             if self._hides_part():
                 self.ask_waiting = self.ask_waiting or now
+                # 1.132.4: the rest starts when the question goes: during it the loop does not look, the question would be lost
+                self.cooldown_until = min(self.cooldown_until, now)
                 self.stats["ai_put_off"] = self.stats.get("ai_put_off", 0) + 1
                 self.stats["status"] = "the toolhead hides the part: the AI is asked when it moves"
                 return False
@@ -2786,6 +2788,7 @@ class LightDetector(FrameJudge):
                 self.ask_waiting = None
             elif not self._hides_part():
                 self.ask_waiting = None
+                self.cooldown_until = max(self.cooldown_until, now + self.cooldown_sec)
                 return True
         return False
 
@@ -3073,8 +3076,9 @@ class LightDetector(FrameJudge):
                 self.last_analysis["alert_id"] = recorded.get("id")
                 self.last_analysis["image"] = recorded.get("image")
             # 1.125: the online AI sees no problem where the local model had a doubt: the local model learns it, for a while
-            if (normalize_action(parsed.get("action")) == "CONTINUE" and local and local.get("vector") is not None
-                    and (local.get("score") or 0) >= self.local_doubt):
+            # 1.132.4: not a stop the second look did not confirm: the first look saw a problem there
+            if (normalize_action(parsed.get("action")) == "CONTINUE" and not parsed.get("original_action") and local
+                    and local.get("vector") is not None and (local.get("score") or 0) >= self.local_doubt):
                 false_memory.add(local["vector"], local["score"], "online", (recorded or {}).get("id") or round(time.time()), local.get("model"))
         except Exception as e:
             print(f"[OPENCV] AI call fail: {e}")

@@ -1,5 +1,15 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.132.4
+
+- A stop the online AI proposed and its second look did not confirm is no longer learned as «fine» for the next hours:
+  the first look saw a problem there. Before, that scene was then ignored by the local model (and an alarm of the
+  motion detection on it filtered) for up to 6 hours, even when a failure was growing in it.
+- A question the local model wanted to ask while the toolhead hid the part is no longer lost: the monitor's rest now
+  starts when the question goes, not when it is put off (during the rest nobody looked whether the part showed again, so
+  the question expired and the failure was reported a few minutes later).
+- The camera calibration: three lines that did nothing are gone.
+
 ## 1.132.3
 
 - The camera calibration refuses a printer whose bed moves forward and back (a bed slinger) with the camera on the frame,
