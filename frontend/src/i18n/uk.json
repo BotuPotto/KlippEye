@@ -2836,6 +2836,7 @@
  "the markers file was not recognised: {found} markers found instead of 6": "файл міток не розпізнано: знайдено міток: {found} замість 6",
  "the method must be detail or markers": "метод має бути detail або markers",
  "the model name has characters that are not allowed": "у назві моделі є неприпустимі символи",
+ "the nozzle tip does not move in the picture when Y moves: the bed moves forward and back (a bed slinger) and the camera is on the frame. These printers are not supported yet": "кінчик сопла не рухається на зображенні, коли рухається Y: стіл їздить вперед і назад (bed slinger), а камера закріплена на рамі. Такі принтери поки не підтримуються",
  "the points are all on one plane": "усі точки лежать в одній площині",
  "the points must be at two heights at least 10 mm apart": "точки мають бути на двох висотах, що відрізняються щонайменше на 10 мм",
  "the print was fine": "з друком усе було добре",

@@ -2836,6 +2836,7 @@
  "the markers file was not recognised: {found} markers found instead of 6": "o arquivo de marcadores não foi reconhecido: encontrados {found} marcadores em vez de 6",
  "the method must be detail or markers": "o método tem de ser detail ou markers",
  "the model name has characters that are not allowed": "o nome do modelo tem caracteres não permitidos",
+ "the nozzle tip does not move in the picture when Y moves: the bed moves forward and back (a bed slinger) and the camera is on the frame. These printers are not supported yet": "a ponta do bico não se move na imagem quando Y se move: a mesa vai para a frente e para trás (uma bed slinger) e a câmara está fixa à estrutura. Estas impressoras ainda não são suportadas",
  "the points are all on one plane": "os pontos estão todos num mesmo plano",
  "the points must be at two heights at least 10 mm apart": "os pontos precisam estar em duas alturas com pelo menos 10 mm de diferença",
  "the print was fine": "a impressão estava bem",
