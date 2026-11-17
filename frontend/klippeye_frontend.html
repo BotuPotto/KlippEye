@@ -29513,7 +29513,7 @@ const SETTINGS_GROUPS = [
 ];
 /**
  * 1.60: fewer, fuller pages. "Name and logo" is part of Appearance (with the colours, the look and the cards), the
- * Z-offset steps part of Motion; the addresses are with the system pages. Their old pages still open.
+ * Z-offset steps part of Motion; the addresses are with the system pages. Their old pages still open (PAGES_INSIDE).
  */
 const SETTINGS_ENTRIES = [
   { id: "printers", group: "printer", title: tx("Your printers"), icon: Icons.Cube },
@@ -29530,6 +29530,11 @@ const SETTINGS_ENTRIES = [
   { id: "access", group: "system", title: tx("Access"), icon: Icons.Lock },
   { id: "homeauto", group: "system", title: "Home Assistant / MQTT", icon: Icons.House }, // 1.100
   { id: "software", group: "system", title: tx("Updates"), icon: Icons.Download },
+];
+/** Pages that are now a part of another one: still opened by a link (the guided set-up, the help). */
+const PAGES_INSIDE = [
+  { id: "printer", title: tx("Name and logo"), parent: "appearance" },
+  { id: "zoffset", title: "Z-offset", parent: "motion" },
 ];
 /** The pages inside "AI monitor" (1.19: one entry for everything the monitor does, see 59h-ai-monitor-settings.js). */
 const AI_SUBPAGES = [
