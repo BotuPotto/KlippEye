@@ -1,5 +1,17 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.133.0
+
+- No text in the dashboard is smaller than 12 px any more. The labels of the tab bar were 11 px (10 px on the narrowest
+  phones), and so were the axes of the temperature and input shaper charts, the bed mesh values and a few captions. The
+  other text sizes now follow one scale of ten sizes instead of 23; most moved by 1 px.
+- The heater tiles say «Nozzle» and «Bed» in the dashboard's language. They said HOTEND and BED, in English and in
+  capitals, in every language.
+- Corners follow fewer radii (19 before, 7 now). Small boxes such as the print's figures on a computer use 12 px.
+- In the print card, «See the layers» and «More details» are light text buttons. On the phone they sit under Pause and
+  Cancel print, so Pause and Cancel are the only full buttons in the card. On a computer they sit next to Pause.
+  «More details» opens the same list as before, on the phone too.
+
 ## 1.132.5
 
 - The text sent to the online AI no longer says the camera is above the bed in a corner (true for one printer only). It

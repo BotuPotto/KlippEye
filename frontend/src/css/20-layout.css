@@ -67,7 +67,7 @@
   .app-header__bar { padding: 0 12px; }
   .app-header__brand { gap: 8px; }
   .app-header__logo { width: 32px; height: 32px; }
-  .app-header__name { font-size: 18px; }
+  .app-header__name { font-size: 17px; }
   .app-header__actions { flex-shrink: 0; gap: 8px; }
   .header-btn { width: 40px; height: 40px; }
 }
@@ -116,7 +116,7 @@ body:has(.modal, .confirm-overlay, .sheet-overlay, .screen) .bottom-nav { opacit
   transition: color var(--oui-dur-base) var(--oui-ease);
 }
 .bottom-nav__tab svg { width: 24px; height: 24px; stroke-width: 1.7; transition: transform var(--oui-dur-base) var(--oui-ease); }
-.bottom-nav__label { font-size: 11px; font-weight: 600; line-height: 1; letter-spacing: 0.005em; }
+.bottom-nav__label { font-size: 12px; font-weight: 600; line-height: 1; letter-spacing: 0.005em; }
 .bottom-nav__tab:active svg { transform: scale(0.88); }
 .bottom-nav__tab.is-active { color: var(--oui-accent-text); } /* the violet marker behind it is .bottom-nav__pill (22-motion.css) */
 
@@ -142,5 +142,5 @@ body:has(.modal, .confirm-overlay, .sheet-overlay, .screen) .bottom-nav { opacit
 @media (max-width: 359px) {
   .bottom-nav { width: calc(100% - 16px); gap: 0; padding: 6px 4px; }
   .bottom-nav__tab { padding: 0 1px; }
-  .bottom-nav__label { font-size: 10px; letter-spacing: 0; }
+  .bottom-nav__label { font-size: 12px; letter-spacing: 0; }
 }

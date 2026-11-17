@@ -9,7 +9,7 @@
 .shaper-chart__svg { display: block; overflow: hidden; }
 .shaper-chart__grid { stroke: var(--oui-stroke); stroke-width: 1; }
 .shaper-chart__grid.is-vertical { stroke-dasharray: 2 4; }
-.shaper-chart__tick { fill: var(--oui-text-3); font-family: var(--oui-font); font-size: 11px; font-variant-numeric: tabular-nums; }
+.shaper-chart__tick { fill: var(--oui-text-3); font-family: var(--oui-font); font-size: 12px; font-variant-numeric: tabular-nums; }
 .shaper-chart__band.is-relax { fill: #2f9e44; opacity: 0.15; }
 .shaper-chart__band.is-warning { fill: #f59f00; opacity: 0.18; }
 .shaper-chart__band-line { stroke-width: 0.8; stroke-dasharray: 5 4; opacity: 0.8; }
@@ -38,7 +38,7 @@
 }
 .shaper-legend__item:hover { background: var(--oui-surface-2); }
 .shaper-legend__item.is-off { opacity: 0.45; text-decoration: line-through; }
-.shaper-legend__key { flex: none; width: 16px; height: 0; border-top: 3px solid var(--key); border-radius: 2px; }
+.shaper-legend__key { flex: none; width: 16px; height: 0; border-top: 3px solid var(--key); border-radius: 3px; }
 .shaper-legend__item.is-response .shaper-legend__key { border-top-style: dotted; }
 .shaper-advice { display: grid; gap: 2px; margin-top: 12px; padding: 10px 12px; border-radius: var(--oui-r-tile); background: var(--oui-surface-2); font-size: 13px; font-variant-numeric: tabular-nums; }
 .shaper-advice__title { font-weight: 600; }
@@ -46,7 +46,7 @@
 .shaper-table { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; } /* 1.101: columns sized by their words: a heading too long is split at a syllable, never at any letter */
 .shaper-table__caption { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .shaper-table th, .shaper-table td { padding: 6px 3px; text-align: right; border-bottom: 1px solid var(--oui-stroke); }
-.shaper-table thead th { color: var(--oui-text-3); font-size: 10.5px; font-weight: 600; line-height: 1.25; vertical-align: bottom; }
+.shaper-table thead th { color: var(--oui-text-3); font-size: 12px; font-weight: 600; line-height: 1.25; vertical-align: bottom; }
 .shaper-table th:first-child { text-align: left; }
 .shaper-table thead th { hyphens: auto; overflow-wrap: normal; }
 .shaper-table td:not(:first-child) { white-space: nowrap; } /* the figures on one line; the name may put «in use» under it */
@@ -55,7 +55,7 @@
 .shaper-row.is-selected { background: var(--oui-accent-soft); }
 .shaper-row__pick { display: inline-flex; align-items: center; gap: 5px; min-height: 32px; padding: 0; border: 0; background: none; color: var(--oui-text); font: inherit; font-weight: 600; cursor: pointer; }
 .shaper-row__key { flex: none; width: 8px; height: 8px; border-radius: 3px; }
-.shaper-row__tag { margin-left: 6px; font-size: 10px; }
+.shaper-row__tag { margin-left: 6px; font-size: 12px; }
 .shaper-note { margin-top: 10px; }
 .shaper-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 .shaper-actions:empty { display: none; }
@@ -70,7 +70,7 @@
 .shaper-params__grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
 .shaper-params__field { display: grid; gap: 4px; min-width: 0; }
 .shaper-params__label { font-size: 12px; color: var(--oui-text-2); }
-.shaper-params__key { font-size: 10px; color: var(--oui-text-3); font-family: var(--oui-font-mono, monospace); }
+.shaper-params__key { font-size: 12px; color: var(--oui-text-3); font-family: var(--oui-font-mono, monospace); }
 .shaper-params .oui-field[aria-invalid="true"] { border-color: var(--oui-danger); }
 .shaper-params__foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-top: 10px; }
 @media (min-width: 480px) { .shaper-table th, .shaper-table td { padding: 6px 8px; } .shaper-table { font-size: 13px; } }
@@ -96,8 +96,8 @@
 @media (max-width: 479px) {
   .shaper-table-box { margin-left: -8px; margin-right: -8px; }
   .shaper-table th, .shaper-table td { padding-left: 2px; padding-right: 2px; }
-  .shaper-table thead th { font-size: 10px; }
-  .shaper-table tbody th, .shaper-table td { font-size: 11.5px; }
-  .shaper-row__tag { display: flex; width: fit-content; min-height: 20px; margin: 0 0 4px 13px; padding: 0 8px; font-size: 10px; }
+  .shaper-table thead th { font-size: 12px; }
+  .shaper-table tbody th, .shaper-table td { font-size: 12px; }
+  .shaper-row__tag { display: flex; width: fit-content; min-height: 20px; margin: 0 0 4px 13px; padding: 0 8px; font-size: 12px; }
   .shaper-row__pick { min-height: 28px; gap: 4px; }
 }

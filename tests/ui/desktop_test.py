@@ -86,7 +86,7 @@ with sync_playwright() as p:
         if w == 1440:
             ok("1.67: the six figures on one line, the buttons on one line", P.pg.locator(".desk-print__stats .print-stat").count() == 6 and len(set(round(b["y"]) for b in [P.pg.locator(".desk-print__stats .print-stat").nth(i).bounding_box() for i in range(6)])) == 1)
             P.pg.locator("[data-print-more]").click(); P.pg.wait_for_timeout(300)
-            ok("1.67: «Più dettagli» opens the details under the buttons", P.pg.locator(".desk-print .print-details[open]").count() == 1 and P.pg.locator("[data-print-more]").get_attribute("aria-expanded") == "true")
+            ok("1.67: «Più dettagli» opens the details under the buttons", P.pg.locator(".desk-print .print-details").count() == 1 and P.pg.locator("[data-print-more]").get_attribute("aria-expanded") == "true")
             P.shot_vp(out + "/device_printing_1440.png", hh)
         P.close()
     P = fresh(done_print=True, wait=2500)

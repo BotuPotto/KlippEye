@@ -322,16 +322,15 @@ function PrintLiveStats({ status, className }) {
   );
 }
 
-/** 1.30: everything else, folded: the estimates one by one, filament, height, the factors. */
-function PrintDetails({ status, open }) {
+/** 1.30: everything else, behind «More details»: the estimates one by one, filament, height, the factors. */
+function PrintDetails({ status }) {
   const row = (label, value, key) => value !== null && value !== undefined && h("div", { key: key || label, className: "print-details__row" }, h("span", { className: "print-details__label" }, label), h("span", { className: "print-details__value" }, value));
   const e = status.estimates || {};
   const f = status.filament;
   const height = status.height;
   return h(
-    "details",
-    { className: "print-details", "data-print-details": "1", open: open || undefined },
-    h("summary", null, tx("More details")),
+    "div",
+    { className: "print-details", "data-print-details": "1" },
     h(
       "div",
       { className: "print-details__list" },
@@ -346,6 +345,16 @@ function PrintDetails({ status, open }) {
       status.factors.speed !== null && row(tx("Speed factor"), status.factors.speed + "%"),
       status.factors.flow !== null && row(tx("Flow factor"), status.factors.flow + "%"),
     ),
+  );
+}
+
+/** 1.133: the light button that shows or hides PrintDetails, under Pause / Cancel (phone) or next to them (computer). */
+function MoreDetailsButton({ more, setMore }) {
+  return h(
+    "button",
+    { type: "button", className: cx("oui-btn oui-btn--quiet oui-btn--sm print-more", more && "is-open"), "aria-expanded": more, "data-print-more": "1", onClick: () => setMore(!more) },
+    tx("More details"),
+    h(Icons.Chevron, { size: 14 }),
   );
 }
 
@@ -448,6 +457,7 @@ function ExcludeObjectDialog({ status, onClose }) {
 
 function PrintProgressCard({ status, controls, monitor }) {
   const [thumbBroken, setThumbBroken] = useState(false);
+  const [more, setMore] = useState(false);
   useEffect(() => setThumbBroken(false), [status.thumbnail]);
   const showThumb = !!status.thumbnail && !thumbBroken;
 
@@ -484,9 +494,7 @@ function PrintProgressCard({ status, controls, monitor }) {
       h(PrintStat, { label: "Layer", value: status.layer }),
     ),
     h(PrintLiveStats, { status, className: "grid grid-cols-3 mb-4" }),
-    h(PrintDetails, { status }),
     h(AiAlarmQuestion, { monitor }),
-    h(GcodeViewButton, { status }),
     h(ExcludeObjectButton, { status }),
     h(
       "div",
@@ -494,6 +502,8 @@ function PrintProgressCard({ status, controls, monitor }) {
       h("button", { onClick: controls.togglePause, className: "oui-btn" }, status.state === "paused" ? tx("Resume") : tx("Pause")),
       h("button", { onClick: controls.askCancel, className: "oui-btn oui-btn--danger-soft" }, tx("Cancel print")),
     ),
+    h("div", { className: "print-links" }, h(GcodeViewButton, { status }), h(MoreDetailsButton, { more, setMore })),
+    more && h(PrintDetails, { status }),
   );
 }
 

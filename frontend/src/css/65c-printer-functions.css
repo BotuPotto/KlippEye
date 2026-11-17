@@ -47,7 +47,7 @@
 /* the invitation, once, in the app */
 .nt-invite { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(var(--oui-nav-h) + 26px + env(safe-area-inset-bottom, 0px)); z-index: 950;
   width: min(calc(100% - 2 * var(--oui-gutter)), 520px); box-sizing: border-box; display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
-  padding: 12px 14px; border-radius: 18px; background: var(--oui-glass); -webkit-backdrop-filter: blur(var(--oui-blur)); backdrop-filter: blur(var(--oui-blur));
+  padding: 12px 14px; border-radius: 16px; background: var(--oui-glass); -webkit-backdrop-filter: blur(var(--oui-blur)); backdrop-filter: blur(var(--oui-blur));
   border: 1px solid var(--oui-stroke-strong); box-shadow: var(--oui-shadow-float); }
 .nt-invite__icon { color: var(--oui-accent, #9b87f5); display: grid; }
 .nt-invite__text { flex: 1 1 180px; font-size: 14px; font-weight: 600; }
