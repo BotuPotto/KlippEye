@@ -1,5 +1,12 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.132.5
+
+- The text sent to the online AI no longer says the camera is above the bed in a corner (true for one printer only). It
+  now says only that the camera is fixed and that the print head, its cables and the gantry may be in the picture.
+- When the camera changes its exposure, black parts of the picture (black filament, shadows) no longer count as changed
+  for the motion detection.
+
 ## 1.132.4
 
 - A stop the online AI proposed and its second look did not confirm is no longer learned as «fine» for the next hours:

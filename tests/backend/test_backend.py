@@ -1335,6 +1335,15 @@ sys.path.insert(0, os.path.join(ROOT, "backend"))
 import recorder as _rec  # noqa: E402
 import monitor_core as _core  # noqa: E402
 
+# 1.132.5: the camera brightens the picture: what was black stays black, it does not become «changed»
+_fj = _core.FrameJudge()
+_fj.bg = _core.np.full((60, 100), 100, _core.np.uint8)
+_fj.bg[:, :20] = 0                                  # a black part (black filament, a shadow)
+_bright = _core.np.full((60, 100), 150, _core.np.uint8)
+_bright[:, :20] = 0                                 # the rest 50 levels brighter: the average moves by 40
+_fj._compare_with_background(_bright)
+check("1.132.5: an exposure change does not turn black points into changed ones", _fj.stats["global_change"] < 1, _fj.stats["global_change"])
+
 # --- the recorder alone
 rroot = os.path.join(tmp(), "recordings")
 rr = _rec.Recorder(rroot, _core.cv2, "9.9.9")
