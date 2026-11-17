@@ -182,9 +182,10 @@ warm-up seconds, minimum progress, hotend at temperature), one check every `chec
    tests of the area (`tests/backend/test_personal_layer.py`, `test_calibration_auto.py`, `test_ai_services.py`,
    `test_bed_and_shift.py`, `ml/tests/test_tools.py`, `ml/tests/smoke_train.py` needs torch); everything but the
    browser: `bash tests/run_all.sh --no-ui`. Changes to `scripts/`, `systemd/` or updates need `tests/e2e/`.
-   Browser tests in a cloud container: `pip install --ignore-installed blinker flask playwright==1.63.0` (the version
-   of the Chromium in `/opt/pw-browsers`), then `PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers bash tests/ui/run_all.sh`.
-   The container has no OpenCV: `--no-ui` fails there on the backend/model groups that need `cv2` (CI has it).
+   Cloud sessions: use the personal environment «KlippEye» (17 Nov); its setup script installs OpenCV, Flask, Pillow
+   and `playwright==1.63.0` (the version of the Chromium in `/opt/pw-browsers`). Run the browser tests with
+   `PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers bash tests/ui/run_all.sh`. `settings_test` «a stream that does not
+   come» fails in the container on main too (the stream address does not answer the same way there); CI passes it.
 6. If a page shown in the guides changed, retake the pictures (`tests/ui/docs_screenshots.py`).
 7. Push, open the PR (what and why, how it was measured, the tests; `/humanizer`), watch CI until green, merge.
 
