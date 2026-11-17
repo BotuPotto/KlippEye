@@ -296,7 +296,7 @@ keeps it readable).
   PR yet. `--paste 0.2` gives ~660 + 660 pictures (20% of ~3,300 whole fine pictures).
 - **The data is ready** (17 Nov, CPU run): `MyDrive/klippeye-training/prepared.zip` in the owner's Google Drive (7.3 GB,
   `ml/data` + `ml/work`, manifest paths relative; 47,972 pictures: 28,234 failed / 19,738 fine, 658 pasted failures +
-  658 clean pieces, 4,403 look-alikes). Do **not** redo steps 4–5 of section 7. On 17 Nov Colab gave no GPU all day.
+  658 clean pieces, 4,403 look-alikes). Do **not** redo steps 4–5 of section 7. On 17 Nov Colab gave a GPU only in the evening.
 - Resume with a T4: Escape, ctrl+shift+p, «tipo di runtime», T4, «Salva», run a cell. Allocation can take minutes. If
   «Nessun backend con GPU disponibile» / «Impossibile connettere al backend GPU» appears, press «Annulla» / «Chiudi»,
   never «Connetti» / «Connetti senza GPU» (that is a CPU runtime). Retry every ~3 h (`send_later`). With a GPU, one-line
@@ -305,7 +305,12 @@ keeps it readable).
   2. `!git clone -q https://github.com/BotuPotto/KlippEye -b paste-failures && pip install -q -r KlippEye/ml/requirements.txt && nvidia-smi -L`
   3. `%cd /content/KlippEye`
   4. `!unzip -q /content/drive/MyDrive/klippeye-training/prepared.zip && wc -l ml/work/manifest.csv` (47,973 lines)
-  5. step 6 of section 7 (~1 h, no resume), then step 7; copy `model2.zip` to the Drive folder too.
+  5. step 6 of section 7 **without** `| tail -40` (each epoch shows) and with
+     `--checkpoint /content/drive/MyDrive/klippeye-training/ckpt.pt` (on `paste-failures`: saved after every epoch,
+     resumed when it exists). 17 Nov: the free runtime was cut after 1 h 30 min of training with no one touching the
+     page, and the run was lost. During training click inside the notebook every ~20 min (`send_later`); if it is cut
+     anyway, reconnect and run the same cells again. Then step 7; copy `model2.zip` to the Drive folder too.
+  Close the Colab tab whenever nothing runs (the owner's request: an idle page wastes the free quota).
   Measure with `C:\Users\coroz\Downloads\klippeye-data.zip` (section 6). Afterwards tell the owner he can delete
   `klippeye-training` from Drive.
 - **Next**: train (section 7) → measure against `models/base` on the owner's recordings → look at the contact sheet
