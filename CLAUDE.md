@@ -41,6 +41,38 @@ calibration), AI monitor (services, thresholds, recordings), notifications (chan
 light / as the device, accent colour, cards and page order), language, addresses, access (password, guest link),
 Home Assistant / MQTT, updates, guided set-up. A help button (`HelpButton`) next to settings opens the guide's section.
 
+### Backend modules (`backend/`)
+
+| Module | What it is |
+|---|---|
+| `klippeye_backend.py` | the service: settings (`CONFIG_SPEC`, `MonitorConfig`), access guard, Moonraker proxy, all `/api/*` routes, the monitor (`LightDetector`), `LocalAi`, startup |
+| `access.py` | optional password, signed tokens, guest role, host and origin checks |
+| `ai_services.py` | the online AI services (Groq, Gemini, OpenAI, Anthropic, Mistral, OpenRouter, Meta, Together, Fireworks, custom), keys, chains, model lists |
+| `ai_precision.py` | how often the AI's verdict matched the real state of the print |
+| `monitor_core.py` | `FrameJudge`: the motion detection (also used by `scripts/replay.py`) |
+| `local_model.py` | the local model (OpenCV DNN) |
+| `personal_layer.py`, `labelled_prints.py` | the per-printer layer and the prints the person judged |
+| `false_alarms.py` | the false-alarm memory |
+| `recorder.py`, `print_review.py` | recordings of the monitor; «How did the print go?» |
+| `camera_calibration.py`, `camera_model.py`, `camera_watch.py`, `camera_markers.py`, `nozzle_finder.py`, `homing_safety.py` | camera calibration: flow, maths, «has the camera moved», printed markers, finding the nozzle tip, homing with markers on the bed |
+| `print_zone.py`, `machine_masks.py`, `purge_marks.py` | watched / expected zones, toolhead and gantry masks, purge marks |
+| `camera_snapshot.py` | where the single photo is taken from |
+| `moonraker_live.py` | one live connection to Moonraker |
+| `printer_macros.py`, `macro_catalog.py`, `printer_lights.py` | the macros KlippEye writes (`klippeye_macros.cfg`), the printer's macros with parameters, the lights |
+| `printer_paths.py`, `printers_peek.py` | where the printer keeps its files; other printers |
+| `config_versions.py` | earlier versions of the config files |
+| `print_schedule.py` | prints that start at a chosen time |
+| `shaper_data.py`, `shaper_fit.py` | input shaper results and fitting |
+| `notify_channels.py` | the notification channels (ntfy topic, …) |
+| `mqtt_bridge.py`, `mqtt_client.py` | Home Assistant / MQTT (standard-library client) |
+| `https_relay.py` | the optional HTTPS entrance |
+
+**Rules written twice (change both)**:
+- `backend/printer_lights.py` ↔ `frontend/src/app/13-capabilities.js` (`deriveParts`);
+- `backend/camera_snapshot.py` ↔ `frontend/src/app/16-settings.js` (the default snapshot);
+- `--oui-dur-exit` in `00-tokens.css` ↔ `LAYER_EXIT_MS` in `app/22-motion.js`;
+- `CONFIG_SPEC` (backend) ↔ its translations and the settings page (`59a-detector-settings.js`).
+
 ## 2. The AI monitor (the core; read the code before changing it)
 
 The loop is `LightDetector.loop` in `backend/klippeye_backend.py`: while a **real** print runs (`real_print_check`:
@@ -105,6 +137,15 @@ warm-up seconds, minimum progress, hotend at temperature), one check every `chec
     dashes as connectors, no filler, no bold labels everywhere.
   - **`/ponytail-review`**, **`/ponytail-audit`** when the owner asks for a review or audit: numbered findings in plain
     English, each with a concrete failing case; «Must fix / Should fix / Nice to have».
+- **Graphify (code graph)**: at the start of a session check whether the Graphify tools are available
+  (`list_repositories`). When `BotuPotto/KlippEye` is indexed and queryable, use them for the code's structure before
+  grep or reading whole files: `graphify_find` (where a symbol is), `graphify_callers`, `graphify_impact`
+  (with `include_risk=true` before a change: what it affects and which tests cover it), `graphify_tests_for`,
+  `graphify_file_neighbors` (a file's dependencies and the dashboard pages calling a route), `query_graph`
+  (`skeleton=true` to locate cheaply). Each answer carries `commitSha`: equal to `git rev-parse HEAD` → trust it;
+  otherwise read the files changed since. Use plain text search for literal strings, config values and translations.
+  `recall` / `remember` keep durable notes for the workspace when memory is enabled (empty on 17 Nov 2026); the Free
+  plan indexes only README.md among the documents, so this file is not in the graph.
 - **Universality**: KlippEye is for every Klipper printer. The base model in `models/base/` is trained on **public,
   varied data only**, under licences that let the model be shared (`ml/download.py` drops ShareAlike / NonCommercial /
   NoDerivatives / private ones; `models/base/CREDITS.md` lists the sources). The owner's prints go only to the personal
