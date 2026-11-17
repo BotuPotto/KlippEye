@@ -211,7 +211,7 @@ function AiHeaderBadge({ badge }) {
   const tone = { "--ai-hex": shown.hex, "--ai-rgb": shown.rgb, "--ai-glow": shown.glow };
   return h(
     "button",
-    { type: "button", className: cx("ai-header-badge", shown.idle && "ai-header-badge--idle"), title: shown.title + " • " + tx("tap for the details"), "aria-label": tx("AI monitoring") + ": " + shown.title, style: tone, "data-ai-badge": shown.idle ? "idle" : "on", onClick: openAiPanel },
+    { type: "button", className: cx("ai-header-badge", shown.idle && "ai-header-badge--idle", (shown === AI_BADGES.pause || shown === AI_BADGES.critical) && "ai-header-badge--alarm"), title: shown.title + " • " + tx("tap for the details"), "aria-label": tx("AI monitoring") + ": " + shown.title, style: tone, "data-ai-badge": shown.idle ? "idle" : "on", onClick: openAiPanel },
     h("span", { className: "ai-header-badge__dot" }),
     h("span", { className: "ai-header-badge__label" }, "AI"),
   );

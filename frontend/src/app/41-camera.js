@@ -718,10 +718,65 @@ function CameraFullscreen({ onClose }) {
 const CameraFullscreenButton = ({ onOpen, className }) =>
   h("button", { type: "button", className: cx("icon-btn camera-full-open", className), "aria-label": tx("Full screen"), title: tx("Full screen"), onClick: onOpen }, h(Icons.Expand, { size: 18 }));
 
+/* 1.134: on a phone the camera can go into a small window that stays above every page; a tap brings it back.
+   `from` is where the picture was a moment ago, so that the next one to show it can come from there. */
+const cameraMiniStore = (() => {
+  const listeners = new Set();
+  let on = false;
+  return {
+    subscribe: (fn) => (listeners.add(fn), () => listeners.delete(fn)),
+    snapshot: () => on,
+    from: null,
+    set(next, from) {
+      on = next;
+      cameraMiniStore.from = from || null;
+      listeners.forEach((fn) => fn());
+    },
+  };
+})();
+
+/** Moves `el` from the box `from` to where it is (both on screen); `middle`: an extra keyframe for the way. */
+function flyFrom(el, from, middle) {
+  if (!el || !from || !el.animate) return;
+  const box = el.getBoundingClientRect();
+  if (!box.width || !box.height) return;
+  const dx = from.left - box.left;
+  const dy = from.top - box.top;
+  const sx = from.width / box.width;
+  const sy = from.height / box.height;
+  el.style.transformOrigin = "0 0";
+  const frames = [{ transform: "translate(" + dx + "px, " + dy + "px) scale(" + sx + ", " + sy + ")" }].concat(middle ? [middle(dx, dy, sx, sy)] : [], [{ transform: "none" }]);
+  el.animate(frames, middle ? { duration: springTiming().duration, easing: "cubic-bezier(0.5, 0, 0.2, 1)" } : springTiming());
+}
+
+/** The small window; `onOpen` goes back to Home, where the camera card takes the picture again. */
+function CameraMini({ onOpen }) {
+  const on = useSyncExternalStore(cameraMiniStore.subscribe, cameraMiniStore.snapshot);
+  const reloads = useCameraReloads();
+  const ref = useRef(null);
+  useLayoutEffect(() => {
+    // the genie: on its way to the corner the picture first narrows and leans, then lands
+    if (on) flyFrom(ref.current, cameraMiniStore.from, (dx, dy, sx, sy) => ({ transform: "translate(" + dx * 0.45 + "px, " + dy * 0.3 + "px) scale(" + sx * 0.75 + ", " + sy * 0.45 + ") skewX(-6deg)", offset: 0.45 }));
+  }, [on]);
+  if (!on) return null;
+  const open = () => {
+    cameraMiniStore.set(false, ref.current.getBoundingClientRect());
+    onOpen();
+  };
+  return h("button", { ref, type: "button", className: "camera-mini", "aria-label": tx("Camera: tap to open it again"), onClick: open }, h(CameraMedia, { reloads }));
+}
+
 function CameraCard() {
   const light = useCaseLight();
   const reloads = useCameraReloads();
   const [full, setFull] = useState(false);
+  const frame = useRef(null);
+  useLayoutEffect(() => {
+    // back from the small window: the picture grows from there
+    flyFrom(frame.current, cameraMiniStore.from);
+    cameraMiniStore.from = null;
+  }, []);
+  const toMini = () => cameraMiniStore.set(true, frame.current.getBoundingClientRect());
   // the full screen next to the card, not in it (a card that moves would carry a fixed layer with it)
   return h(
     React.Fragment,
@@ -729,8 +784,19 @@ function CameraCard() {
     h(
       Card,
       { cardId: "camera" },
-      h(CardHeader, { title: tx("Camera") }, h("div", { className: "camera-head-actions" }, h(CameraPicker), light.available && h(LightButton, light), h(CameraFullscreenButton, { onOpen: () => setFull(true) }))),
-      h("div", { className: "camera-frame" }, !full && h(CameraMedia, { className: "camera-frame__video", reloads })),
+      h(
+        CardHeader,
+        { title: tx("Camera") },
+        h(
+          "div",
+          { className: "camera-head-actions" },
+          h(CameraPicker),
+          light.available && h(LightButton, light),
+          h("button", { type: "button", className: "icon-btn camera-mini-open", "aria-label": tx("Small window"), title: tx("Small window"), onClick: toMini }, h(Icons.PictureInPicture, { size: 18 })),
+          h(CameraFullscreenButton, { onOpen: () => setFull(true) }),
+        ),
+      ),
+      h("div", { className: "camera-frame", ref: frame }, !full && h(CameraMedia, { className: "camera-frame__video", reloads })),
     ),
     h(Presence, null, full && h(CameraFullscreen, { onClose: () => setFull(false) })),
   );

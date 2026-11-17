@@ -238,12 +238,21 @@ keeps it readable).
 - **Inline styles** only for values that come from data (a bar's width, a level's colour); everything else is a class.
   The compiled Tailwind in `vendor/` keeps only classes in use: a new class with no rule does nothing — write it in
   `src/css/` (the browser tests fail on a class with no rule).
-- **Motion** (One UI): one curve `--oui-ease` (quick start, soft landing, no bounce), `--oui-ease-in` for exits,
-  linear only for fades; durations 100–500 ms (`--oui-dur-press` 100, `-fast` 150, `-base` 250, `-slow` 350,
-  `-exit` 150, `-bar` 450). Layers come in rising and growing (`oui-pop`) and leave faster by the reverse path: every
-  new dialog/sheet is wrapped in `Presence` (or is a `ConfirmDialog`). Tab change: the marker slides, cards rise one
-  after another (35 ms apart). Only opacity and transforms are animated (plus `Collapse` heights). `prefers-reduced-
-  motion` makes every duration 1 ms. Nothing animates at rest (`tests/ui/motion_test.py`).
+- **Motion** (1.134, chosen by the owner after demos: «Mac» feel, the current look): things that arrive or move use
+  the spring `--oui-spring` (`linear()` of a spring, response 0.55 s, damping 0.8: a barely visible bounce) over
+  `--oui-dur-spring` 550 ms; `--oui-ease` (no bounce) stays for small changes and is the spring's fallback;
+  `--oui-ease-in` for exits; linear only for fades; durations 100–550 ms (`--oui-dur-press` 100, `-fast` 150, `-base`
+  250, `-slow` 350, `-exit` 150, `-bar` 450, `-spring` 550). Dialogs grow out of the tapped point (`oui-pop` from
+  scale 0.6; a MutationObserver in `app/22-motion.js` sets their transform-origin) and shrink back into it; every new
+  dialog/sheet is wrapped in `Presence` (or is a `ConfirmDialog`). Tab change: the marker slides, the new page's cards
+  come from the side of the tab (`--oui-page-dx`) one after another (35 ms apart). Home's cards slide to new places
+  (`useCardMorph`, keyed by `data-slot`). Only opacity and transforms are animated (plus `Collapse` heights).
+  `prefers-reduced-motion` makes every duration 1 ms. Nothing animates at rest (`tests/ui/motion_test.py`).
+  Rejected by the owner: a view of all pages at once, full redesigns (three demos, 17 Nov), Dock magnification.
+- **Home follows the moment** (1.134, phone only): `homeMoment` (alarm / pause / heat / print / idle) and
+  `HOME_MOMENTS` in `app/99-main.js` filter the cards; the order and hidden cards stay the person's (Settings →
+  Appearance → Cards); an alarm puts the camera first and dims the rest except the print card. The camera can go into
+  a small window above the tab bar (`CameraMini`, `cameraMiniStore` in `app/41-camera.js`).
 - **Layouts**: phone below **1100 px** (pages + floating tab bar; never scroll sideways; fits 320–360 px wide: five tabs,
   brand, AI badge and three round buttons); desktop from 1100 px (`useIsDesktop()`, `is-wide`, `desk-*` classes in
   `70-desktop.css`): the same cards arranged in columns, fixed-height pages with columns scrolling on their own, files
@@ -350,6 +359,17 @@ keeps it readable).
 - Proposed, not done (waits for the owner): AI state and score strip under the camera on Home, the print card's two
   big figures (ends at, remaining), temperatures folded during a print, 44 px hit areas (fold chevrons 36, fan −/+ 36,
   file actions 28, AI badge 48×28), uppercase labels, the remaining hand-written colours (293 outside the tokens).
+
+### Home by moment and motion (17 Nov, 1.134.0)
+- The owner keeps the current look; wanted Home to change with the moment (shown only when useful) and macOS-like
+  motion. Approved moment table (demo): idle = next in queue, heat for a material, movement, recent files; heating =
+  big temperatures, time left, cancel; printing = camera, print card, Z-offset, speed/flow, light; paused = resume,
+  filament change, park, temperatures; finished = «how did it go», reprint / next, cool down; alarm = the monitor's
+  picture, pause / it's fine.
+- 1.134.0 did it with the cards Home already has. Not done yet: new Home cards (next in queue, recent files, filament
+  load/unload and park in a pause, speed/flow on Home), the computer's layout (the plan: cards set aside go to the
+  side column instead of disappearing), the «finished» moment (Klipper keeps `complete` for hours, so hiding cards
+  there would hide them until the next print).
 
 ### Open PRs
 None (17 Nov: #171, release 1.133.1, merged). Update this line when a PR opens or merges.

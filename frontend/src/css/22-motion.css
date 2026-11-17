@@ -14,12 +14,14 @@
 
 @keyframes oui-fade { from { opacity: 0; } }
 @keyframes oui-fade-out { to { opacity: 0; } }
-@keyframes oui-pop { from { transform: translateY(16px) scale(0.94); } }
-@keyframes oui-pop-out { to { transform: translateY(8px) scale(0.97); } }
+/* 1.134: a dialog grows out of the point that was tapped (app/22-motion.js sets its transform-origin there) and goes back to it */
+@keyframes oui-pop { from { transform: scale(0.6); } }
+@keyframes oui-pop-out { to { transform: scale(0.6); } }
 @keyframes oui-menu-in { from { transform: scale(0.86); } }
 @keyframes oui-layer-in { from { transform: translateY(32px); } }
 @keyframes oui-layer-out { to { transform: translateY(24px); } }
-@keyframes oui-rise { from { transform: translateY(14px); } }
+@keyframes oui-rise { from { transform: translate(var(--oui-page-dx, 0px), 14px); } } /* 1.134: from the side of the tab that was left */
+@keyframes oui-hop { 0%, 100% { transform: none; } 12% { transform: translateY(-9px); } 30% { transform: none; } 42% { transform: translateY(-5px); } 58% { transform: none; } 68% { transform: translateY(-2px); } 80% { transform: none; } }
 
 /* ---- layers coming in ---- */
 .modal,
@@ -27,9 +29,9 @@
 .sheet-overlay { animation: oui-fade var(--oui-dur-base) linear; }
 .modal-card,
 .confirm-card,
-.sheet-card { animation: oui-pop var(--oui-dur-slow) var(--oui-ease); }
-.oui-menu { animation: oui-fade var(--oui-dur-fast) linear, oui-menu-in var(--oui-dur-base) var(--oui-ease); } /* grows out of its button (transform-origin is set in app/21-dropdown.js) */
-.screen:not(.screen--inline) { animation: oui-fade var(--oui-dur-base) linear, oui-layer-in var(--oui-dur-slow) var(--oui-ease); }
+.sheet-card { animation: oui-fade var(--oui-dur-fast) linear, oui-pop var(--oui-dur-spring) var(--oui-spring); }
+.oui-menu { animation: oui-fade var(--oui-dur-fast) linear, oui-menu-in var(--oui-dur-spring) var(--oui-spring); } /* grows out of its button (transform-origin is set in app/21-dropdown.js) */
+.screen:not(.screen--inline) { animation: oui-fade var(--oui-dur-base) linear, oui-layer-in var(--oui-dur-spring) var(--oui-spring); }
 .screen--inline { animation: oui-fade var(--oui-dur-fast) linear; }
 .desk-drawer { animation: oui-fade var(--oui-dur-fast) linear, oui-rise var(--oui-dur-base) var(--oui-ease); }
 
@@ -37,7 +39,7 @@
 .oui-presence { display: contents; }
 [data-presence="leaving"] { pointer-events: none; }
 [data-presence="leaving"] :is(.modal, .confirm-overlay, .sheet-overlay) { animation: oui-fade-out var(--oui-dur-exit) linear forwards; }
-[data-presence="leaving"] :is(.modal-card, .confirm-card, .sheet-card) { animation: oui-pop-out var(--oui-dur-exit) var(--oui-ease-in) forwards; }
+[data-presence="leaving"] :is(.modal-card, .confirm-card, .sheet-card) { animation: oui-fade-out var(--oui-dur-exit) linear forwards, oui-pop-out var(--oui-dur-exit) var(--oui-ease-in) forwards; }
 [data-presence="leaving"] .oui-menu { animation: oui-fade-out var(--oui-dur-exit) linear forwards; }
 [data-presence="leaving"] .screen:not(.screen--inline) { animation: oui-fade-out var(--oui-dur-exit) linear forwards, oui-layer-out var(--oui-dur-exit) var(--oui-ease-in) forwards; }
 [data-presence="leaving"] .desk-drawer { animation: oui-fade-out var(--oui-dur-exit) linear forwards; }
@@ -48,7 +50,7 @@
 .app-main > .sys-grid > *,
 .app-main > .oui-card,
 .desk-page :is(.desk-col, .desk-device__main, .desk-side__group) > * {
-  animation: oui-fade var(--oui-dur-slow) linear backwards, oui-rise var(--oui-dur-slow) var(--oui-ease) backwards;
+  animation: oui-fade var(--oui-dur-slow) linear backwards, oui-rise var(--oui-dur-spring) var(--oui-spring) backwards;
   animation-delay: calc(var(--oui-i, 0) * var(--oui-stagger));
 }
 :is(.app-main > .grid, .app-main > .sys-grid, .desk-col, .desk-device__main, .desk-side__group) > :nth-child(2) { --oui-i: 1; }
@@ -75,7 +77,7 @@
   border-radius: calc(var(--oui-nav-h) / 2 - 6px);
   box-shadow: inset 0 0 0 1px rgba(var(--oui-accent-rgb), 0.35);
   transform: translateX(calc(var(--at) * (100% + 2px)));
-  transition: transform var(--oui-dur-slow) var(--oui-ease);
+  transition: transform var(--oui-dur-spring) var(--oui-spring);
   pointer-events: none;
 }
 .header-tabs { position: relative; }
@@ -118,3 +120,27 @@
 @media (prefers-reduced-motion: reduce) {
   .oui-progress--live > .oui-progress__bar::after, .ai-header-badge__dot { animation: none !important; }
 }
+
+/* ---- 1.134: Home follows the moment of the print (app/99-main.js) ---- */
+[data-slot]:empty { display: none; } /* a card with nothing to show (no MMU, no Spoolman) takes no row */
+/* an alarm: what is not the camera or the print steps back, and the AI badge hops three times */
+.home-dim { opacity: 0.45; transition: opacity var(--oui-dur-base) linear; }
+.ai-header-badge--alarm { animation: oui-hop 900ms linear; }
+/* the camera in a small window above the tab bar (app/41-camera.js) */
+.camera-mini {
+  position: fixed;
+  right: max(16px, env(safe-area-inset-right, 0px));
+  bottom: calc(var(--oui-nav-h) + env(safe-area-inset-bottom, 0px) + 28px);
+  width: 148px;
+  aspect-ratio: 16 / 9;
+  z-index: 40;
+  padding: 0;
+  border: 1px solid var(--oui-stroke);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--oui-well);
+  box-shadow: var(--oui-shadow-float);
+  cursor: pointer;
+}
+.camera-mini > * { width: 100%; height: 100%; object-fit: cover; pointer-events: none; }
+@media (prefers-reduced-motion: reduce) { .ai-header-badge--alarm { animation: none; } }
