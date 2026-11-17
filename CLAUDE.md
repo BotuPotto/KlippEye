@@ -294,7 +294,20 @@ keeps it readable).
 ### Local model (base model training)
 - `--paste` (public spaghetti on fine pictures + clean bed pieces as counterweight) is on branch `paste-failures`, no
   PR yet. `--paste 0.2` gives ~660 + 660 pictures (20% of ~3,300 whole fine pictures).
-- The 16 Nov run was cut by the GPU quota; a retry was scheduled for 17 Nov 09:00 in the old chat.
+- **The data is ready** (17 Nov, CPU run): `MyDrive/klippeye-training/prepared.zip` in the owner's Google Drive (7.3 GB,
+  `ml/data` + `ml/work`, manifest paths relative; 47,972 pictures: 28,234 failed / 19,738 fine, 658 pasted failures +
+  658 clean pieces, 4,403 look-alikes). Do **not** redo steps 4–5 of section 7. On 17 Nov Colab gave no GPU all day.
+- Resume with a T4: Escape, ctrl+shift+p, «tipo di runtime», T4, «Salva», run a cell. Allocation can take minutes. If
+  «Nessun backend con GPU disponibile» / «Impossibile connettere al backend GPU» appears, press «Annulla» / «Chiudi»,
+  never «Connetti» / «Connetti senza GPU» (that is a CPU runtime). Retry every ~3 h (`send_later`). With a GPU, one-line
+  cells, never ctrl+F10 (the notebook's own cells follow):
+  1. `from google.colab import drive; drive.mount('/content/drive')`: the owner must click «Connetti a Google Drive».
+  2. `!git clone -q https://github.com/BotuPotto/KlippEye -b paste-failures && pip install -q -r KlippEye/ml/requirements.txt && nvidia-smi -L`
+  3. `%cd /content/KlippEye`
+  4. `!unzip -q /content/drive/MyDrive/klippeye-training/prepared.zip && wc -l ml/work/manifest.csv` (47,973 lines)
+  5. step 6 of section 7 (~1 h, no resume), then step 7; copy `model2.zip` to the Drive folder too.
+  Measure with `C:\Users\coroz\Downloads\klippeye-data.zip` (section 6). Afterwards tell the owner he can delete
+  `klippeye-training` from Drive.
 - **Next**: train (section 7) → measure against `models/base` on the owner's recordings → look at the contact sheet
   (pasted pieces must not look fake) → ship only if better (new `models/base/*`, `CREDITS.md`, measurements in
   `models/base/README.md`, CHANGELOG). Few pasted pictures → raise `--paste`. Distillation only if not enough.
@@ -310,7 +323,7 @@ keeps it readable).
   current Y (`frame_point`, `print_zone` outlines, bed box, part, the local model's bed view); toolhead masks at Y = 0;
   (4) a calibration page step + 9 translations; (5) tests with simulated cameras like `test_calibration_auto.py`
   (before: 3 of 8 wrong calibrations rated «good»; target: all right). Cannot be tried on the owner's printer.
-  A reminder was scheduled for 19 Nov 18:00 in the old chat.
+  A reminder is due on 19 Nov 18:00 (Rome): a new chat schedules it itself (`send_later`), it does not carry over.
 
 ### Code audit (17 Nov, 1.133.1)
 - Fixed: port-80 auth for Moonraker's WebSocket and uploads, streamed uploads (with a length, never chunked too), one
