@@ -337,7 +337,7 @@ img, video { max-width: 100%; height: auto; }
    cards over a pale grey, dark text, deeper status colours (they must read on
    white). The accent is worked out by accentTokens() for the light page.
    The code wells (editor, G-code viewer, AI code blocks) and the camera stay
-   dark: they are drawn with the dark tokens (.oui-dark-island below).
+   dark: they are drawn with the dark tokens (the rule below).
    ========================================================================== */
 
 html[data-mode="light"] {
@@ -397,8 +397,7 @@ html[data-mode="light"] .editor-body,
 html[data-mode="light"] .ai-codeblock,
 html[data-mode="light"] .gcode-stage,
 html[data-mode="light"] .camera-full,
-html[data-mode="light"] .photo-viewer,
-html[data-mode="light"] .oui-dark-island {
+html[data-mode="light"] .photo-viewer {
   color-scheme: dark;
   --oui-ink-rgb: 255, 255, 255;
   --oui-surface: rgba(255, 255, 255, 0.058);
@@ -10285,7 +10284,7 @@ function usePrinterFunctions() {
    ========================================================================== */
 
 /** Written by build.py from the VERSION file of the release; stays as it is when the page is built by hand. */
-const DASHBOARD_RELEASE = "1.133.0";
+const DASHBOARD_RELEASE = "1.133.1";
 const dashboardRelease = () => (DASHBOARD_RELEASE.startsWith("__") ? "sviluppo" : DASHBOARD_RELEASE);
 
 /** The interface level this page needs from the backend (the backend says its own in /api/version). */
@@ -29514,7 +29513,7 @@ const SETTINGS_GROUPS = [
 ];
 /**
  * 1.60: fewer, fuller pages. "Name and logo" is part of Appearance (with the colours, the look and the cards), the
- * Z-offset steps part of Motion; the addresses are with the system pages. Their old pages still open (PAGES_INSIDE).
+ * Z-offset steps part of Motion; the addresses are with the system pages. Their old pages still open.
  */
 const SETTINGS_ENTRIES = [
   { id: "printers", group: "printer", title: tx("Your printers"), icon: Icons.Cube },
@@ -29531,11 +29530,6 @@ const SETTINGS_ENTRIES = [
   { id: "access", group: "system", title: tx("Access"), icon: Icons.Lock },
   { id: "homeauto", group: "system", title: "Home Assistant / MQTT", icon: Icons.House }, // 1.100
   { id: "software", group: "system", title: tx("Updates"), icon: Icons.Download },
-];
-/** Pages that are now a part of another one: still opened by a link (the guided set-up, the help). */
-const PAGES_INSIDE = [
-  { id: "printer", title: tx("Name and logo"), parent: "appearance" },
-  { id: "zoffset", title: "Z-offset", parent: "motion" },
 ];
 /** The pages inside "AI monitor" (1.19: one entry for everything the monitor does, see 59h-ai-monitor-settings.js). */
 const AI_SUBPAGES = [

@@ -36,7 +36,7 @@ no pip packages. The Google sign-in (OAuth2 with the service account key) is don
 From version 1.1 it also follows the dashboard's settings menu. The dashboard keeps its settings in Moonraker's database
 (namespace "klippeye", key "settings") and this service reads them every few seconds:
     · which notifications are on (they win over the "events" of notifier.json),
-    · how the AI verdict is filtered (verdicts in a row, minimum confidence, which defects count),
+    · how the AI verdict is filtered (verdicts in a row, which defects count),
     · whether it may pause / cancel the print by itself when the AI says so (both OFF unless the person switches them on),
     · from version 1.3, the language of the notifications ("language": one of the dashboard's languages, see MESSAGES).
 Pausing and cancelling are the only things it ever WRITES to the printer (Moonraker's /printer/print/pause and /cancel, which run
@@ -478,7 +478,6 @@ DASH_NAMESPACE = "klippeye"
 DASH_EVENTS = ("error", "complete", "cancelled", "paused", "runout", "ai_pause", "ai_cancel")
 DASH_DEFECTS = ("spaghetti", "empty_bed", "layer_shift", "warping")
 AI_CONFIRMATIONS = (1, 2, 3)
-AI_CONFIDENCES = (0, 50, 70, 85)
 
 
 def _dict(value: Any) -> Dict[str, Any]:
@@ -503,10 +502,9 @@ def dash_settings(raw: Any) -> Dict[str, Any]:
         "ai": {
             "auto_pause": ai.get("autoPause") is True,
             "auto_cancel": ai.get("autoCancel") is True,
+            # 1.19: no confidence threshold here: the backend's (Settings -> AI monitor) is the only one, a verdict below
+            # it already arrives as CONTINUE (an old "minConfidence" of the dashboard is ignored: two hid a real failure)
             "confirmations": _number_in(ai.get("confirmations"), AI_CONFIRMATIONS, 1),
-            # 1.19: the only confidence threshold is the backend's (Settings -> AI monitor): a verdict below it already
-            # arrives as CONTINUE. An old "minConfidence" of the dashboard is ignored (two thresholds hid a real failure).
-            "min_confidence": 0,
             "defects": {name: defects.get(name) is not False for name in DASH_DEFECTS},
         },
         "language": given.get("language") if given.get("language") in LANGUAGES else None,
@@ -685,11 +683,11 @@ class Watcher:
             return  # not known right now: what was last read stays
         fresh = dash_settings(snap.settings)
         if fresh != self.dash:
-            LOG.info("Dashboard settings updated: notifications %s, language %s, automatic pause %s, automatic cancel %s, %d verdicts in a row, minimum confidence %d%%",
+            LOG.info("Dashboard settings updated: notifications %s, language %s, automatic pause %s, automatic cancel %s, %d verdicts in a row",
                      ", ".join("%s=%s" % (k, "yes" if v else "no") for k, v in sorted(fresh["events"].items())) or "as in notifier.json",
                      fresh["language"] or "not chosen yet",
                      "YES" if fresh["ai"]["auto_pause"] else "no", "YES" if fresh["ai"]["auto_cancel"] else "no",
-                     fresh["ai"]["confirmations"], fresh["ai"]["min_confidence"])
+                     fresh["ai"]["confirmations"])
         self.dash = fresh
 
     def _results_of_actions(self, now: float, out: List[Notice]) -> None:
@@ -853,10 +851,8 @@ class Watcher:
         action = verdict.action.upper()
         level = 2 if "CANCEL" in action else 1 if "PAUS" in action else 0  # CANCEL / PAUSE, also CANCELLA / PAUSA (before 1.6.0)
         ai = self.dash["ai"]
-        filtering = ai["min_confidence"] > 0 or not all(ai["defects"].values())
-        if level and filtering and verdict.defects:  # without details (a verdict in plain words) there is nothing to filter on
-            counts = [name for name, (detected, confidence) in verdict.defects.items()
-                      if detected and ai["defects"].get(name, True) and confidence >= ai["min_confidence"]]
+        if level and not all(ai["defects"].values()) and verdict.defects:  # without details (plain words): nothing to filter on
+            counts = [name for name, (detected, _) in verdict.defects.items() if detected and ai["defects"].get(name, True)]
             if not counts:
                 LOG.info("AI verdict '%s' ignored: no defect passes the dashboard's filters", action)
                 return 0
@@ -1356,9 +1352,6 @@ class NtfySender:
         raise SendError("ntfy answered %s: %s" % (status, detail), retry=status in (429, 500, 502, 503, 504))
 
 
-CHANNEL_NAMES = ("ntfy", "firebase")
-
-
 def make_senders(config: Dict[str, Any]) -> List[Tuple[str, Callable[[Notice], None]]]:
     """[(channel name, send)] for every channel that is set up. A channel set up wrongly is logged and left out."""
     senders: List[Tuple[str, Callable[[Notice], None]]] = []
@@ -1442,24 +1435,15 @@ class Outbox:
         self.give_up = give_up_seconds
         self.dry_run = dry_run
         self.queue: "queue.Queue[Tuple[Notice, float]]" = queue.Queue()
-        self.pending = 0  # queued or being sent
-        self._count = threading.Lock()
         self.stop = threading.Event()
         self.thread = threading.Thread(target=self._run, name="outbox", daemon=True)
-        self.sent: List[Notice] = []  # for tests and the log
 
     def start(self) -> None:
         self.thread.start()
 
     def put(self, notice: Notice) -> None:
         LOG.info("Notification: [%s] %s", notice.kind, notice.text)
-        with self._count:
-            self.pending += 1
         self.queue.put((notice, time.time()))
-
-    def _done(self) -> None:
-        with self._count:
-            self.pending -= 1
 
     def _run(self) -> None:
         while not self.stop.is_set():
@@ -1467,10 +1451,7 @@ class Outbox:
                 notice, created = self.queue.get(timeout=0.5)
             except queue.Empty:
                 continue
-            try:
-                self._deliver(notice, created)
-            finally:
-                self._done()
+            self._deliver(notice, created)
 
     def _deliver(self, notice: Notice, created: float) -> None:
         """One notice: sent, or retried (5 s, 10 s ... up to 60 s) until it goes or it is too old."""
@@ -1482,7 +1463,6 @@ class Outbox:
                 else:
                     self._send(notice)
                     LOG.info("Sent: %s", notice.text)
-                self.sent.append(notice)
                 return
             except SendError as error:
                 if not error.retry or time.time() - created > self.give_up:
@@ -1494,16 +1474,6 @@ class Outbox:
             except Exception as error:  # a bug must not kill the sender
                 LOG.exception("Unexpected error while sending: %s", error)
                 return
-
-    def drain(self, timeout: float = 30.0) -> bool:
-        """Waits until everything queued has been handled (tests); False if it did not finish in time."""
-        end = time.time() + timeout
-        while time.time() < end:
-            with self._count:
-                if self.pending == 0:
-                    return True
-            time.sleep(0.02)
-        return False
 
 
 # ---------------------------------------------------------------------------------------------------------------------

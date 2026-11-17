@@ -275,13 +275,13 @@ ok("the dashboard's choices are cleaned (not a list, empty, too long)", vn.dash_
 
 # ---- sanitising: the document comes from a browser
 ok("settings: nothing stored -> every notification as in notifier.json, automatic actions off, 1 verdict, no filters",
-   vn.dash_settings({}) == {"events": {}, "ai": {"auto_pause": False, "auto_cancel": False, "confirmations": 1, "min_confidence": 0, "defects": {k: True for k in vn.DASH_DEFECTS}}, "language": None,
+   vn.dash_settings({}) == {"events": {}, "ai": {"auto_pause": False, "auto_cancel": False, "confirmations": 1, "defects": {k: True for k in vn.DASH_DEFECTS}}, "language": None,
                             "filament": {"sensor": True, "phrases": []}, "notify": {"texts": {}, "pause_delay": None, "rules": [], "printer": ""}, "stamp": 0})
 for junk in (None, "x", 5, [], {"ai": "x", "notifications": 3}, {"ai": {"autoPause": "yes", "autoCancel": 1, "confirmations": "2", "minConfidence": 60, "defects": {"warping": 0}}}):
     d = vn.dash_settings(junk)
-    ok("settings: garbage %r changes nothing (no automatic action, defaults)" % (junk,), not d["ai"]["auto_pause"] and not d["ai"]["auto_cancel"] and d["ai"]["confirmations"] == 1 and d["ai"]["min_confidence"] == 0 and all(d["ai"]["defects"].values()) and d["events"] == {}, d)
+    ok("settings: garbage %r changes nothing (no automatic action, defaults)" % (junk,), not d["ai"]["auto_pause"] and not d["ai"]["auto_cancel"] and d["ai"]["confirmations"] == 1 and all(d["ai"]["defects"].values()) and d["events"] == {}, d)
 ok("settings: only a real true switches an automatic action on (not 1, not 'true')", vn.dash_settings({"ai": {"autoPause": True}})["ai"]["auto_pause"] is True and not vn.dash_settings({"ai": {"autoPause": 1}})["ai"]["auto_pause"] and not vn.dash_settings({"ai": {"autoCancel": "true"}})["ai"]["auto_cancel"])
-ok("settings: confirmations only 1-3, an old minConfidence is ignored (1.19: one threshold, the backend's), True is not a number", vn.dash_settings({"ai": {"confirmations": 3, "minConfidence": 85}})["ai"]["confirmations"] == 3 and vn.dash_settings({"ai": {"minConfidence": 85}})["ai"]["min_confidence"] == 0 and vn.dash_settings({"ai": {"confirmations": 9, "minConfidence": 60}})["ai"]["confirmations"] == 1 and vn.dash_settings({"ai": {"minConfidence": 60}})["ai"]["min_confidence"] == 0 and vn.dash_settings({"ai": {"confirmations": True}})["ai"]["confirmations"] == 1)
+ok("settings: confirmations only 1-3, an old minConfidence is ignored (1.19: one threshold, the backend's), True is not a number", vn.dash_settings({"ai": {"confirmations": 3, "minConfidence": 85}})["ai"]["confirmations"] == 3 and "min_confidence" not in vn.dash_settings({"ai": {"minConfidence": 85}})["ai"] and vn.dash_settings({"ai": {"confirmations": 9, "minConfidence": 60}})["ai"]["confirmations"] == 1 and vn.dash_settings({"ai": {"confirmations": True}})["ai"]["confirmations"] == 1)
 ok("settings: a notification switch must be a real boolean", vn.dash_settings({"notifications": {"error": False, "paused": "no", "complete": 0, "bogus": False}})["events"] == {"error": False})
 
 # ---- the language of the notifications chosen in the dashboard (1.3)

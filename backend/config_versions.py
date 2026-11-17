@@ -12,6 +12,8 @@ import os
 import threading
 import time
 
+import atomic
+
 FOLDER = "config_versions"
 MAX_VERSIONS = 30
 MAX_BYTES = 2 * 1024 * 1024
@@ -52,10 +54,7 @@ class ConfigVersions:
             return {"versions": []}
 
     def _write_index(self, folder, index):
-        tmp = os.path.join(folder, ".index.tmp")
-        with open(tmp, "w", encoding="utf-8") as handle:
-            json.dump(index, handle, indent=1)
-        os.replace(tmp, os.path.join(folder, "index.json"))
+        atomic.write_text(os.path.join(folder, "index.json"), json.dumps(index, indent=1))
 
     def list(self, path):
         path = clean_path(path)

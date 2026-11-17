@@ -89,14 +89,20 @@ if ! git -C "$REPO" rev-parse --verify -q 'HEAD^{commit}' >/dev/null 2>&1; then
 fi
 
 # Compare the hash of every program file with the one git has for the installed release.
-BAD=()
+BAD=(); FILES=(); SHAS=()
 while IFS= read -r -d '' ENTRY; do
   META="${ENTRY%%$'\t'*}"; FILE="${ENTRY#*$'\t'}"
   read -r MODE TYPE SHA <<< "$META"
   [ "$TYPE" = blob ] && [ "$MODE" != 120000 ] || continue
   if [ ! -f "$REPO/$FILE" ]; then BAD+=("$FILE"); continue; fi
-  [ "$(git -C "$REPO" hash-object --no-filters -- "$REPO/$FILE" 2>/dev/null)" = "$SHA" ] || BAD+=("$FILE")
+  FILES+=("$FILE"); SHAS+=("$SHA")
 done < <(git -C "$REPO" ls-tree -r -z HEAD -- backend frontend notifier scripts systemd models apk VERSION 2>/dev/null)
+# 1.133.1: one git for all the files (one each took seconds at every start on a slow Raspberry)
+NOW=()
+[ ${#FILES[@]} -gt 0 ] && mapfile -t NOW < <(printf '%s\n' "${FILES[@]/#/$REPO/}" | git -C "$REPO" hash-object --no-filters --stdin-paths 2>/dev/null)
+for i in "${!FILES[@]}"; do
+  [ "${NOW[$i]:-}" = "${SHAS[$i]}" ] || BAD+=("${FILES[$i]}")
+done
 
 if [ "${#BAD[@]}" = 0 ]; then
   [ "$QUIET" = 1 ] || echo "All program files are intact."

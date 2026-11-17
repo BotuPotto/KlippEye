@@ -106,8 +106,7 @@ def used_tokens():
 
 
 def selector_survives(sel, used):
-    # strip :not([hidden]) etc. attribute parts so that only real class names are inspected
-    classes = [unescape(c) for c in CLASS_RE.findall(re.sub(r"\[[^\]]*\]", lambda m: "", sel) if False else sel)]
+    classes = [unescape(c) for c in CLASS_RE.findall(sel)]
     classes = [c for c in classes if not c.startswith("[")]
     return all(c in used for c in classes)
 

@@ -18,7 +18,7 @@ A dashboard and AI print monitor for **Klipper** printers, made to run on the pr
 | Part | Where | What it does |
 |---|---|---|
 | Backend | `backend/klippeye_backend.py` (+ modules in `backend/`) | Flask app served by waitress on **port 8085** (`SERVER_THREADS = 12`). Serves the dashboard, proxies Moonraker's API (`proxy_moonraker`), the camera, the AI monitor, settings, access control (`access.py`), recordings, print reviews, MQTT (`mqtt_bridge.py`), HTTPS relay (`https_relay.py`), printer functions/macros (`printer_macros.py`), the AI services (`ai_services.py`). |
-| Web front | `scripts/web_front.py` | Optional nginx site that puts KlippEye on **port 80** (`klippeye web main`); `/websocket` and the file uploads go straight to Moonraker; `restore` gives port 80 back. |
+| Web front | `scripts/web_front.py` | Optional nginx site that puts KlippEye on **port 80** (`klippeye web main`); `/websocket` and the file uploads go straight to Moonraker after nginx asks KlippEye (`auth_request` to `/api/auth/check`, 1.133.1: password and guests); `restore` gives port 80 back. |
 | Notifier | `notifier/klippeye_notifier.py` | Separate systemd service, standard library only. Reads Moonraker and the backend; sends notifications (ntfy, and Firebase for the app); the **automatic pause / cancel** on AI verdicts, only when the owner switched them on (N verdicts in a row, defect filters, once per print). Reads the dashboard's settings from Moonraker's database (namespace `klippeye`). |
 | Dashboard | `frontend/src/` → `frontend/klippeye_frontend.html` | One self-contained HTML page (React 18 without JSX, `h()` = `React.createElement`), built by `python3 frontend/build.py` (no npm, no network). Phone layout below 1100 px, desktop layout from 1100 px. |
 | Android app | `android/` | A full-screen WebView on the dashboard with push notifications, downloads, addresses (home / VPN), HTTPS pinning, in-app updates. Own version in `android/VERSION`; GitHub builds and publishes the APK into `apk/` (never by hand). |
@@ -66,6 +66,7 @@ Home Assistant / MQTT, updates, guided set-up. A help button (`HelpButton`) next
 | `notify_channels.py` | the notification channels (ntfy topic, …) |
 | `mqtt_bridge.py`, `mqtt_client.py` | Home Assistant / MQTT (standard-library client) |
 | `https_relay.py` | the optional HTTPS entrance |
+| `atomic.py` | the one safe way to write a file (1.133.1) |
 
 **Rules written twice (change both)**:
 - `backend/printer_lights.py` ↔ `frontend/src/app/13-capabilities.js` (`deriveParts`);
@@ -194,7 +195,8 @@ warm-up seconds, minimum progress, hotend at temperature), one check every `chec
 - Python: standard library first; `numpy`/`cv2` passed in or imported guarded (`HAS_CV2`): the backend starts without
   them. Comments and docstrings in plain English say **why**; a behaviour added in a release is marked with it
   (`# 1.130: …`). Optional helpers fail soft (`except Exception: # a help only`), never in the way of the monitor.
-  Writes are atomic (`write_json_atomic`, tmp + `os.replace`), private files mode 600.
+  Writes are atomic: `atomic.write_text` (`backend/atomic.py`: own temp name, fsync, `os.replace`; `write_json_atomic` uses
+  it), private files mode 600. Never a plain `open(path, "w")` on a file that holds settings or labels.
 - `CONFIG_SPEC` in the backend is read as plain data by the tests' mock server (`ast.literal_eval`): literals only.
 - Dashboard JS stays within **ES2020** (Android WebView). Texts in `tx()`; same English word, two meanings: `txc()`.
 - ruff settings in `pyproject.toml`.
@@ -296,6 +298,9 @@ keeps it readable).
 - **Next**: train (section 7) → measure against `models/base` on the owner's recordings → look at the contact sheet
   (pasted pieces must not look fake) → ship only if better (new `models/base/*`, `CREDITS.md`, measurements in
   `models/base/README.md`, CHANGELOG). Few pasted pictures → raise `--paste`. Distillation only if not enough.
+
+- Known limit (audit 17 Nov): `ml/train.py` picks the epoch, the temperature and the threshold on the same pictures
+  kept aside, and writes its «measured» from them too: optimistic. Only `ml/evaluate.py` on the owner's prints decides.
 
 ### Camera calibration: bed slingers (remind the owner now and then)
 - 1.132.3 refuses bed slingers with the camera on the frame (`bed_moves_in_y`); a camera on the bed works.
