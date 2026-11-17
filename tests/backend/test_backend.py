@@ -3129,7 +3129,7 @@ _th = _np.zeros((360, 540), _np.uint8)
 _th[0:60, 0:65] = 255  # 2.0% of the bed changed, outside the part: above 1.5 (boosted), below 2.5
 _part = _np.zeros((360, 540), _np.uint8)
 _part[200:260, 200:260] = 255
-_keep = _cv.bitwise_not(_part)  # the toolhead hides the whole part
+_keep = 255 - _part  # the toolhead hides the whole part
 _zs = _jz._zone_score(_th, _keep, (_np.full((360, 540), 255, _np.uint8), _np.zeros((360, 540), _np.uint8), _part))
 check("1.133.1: part hidden, the local model in doubt: 2% outside the part counts (the lowered threshold), not «no answer»", _zs is not None and abs(_zs - 2.006) < 0.01, _zs)
 _det.stats["peak_score"] = 7.5
