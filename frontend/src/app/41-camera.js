@@ -792,11 +792,16 @@ function CameraCard() {
           { className: "camera-head-actions" },
           h(CameraPicker),
           light.available && h(LightButton, light),
-          h("button", { type: "button", className: "icon-btn camera-mini-open", "aria-label": tx("Small window"), title: tx("Small window"), onClick: toMini }, h(Icons.PictureInPicture, { size: 18 })),
           h(CameraFullscreenButton, { onOpen: () => setFull(true) }),
         ),
       ),
-      h("div", { className: "camera-frame", ref: frame }, !full && h(CameraMedia, { className: "camera-frame__video", reloads })),
+      h(
+        "div",
+        { className: "camera-frame", ref: frame },
+        !full && h(CameraMedia, { className: "camera-frame__video", reloads }),
+        // on the picture, not in the header: the header has no room left on a 320 px phone
+        h("button", { type: "button", className: "camera-full__btn camera-mini-open", "aria-label": tx("Small window"), title: tx("Small window"), onClick: toMini }, h(Icons.PictureInPicture, { size: 20 })),
+      ),
     ),
     h(Presence, null, full && h(CameraFullscreen, { onClose: () => setFull(false) })),
   );
