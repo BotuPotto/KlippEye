@@ -312,6 +312,14 @@ keeps it readable).
   (before: 3 of 8 wrong calibrations rated «good»; target: all right). Cannot be tried on the owner's printer.
   A reminder was scheduled for 19 Nov 18:00 in the old chat.
 
+### Code audit (17 Nov, 1.133.1)
+- Fixed: port-80 auth for Moonraker's WebSocket and uploads, streamed uploads (with a length, never chunked too), one
+  safe write (`atomic.py`) everywhere settings or labels are written, the hidden-part threshold, `repair.sh` speed,
+  dead code. Read and found sound: access, proxy, monitor loop, second look, notifier auto actions, ai_services,
+  camera maths and moves, install.sh, the Android WebView bridge.
+- Lesson: a JS name used only through a spread (`...NAME`) looks unused to a naive search; build and load the page
+  (or run the browser tests) before calling dashboard code dead.
+
 ### AI monitor
 - Audited 16–17 Nov (releases 1.132.1–1.132.5): personal view at height 0, logs path test, false alarms follow the
   calibration, embedding cache trimmed, bed slingers refused, unconfirmed stops not learned, put-off questions not
@@ -322,11 +330,13 @@ keeps it readable).
 
 ### Dashboard look
 - 17 Nov: analysis and demos (phone and computer) of an optimised look in claude.ai artifacts; the owner likes the
-  current style and wants it refined, not replaced. 1.133.0 (#171) did: type scale, radii, «Nozzle» / «Bed» on the
-  heater tiles, «See the layers» and «More details» as light buttons under Pause / Cancel (one `MoreDetailsButton`).
+  current style and wants it refined, not replaced. 1.133.0/1.133.1 (#171) did: type scale, radii, «Nozzle» / «Bed» on
+  the heater tiles, «See the layers» and «More details» as light buttons under Pause / Cancel (one `MoreDetailsButton`).
+- CI's headless Chromium has no hyphenation dictionaries: text that fits only by hyphenating (`hyphens: auto`) passes
+  locally and fails there. Check narrow tables with DejaVu Sans and `hyphens: none` (the shaper table, 1.133.1).
 - Proposed, not done (waits for the owner): AI state and score strip under the camera on Home, the print card's two
   big figures (ends at, remaining), temperatures folded during a print, 44 px hit areas (fold chevrons 36, fan −/+ 36,
   file actions 28, AI badge 48×28), uppercase labels, the remaining hand-written colours (293 outside the tokens).
 
 ### Open PRs
-#171 (1.133.0, dashboard type scale and radii), merged once green. Update this line when merged.
+None (17 Nov: #171, release 1.133.1, merged). Update this line when a PR opens or merges.
