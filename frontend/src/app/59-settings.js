@@ -1,6 +1,6 @@
 /* ============================================================================
    59 · SETTINGS MENU
-   The side menu behind the menu button of the top bar (like Mobileraker's): it slides in from the left and lists the
+   The side menu behind the menu button of the top bar: it slides in from the left and lists the
    groups of settings, each one a page of its own inside the menu.
      Stampante        the name and the logo of the top bar and of the browser tab: KlippEye, VzBot, Voron, RatRig (see 18-printer-brand.js)
      Camera           how the picture is shown and flipped
