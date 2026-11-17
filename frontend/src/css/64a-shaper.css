@@ -95,8 +95,9 @@
    columns fit with every word whole (wider fonts too) */
 @media (max-width: 479px) {
   .shaper-table-box { margin-left: -8px; margin-right: -8px; }
-  .shaper-table th, .shaper-table td { padding-left: 2px; padding-right: 2px; }
-  .shaper-table thead th { font-size: 12px; }
+  .shaper-table th, .shaper-table td { padding-left: 1px; padding-right: 1px; }
+  /* 1.133.1: 12 px headings fit without hyphenation too (a browser without its dictionaries): lighter, they are grey */
+  .shaper-table thead th { font-size: 12px; font-weight: 400; }
   .shaper-table tbody th, .shaper-table td { font-size: 12px; }
   .shaper-row__tag { display: flex; width: fit-content; min-height: 20px; margin: 0 0 4px 13px; padding: 0 8px; font-size: 12px; }
   .shaper-row__pick { min-height: 28px; gap: 4px; }
