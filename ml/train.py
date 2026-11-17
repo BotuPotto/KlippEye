@@ -217,6 +217,8 @@ def main(argv=None):
     parser.add_argument("--workers", type=int, default=2)
     parser.add_argument("--no-pretrained", action="store_true", help="start from nothing (only for tests: much worse)")
     parser.add_argument("--seed", type=int, default=7)
+    parser.add_argument("--checkpoint", help="file written after every epoch and resumed when it exists (put it on Google "
+                        "Drive: a Colab runtime cut in the middle loses only the epoch it was on)")
     args = parser.parse_args(argv)
     random.seed(args.seed)
     torch.manual_seed(args.seed)
@@ -249,8 +251,17 @@ def main(argv=None):
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=1e-4)
     schedule = torch.optim.lr_scheduler.OneCycleLR(optimizer, max_lr=args.lr, total_steps=max(1, args.epochs * len(train_loader)))
     loss_fn = nn.BCEWithLogitsLoss()
-    best, best_state = None, None
-    for epoch in range(1, args.epochs + 1):
+    best, best_state, first = None, None, 1
+    # 1.134: resume. shortcut: the same --epochs and manifest are assumed (the schedule's length depends on them), and the
+    # random state is not restored, so a resumed run is not bit-identical to an uncut one.
+    if args.checkpoint and os.path.exists(args.checkpoint):
+        saved = torch.load(args.checkpoint, map_location=device, weights_only=False)
+        model.load_state_dict(saved["model"])
+        optimizer.load_state_dict(saved["optimizer"])
+        schedule.load_state_dict(saved["schedule"])
+        best, best_state, first = saved["best"], saved["best_state"], saved["epoch"] + 1
+        print("resuming after epoch %d/%d from %s" % (saved["epoch"], args.epochs, args.checkpoint))
+    for epoch in range(first, args.epochs + 1):
         model.train()
         started, total = time.time(), 0.0
         for x, y in train_loader:
@@ -268,6 +279,11 @@ def main(argv=None):
         key = (chosen["f1"], chosen["recall"])
         if best is None or key > (best["f1"], best["recall"]):
             best, best_state = chosen, {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
+        if args.checkpoint:
+            tmp = args.checkpoint + ".tmp"
+            torch.save({"epoch": epoch, "model": model.state_dict(), "optimizer": optimizer.state_dict(),
+                        "schedule": schedule.state_dict(), "best": best, "best_state": best_state}, tmp)
+            os.replace(tmp, args.checkpoint)
     model.load_state_dict(best_state)
     # 1.130: honest scores. The temperature is put into the last layer (its weights and bias divided by T): the exported
     # model gives the calibrated score by itself, the Raspberry needs nothing new.
