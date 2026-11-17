@@ -276,9 +276,10 @@ class PersonalLayer:
                 cache = {k: stored[k] for k in stored.files if k != "__version__"}
         except (OSError, KeyError, ValueError):
             cache = {}
-        out, fresh = [], 0
+        out, fresh, used = [], 0, set()
         for key, picture, label in examples:
             safe = key.replace("/", "|")
+            used.add(safe)
             vector = cache.get(safe)
             if vector is None:
                 image = self.cv2.imread(picture) if self.cv2 is not None else None
@@ -291,7 +292,9 @@ class PersonalLayer:
                 cache[safe] = vector
                 fresh += 1
             out.append((vector, label))
-        if fresh:
+        gone = len(set(cache) - used)
+        cache = {k: v for k, v in cache.items() if k in used}   # 1.132.2: the examples that are gone leave the cache too
+        if fresh or gone:
             os.makedirs(self.folder, exist_ok=True)
             tmp = path + ".tmp.npz"
             np.savez_compressed(tmp, __version__=np.array(signature), **cache)

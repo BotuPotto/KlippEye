@@ -1,5 +1,14 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.132.2
+
+- After the camera is calibrated (or calibrated again, or its calibration deleted), the local model looks at another
+  part of the picture: the false alarms marked by the person are now described again on that view at once, and the
+  personal layer taught again. Before, the false alarms marked earlier stopped being recognised until the next base
+  model, and the personal layer kept the old view until a restart.
+- The personal layer's cache of picture descriptions keeps only the examples there are: the ones that are gone no
+  longer stay in it for ever.
+
 ## 1.132.1
 
 - The personal layer is no longer taught again, all of its examples looked at anew, after every restart and every

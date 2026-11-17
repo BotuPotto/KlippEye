@@ -104,6 +104,11 @@ check("layer.json and the cache are written", os.path.isfile(os.path.join(data, 
 calls = model.calls
 layer.train(model)
 check("trained again with the same base model: the cache is used", model.calls == calls, model.calls - calls)
+layer._embeddings(model, pl.examples_of(data)[:3])
+with np.load(os.path.join(data, "personal", "cache.npz")) as _stored:
+    _kept_keys = [k for k in _stored.files if k != "__version__"]
+check("1.132.2: the examples that are gone leave the cache (it does not grow for ever)", len(_kept_keys) == 3, len(_kept_keys))
+layer._embeddings(model, pl.examples_of(data))   # back as before for the checks below
 
 layer.configure(True)
 red = model.predict(np.dstack([np.zeros((10, 10)), np.zeros((10, 10)), np.full((10, 10), 230)]).astype(np.uint8))[1]

@@ -2474,7 +2474,7 @@ class LightDetector(FrameJudge):
                         self.last_alert_img_path = full_path
                         ref_path, ref_age = self._save_reference(full_path)
                         local = ({"score": self.local_state.get("score"), "why": self.local_state.get("why"), "vector": self.local_vec,
-                                  "model": local_ai.model.version if local_ai.model is not None else None} if self.local_state.get("at") == now else None)
+                                  "model": memory_version()} if self.local_state.get("at") == now else None)
                         threading.Thread(target=self.call_ai_analysis, args=(full_path, ref_path, ref_age), kwargs={"local": local}, daemon=True).start()
                     except Exception as e:
                         print(f"[OPENCV] save alert fail: {e}")
@@ -2636,7 +2636,7 @@ class LightDetector(FrameJudge):
                      peak=max(state.get("peak") or 0, score))
         sure, doubt = score >= self.local_sure, score >= self.local_doubt
         # 1.125: a scene already marked as a false alarm (by the person, or «fine» for the online AI) is no doubt
-        known = false_memory.match(self.local_vec, score, local_ai.model.version if local_ai.model is not None else None, now) if doubt else None
+        known = false_memory.match(self.local_vec, score, memory_version(), now) if doubt else None
         state["known"] = {"source": known["source"], "score": known["score"]} if known else None
         if known:
             sure = doubt = False
@@ -3196,6 +3196,16 @@ def personal_view():
     """1.130: the part of the picture the monitor's main view is (the bed, rounded), for the personal layer's examples."""
     box = detector._bed_box(z=0.0) if HAS_CV2 else None   # the bed alone: the nozzle's height of the last print would change it
     return tuple(round(float(v), 3) for v in box) if box else None
+
+
+def memory_version():
+    """The false alarms' embeddings are valid for this base model and this view of the pictures (1.132.2: after a
+    calibration the monitor looks at another part of the picture, and they are described again), or None."""
+    model = local_ai.model
+    if model is None:
+        return None
+    view = personal_view()
+    return model.version if not view else "%s|%s" % (model.version, ",".join("%.3f" % v for v in view))
 
 
 def personal_stale():
@@ -3783,7 +3793,7 @@ def _learn_from_label(entry, label):
         alert_id = entry.get("id")
         if label != "false":
             vector = _alarm_vector(entry) if label == "right" else None
-            false_memory.forget(key=alert_id, near=vector, model=local_ai.model.version if local_ai.model is not None else None)
+            false_memory.forget(key=alert_id, near=vector, model=memory_version())
             return
         vector = _alarm_vector(entry)
         if vector is not None:
@@ -3792,7 +3802,7 @@ def _learn_from_label(entry, label):
                 score = entry.get("confidence")   # an alarm of the local model alone: its score
             if not isinstance(score, (int, float)):
                 score = detector.local_state.get("score") or detector.local_sure
-            false_memory.add(vector, max(float(score), float(detector.local_doubt)), "person", alert_id, local_ai.model.version,
+            false_memory.add(vector, max(float(score), float(detector.local_doubt)), "person", alert_id, memory_version(),
                              picture=cv2.imread(os.path.join(ALERT_HISTORY_DIR, os.path.basename(entry["image"]))))
     except Exception as error:  # a help only
         print("[LOCAL] false alarm not learned: %s" % error)
@@ -3804,7 +3814,7 @@ def refresh_false_alarms():
     if model is None or not HAS_CV2:
         return
     try:
-        false_memory.refresh(model.version, lambda picture: detector.local_vec if detector.local_judge(picture, cover=False) is not None else None)
+        false_memory.refresh(memory_version(), lambda picture: detector.local_vec if detector.local_judge(picture, cover=False) is not None else None)
     except Exception as error:  # a help only
         print("[LOCAL] false alarms not described again: %s" % error)
 
@@ -3855,18 +3865,16 @@ def api_local_model():
     if request.method == "POST":
         local_ai.reload()
         detector.apply_config(effective_config(backend_config.snapshot()))   # 1.130: another model, maybe other levels
-        model = local_ai.model
         if personal_stale():
             train_personal_later("new base model")   # the embeddings change with the model: computed again
         refresh_false_alarms()
     state = detector.local_state
-    model = local_ai.model
     levels = model_levels()
     return _no_store(jsonify(dict(local_ai.info(), ok=True, enabled=detector.local_enabled, personal=personal.info(),
                                   bed_view=personal_view(),   # 1.130: the bed's box the local model judges (x, y, w, h) or None
                                   levels={"doubt": detector.local_doubt, "sure": detector.local_sure, "model": list(levels) if levels else None,
                                           "from_model": bool(levels) and (detector.local_doubt, detector.local_sure) == levels},
-                                  false_alarms=false_memory.info(model.version if model is not None else None),
+                                  false_alarms=false_memory.info(memory_version()),
                                   last={k: state.get(k) for k in ("score", "at", "checks", "filtered", "asked", "why")},
                                   folders={"own": LOCAL_MODEL_OWN_DIR, "base": LOCAL_MODEL_BASE_DIR})))
 
@@ -3887,7 +3895,7 @@ def _local_model_test():
     if result is None:
         return jsonify({"ok": False, "error": bt("The local model could not judge the picture", lang)}), 500
     score, views, best = result
-    known = false_memory.match(detector.local_vec, score, local_ai.model.version) if score >= detector.local_doubt else None
+    known = false_memory.match(detector.local_vec, score, memory_version()) if score >= detector.local_doubt else None
     return _no_store(jsonify({"ok": True, "score": score, "views": views, "best": best,
                               "known": {"source": known["source"], "score": known["score"]} if known else None,
                               "doubt": detector.local_doubt, "sure": detector.local_sure}))
@@ -4553,9 +4561,22 @@ def api_camera_fit():
     return _camera_call(lambda: {"fit": camera_cal.fit()})
 
 
+def _view_changed():
+    """1.132.2: a calibration saved or forgotten: the monitor looks at another part of the picture, so the false alarms
+    and the personal layer are described again on that view. -> nothing (for _camera_call)."""
+    threading.Thread(target=refresh_false_alarms, name="false-alarms", daemon=True).start()
+    if personal_stale():
+        train_personal_later("new calibration")
+
+
 @app.route("/api/camera/calibration/save", methods=["POST"])
 def api_camera_save():
-    return _camera_call(lambda: {"saved": camera_cal.save() and camera_cal.summary()["saved"]})
+    def save():
+        saved = camera_cal.save() and camera_cal.summary()["saved"]
+        if saved:
+            _view_changed()
+        return {"saved": saved}
+    return _camera_call(save)
 
 
 @app.route("/api/camera/calibration/reset", methods=["POST"])
@@ -4565,7 +4586,11 @@ def api_camera_reset():
 
 @app.route("/api/camera/calibration", methods=["DELETE"])
 def api_camera_forget():
-    return _camera_call(lambda: camera_cal.forget())
+    def forget():
+        done = camera_cal.forget()
+        _view_changed()
+        return done
+    return _camera_call(forget)
 
 
 # === PRINTER FUNCTIONS (phase 5b): the macros KlippEye writes into klippeye_macros.cfg ==================================
