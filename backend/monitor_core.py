@@ -339,7 +339,7 @@ class FrameJudge:
         else:
             shift = float(cv2.mean(gray, mask=keep)[0]) - float(cv2.mean(self.bg, mask=keep)[0])
         if abs(shift) > 1:
-            gray = cv2.convertScaleAbs(gray, alpha=1.0, beta=-shift)
+            gray = cv2.subtract(gray, round(shift)) if shift > 0 else cv2.add(gray, round(-shift))   # stops at 0 and 255 (no mirrored blacks)
         thresh = cv2.threshold(cv2.absdiff(self.bg, gray), self.sensitivity, 255, cv2.THRESH_BINARY)[1]
         if keep is not None:
             thresh = cv2.bitwise_and(thresh, keep)

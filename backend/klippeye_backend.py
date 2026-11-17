@@ -2116,7 +2116,7 @@ def build_ai_prompt(score, state, filename, progress, hotend, ref_age=None, lang
             noticed += " A small image model on the printer rates the picture %.0f%% likely to show a failed print (it can be wrong both ways)." % local["score"]
     pictures = ("I am sending TWO pictures: the first is BEFORE (about %d seconds ago), the second is NOW. Compare them: what counts is what changed and stays." % (ref_age or 0)
                 if ref_age is not None else "I am sending ONE picture (now).")
-    return f"""You are watching a 3D print (a Klipper printer). The camera is fixed, very close and above the bed, in a corner: the print head, its cables and parts of the gantry often appear in the picture.
+    return f"""You are watching a 3D print (a Klipper printer). The camera is fixed: the print head, its cables and parts of the gantry may appear in the picture.
 
 {noticed}
 
