@@ -2300,8 +2300,8 @@ body.is-pulling { overscroll-behavior-y: none; }
 .print-details { margin-top: 12px; border-radius: 12px; background: var(--oui-surface-2); }
 .print-details__list { display: flex; flex-direction: column; padding: 8px 14px; }
 /* 1.133: «See the layers» and «More details», light, under Pause / Cancel */
-.print-links { display: flex; gap: 4px; margin: 8px -8px -8px; }
-.print-links > .oui-btn { flex: 1; }
+.print-links { display: flex; flex-wrap: wrap; gap: 4px; margin: 8px -8px -8px; } /* a narrow phone puts the second one under the first */
+.print-links > .oui-btn { flex: 1 1 auto; }
 .print-more svg { transition: transform var(--oui-dur-base) var(--oui-ease); }
 .print-more.is-open svg { transform: rotate(180deg); }
 .print-details__row { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; font-size: 13px; }
@@ -15323,7 +15323,9 @@ const PAD_QUADRANTS = [
 ];
 /** The step of each ring written on the diagonal gaps: +step up-right, −step down-left. */
 function padStepLabels(rings) {
-  const size = rings.length > 3 ? 11 : rings.length > 2 ? 11.5 : 12.5; // 1.115: a little bigger, in their gaps
+  // 1.133: in units of the 280-unit pad, drawn at about 0.85 on a 390 px phone: 12 px or more from there up
+  // shortcut: on a 320 px phone the pad shrinks and the labels are about 11 px; scale them with the pad if that matters
+  const size = rings.length > 3 ? 14.5 : rings.length > 2 ? 15 : 15.5;
   return rings.flatMap((ring) => {
     const middle = (ring.from + ring.to) / 2;
     const up = polar(middle, -45);

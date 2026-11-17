@@ -3,7 +3,8 @@
 ## 1.133.0
 
 - No text in the dashboard is smaller than 12 px any more. The labels of the tab bar were 11 px (10 px on the narrowest
-  phones), and so were the axes of the temperature and input shaper charts, the bed mesh values and a few captions. The
+  phones), and so were the axes of the temperature and input shaper charts, the bed mesh values, the step numbers on the
+  movement pad (about 10 px) and a few captions. The
   other text sizes now follow one scale of ten sizes instead of 23; most moved by 1 px.
 - The heater tiles say «Nozzle» and «Bed» in the dashboard's language. They said HOTEND and BED, in English and in
   capitals, in every language.

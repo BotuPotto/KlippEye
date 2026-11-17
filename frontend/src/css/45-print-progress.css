@@ -29,8 +29,8 @@
 .print-details { margin-top: 12px; border-radius: 12px; background: var(--oui-surface-2); }
 .print-details__list { display: flex; flex-direction: column; padding: 8px 14px; }
 /* 1.133: «See the layers» and «More details», light, under Pause / Cancel */
-.print-links { display: flex; gap: 4px; margin: 8px -8px -8px; }
-.print-links > .oui-btn { flex: 1; }
+.print-links { display: flex; flex-wrap: wrap; gap: 4px; margin: 8px -8px -8px; } /* a narrow phone puts the second one under the first */
+.print-links > .oui-btn { flex: 1 1 auto; }
 .print-more svg { transition: transform var(--oui-dur-base) var(--oui-ease); }
 .print-more.is-open svg { transform: rotate(180deg); }
 .print-details__row { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; font-size: 13px; }

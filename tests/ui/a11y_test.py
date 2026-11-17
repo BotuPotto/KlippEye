@@ -88,7 +88,7 @@ SMALL = r"""() => {
     let own = ""; for (const n of e.childNodes) if (n.nodeType === 3) own += n.textContent;
     if (!own.trim()) return;
     let px = parseFloat(s.fontSize);
-    if (e instanceof SVGElement && e.getScreenCTM()) px *= e.getScreenCTM().a;
+    if (e instanceof SVGElement && e.getScreenCTM()) { const m = e.getScreenCTM(); px *= Math.hypot(m.a, m.b); }
     if (px < 11.95) out.push(own.trim().slice(0, 20) + " " + px.toFixed(1) + "px");
   });
   return out;
