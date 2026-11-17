@@ -1120,6 +1120,20 @@ def relay(upstream):
     return response
 
 
+class SizedBody:
+    """A request body read as it goes, with its length known: requests then sends Content-Length and no chunked
+    encoding (a file-like object without a length got both, and Moonraker waited for a body that never ended)."""
+
+    def __init__(self, stream, length):
+        self.stream, self.length = stream, length
+
+    def __len__(self):
+        return self.length
+
+    def read(self, size=-1):
+        return self.stream.read(size)
+
+
 def proxy_moonraker(path):
     """The request, as it is, to Moonraker. Our own session cookie and internal token are not passed on."""
     url = "%s/%s" % (MOONRAKER_URL, path)
@@ -1128,7 +1142,7 @@ def proxy_moonraker(path):
     headers = {name: value for name, value in request.headers if name.lower() not in PROXY_REQUEST_SKIP}
     wait = (5, 600) if path.startswith(LONG_MOONRAKER_PATHS) else 10
     if request.content_length:  # 1.133.1: a G-code of hundreds of MB goes on as it is read, never whole in memory
-        body, headers["Content-Length"] = request.stream, str(request.content_length)
+        body = SizedBody(request.stream, request.content_length)
     else:
         body = request.get_data()  # no body, or one without a length (chunked): small
     try:

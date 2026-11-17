@@ -2676,11 +2676,13 @@ _wb.proxy_moonraker = _orig_proxy
 _sent = {}
 _orig_request = _wb.requests.request
 def _capture(method, url, data=None, headers=None, **kw):
-    _sent.update(url=url, streamed=hasattr(data, "read"), length=(headers or {}).get("Content-Length"), timeout=kw.get("timeout"), body=data.read() if hasattr(data, "read") else data)
+    sent = _wb.requests.Request(method, url, data=data, headers=headers).prepare()  # the headers requests really sends
+    _sent.update(url=url, streamed=hasattr(data, "read"), length=sent.headers.get("Content-Length"), chunked="Transfer-Encoding" in sent.headers,
+                 timeout=kw.get("timeout"), body=data.read() if hasattr(data, "read") else data)
     raise _wb.requests.RequestException("captured")
 _wb.requests.request = _capture
 _wc.post("/server/files/upload", data=b"G1 X1\n" * 1000, content_type="application/octet-stream")
-check("1.133.1: an upload goes on to Moonraker as a stream, with its length and the long wait", _sent.get("streamed") is True and _sent.get("length") == "6000"
+check("1.133.1: an upload goes on to Moonraker as a stream, with its length (not chunked too) and the long wait", _sent.get("streamed") is True and _sent.get("length") == "6000" and _sent.get("chunked") is False
       and _sent.get("body") == b"G1 X1\n" * 1000 and _sent.get("timeout") == (5, 600), {k: v for k, v in _sent.items() if k != "body"})
 _wc.get("/server/info")
 check("... a question without a body is sent as before", _sent.get("streamed") is False and _sent.get("body") == b"", {k: v for k, v in _sent.items() if k != "body"})
