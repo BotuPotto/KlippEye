@@ -260,7 +260,8 @@ def guest_may(method, path, args=None):
     args = args or {}
     method = (method or "").upper()
     if method == "POST":
-        return path in GUEST_POST
+        # 1.134.1: a camera's WebRTC page asks for its stream with POST; it starts a picture, it commands nothing
+        return path in GUEST_POST or (path.startswith("/webcam") and "/.." not in path)
     if method not in ("GET", "HEAD"):
         return False
     if "/.." in path or "//" in path:

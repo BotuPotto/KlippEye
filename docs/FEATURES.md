@@ -96,10 +96,11 @@ closes when the macro is done with it.
 - **The camera menu**: with more than one camera, choose which one to watch. The choice stays on this device.
 - **The light button** switches the lights marked *Switched by the round button*; the arrow next to it opens all the
   lights, with brightness, colour and scenes (see [Lights](#lights)).
+- **⋮** (on a phone): full screen and the small window.
 - **⛶ Full screen**. In the Android app the bars disappear and the screen turns to landscape. In a browser that can't turn
   the screen (an iPhone, for example) the picture itself is turned to fill a phone held sideways; ↻ switches that off. A tap
   shows the buttons; ⤡, Esc or the back button leave.
-- **Small window** (phone, the button with a small box): the picture moves into a small window above the tab bar and
+- **Small window** (phone, in the ⋮ menu): the picture moves into a small window above the tab bar and
   stays there on every page, so you can watch the print while you use the others. A tap on the window brings it back to
   Home.
 

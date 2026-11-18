@@ -100,7 +100,7 @@ button.oui-tile:active { transform: scale(0.985); background: var(--oui-surface-
 .oui-card__fold { display: grid; flex-shrink: 0; place-items: center; width: 36px; height: 36px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--oui-text-3); cursor: pointer; transition: transform var(--oui-dur-fast) var(--oui-ease), background var(--oui-dur-fast) var(--oui-ease); }
 .oui-card__fold:hover { background: var(--oui-surface-3); color: var(--oui-text); }
 .oui-card__fold[aria-expanded="false"] { transform: rotate(-90deg); }
-.oui-card.is-collapsed > :not(.oui-card__head) { display: none; }
+.oui-card.is-collapsed:not(.is-folding) > :not(.oui-card__head) { display: none; } /* 1.134.1: still shown while the card folds (app/20-ui-primitives.js) */
 .oui-card.is-collapsed > .oui-card__head { margin-bottom: 0; }
 .oui-card--flush.is-collapsed > .oui-card__head { padding-bottom: 18px; }
 

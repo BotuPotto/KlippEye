@@ -2473,6 +2473,13 @@ check("1.82: a guest may not command, nor read the configuration, logs or settin
               ("GET", "/server/files/config/printer.cfg", {}), ("GET", "/server/files/list", {"root": "config"}), ("GET", "/server/files/directory", {"path": "config"}), ("GET", "/server/files/content", {"root": "config", "path": "printer.cfg"}),
               ("GET", "/api/logs/list", {}), ("GET", "/api/notifications/channels", {}), ("GET", "/api/ai/config", {}), ("GET", "/machine/update/status", {"refresh": "true"}),
               ("GET", "/printer/restart", {}), ("GET", "/server/database/item", {"namespace": "moonraker"}), ("GET", "/server/database/item", {}), ("POST", "/api/auth/password", {}), ("GET", "/server/files/gcodes/../config/printer.cfg", {}))))
+check("1.134.1: a guest may start a camera's WebRTC stream (POST), nothing else through it",
+      _may("POST", "/webcam/webrtc") and _may("POST", "/webcam2/webrtc") and not _may("POST", "/webcam/../printer/gcode/script") and not _may("POST", "/printer/gcode/script"))
+_cam = load_brain(NEW_BRAIN, tmp(), fake, brain_json={"values": {"enabled": False}}).app.test_client()
+_before = len(fake.posts)
+_r1 = _cam.post("/webcam/webrtc", json={"type": "request"})
+_r2 = _cam.post("/webcam2/webrtc", json={"type": "request"})
+check("... the camera proxy passes a WebRTC page's POST on, for /webcam and /webcam2", _r1.status_code == 200 and _r2.status_code == 200 and fake.posts[_before:] == ["/webcam/webrtc", "/webcam2/webrtc"], (fake.posts[_before:], _r1.status_code, _r2.status_code))
 
 # 1.84: klippeye benchmark (scripts/benchmark.py): a busy process named like the KlippEye service is measured
 _busy = subprocess.Popen([sys.executable, "-c", "import time\nt = time.time() + 6\nwhile time.time() < t: pass", "klippeye_backend.py"])

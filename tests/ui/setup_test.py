@@ -149,7 +149,7 @@ with sync_playwright() as p:
     # addresses not set: the camera uses the address of the page
     P = open_page(b, offer=False)
     src = P.pg.locator(".camera-frame iframe").first.get_attribute("src")
-    ok("addresses not set (a new installation): the camera uses the address the dashboard was opened at", src == "http://127.0.0.1/webcam/webrtc", src)
+    ok("addresses not set (a new installation): the camera uses the address the dashboard was opened at", src == P.pg.evaluate("location.origin") + "/webcam/webrtc", src)
     P.close()
 
     # ------------------------------------------------------------------ the snapshot (1.23)

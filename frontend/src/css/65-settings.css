@@ -48,7 +48,7 @@
   border-right: 1px solid var(--oui-stroke-strong);
   border-radius: 0 var(--oui-r-card) var(--oui-r-card) 0;
   box-shadow: var(--oui-shadow-float);
-  animation: drawer-in var(--oui-dur-slow) var(--oui-ease);
+  animation: drawer-in var(--oui-dur-spring) var(--oui-spring);
 }
 @keyframes drawer-in { from { transform: translateX(-100%); } }
 @keyframes drawer-out { to { transform: translateX(-100%); } }
@@ -70,7 +70,7 @@
   overflow-y: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
-  animation: oui-fade var(--oui-dur-base) linear, drawer-page-in var(--oui-dur-slow) var(--oui-ease);
+  animation: oui-fade var(--oui-dur-base) linear, drawer-page-in var(--oui-dur-spring) var(--oui-spring);
 }
 .drawer__body > * { flex-shrink: 0; }
 
@@ -348,7 +348,7 @@
   border: 1px solid var(--oui-stroke-strong);
   border-radius: var(--oui-r-card);
   transition: none;
-  animation: drawer-panel-in var(--oui-dur-slow) var(--oui-ease);
+  animation: drawer-panel-in var(--oui-dur-spring) var(--oui-spring);
 }
 @keyframes drawer-panel-in { from { opacity: 0; transform: scale(0.97) translateY(8px); } }
 [data-presence="leaving"] .drawer.drawer--panel { animation: oui-fade-out var(--oui-dur-exit) linear forwards; }

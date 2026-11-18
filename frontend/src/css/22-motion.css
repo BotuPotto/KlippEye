@@ -61,7 +61,7 @@
 .desk-page .desk-col > .desk-detail { animation: oui-fade var(--oui-dur-fast) linear; } /* the detail panel is rebuilt for every file: a quick cross-fade only */
 
 /* ---- a section unfolding (app/22-motion.js, Collapse) ---- */
-.oui-collapse { display: grid; grid-template-rows: 0fr; transition: grid-template-rows var(--oui-dur-slow) var(--oui-ease); }
+.oui-collapse { display: grid; grid-template-rows: 0fr; transition: grid-template-rows var(--oui-dur-spring) var(--oui-spring); }
 .oui-collapse.is-open { grid-template-rows: 1fr; }
 .oui-collapse__inner { min-height: 0; overflow: hidden; }
 
@@ -110,7 +110,7 @@
 .ai-header-badge:not(.ai-header-badge--idle) .ai-header-badge__dot { animation: oui-breathe 2.4s ease-in-out infinite; }
 @keyframes oui-breathe { 50% { transform: scale(0.7); opacity: 0.6; } }
 /* the menu's lines come in one after the other */
-.drawer .set-group--menu .set-entry { animation: oui-fade var(--oui-dur-base) linear backwards, oui-rise var(--oui-dur-slow) var(--oui-ease) backwards; }
+.drawer .set-group--menu .set-entry { animation: oui-fade var(--oui-dur-base) linear backwards, oui-rise var(--oui-dur-spring) var(--oui-spring) backwards; }
 .drawer .set-group--menu:nth-of-type(2) .set-entry { animation-delay: calc(var(--oui-stagger) * 1); }
 .drawer .set-group--menu:nth-of-type(3) .set-entry { animation-delay: calc(var(--oui-stagger) * 2); }
 .drawer .set-group--menu:nth-of-type(4) .set-entry { animation-delay: calc(var(--oui-stagger) * 3); }

@@ -693,7 +693,7 @@ button.oui-tile:active { transform: scale(0.985); background: var(--oui-surface-
 .oui-card__fold { display: grid; flex-shrink: 0; place-items: center; width: 36px; height: 36px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--oui-text-3); cursor: pointer; transition: transform var(--oui-dur-fast) var(--oui-ease), background var(--oui-dur-fast) var(--oui-ease); }
 .oui-card__fold:hover { background: var(--oui-surface-3); color: var(--oui-text); }
 .oui-card__fold[aria-expanded="false"] { transform: rotate(-90deg); }
-.oui-card.is-collapsed > :not(.oui-card__head) { display: none; }
+.oui-card.is-collapsed:not(.is-folding) > :not(.oui-card__head) { display: none; } /* 1.134.1: still shown while the card folds (app/20-ui-primitives.js) */
 .oui-card.is-collapsed > .oui-card__head { margin-bottom: 0; }
 .oui-card--flush.is-collapsed > .oui-card__head { padding-bottom: 18px; }
 
@@ -1284,7 +1284,7 @@ body:has(.modal, .confirm-overlay, .sheet-overlay, .screen) .bottom-nav { opacit
 .desk-page .desk-col > .desk-detail { animation: oui-fade var(--oui-dur-fast) linear; } /* the detail panel is rebuilt for every file: a quick cross-fade only */
 
 /* ---- a section unfolding (app/22-motion.js, Collapse) ---- */
-.oui-collapse { display: grid; grid-template-rows: 0fr; transition: grid-template-rows var(--oui-dur-slow) var(--oui-ease); }
+.oui-collapse { display: grid; grid-template-rows: 0fr; transition: grid-template-rows var(--oui-dur-spring) var(--oui-spring); }
 .oui-collapse.is-open { grid-template-rows: 1fr; }
 .oui-collapse__inner { min-height: 0; overflow: hidden; }
 
@@ -1333,7 +1333,7 @@ body:has(.modal, .confirm-overlay, .sheet-overlay, .screen) .bottom-nav { opacit
 .ai-header-badge:not(.ai-header-badge--idle) .ai-header-badge__dot { animation: oui-breathe 2.4s ease-in-out infinite; }
 @keyframes oui-breathe { 50% { transform: scale(0.7); opacity: 0.6; } }
 /* the menu's lines come in one after the other */
-.drawer .set-group--menu .set-entry { animation: oui-fade var(--oui-dur-base) linear backwards, oui-rise var(--oui-dur-slow) var(--oui-ease) backwards; }
+.drawer .set-group--menu .set-entry { animation: oui-fade var(--oui-dur-base) linear backwards, oui-rise var(--oui-dur-spring) var(--oui-spring) backwards; }
 .drawer .set-group--menu:nth-of-type(2) .set-entry { animation-delay: calc(var(--oui-stagger) * 1); }
 .drawer .set-group--menu:nth-of-type(3) .set-entry { animation-delay: calc(var(--oui-stagger) * 2); }
 .drawer .set-group--menu:nth-of-type(4) .set-entry { animation-delay: calc(var(--oui-stagger) * 3); }
@@ -1774,7 +1774,7 @@ body.is-pulling { overscroll-behavior-y: none; }
 .desk-camera__full { background: var(--oui-glass); border: 1px solid var(--oui-stroke-strong); color: var(--oui-text); }
 .camera-full__tap { position: absolute; inset: 0; z-index: 2; }
 .camera-full-open { flex: none; }
-.camera-frame > .camera-mini-open { position: absolute; right: 8px; bottom: 8px; z-index: 3; } /* 1.134: the small window */
+.camera-more { flex: none; }
 
 /* ---- 1.37: the round button and its arrow; the lights panel ---- */
 .light-group { display: inline-flex; align-items: center; gap: 4px; }
@@ -4452,7 +4452,7 @@ button.ai-header-badge { cursor: pointer; font: inherit; color: inherit; }
   border-right: 1px solid var(--oui-stroke-strong);
   border-radius: 0 var(--oui-r-card) var(--oui-r-card) 0;
   box-shadow: var(--oui-shadow-float);
-  animation: drawer-in var(--oui-dur-slow) var(--oui-ease);
+  animation: drawer-in var(--oui-dur-spring) var(--oui-spring);
 }
 @keyframes drawer-in { from { transform: translateX(-100%); } }
 @keyframes drawer-out { to { transform: translateX(-100%); } }
@@ -4474,7 +4474,7 @@ button.ai-header-badge { cursor: pointer; font: inherit; color: inherit; }
   overflow-y: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
-  animation: oui-fade var(--oui-dur-base) linear, drawer-page-in var(--oui-dur-slow) var(--oui-ease);
+  animation: oui-fade var(--oui-dur-base) linear, drawer-page-in var(--oui-dur-spring) var(--oui-spring);
 }
 .drawer__body > * { flex-shrink: 0; }
 
@@ -4752,7 +4752,7 @@ button.ai-header-badge { cursor: pointer; font: inherit; color: inherit; }
   border: 1px solid var(--oui-stroke-strong);
   border-radius: var(--oui-r-card);
   transition: none;
-  animation: drawer-panel-in var(--oui-dur-slow) var(--oui-ease);
+  animation: drawer-panel-in var(--oui-dur-spring) var(--oui-spring);
 }
 @keyframes drawer-panel-in { from { opacity: 0; transform: scale(0.97) translateY(8px); } }
 [data-presence="leaving"] .drawer.drawer--panel { animation: oui-fade-out var(--oui-dur-exit) linear forwards; }
@@ -10321,7 +10321,7 @@ function usePrinterFunctions() {
    ========================================================================== */
 
 /** Written by build.py from the VERSION file of the release; stays as it is when the page is built by hand. */
-const DASHBOARD_RELEASE = "1.134.0";
+const DASHBOARD_RELEASE = "1.134.1";
 const dashboardRelease = () => (DASHBOARD_RELEASE.startsWith("__") ? "sviluppo" : DASHBOARD_RELEASE);
 
 /** The interface level this page needs from the backend (the backend says its own in /api/version). */
@@ -11050,7 +11050,28 @@ const CardFoldContext = React.createContext(null);
 function Card({ className, flush, cardId, children, ...rest }) {
   const layout = useLayout();
   const collapsed = Boolean(cardId && layout.collapsed[cardId]);
-  const card = h("div", { className: cx("oui-card", flush && "oui-card--flush", cardId && "oui-card--foldable", collapsed && "is-collapsed", className), "data-card": cardId || undefined, ...rest }, children);
+  const ref = useRef(null);
+  useLayoutEffect(() => {
+    // 1.134.1: the card's height moves from what it was at the chevron's tap (foldFrom) to its new one, and the cards
+    // below follow; while it folds, its content stays (is-folding) and is clipped. Opens with the spring, folds faster.
+    const el = ref.current;
+    const from = el && el.foldFrom;
+    if (!from || !el.animate) return;
+    el.foldFrom = 0;
+    const to = el.offsetHeight;
+    if (Math.abs(to - from) < 2) return;
+    el.classList.add("is-folding");
+    el.style.overflow = "hidden";
+    const timing = collapsed ? { duration: springTiming().duration / 2, easing: "cubic-bezier(0.4, 0, 0.2, 1)" } : springTiming();
+    const done = () => {
+      el.classList.remove("is-folding");
+      el.style.overflow = "";
+    };
+    const motion = el.animate([{ height: from + "px" }, { height: to + "px" }], timing);
+    motion.onfinish = done;
+    motion.oncancel = done;
+  }, [collapsed]);
+  const card = h("div", { ref, className: cx("oui-card", flush && "oui-card--flush", cardId && "oui-card--foldable", collapsed && "is-collapsed", className), "data-card": cardId || undefined, ...rest }, children);
   return cardId ? h(CardFoldContext.Provider, { value: { id: cardId, collapsed } }, card) : card;
 }
 
@@ -11064,6 +11085,13 @@ function SectionTitle({ children, className }) {
   return h("span", { className: cx("oui-card-title", className) }, children);
 }
 
+/** The chevron's tap: the card's height now, for the motion (Card), then fold or open it. */
+function foldCard(button, id) {
+  const card = button.closest(".oui-card");
+  if (card) card.foldFrom = card.offsetHeight;
+  layoutStore.toggleCollapsed(id);
+}
+
 /** Card header: title on the left, optional actions on the right (and the fold chevron of a foldable card). */
 function CardHeader({ title, children }) {
   const fold = useContext(CardFoldContext);
@@ -11074,7 +11102,7 @@ function CardHeader({ title, children }) {
     "div",
     { className: "oui-card__head has-fold" },
     h("div", { className: "oui-card__main" }, h(SectionTitle, null, title), !fold.collapsed && children && h("div", { className: "oui-card__tools" }, children)),
-    h("button", { type: "button", className: "oui-card__fold", "aria-expanded": !fold.collapsed, "aria-label": fold.collapsed ? tx("Open «{name}»", { name: title }) : tx("Fold «{name}»", { name: title }), title: fold.collapsed ? txc("card", "Open") : txc("card", "Fold"), onClick: () => layoutStore.toggleCollapsed(fold.id) }, h(Icons.Chevron, { size: 18 })),
+    h("button", { type: "button", className: "oui-card__fold", "aria-expanded": !fold.collapsed, "aria-label": fold.collapsed ? tx("Open «{name}»", { name: title }) : tx("Fold «{name}»", { name: title }), title: fold.collapsed ? txc("card", "Open") : txc("card", "Fold"), onClick: (event) => foldCard(event.currentTarget, fold.id) }, h(Icons.Chevron, { size: 18 })),
   );
 }
 
@@ -13655,7 +13683,41 @@ function CameraMedia({ className, reloads }) {
   const style = flipStyle(camera);
   if (camera.method === "mjpeg") return h(CameraStream, { key: "mjpeg" + reloads + url, className, url, style });
   if (camera.method === "adaptive") return h(CameraSnapshots, { key: "adaptive" + reloads + url, className, url, fps: camera.fps, style });
-  return h("iframe", { key: camera.method + reloads + url, className, src: url, style, allow: "autoplay; fullscreen", loading: "eager", title: camera.name });
+  // 1.134.1: a WebRTC page of the printer comes from the dashboard's own address, so that its player can be made a clean picture
+  // (only when the chosen address is this page's own machine: Settings → Addresses can send the camera elsewhere)
+  const own = camera.method === "webrtc" && /^\/webcam\d*\//.test(camera.address || "") && sameHost(url);
+  return h("iframe", { key: camera.method + reloads + url, className, src: own ? window.location.origin + camera.address : url, style, allow: "autoplay; fullscreen", loading: "eager", title: camera.name, onLoad: own ? (event) => cleanCameraPage(event.currentTarget) : undefined });
+}
+
+const sameHost = (url) => {
+  try {
+    return new URL(url).hostname === window.location.hostname;
+  } catch (error) {
+    return false;
+  }
+};
+
+/**
+ * 1.134.1: the camera's WebRTC page shows its picture in a video player (play button, time, progress bar). The page has
+ * the dashboard's address, so its player loses the controls and plays muted by itself, like a picture. A page from
+ * another address cannot be reached and stays as it is.
+ */
+function cleanCameraPage(frame) {
+  try {
+    const page = frame.contentDocument;
+    if (!page || !page.body) return;
+    const style = page.createElement("style");
+    style.textContent = "html,body{margin:0;background:#000;overflow:hidden}video::-webkit-media-controls{display:none!important}";
+    page.head.appendChild(style);
+    const quiet = () =>
+      page.querySelectorAll("video").forEach((video) => {
+        video.controls = false;
+        video.muted = true; // a muted video may play without a tap
+        if (video.paused) video.play().catch(noop);
+      });
+    quiet();
+    new MutationObserver(quiet).observe(page.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["controls"] });
+  } catch (error) {} // a help only
 }
 
 /* ---------------------------------------------------------------------------
@@ -13825,6 +13887,19 @@ function CameraMini({ onOpen }) {
   return h("button", { ref, type: "button", className: "camera-mini", "aria-label": tx("Camera: tap to open it again"), onClick: open }, h(CameraMedia, { reloads }));
 }
 
+/** 1.134.1: «⋮» next to the light: full screen and the small window. */
+function CameraMoreMenu({ onFull, onMini }) {
+  const menu = useDropdown();
+  const item = (className, icon, title, onClick) =>
+    h("button", { type: "button", className: "oui-menu__item " + className, role: "menuitem", onClick: () => (menu.close(), onClick()) }, h("span", { className: "oui-menu__icon" }, icon), h("span", { className: "oui-menu__text" }, h("span", { className: "oui-menu__title" }, title)));
+  return h(
+    React.Fragment,
+    null,
+    h("button", { type: "button", ref: menu.anchorRef, className: "icon-btn camera-more", "aria-label": tx("More"), title: tx("More"), "aria-haspopup": "menu", "aria-expanded": menu.open, onClick: menu.toggle }, h(Icons.Dots, { size: 18 })),
+    h(DropdownMenu, { menu }, item("camera-full-open", h(Icons.Expand, { size: 18 }), tx("Full screen"), onFull), item("camera-mini-open", h(Icons.PictureInPicture, { size: 18 }), tx("Small window"), onMini)),
+  );
+}
+
 function CameraCard() {
   const light = useCaseLight();
   const reloads = useCameraReloads();
@@ -13851,15 +13926,13 @@ function CameraCard() {
           { className: "camera-head-actions" },
           h(CameraPicker),
           light.available && h(LightButton, light),
-          h(CameraFullscreenButton, { onOpen: () => setFull(true) }),
+          h(CameraMoreMenu, { onFull: () => setFull(true), onMini: toMini }),
         ),
       ),
       h(
         "div",
         { className: "camera-frame", ref: frame },
         !full && h(CameraMedia, { className: "camera-frame__video", reloads }),
-        // on the picture, not in the header: the header has no room left on a 320 px phone
-        h("button", { type: "button", className: "camera-full__btn camera-mini-open", "aria-label": tx("Small window"), title: tx("Small window"), onClick: toMini }, h(Icons.PictureInPicture, { size: 20 })),
       ),
     ),
     h(Presence, null, full && h(CameraFullscreen, { onClose: () => setFull(false) })),

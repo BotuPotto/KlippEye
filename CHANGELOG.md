@@ -1,5 +1,16 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.134.1
+
+- A card folded with the arrow at its top right now closes and opens with a motion, and the cards below slide up or
+  down with it. Before, its content vanished at once and the page jumped.
+- The side menu, its pages and their rows, and the sections that open inside a card now arrive with the same spring as
+  the dialogs. Closing stays quick, as before.
+- A WebRTC camera now shows a clean picture: no play button, no time and no progress bar over it. It plays by itself,
+  without sound. This works when the camera's address starts with /webcam (the usual one); a camera with an address of
+  its own still shows its own player.
+- On a phone, full screen and the small window are in a menu with three dots next to the light button.
+
 ## 1.134.0
 
 - On a phone, Home now changes with the print. While the printer heats for a print, the movement and spool cards step

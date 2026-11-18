@@ -31,6 +31,24 @@ with sync_playwright() as p:
     P = start(b)
     idle = P.pg.evaluate(SLOTS)
     ok("1.134: idle Home keeps the spool and the movement", "spool" in idle and "movement" in idle and "camera" in idle, idle)
+    # 1.134.1: the camera's WebRTC page, from the dashboard's address, shows its picture without the player's controls
+    player = P.pg.evaluate("() => { const f = document.querySelector('.camera-frame iframe'); const v = f && f.contentDocument && f.contentDocument.querySelector('video'); return f ? { src: f.getAttribute('src'), controls: v ? v.controls : null, muted: v ? v.muted : null } : null; }")
+    ok("1.134.1: the camera's WebRTC page has no player controls", player and player["src"].endswith("/webcam/webrtc") and player["controls"] is False and player["muted"] is True, player)
+    # 1.134.1: a card folds and opens with a height motion, its content shown while it folds
+    card = P.pg.locator("[data-slot=temps] .oui-card").first
+    full = card.bounding_box()["height"]
+    card.locator(".oui-card__fold").click()
+    P.pg.wait_for_timeout(60)
+    mid = P.pg.evaluate("() => { const c = document.querySelector('[data-slot=temps] .oui-card'); return { folding: c.classList.contains('is-folding'), anims: c.getAnimations().length, h: c.offsetHeight }; }")
+    P.settle(700)
+    folded = card.bounding_box()["height"]
+    ok("1.134.1: folding a card moves its height, content still shown meanwhile", mid["folding"] and mid["anims"] == 1 and folded < full / 2, (mid, full, folded))
+    card.locator(".oui-card__fold").click(); P.settle(900)
+    ok("... it opens back to its height", abs(card.bounding_box()["height"] - full) < 2 and "is-folding" not in (card.get_attribute("class") or ""), (full, card.bounding_box()["height"]))
+    # the side menu arrives with the spring
+    P.pg.locator(".header-btn--menu").click()
+    P.pg.wait_for_selector(".drawer")
+    ok("... the side menu comes in with the spring", "linear(" in P.pg.evaluate("() => getComputedStyle(document.querySelector('.drawer')).animationTimingFunction"))
     P.close()
 
     P = start(b, printing=True)
@@ -44,7 +62,7 @@ with sync_playwright() as p:
     ok("... a dialog grows from the tap", origin.endswith("px") and origin != "", origin)
     P.pg.locator(".modal").click(position={"x": 8, "y": 8}); P.settle(600)
     # the camera into a small window, which stays on another page and brings it back
-    P.pg.locator(".camera-mini-open").click(); P.settle(800)
+    P.pg.locator(".camera-more").click(); P.pg.locator(".camera-mini-open").click(); P.settle(800)
     ok("... small window: the camera card leaves Home", P.pg.locator(".camera-mini").count() == 1 and "camera" not in P.pg.evaluate(SLOTS))
     P.pg.locator("[data-tab=files]").click(); P.settle(800)
     ok("... small window: still there on another page", P.pg.locator(".camera-mini").is_visible())

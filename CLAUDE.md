@@ -246,13 +246,21 @@ keeps it readable).
   scale 0.6; a MutationObserver in `app/22-motion.js` sets their transform-origin) and shrink back into it; every new
   dialog/sheet is wrapped in `Presence` (or is a `ConfirmDialog`). Tab change: the marker slides, the new page's cards
   come from the side of the tab (`--oui-page-dx`) one after another (35 ms apart). Home's cards slide to new places
-  (`useCardMorph`, keyed by `data-slot`). Only opacity and transforms are animated (plus `Collapse` heights).
+  (`useCardMorph`, keyed by `data-slot`). 1.134.1: the side menu, its pages and rows, and `Collapse` use the spring
+  too; a folded card animates its height (`Card` + `foldCard` in `app/20-ui-primitives.js`: the height at the
+  chevron's tap → the new one, content kept by `is-folding` while it folds, folding at half the spring's time).
+  Only opacity and transforms are animated, plus `Collapse` heights and a card's fold.
   `prefers-reduced-motion` makes every duration 1 ms. Nothing animates at rest (`tests/ui/motion_test.py`).
   Rejected by the owner: a view of all pages at once, full redesigns (three demos, 17 Nov), Dock magnification.
 - **Home follows the moment** (1.134, phone only): `homeMoment` (alarm / pause / heat / print / idle) and
   `HOME_MOMENTS` in `app/99-main.js` filter the cards; the order and hidden cards stay the person's (Settings →
   Appearance → Cards); an alarm puts the camera first and dims the rest except the print card. The camera can go into
-  a small window above the tab bar (`CameraMini`, `cameraMiniStore` in `app/41-camera.js`).
+  a small window above the tab bar (`CameraMini`, `cameraMiniStore` in `app/41-camera.js`); on a phone full screen and
+  the small window are in the «⋮» menu next to the light (`CameraMoreMenu`, 1.134.1).
+- **A WebRTC camera is a clean picture** (1.134.1): a `/webcam…` WebRTC page is loaded from the dashboard's own origin
+  (`CameraMedia`) so `cleanCameraPage` can take away its player's controls and play it muted; the backend's `/webcam`
+  proxy passes POST (the page's signalling) and `/webcam2…`, and a guest may POST there (`access.guest_may`). A camera
+  with an absolute address stays as it is (another origin).
 - **Layouts**: phone below **1100 px** (pages + floating tab bar; never scroll sideways; fits 320–360 px wide: five tabs,
   brand, AI badge and three round buttons); desktop from 1100 px (`useIsDesktop()`, `is-wide`, `desk-*` classes in
   `70-desktop.css`): the same cards arranged in columns, fixed-height pages with columns scrolling on their own, files
@@ -359,6 +367,9 @@ keeps it readable).
 - 17 Nov: analysis and demos (phone and computer) of an optimised look in claude.ai artifacts; the owner likes the
   current style and wants it refined, not replaced. 1.133.0/1.133.1 (#171) did: type scale, radii, «Nozzle» / «Bed» on
   the heater tiles, «See the layers» and «More details» as light buttons under Pause / Cancel (one `MoreDetailsButton`).
+- Tests that measure a layer or a panel must wait for its animation to end (`getAnimations()`, finite ones only: the
+  progress sweep and the AI badge loop forever): the 550 ms spring made `lights_test` and `editor_test` read half-grown
+  boxes in CI (1.134.0).
 - CI's headless Chromium has no hyphenation dictionaries: text that fits only by hyphenating (`hyphens: auto`) passes
   locally and fails there. Check narrow tables with DejaVu Sans and `hyphens: none` (the shaper table, 1.133.1).
 - Proposed, not done (waits for the owner): AI state and score strip under the camera on Home, the print card's two
@@ -377,4 +388,4 @@ keeps it readable).
   there would hide them until the next print).
 
 ### Open PRs
-#175 (release 1.134.0: Home by moment, spring motion, camera small window), open 17 Nov. Update this line when a PR opens or merges.
+#176 (release 1.134.1: card fold and side menu with the spring, plus notes), open 18 Nov. Update this line when a PR opens or merges.

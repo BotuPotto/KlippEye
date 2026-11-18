@@ -96,10 +96,11 @@ la pagina e si chiude quando la macro ha finito.
 - **Il menu della telecamera**: con più telecamere scegli quale guardare. La scelta resta su questo dispositivo.
 - **Il pulsante della luce** accende e spegne le luci segnate *Comandata dal pulsante tondo*; la freccia accanto apre tutte
   le luci, con luminosità, colore e scene (vedi [Luci](#luci)).
+- **⋮** (sul telefono): schermo intero e finestra piccola.
 - **⛶ Schermo intero**. Nell'app Android spariscono le barre e lo schermo gira in orizzontale. In un browser che non può
   girare lo schermo (un iPhone, per esempio) gira l'immagine stessa, per riempire un telefono tenuto di traverso; ↻ lo
   disattiva. Un tocco mostra i pulsanti; ⤡, Esc o il tasto indietro escono.
-- **Finestra piccola** (telefono, il pulsante con un riquadro piccolo): l'immagine passa in una finestrella sopra la
+- **Finestra piccola** (telefono, nel menu ⋮): l'immagine passa in una finestrella sopra la
   barra delle pagine e resta lì su ogni pagina, così guardi la stampa mentre usi le altre. Un tocco sulla finestrella la
   riporta nella Home.
 
