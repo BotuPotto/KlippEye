@@ -214,3 +214,26 @@ def mask(cv2, np, calibration, shape, positions, width, height, x_range=None):
         cv2.fillPoly(out, [pts], 255)
     margin = max(1, int(round(MARGIN_FRACTION * width)))
     return cv2.dilate(out, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * margin + 1, 2 * margin + 1)))
+
+
+COVER_GROW = 0.03     # 1.135: the mask grows by this share of the picture's shorter side (the toolhead's shadow, motion blur)
+COVER_WIDTH = 320     # 1.135: the fill is computed on a picture this wide at most (cheap on a Pi)
+
+
+def cover(cv2, np, frame, mask):
+    """1.135: `frame` with the machine (mask > 0, any size) filled from the picture around it, for the local model: a close
+    toolhead, its cables and its sleeve look like tangles to it. A new picture; `frame` itself when there is nothing to cover."""
+    if mask is None or frame is None or not np.any(mask):
+        return frame
+    height, width = frame.shape[:2]
+    big = cv2.resize(mask, (width, height), interpolation=cv2.INTER_NEAREST) if mask.shape[:2] != (height, width) else mask
+    grow = max(1, int(COVER_GROW * min(width, height)))
+    big = cv2.dilate(big, np.ones((2 * grow + 1, 2 * grow + 1), np.uint8))
+    scale = min(1.0, COVER_WIDTH / float(width))
+    size = (max(1, int(width * scale)), max(1, int(height * scale)))
+    small = cv2.inpaint(cv2.resize(frame, size, interpolation=cv2.INTER_AREA),
+                        cv2.resize(big, size, interpolation=cv2.INTER_NEAREST), 3, cv2.INPAINT_TELEA)
+    filled = cv2.resize(small, (width, height), interpolation=cv2.INTER_LINEAR)
+    out = frame.copy()
+    out[big > 0] = filled[big > 0]
+    return out

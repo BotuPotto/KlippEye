@@ -166,5 +166,16 @@ check("1.127: the replay watches the same bed and uses the correction", masks["l
       (masks["limits"], masks["calibration"].get("correction")))
 check("camera_watch: small and agree", cw.small({"state": "moved", "matrix": [[1, 0, 0], [0, 1, 0]], "shift_px": 10, "rotation_deg": 1}) and not cw.small({"state": "moved", "matrix": [[1, 0, 0], [0, 1, 0]], "shift_px": 90, "rotation_deg": 1}))
 
+# ---- 1.135.0: the local model's views with the machine covered
+scene = np.full((360, 540, 3), 80, np.uint8)
+scene[100:200, 200:300] = 250                                         # a bright «toolhead»
+hole = np.zeros((180, 270), np.uint8)
+hole[50:100, 100:150] = 255                                           # its mask, at half size
+out = machine_masks.cover(cv2, np, scene, hole)
+check("1.135.0: the toolhead is covered by what is around it", abs(int(out[150, 250, 0]) - 80) < 15 and int(scene[150, 250, 0]) == 250, int(out[150, 250, 0]))
+check("... far from it nothing changes", int(out[20, 20, 0]) == 80 and out.shape == scene.shape)
+check("... no mask, or an empty one: the same picture", machine_masks.cover(cv2, np, scene, None) is scene
+      and machine_masks.cover(cv2, np, scene, np.zeros((180, 270), np.uint8)) is scene)
+
 print("\n%d FAIL" % len(FAILS) if FAILS else "\nall passed")
 sys.exit(1 if FAILS else 0)
