@@ -44,8 +44,9 @@ look like tangles to a model trained on public pictures taken from farther away.
 2. Fill: `cv2.inpaint` on a reduced picture (builder's call, Claude's proposal: cheap, no colour background to keep,
    no risk of pasting an old toolhead). If the measurement shows the fill itself raises the score, try a flat fill with
    the bed's median colour instead.
-3. The memory signature (`memory_version`, personal layer `signature`) gains a mark for «toolhead covered», so the
-   false-alarm memory and the personal layer are rebuilt once (shortcut: one-time loss of the remembered false alarms).
+3. The false-alarm memory's key (`memory_version`) gains a mark for «toolhead covered», so it is rebuilt once (one-time
+   loss of the remembered false alarms). The personal layer keeps its signature: its examples carry no positions to
+   cover them, so a new signature would retrain it on the same uncovered pictures (shortcut, noted in the code).
 4. Measure first, ship only if better: on the owner's judged recordings, scores of the views with and without the mask,
    with `models/base` now and with the retrained model when it exists; `ml/evaluate.py` «monitor» row. Ship only if the
    false asks on fine prints go down and the caught failures do not. The recordings need the toolhead positions per
