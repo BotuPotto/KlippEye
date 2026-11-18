@@ -1,5 +1,20 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.134.0
+
+- On a phone, Home now changes with the print. While the printer heats for a print, the movement and spool cards step
+  aside; while it prints, the spool steps aside. When the AI monitor suggests a pause or a cancel, the camera moves to
+  the top and the other cards dim, except the print card with Pause and Cancel. The cards you hid in Settings →
+  Appearance → Cards stay hidden, and the order stays yours. The computer's layout is unchanged.
+- The cards slide to their new places when Home changes, instead of jumping.
+- Dialogs grow out of the button you tapped and shrink back into it when they close.
+- Dialogs, menus, cards and the tab marker now arrive with a spring that settles with a very small bounce. With
+  *reduce motion* on in the device, nothing moves, as before.
+- Changing page with the tab bar, the new page comes in from the side of the tab you tapped.
+- The camera card has a small window button: the picture moves into a small window above the tab bar and stays there
+  on every page. A tap on it brings it back to Home.
+- When the AI monitor raises an alarm, its badge at the top hops three times.
+
 ## 1.133.1
 
 - With KlippEye on port 80 (`klippeye web main`), the password and the guest limits now cover Moonraker's live

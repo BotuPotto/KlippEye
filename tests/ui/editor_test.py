@@ -135,6 +135,7 @@ with sync_playwright() as p:
         P = open_cfg(b, w=w, h=hh)
         pg = P.pg
         ok(f"[{w}] CodeMirror with line numbers and the fold arrows", pg.locator(".cm-lineNumbers").count() == 1 and pg.locator(".cm-foldGutter").count() == 1)
+        pg.evaluate("() => Promise.all(document.getAnimations().filter((a) => a.effect.getComputedTiming().iterations !== Infinity).map((a) => a.finished))")  # the editor has finished coming in (1.134: a longer spring)
         row = [x for x in (e.bounding_box() for e in pg.locator(".editor-tools > *").all()) if x]
         ok(f"[{w}] the tools in one row, inside the screen, none over another, >= 40 px tall",
            len(row) >= 5 and len({round(x["y"]) for x in row}) == 1 and all(x["x"] >= 0 and x["x"] + x["width"] <= w + 0.5 and x["height"] >= 40 for x in row)

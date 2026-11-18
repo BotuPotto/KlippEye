@@ -61,3 +61,58 @@ function Collapse({ open, children }) {
 
   return h("div", { className: cx("oui-collapse", open && "is-open") }, h("div", { className: "oui-collapse__inner" }, (open || alive) && last.current));
 }
+
+/* ---------------------------------------------------------------------------
+   1.134: things come from where they were touched, and move instead of jumping
+   ------------------------------------------------------------------------- */
+
+/** The spring of css/00-tokens.css (curve and length), for the motions made here in code. */
+function springTiming() {
+  const css = getComputedStyle(document.documentElement);
+  return { easing: css.getPropertyValue("--oui-spring").trim() || "ease-out", duration: parseFloat(css.getPropertyValue("--oui-dur-spring")) || 550 };
+}
+
+/* A dialog grows out of the point that was tapped: its transform-origin goes there as it is added (css/22-motion.css,
+   oui-pop). The box is read with the animation switched off for a moment, or the half-grown size would be read. */
+let lastTap = null;
+document.addEventListener("pointerdown", (event) => (lastTap = { x: event.clientX, y: event.clientY, at: Date.now() }), true);
+if (typeof MutationObserver === "function") {
+  new MutationObserver((records) => {
+    if (!lastTap || Date.now() - lastTap.at > 1000) return;
+    for (const record of records)
+      for (const node of record.addedNodes) {
+        if (node.nodeType !== 1) continue;
+        const cards = node.matches(".modal-card, .confirm-card, .sheet-card") ? [node] : node.querySelectorAll(".modal-card, .confirm-card, .sheet-card");
+        for (const card of cards) {
+          card.style.animation = "none";
+          const box = card.getBoundingClientRect();
+          card.style.transformOrigin = lastTap.x - box.left + "px " + (lastTap.y - box.top) + "px";
+          card.style.animation = "";
+        }
+      }
+  }).observe(document.body, { childList: true, subtree: true });
+}
+
+/**
+ * The cards of a page slide to their new places when `moment` changes (the ones that arrive rise by themselves:
+ * css/22-motion.css). A card is known by the data-slot of its wrapper; places are taken after every
+ * render with offsetTop, which neither scrolling nor a running animation changes.
+ */
+function useCardMorph(listRef, moment) {
+  const places = useRef(new Map());
+  const keyOf = (el) => el.getAttribute("data-slot");
+  useLayoutEffect(() => {
+    const list = listRef.current;
+    if (!list || !places.current.size) return;
+    const timing = springTiming();
+    for (const el of list.children) {
+      const was = places.current.get(keyOf(el));
+      const shift = was === undefined ? 0 : was - el.offsetTop;
+      if (Math.abs(shift) > 1 && el.animate) el.animate([{ transform: "translateY(" + shift + "px)" }, { transform: "none" }], timing);
+    }
+  }, [moment]);
+  useLayoutEffect(() => {
+    const list = listRef.current;
+    if (list) places.current = new Map([...list.children].map((el) => [keyOf(el), el.offsetTop]));
+  });
+}
