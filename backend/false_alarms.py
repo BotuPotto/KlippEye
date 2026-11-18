@@ -24,6 +24,8 @@ import os
 import threading
 import time
 
+import atomic
+
 SIM = 0.92           # this close (cosine of the embeddings) is the same scene
 MARGIN = 15.0        # ... and up to this many points higher than the kept score is the same false alarm
 ONLINE_HOURS = 6     # an online «fine» is kept this long (the scene of one print); the person's until forgotten
@@ -68,9 +70,7 @@ class FalseAlarms:
         with open(vectors_path + ".tmp", "wb") as fh:
             self.np.savez(fh, vectors=self.vectors)
         os.replace(vectors_path + ".tmp", vectors_path)
-        with open(items_path + ".tmp", "w", encoding="utf-8") as fh:
-            json.dump({"format": 1, "items": self.items}, fh)
-        os.replace(items_path + ".tmp", items_path)
+        atomic.write_text(items_path, json.dumps({"format": 1, "items": self.items}))
 
     # ---------------------------------------------------------------- changes
     def _unit(self, vector):

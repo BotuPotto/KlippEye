@@ -19,6 +19,8 @@ import shutil
 import threading
 import time
 
+import atomic
+
 FRAME_WIDTH = 540   # the size the monitor's filter works at (monitor_core: half of 1080x720)
 FRAME_HEIGHT = 360
 JPEG_QUALITY = 80
@@ -34,13 +36,6 @@ ALERT_LINK_SECONDS = 600  # an AI verdict belongs to the recording of the alarm 
 def _slug(name):
     base = os.path.splitext(os.path.basename(str(name or "")))[0]
     return re.sub(r"[^A-Za-z0-9._-]+", "_", base).strip("._-")[:40]
-
-
-def _write_json(path, data):
-    tmp = path + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False)
-    os.replace(tmp, path)
 
 
 def _folder_bytes(path):
@@ -265,7 +260,7 @@ class Recorder:
         if not session:
             return
         try:
-            _write_json(os.path.join(self.root, session["id"], "session.json"), session)
+            atomic.write_text(os.path.join(self.root, session["id"], "session.json"), json.dumps(session, ensure_ascii=False))
         except OSError as error:
             print("[RECORDER] cannot save %s: %s" % (session["id"], error))
 

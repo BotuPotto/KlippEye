@@ -18,7 +18,7 @@
 .queue-row__name { overflow: hidden; font-size: 14px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
 .queue-row__meta { font-size: 12px; color: var(--oui-text-3); font-variant-numeric: tabular-nums; }
 .queue-row__actions { display: flex; flex-shrink: 0; gap: 2px; }
-.queue-row__btn { display: flex; align-items: center; justify-content: center; width: 34px; height: 40px; padding: 0; border: 0; border-radius: 10px; background: transparent; color: var(--oui-text-2); cursor: pointer; }
+.queue-row__btn { display: flex; align-items: center; justify-content: center; width: 34px; height: 40px; padding: 0; border: 0; border-radius: 12px; background: transparent; color: var(--oui-text-2); cursor: pointer; }
 .queue-row__btn:hover { background: var(--oui-surface-3); color: var(--oui-text); }
 .queue-row__btn:disabled { opacity: 0.3; pointer-events: none; }
 .queue-row__btn--danger { color: var(--oui-danger); }
@@ -37,6 +37,6 @@
 /* adding a file */
 .queue-add__count { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 16px 0 6px; }
 .queue-add__stepper { display: flex; align-items: center; gap: 8px; }
-.queue-add__input { width: 72px; min-height: 44px; text-align: center; font-size: 18px; font-weight: 600; }
+.queue-add__input { width: 72px; min-height: 44px; text-align: center; font-size: 17px; font-weight: 600; }
 .queue-add__confirm { white-space: nowrap; }
 .desk-detail__queue { white-space: nowrap; }

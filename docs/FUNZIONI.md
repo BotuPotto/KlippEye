@@ -96,9 +96,13 @@ la pagina e si chiude quando la macro ha finito.
 - **Il menu della telecamera**: con più telecamere scegli quale guardare. La scelta resta su questo dispositivo.
 - **Il pulsante della luce** accende e spegne le luci segnate *Comandata dal pulsante tondo*; la freccia accanto apre tutte
   le luci, con luminosità, colore e scene (vedi [Luci](#luci)).
+- **⋮** (sul telefono): schermo intero e finestra piccola.
 - **⛶ Schermo intero**. Nell'app Android spariscono le barre e lo schermo gira in orizzontale. In un browser che non può
   girare lo schermo (un iPhone, per esempio) gira l'immagine stessa, per riempire un telefono tenuto di traverso; ↻ lo
   disattiva. Un tocco mostra i pulsanti; ⤡, Esc o il tasto indietro escono.
+- **Finestra piccola** (telefono, nel menu ⋮): l'immagine passa in una finestrella sopra la
+  barra delle pagine e resta lì su ogni pagina, così guardi la stampa mentre usi le altre. Un tocco sulla finestrella la
+  riporta nella Home.
 
 Le impostazioni della telecamera sono in [Impostazioni → Telecamera](#telecamera-1).
 
@@ -439,6 +443,12 @@ Le card principali hanno in alto a destra una freccia che le chiude fino al tito
 *Aspetto → Card* un piccolo disegno di ogni pagina ti fa trascinare una card dalla sua maniglia (o spostarla con le frecce),
 anche nell'altra colonna, e mostrarla o nasconderla con il suo interruttore. Telefono, tablet e computer tengono ognuno la
 sua disposizione. La card della stampa resta al suo posto. *Ordine predefinito, tutto visibile* torna all'inizio.
+
+Sul telefono la Home segue anche la stampa e mostra solo quello che serve in quel momento. Mentre la stampante si scalda
+per una stampa, le card del movimento e della bobina si fanno da parte. Durante la stampa si fa da parte la bobina (e il
+movimento diventa lo Z-offset, come prima). Quando il monitor AI consiglia una pausa o un annullamento, la telecamera va
+in cima e le altre card si attenuano, tranne quella della stampa. Una card che nascondi qui resta nascosta in ogni
+momento, e l'ordine è sempre il tuo. Le card scivolano al nuovo posto invece di saltare.
 
 ### Lingua
 

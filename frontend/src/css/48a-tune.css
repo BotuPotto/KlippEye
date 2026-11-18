@@ -15,7 +15,7 @@
 }
 .tune-group__title + .tune-row { border-top: 0; }
 .tune-row__text { display: flex; flex-direction: column; min-width: 0; }
-.tune-row__label { font-size: 14.5px; font-weight: 600; color: var(--oui-text); line-height: 1.25; }
+.tune-row__label { font-size: 14px; font-weight: 600; color: var(--oui-text); line-height: 1.25; }
 .tune-row__config { font-size: 12px; color: var(--oui-text-3); font-variant-numeric: tabular-nums; }
 .tune-row__controls { display: flex; flex: none; align-items: center; gap: 6px; }
 .tune-step {
@@ -25,7 +25,7 @@
   border-radius: var(--oui-r-field);
   background: var(--oui-surface-2);
   color: var(--oui-text);
-  font-size: 19px;
+  font-size: 17px;
   font-weight: 600;
   line-height: 1;
   transition: background var(--oui-dur-fast) var(--oui-ease), transform var(--oui-dur-press) var(--oui-ease);
@@ -61,7 +61,7 @@
   outline: none;
 }
 .tune-value:focus-within { box-shadow: 0 0 0 2px var(--oui-accent); }
-.tune-value__unit { flex: none; font-size: 11.5px; color: var(--oui-text-3); }
+.tune-value__unit { flex: none; font-size: 12px; color: var(--oui-text-3); }
 .tune-reset {
   display: grid;
   place-items: center;
@@ -85,7 +85,7 @@
 
 /* ---- BED_SCREWS_ADJUST sheet ---- */
 .bed-screws__screw { display: flex; flex-direction: column; gap: 2px; padding: 14px 16px; border-radius: var(--oui-r-tile); background: var(--oui-surface-2); }
-.bed-screws__step { font-size: 12.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--oui-text-3); }
+.bed-screws__step { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--oui-text-3); }
 .bed-screws__name { font-size: 20px; font-weight: 700; color: var(--oui-text); }
 .bed-screws__how { margin: 14px 0 10px; padding-left: 20px; font-size: 14px; line-height: 1.5; color: var(--oui-text-2); list-style: decimal; }
 .bed-screws__done { display: flex; align-items: center; gap: 10px; color: var(--oui-ok); font-weight: 600; }

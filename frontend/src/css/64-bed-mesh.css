@@ -19,9 +19,9 @@
 @media (max-width: 600px) { .mesh-canvas { aspect-ratio: 4 / 3; } }
 
 .mesh-grid { display: grid; gap: 2px; width: 100%; max-width: 420px; margin: 0 auto; }
-.mesh-cell { display: grid; place-items: center; min-width: 0; aspect-ratio: 1; padding: 0; border: 0; border-radius: 4px; cursor: pointer; }
+.mesh-cell { display: grid; place-items: center; min-width: 0; aspect-ratio: 1; padding: 0; border: 0; border-radius: 3px; cursor: pointer; }
 .mesh-cell.is-picked { outline: 2px solid #fff; outline-offset: -2px; }
-.mesh-cell__value { font-size: 10px; font-weight: 700; font-variant-numeric: tabular-nums; color: inherit; }
+.mesh-cell__value { font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; color: inherit; }
 .mesh-grid__foot { min-height: 20px; margin-top: 10px; font-size: 13px; color: var(--oui-text-2); text-align: center; font-variant-numeric: tabular-nums; }
 .mesh-pick b { color: var(--oui-text); }
 
@@ -52,7 +52,7 @@
 .mesh-profile-row__badge { margin-left: 8px; }
 .mesh-name { display: flex; flex-direction: column; gap: 8px; text-align: left; }
 .mesh-name__input.is-invalid { box-shadow: 0 0 0 2px var(--oui-danger); }
-.mesh-adaptive { display: flex; align-items: flex-start; gap: 10px; margin-top: 4px; font-size: 13.5px; line-height: 1.4; color: var(--oui-text-2); }
+.mesh-adaptive { display: flex; align-items: flex-start; gap: 10px; margin-top: 4px; font-size: 13px; line-height: 1.4; color: var(--oui-text-2); }
 
 /* 1.101: the narrowest phones: a profile's name keeps its line («adaptive» was broken in two by its buttons), the
    buttons go under it on the right */

@@ -56,7 +56,7 @@ details[open] > summary::after { transform: translateY(2px) rotate(-135deg); }
 /* ---- type scale ---- */
 .oui-page-title {
   margin: 4px 4px 14px;
-  font-size: 30px;
+  font-size: 28px;
   font-weight: 600;
   line-height: 1.15;
   letter-spacing: -0.02em;
@@ -92,7 +92,7 @@ details[open] > summary::after { transform: translateY(2px) rotate(-135deg); }
 /* ---- slim scrollbars ---- */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(var(--oui-ink-rgb), 0.16); border-radius: 10px; }
+::-webkit-scrollbar-thumb { background: rgba(var(--oui-ink-rgb), 0.16); border-radius: 12px; }
 ::-webkit-scrollbar-thumb:hover { background: rgba(var(--oui-ink-rgb), 0.26); }
 
 /* 1.126: the strip of the connection watchdog (app/15-live.js), a glass pill like the toasts, at the top: above

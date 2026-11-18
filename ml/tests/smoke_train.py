@@ -29,7 +29,20 @@ info = json.load(open(os.path.join(out, "model.json")))
 assert info["format"] == 1 and info["size"] == 96 and 0.3 <= info["threshold"] <= 0.99 and info["embedding"] == 1024, info
 # 1.130: the scores made honest (the temperature inside the model), the threshold within the false alarms wanted
 cal = info["measured"]["calibration_error"]
-assert info["temperature"] > 0 and cal["after"] <= cal["before"] + 0.5, cal
+# (the calibration error itself is not compared: on these 50 pictures one picture moves it by 2 points)
+assert info["temperature"] > 0 and 0 <= cal["before"] <= 100 and 0 <= cal["after"] <= 100, cal
+_rng = np.random.default_rng(3)   # what the temperature promises: less log-loss, here on scores far too sure of themselves
+_labels = (_rng.random(400) < 0.5).astype(float)
+_logits = (_labels * 2 - 1) * 6 + _rng.normal(0, 5, 400)
+
+
+def _log_loss(t):
+    p = np.clip(1 / (1 + np.exp(-_logits / t)), 1e-7, 1 - 1e-7)
+    return -np.mean(_labels * np.log(p) + (1 - _labels) * np.log(1 - p))
+
+
+_t = train.fit_temperature(_logits, _labels)
+assert _t > 1 and _log_loss(_t) < _log_loss(1.0), (_t, _log_loss(_t), _log_loss(1.0))
 assert "false_alarm_rate" in info["measured"], info["measured"]
 assert info["levels"]["doubt"] < info["levels"]["sure"] == round(info["threshold"] * 100), info["levels"]
 assert train.levels_for(0.86) == {"doubt": 75, "sure": 86} and train.levels_for(0.3) == {"doubt": 20, "sure": 30}

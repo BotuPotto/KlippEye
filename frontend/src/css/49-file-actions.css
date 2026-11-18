@@ -8,7 +8,7 @@
 .file-sheet__head { display: flex; align-items: center; gap: 14px; padding: 20px 20px 14px; }
 .file-sheet__thumb { display: flex; flex: 0 0 64px; align-items: center; justify-content: center; width: 64px; height: 64px; overflow: hidden; border-radius: var(--oui-r-field); }
 .file-sheet__info { flex: 1; min-width: 0; }
-.file-sheet__name { font-size: 16px; font-weight: 600; line-height: 1.3; overflow-wrap: anywhere; }
+.file-sheet__name { font-size: 15px; font-weight: 600; line-height: 1.3; overflow-wrap: anywhere; }
 .file-sheet__info .oui-caption { margin-top: 4px; }
 .file-sheet__actions { margin: 0 16px; }
 

@@ -104,6 +104,11 @@ check("layer.json and the cache are written", os.path.isfile(os.path.join(data, 
 calls = model.calls
 layer.train(model)
 check("trained again with the same base model: the cache is used", model.calls == calls, model.calls - calls)
+layer._embeddings(model, pl.examples_of(data)[:3])
+with np.load(os.path.join(data, "personal", "cache.npz")) as _stored:
+    _kept_keys = [k for k in _stored.files if k != "__version__"]
+check("1.132.2: the examples that are gone leave the cache (it does not grow for ever)", len(_kept_keys) == 3, len(_kept_keys))
+layer._embeddings(model, pl.examples_of(data))   # back as before for the checks below
 
 layer.configure(True)
 red = model.predict(np.dstack([np.zeros((10, 10)), np.zeros((10, 10)), np.full((10, 10), 230)]).astype(np.uint8))[1]
@@ -199,6 +204,22 @@ after = sorted((k, label) for k, _, label in pl.examples_of(kept_data))
 check("... the recording and the answer deleted: the same examples, same keys and labels (from the copies)", after == before, (len(after), len(before)))
 check("... and the copies are what is read now", all("/kept/" in p_ for _, p_, _ in pl.examples_of(kept_data)))
 check("... keeping again changes nothing", pl.keep_examples(kept_data, cv2) == kept)
+# 1.133.1: a write that fails half way (disk full, power cut) leaves the labels of the kept examples as they were
+labels_before = open(os.path.join(kept_data, "personal", "kept", "labels.json")).read()
+real_json = pl.json
+class _Failing:
+    def __getattr__(self, name):
+        return getattr(real_json, name)
+    def dump(self, *a, **k):
+        raise OSError("disk full")
+    dumps = dump
+pl.json = _Failing()
+try:
+    pl.forget_kept(kept_data, "rec/s9/")
+except OSError:
+    pass
+pl.json = real_json
+check("1.133.1: forgetting copies when the write fails: labels.json is still whole", open(os.path.join(kept_data, "personal", "kept", "labels.json")).read() == labels_before)
 gone = pl.forget_kept(kept_data, "rec/s9/")
 check("... a label taken away forgets that print's copies", gone > 0 and not any(k.startswith("rec/s9/") for k, _, _ in pl.examples_of(kept_data)), gone)
 old_max = pl.KEPT_MAX

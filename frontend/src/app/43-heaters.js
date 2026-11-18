@@ -4,8 +4,8 @@
    ========================================================================== */
 
 const HEATERS = {
-  hotend: { label: "HOTEND", icon: HOTEND_ICON_PNG, gcode: "M104 S" },
-  bed: { label: "BED", icon: BED_ICON_PNG, gcode: "M140 S" },
+  hotend: { label: tx("Nozzle"), icon: HOTEND_ICON_PNG, gcode: "M104 S" },
+  bed: { label: tx("Bed"), icon: BED_ICON_PNG, gcode: "M140 S" },
 };
 
 /**

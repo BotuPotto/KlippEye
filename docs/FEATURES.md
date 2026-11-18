@@ -96,9 +96,13 @@ closes when the macro is done with it.
 - **The camera menu**: with more than one camera, choose which one to watch. The choice stays on this device.
 - **The light button** switches the lights marked *Switched by the round button*; the arrow next to it opens all the
   lights, with brightness, colour and scenes (see [Lights](#lights)).
+- **⋮** (on a phone): full screen and the small window.
 - **⛶ Full screen**. In the Android app the bars disappear and the screen turns to landscape. In a browser that can't turn
   the screen (an iPhone, for example) the picture itself is turned to fill a phone held sideways; ↻ switches that off. A tap
   shows the buttons; ⤡, Esc or the back button leave.
+- **Small window** (phone, in the ⋮ menu): the picture moves into a small window above the tab bar and
+  stays there on every page, so you can watch the print while you use the others. A tap on the window brings it back to
+  Home.
 
 The camera settings are in [Settings → Camera](#camera-1).
 
@@ -431,6 +435,12 @@ The main cards have a chevron at the top right that folds them to their title (i
 *Appearance → Cards* a small drawing of each page lets you drag a card by its handle (or move it with the arrows), also
 into the other column, and show or hide it with its switch. Phone, tablet and computer each keep their own layout. The print
 card stays in its place. *Usual order, everything shown* goes back to the start.
+
+On a phone, Home also follows the print and shows only what helps at that moment. While the printer heats for a print,
+the movement and the spool cards step aside. While it prints, the spool steps aside (and the movement card becomes the
+Z-offset, as before). When the AI monitor suggests a pause or a cancel, the camera goes to the top and the other cards
+dim, except the print card. A card you hide here stays hidden in every moment, and the order is always yours. The cards
+slide to their new places instead of jumping.
 
 ### Language
 

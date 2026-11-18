@@ -248,7 +248,7 @@ with sync_playwright() as p:
     ok("... step sizes with nothing usable become the defaults", s["zOffset"]["steps"] == [0.01, 0.025, 0.05, 0.1], s["zOffset"])
     ok("... switches that are not real booleans are ignored (notifications on, automatic actions OFF)", all(s["notifications"].values()) and s["ai"]["autoPause"] is False and s["ai"]["autoCancel"] is False and s["ai"]["confirmations"] == 1 and s["ai"]["defects"] == {"spaghetti": False, "empty_bed": True, "layer_shift": True, "warping": True}, s["ai"])
     src = P.pg.locator(".camera-frame iframe").get_attribute("src")
-    ok("... and the page shows the camera as usual", src == "http://127.0.0.1/webcam/webrtc", src)
+    ok("... and the page shows the camera as usual", src == P.pg.evaluate("location.origin") + "/webcam/webrtc", src)  # 1.134.1: from the dashboard's own address
     ok("... without errors", not P.errors, P.errors[:3])
     P.close()
     mock.reset()
@@ -257,7 +257,7 @@ with sync_playwright() as p:
     P = fresh(b)
     pg = P.pg
     frame = lambda: pg.locator(".camera-frame")
-    ok("default camera: the WebRTC page of the printer, exactly as before the menu existed", pg.locator(".camera-frame iframe.camera-frame__video").get_attribute("src") == "http://127.0.0.1/webcam/webrtc")
+    ok("default camera: the WebRTC page of the printer, exactly as before the menu existed", pg.locator(".camera-frame iframe.camera-frame__video").get_attribute("src") == P.pg.evaluate("location.origin") + "/webcam/webrtc")
     open_menu(P); go(P, "camera")
     P.shot_vp(f"{out}/menu_camera_390.png")
     methods = pg.locator(".set-choice .set-switch__title").all_inner_texts()
@@ -361,7 +361,7 @@ with sync_playwright() as p:
     # the camera panel of the wide layout follows too
     P = fresh(b, 1440, 900)
     pg = P.pg
-    ok("[1440] camera panel: WebRTC iframe by default", pg.locator(".desk-camera iframe.desk-camera__video").get_attribute("src") == "http://127.0.0.1/webcam/webrtc")
+    ok("[1440] camera panel: WebRTC iframe by default", pg.locator(".desk-camera iframe.desk-camera__video").get_attribute("src") == P.pg.evaluate("location.origin") + "/webcam/webrtc")
     open_menu(P); go(P, "camera"); choice(pg, "MJPEG").click(); P.settle(300)
     ok("[1440] ... and the MJPEG picture when chosen", pg.locator(".desk-camera img.desk-camera__video").get_attribute("src") == "http://127.0.0.1/webcam/?action=stream")
     choice(pg, "MJPEG adattivo").click(); P.settle(700)
@@ -553,7 +553,7 @@ with sync_playwright() as p:
     ok("restore: 'Annulla' changes nothing", settings_now(P)["camera"]["method"] == "mjpeg" and settings_now(P)["notifications"]["complete"] is False)
     pg.locator('button:has-text("Ripristina i valori iniziali")').click(); pg.wait_for_selector(".confirm-overlay"); pg.locator(".confirm-card button:has-text('Ripristina')").click(); P.settle(600)
     ok("restore: everything is back to the start, here and on the Raspberry", settings_now(P) == DEFAULTS and wait_until(lambda: {k: v for k, v in stored().items() if k != "_t"} == DEFAULTS), (settings_now(P), stored()))
-    ok("... the camera too", pg.locator(".camera-frame iframe").get_attribute("src") == "http://127.0.0.1/webcam/webrtc")
+    ok("... the camera too", pg.locator(".camera-frame iframe").get_attribute("src") == pg.evaluate("location.origin") + "/webcam/webrtc")
     P.close()
 
     # ============================================================================================ the Android app (addresses)

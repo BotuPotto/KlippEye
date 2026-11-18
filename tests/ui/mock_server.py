@@ -2147,7 +2147,8 @@ def webcams_delete():
 
 @app.route("/webcam/<path:p>")
 def webcam(p):
-    return Response("<html><body style='background:#123;color:#fff'>cam</body></html>", mimetype="text/html")
+    # a WebRTC page has its own player with controls (1.134.1: the dashboard takes them away)
+    return Response("<html><body style='background:#123;color:#fff'>cam<video controls></video></body></html>", mimetype="text/html")
 
 if __name__ == "__main__":
     import logging; logging.getLogger("werkzeug").setLevel(logging.ERROR)

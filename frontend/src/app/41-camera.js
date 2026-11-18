@@ -596,7 +596,41 @@ function CameraMedia({ className, reloads }) {
   const style = flipStyle(camera);
   if (camera.method === "mjpeg") return h(CameraStream, { key: "mjpeg" + reloads + url, className, url, style });
   if (camera.method === "adaptive") return h(CameraSnapshots, { key: "adaptive" + reloads + url, className, url, fps: camera.fps, style });
-  return h("iframe", { key: camera.method + reloads + url, className, src: url, style, allow: "autoplay; fullscreen", loading: "eager", title: camera.name });
+  // 1.134.1: a WebRTC page of the printer comes from the dashboard's own address, so that its player can be made a clean picture
+  // (only when the chosen address is this page's own machine: Settings → Addresses can send the camera elsewhere)
+  const own = camera.method === "webrtc" && /^\/webcam\d*\//.test(camera.address || "") && sameHost(url);
+  return h("iframe", { key: camera.method + reloads + url, className, src: own ? window.location.origin + camera.address : url, style, allow: "autoplay; fullscreen", loading: "eager", title: camera.name, onLoad: own ? (event) => cleanCameraPage(event.currentTarget) : undefined });
+}
+
+const sameHost = (url) => {
+  try {
+    return new URL(url).hostname === window.location.hostname;
+  } catch (error) {
+    return false;
+  }
+};
+
+/**
+ * 1.134.1: the camera's WebRTC page shows its picture in a video player (play button, time, progress bar). The page has
+ * the dashboard's address, so its player loses the controls and plays muted by itself, like a picture. A page from
+ * another address cannot be reached and stays as it is.
+ */
+function cleanCameraPage(frame) {
+  try {
+    const page = frame.contentDocument;
+    if (!page || !page.body) return;
+    const style = page.createElement("style");
+    style.textContent = "html,body{margin:0;background:#000;overflow:hidden}video::-webkit-media-controls{display:none!important}";
+    page.head.appendChild(style);
+    const quiet = () =>
+      page.querySelectorAll("video").forEach((video) => {
+        video.controls = false;
+        video.muted = true; // a muted video may play without a tap
+        if (video.paused) video.play().catch(noop);
+      });
+    quiet();
+    new MutationObserver(quiet).observe(page.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["controls"] });
+  } catch (error) {} // a help only
 }
 
 /* ---------------------------------------------------------------------------
@@ -718,10 +752,78 @@ function CameraFullscreen({ onClose }) {
 const CameraFullscreenButton = ({ onOpen, className }) =>
   h("button", { type: "button", className: cx("icon-btn camera-full-open", className), "aria-label": tx("Full screen"), title: tx("Full screen"), onClick: onOpen }, h(Icons.Expand, { size: 18 }));
 
+/* 1.134: on a phone the camera can go into a small window that stays above every page; a tap brings it back.
+   `from` is where the picture was a moment ago, so that the next one to show it can come from there. */
+const cameraMiniStore = (() => {
+  const listeners = new Set();
+  let on = false;
+  return {
+    subscribe: (fn) => (listeners.add(fn), () => listeners.delete(fn)),
+    snapshot: () => on,
+    from: null,
+    set(next, from) {
+      on = next;
+      cameraMiniStore.from = from || null;
+      listeners.forEach((fn) => fn());
+    },
+  };
+})();
+
+/** Moves `el` from the box `from` to where it is (both on screen); `middle`: an extra keyframe for the way. */
+function flyFrom(el, from, middle) {
+  if (!el || !from || !el.animate) return;
+  const box = el.getBoundingClientRect();
+  if (!box.width || !box.height) return;
+  const dx = from.left - box.left;
+  const dy = from.top - box.top;
+  const sx = from.width / box.width;
+  const sy = from.height / box.height;
+  el.style.transformOrigin = "0 0";
+  const frames = [{ transform: "translate(" + dx + "px, " + dy + "px) scale(" + sx + ", " + sy + ")" }].concat(middle ? [middle(dx, dy, sx, sy)] : [], [{ transform: "none" }]);
+  el.animate(frames, middle ? { duration: springTiming().duration, easing: "cubic-bezier(0.5, 0, 0.2, 1)" } : springTiming());
+}
+
+/** The small window; `onOpen` goes back to Home, where the camera card takes the picture again. */
+function CameraMini({ onOpen }) {
+  const on = useSyncExternalStore(cameraMiniStore.subscribe, cameraMiniStore.snapshot);
+  const reloads = useCameraReloads();
+  const ref = useRef(null);
+  useLayoutEffect(() => {
+    // the genie: on its way to the corner the picture first narrows and leans, then lands
+    if (on) flyFrom(ref.current, cameraMiniStore.from, (dx, dy, sx, sy) => ({ transform: "translate(" + dx * 0.45 + "px, " + dy * 0.3 + "px) scale(" + sx * 0.75 + ", " + sy * 0.45 + ") skewX(-6deg)", offset: 0.45 }));
+  }, [on]);
+  if (!on) return null;
+  const open = () => {
+    cameraMiniStore.set(false, ref.current.getBoundingClientRect());
+    onOpen();
+  };
+  return h("button", { ref, type: "button", className: "camera-mini", "aria-label": tx("Camera: tap to open it again"), onClick: open }, h(CameraMedia, { reloads }));
+}
+
+/** 1.134.1: «⋮» next to the light: full screen and the small window. */
+function CameraMoreMenu({ onFull, onMini }) {
+  const menu = useDropdown();
+  const item = (className, icon, title, onClick) =>
+    h("button", { type: "button", className: "oui-menu__item " + className, role: "menuitem", onClick: () => (menu.close(), onClick()) }, h("span", { className: "oui-menu__icon" }, icon), h("span", { className: "oui-menu__text" }, h("span", { className: "oui-menu__title" }, title)));
+  return h(
+    React.Fragment,
+    null,
+    h("button", { type: "button", ref: menu.anchorRef, className: "icon-btn camera-more", "aria-label": tx("More"), title: tx("More"), "aria-haspopup": "menu", "aria-expanded": menu.open, onClick: menu.toggle }, h(Icons.Dots, { size: 18 })),
+    h(DropdownMenu, { menu }, item("camera-full-open", h(Icons.Expand, { size: 18 }), tx("Full screen"), onFull), item("camera-mini-open", h(Icons.PictureInPicture, { size: 18 }), tx("Small window"), onMini)),
+  );
+}
+
 function CameraCard() {
   const light = useCaseLight();
   const reloads = useCameraReloads();
   const [full, setFull] = useState(false);
+  const frame = useRef(null);
+  useLayoutEffect(() => {
+    // back from the small window: the picture grows from there
+    flyFrom(frame.current, cameraMiniStore.from);
+    cameraMiniStore.from = null;
+  }, []);
+  const toMini = () => cameraMiniStore.set(true, frame.current.getBoundingClientRect());
   // the full screen next to the card, not in it (a card that moves would carry a fixed layer with it)
   return h(
     React.Fragment,
@@ -729,8 +831,22 @@ function CameraCard() {
     h(
       Card,
       { cardId: "camera" },
-      h(CardHeader, { title: tx("Camera") }, h("div", { className: "camera-head-actions" }, h(CameraPicker), light.available && h(LightButton, light), h(CameraFullscreenButton, { onOpen: () => setFull(true) }))),
-      h("div", { className: "camera-frame" }, !full && h(CameraMedia, { className: "camera-frame__video", reloads })),
+      h(
+        CardHeader,
+        { title: tx("Camera") },
+        h(
+          "div",
+          { className: "camera-head-actions" },
+          h(CameraPicker),
+          light.available && h(LightButton, light),
+          h(CameraMoreMenu, { onFull: () => setFull(true), onMini: toMini }),
+        ),
+      ),
+      h(
+        "div",
+        { className: "camera-frame", ref: frame },
+        !full && h(CameraMedia, { className: "camera-frame__video", reloads }),
+      ),
     ),
     h(Presence, null, full && h(CameraFullscreen, { onClose: () => setFull(false) })),
   );

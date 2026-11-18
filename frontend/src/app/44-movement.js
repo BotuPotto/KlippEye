@@ -122,7 +122,9 @@ const PAD_QUADRANTS = [
 ];
 /** The step of each ring written on the diagonal gaps: +step up-right, −step down-left. */
 function padStepLabels(rings) {
-  const size = rings.length > 3 ? 11 : rings.length > 2 ? 11.5 : 12.5; // 1.115: a little bigger, in their gaps
+  // 1.133: in units of the 280-unit pad, drawn at about 0.85 on a 390 px phone: 12 px or more from there up
+  // shortcut: on a 320 px phone the pad shrinks and the labels are about 11 px; scale them with the pad if that matters
+  const size = rings.length > 3 ? 14.5 : rings.length > 2 ? 15 : 15.5;
   return rings.flatMap((ring) => {
     const middle = (ring.from + ring.to) / 2;
     const up = polar(middle, -45);

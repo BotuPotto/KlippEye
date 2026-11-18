@@ -19,6 +19,8 @@ import re
 import shutil
 import time
 
+import atomic
+
 FILE_NAME = "klippeye_macros.cfg"
 INCLUDE_LINE = "[include %s]" % FILE_NAME
 TAG = "KlippEye: filament change"
@@ -39,13 +41,6 @@ def _read_json(path):
         return data if isinstance(data, dict) else {}
     except (OSError, ValueError):
         return {}
-
-
-def _write(path, text):
-    tmp = path + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
-        f.write(text)
-    os.replace(tmp, path)
 
 
 class MacroError(ValueError):
@@ -93,7 +88,7 @@ class PrinterMacros:
                 "included": self.included(), "tag": TAG}
 
     def _save_state(self):
-        _write(self.path, json.dumps({"macros": self.macros, "wraps": self.wraps}, indent=1, ensure_ascii=False))
+        atomic.write_text(self.path, json.dumps({"macros": self.macros, "wraps": self.wraps}, indent=1, ensure_ascii=False))
 
     # ---------------------------------------------------------------- changes
     def set_macro(self, key, text):
@@ -169,7 +164,7 @@ class PrinterMacros:
         if not os.path.isdir(folder):
             raise MacroError("the configuration folder was not found: {folder}", folder=folder)
         self._save_state()
-        _write(os.path.join(folder, FILE_NAME), self.render())
+        atomic.write_text(os.path.join(folder, FILE_NAME), self.render())
         added = self.ensure_included()
         return dict(self.summary(), include_added=added, restart_needed=True)
 
@@ -201,7 +196,7 @@ class PrinterMacros:
             text = text[:at].rstrip("\n") + "\n" + block + "\n" + text[at:]
         else:
             text = text.rstrip("\n") + "\n" + block
-        _write(printer_cfg, text)
+        atomic.write_text(printer_cfg, text)
         return True
 
 

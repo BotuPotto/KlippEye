@@ -339,7 +339,7 @@ class FrameJudge:
         else:
             shift = float(cv2.mean(gray, mask=keep)[0]) - float(cv2.mean(self.bg, mask=keep)[0])
         if abs(shift) > 1:
-            gray = cv2.convertScaleAbs(gray, alpha=1.0, beta=-shift)
+            gray = cv2.subtract(gray, round(shift)) if shift > 0 else cv2.add(gray, round(-shift))   # stops at 0 and 255 (no mirrored blacks)
         thresh = cv2.threshold(cv2.absdiff(self.bg, gray), self.sensitivity, 255, cv2.THRESH_BINARY)[1]
         if keep is not None:
             thresh = cv2.bitwise_and(thresh, keep)
@@ -433,7 +433,7 @@ class FrameJudge:
             return 0.0
         self._note_change(persistent, (0, 0), self._now)
         score = cv2.countNonZero(cv2.bitwise_and(persistent, area)) * 100.0 / total
-        if hidden_part and score <= self.score_threshold:
+        if hidden_part and score <= self.limits()[0]:  # 1.133.1: the threshold in use (lower while the local model doubts)
             return None  # neither a yes nor a no: an alarm building up on the part is not lowered by it
         if inside is not None:
             part = cv2.countNonZero(cv2.bitwise_and(persistent, inside)) * 100.0 / cv2.countNonZero(inside)

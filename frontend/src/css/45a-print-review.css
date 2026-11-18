@@ -16,7 +16,7 @@
 .print-review__problem {
   position: relative; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 6px;
   min-width: 0; min-height: 96px; padding: 12px 8px 10px; border-radius: var(--oui-r-row); background: var(--oui-surface-2);
-  color: var(--oui-text); font: inherit; font-size: 12.5px; font-weight: 600; line-height: 1.25; text-align: center;
+  color: var(--oui-text); font: inherit; font-size: 13px; font-weight: 600; line-height: 1.25; text-align: center;
   transition: background var(--oui-dur-fast) var(--oui-ease);
 }
 .print-review__problem:hover { background: var(--oui-surface-3); }
@@ -33,7 +33,7 @@
 .print-review__picture .print-review__photo img { display: block; width: 100%; height: auto; max-height: 60vh; object-fit: contain; }
 .print-review__stamp { position: absolute; left: 8px; bottom: 8px; max-width: calc(100% - 16px); padding: 3px 8px; border-radius: 999px; background: rgba(0, 0, 0, 0.62); color: #fff; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; pointer-events: none; }
 .print-review__scrub { display: flex; align-items: center; gap: 6px; }
-.print-review__arrow { font-size: 26px; line-height: 1; }
+.print-review__arrow { font-size: 24px; line-height: 1; }
 .print-review__slider { flex: 1; min-width: 0; height: 32px; accent-color: var(--oui-accent); }
 .print-review__actions { display: flex; gap: 8px; }
 .print-review__actions .oui-btn { flex: 1 1 0; }

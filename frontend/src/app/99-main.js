@@ -7,24 +7,53 @@ function startPrint(job) {
   fetch("/printer/print/start", { method: "POST", headers: JSON_HEADERS, body: JSON.stringify({ filename: job.path }) }).catch(noop);
 }
 
+/**
+ * 1.134: the moment of the print, which picks the cards of Home (HOME_MOMENTS): an alarm of the AI monitor, a pause,
+ * the heating before the first layer, printing, or anything else.
+ */
+function homeMoment(printStatus, status, badge) {
+  if (printStatus.printing && (badge === AI_BADGES.pause || badge === AI_BADGES.critical)) return "alarm";
+  if (printStatus.state === "paused") return "pause";
+  if (printStatus.state !== "printing") return "idle";
+  const cold = (heater) => heater.target > 0 && heater.cur < heater.target - 3;
+  return printStatus.pct < 1 && (cold(status.hotend) || cold(status.bed)) ? "heat" : "print";
+}
+/** The cards of Home in each moment (in the order of Settings → Appearance → Cards); null: all of them. */
+const HOME_MOMENTS = {
+  idle: null,
+  pause: null,
+  heat: ["print", "camera", "heaters", "temps", "mmu"],
+  print: ["print", "camera", "heaters", "temps", "movement", "mmu"],
+  alarm: ["print", "camera", "heaters", "temps", "movement", "mmu"],
+};
+const HOME_HALF = ["spool", "mmu"]; // half the width on a tablet
+
 /** The Z-offset card takes the Movement card's place while a job prints, and sits above it once the job is over while an offset is left to save. */
 function HomePage({ printStatus, printControls, status, motion, bedTools, zOffset, lockReason, onEditTemperature, aiMonitor }) {
   const placement = zOffsetPlacement(printStatus, status.zOffset);
   const zOffsetCard = placement && h("div", { className: "md:col-span-2" }, h(ZOffsetCard, { zOffset, printing: placement === "instead" }));
   useLayout(); // 1.50: the order and the hidden cards of Settings → Appearance
+  const moment = homeMoment(printStatus, status, aiMonitor.badge);
+  const cameraMini = useSyncExternalStore(cameraMiniStore.subscribe, cameraMiniStore.snapshot);
+  const listRef = useRef(null);
+  useCardMorph(listRef, moment + cameraMini);
+  const cards = {
+    print: printStatus.printing && h(PrintProgressCard, { status: printStatus, controls: printControls, monitor: aiMonitor }),
+    camera: !cameraMini && h(CameraCard),
+    heaters: h(HeatersFansCard, { hotend: status.hotend, bed: status.bed, onEditTemperature }),
+    temps: h(TemperatureCard, { onEditTemperature }),
+    spool: h(SpoolCard),
+    mmu: h(MmuCard),
+    movement: h(React.Fragment, null, zOffsetCard, placement !== "instead" && h(MovementCard, { position: status.position, homedAxes: status.homedAxes, motion, bedTools, lockReason })),
+  };
+  const keep = HOME_MOMENTS[moment];
+  const ids = ["print"].concat(layoutStore.shown("home")).filter((id) => cards[id] && (!keep || keep.includes(id)));
+  if (moment === "alarm") ids.sort((a, b) => (b === "camera") - (a === "camera")); // the camera on top, to see what the monitor saw
   return h(
     "div",
-    { className: "grid grid-cols-1 md:grid-cols-2" },
-    printStatus.printing && h(PrintProgressCard, { status: printStatus, controls: printControls, monitor: aiMonitor }),
+    { className: "grid grid-cols-1 md:grid-cols-2", ref: listRef },
     h(PrintReviewCard, { printing: printStatus.printing }), // 1.103: «how did it go?» when a print ends
-    arrangeCards("home", {
-      camera: h("div", { className: "md:col-span-2" }, h(CameraCard)),
-      heaters: h("div", { className: "md:col-span-2" }, h(HeatersFansCard, { hotend: status.hotend, bed: status.bed, onEditTemperature })),
-      temps: h("div", { className: "md:col-span-2" }, h(TemperatureCard, { onEditTemperature })),
-      spool: h(SpoolCard),
-      mmu: h(MmuCard),
-      movement: h(React.Fragment, null, zOffsetCard, placement !== "instead" && h("div", { className: "md:col-span-2" }, h(MovementCard, { position: status.position, homedAxes: status.homedAxes, motion, bedTools, lockReason }))),
-    }),
+    ids.map((id) => h("div", { key: id, "data-slot": id, className: cx(!HOME_HALF.includes(id) && "md:col-span-2", moment === "alarm" && id !== "camera" && id !== "print" && "home-dim") }, cards[id])),
   );
 }
 
@@ -62,6 +91,7 @@ function App() {
   const [printJob, setPrintJob] = useState(null);
   const [editorSession, setEditorSession] = useState(null); // { path, content, token } while a file is open
   const [imagePath, setImagePath] = useState(null);
+  const [pageDx, setPageDx] = useState(0); // 1.134: the side the new page comes from (css/22-motion.css, oui-rise)
 
   const status = usePrinterStatus();
   const klipper = useKlipperState();
@@ -93,6 +123,11 @@ function App() {
   useModalInputScroll();
   useEffect(scrollPageToTop, [tab]);
   useEffect(() => {
+    if (!pageDx) return undefined;
+    const timer = setTimeout(() => setPageDx(0), 800); // after the cards have arrived: the ones that come later rise straight
+    return () => clearTimeout(timer);
+  }, [pageDx, tab]);
+  useEffect(() => {
     document.documentElement.classList.toggle("is-wide", desktop);
   }, [desktop]);
 
@@ -106,6 +141,7 @@ function App() {
     unlessUnsaved(() => {
       if (inlineEditor && id !== tab) setEditorSession(null); // the wide editor belongs to the Config page: it does not follow to the others
       storage.set(STORAGE_KEYS.currentTab, id);
+      setPageDx(Math.sign(TAB_IDS.indexOf(id) - TAB_IDS.indexOf(tab)) * 32);
       setTab(id);
     });
   const runFromConsole = (script) => sendFromConsole(script, consoleFeed.echo);
@@ -164,7 +200,7 @@ function App() {
         )
       : h(
           "main",
-          { className: "app-main" },
+          { className: "app-main", style: pageDx ? { "--oui-page-dx": pageDx + "px" } : undefined },
           h(KlipperStateBanner, { state: klipper }),
           h(PageTitle, null, TAB_TITLES[tab]),
           pages[tab],
@@ -183,6 +219,7 @@ function App() {
     h(Presence, null, motion.positionDialog.open && h(PositionDialog, { dialog: motion.positionDialog, onChange: motion.setPositionValue, onClose: motion.closePositionDialog, onConfirm: motion.goToPosition })),
     h(Presence, null, updates.dialog.open && h(UpdateDialog, { controller: updates })),
     !desktop && h(BottomNav, { active: tab, onSelect: selectTab }),
+    !desktop && h(CameraMini, { onOpen: () => selectTab("home") }),
     h(
       Presence,
       null,

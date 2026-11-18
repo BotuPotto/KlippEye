@@ -171,7 +171,9 @@ with sync_playwright() as p:
     # full screen
     pg.locator('button[aria-label="Schermo intero"]').first.click()
     full = pg.locator(".console-full")
-    ok("'Schermo intero': the console covers the screen", wait_until(lambda: full.count() == 1) and full.bounding_box()["height"] >= 840 and full.bounding_box()["width"] >= 389)
+    wait_until(lambda: full.count() == 1)
+    full.evaluate("e => Promise.all(e.getAnimations().map((a) => a.finished))")  # 1.134.2: measured once it has grown
+    ok("'Schermo intero': the console covers the screen", full.count() == 1 and full.bounding_box()["height"] >= 840 and full.bounding_box()["width"] >= 389)
     pg.locator('.console-full button[aria-label="Opzioni della console"]').click()
     ok("... its options menu opens above it", wait_until(lambda: pg.locator(".oui-menu").is_visible()) and pg.evaluate("() => { const r = document.querySelector('.oui-menu').getBoundingClientRect(); const el = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2); return !!(el && el.closest('.oui-menu')); }"))
     pg.keyboard.press("Escape")

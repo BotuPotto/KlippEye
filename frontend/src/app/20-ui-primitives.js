@@ -22,7 +22,28 @@ const CardFoldContext = React.createContext(null);
 function Card({ className, flush, cardId, children, ...rest }) {
   const layout = useLayout();
   const collapsed = Boolean(cardId && layout.collapsed[cardId]);
-  const card = h("div", { className: cx("oui-card", flush && "oui-card--flush", cardId && "oui-card--foldable", collapsed && "is-collapsed", className), "data-card": cardId || undefined, ...rest }, children);
+  const ref = useRef(null);
+  useLayoutEffect(() => {
+    // 1.134.1: the card's height moves from what it was at the chevron's tap (foldFrom) to its new one, and the cards
+    // below follow; while it folds, its content stays (is-folding) and is clipped. Opens with the spring, folds faster.
+    const el = ref.current;
+    const from = el && el.foldFrom;
+    if (!from || !el.animate) return;
+    el.foldFrom = 0;
+    const to = el.offsetHeight;
+    if (Math.abs(to - from) < 2) return;
+    el.classList.add("is-folding");
+    el.style.overflow = "hidden";
+    const timing = collapsed ? { duration: springTiming().duration / 2, easing: "cubic-bezier(0.4, 0, 0.2, 1)" } : springTiming();
+    const done = () => {
+      el.classList.remove("is-folding");
+      el.style.overflow = "";
+    };
+    const motion = el.animate([{ height: from + "px" }, { height: to + "px" }], timing);
+    motion.onfinish = done;
+    motion.oncancel = done;
+  }, [collapsed]);
+  const card = h("div", { ref, className: cx("oui-card", flush && "oui-card--flush", cardId && "oui-card--foldable", collapsed && "is-collapsed", className), "data-card": cardId || undefined, ...rest }, children);
   return cardId ? h(CardFoldContext.Provider, { value: { id: cardId, collapsed } }, card) : card;
 }
 
@@ -36,6 +57,13 @@ function SectionTitle({ children, className }) {
   return h("span", { className: cx("oui-card-title", className) }, children);
 }
 
+/** The chevron's tap: the card's height now, for the motion (Card), then fold or open it. */
+function foldCard(button, id) {
+  const card = button.closest(".oui-card");
+  if (card) card.foldFrom = card.offsetHeight;
+  layoutStore.toggleCollapsed(id);
+}
+
 /** Card header: title on the left, optional actions on the right (and the fold chevron of a foldable card). */
 function CardHeader({ title, children }) {
   const fold = useContext(CardFoldContext);
@@ -46,7 +74,7 @@ function CardHeader({ title, children }) {
     "div",
     { className: "oui-card__head has-fold" },
     h("div", { className: "oui-card__main" }, h(SectionTitle, null, title), !fold.collapsed && children && h("div", { className: "oui-card__tools" }, children)),
-    h("button", { type: "button", className: "oui-card__fold", "aria-expanded": !fold.collapsed, "aria-label": fold.collapsed ? tx("Open «{name}»", { name: title }) : tx("Fold «{name}»", { name: title }), title: fold.collapsed ? txc("card", "Open") : txc("card", "Fold"), onClick: () => layoutStore.toggleCollapsed(fold.id) }, h(Icons.Chevron, { size: 18 })),
+    h("button", { type: "button", className: "oui-card__fold", "aria-expanded": !fold.collapsed, "aria-label": fold.collapsed ? tx("Open «{name}»", { name: title }) : tx("Fold «{name}»", { name: title }), title: fold.collapsed ? txc("card", "Open") : txc("card", "Fold"), onClick: (event) => foldCard(event.currentTarget, fold.id) }, h(Icons.Chevron, { size: 18 })),
   );
 }
 
@@ -134,6 +162,7 @@ const Icons = {
   ArrowDown: ({ size = 20 }) => h(Svg, { size, strokeWidth: "2.2" }, h("path", { d: "M12 5v14" }), h("path", { d: "M19 12l-7 7-7-7" })),
   /** Full screen on / off (the console, 1.34). */
   Expand: ({ size = 18 }) => h(Svg, { size, strokeWidth: "2" }, h("path", { d: "M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" })),
+  PictureInPicture: ({ size = 18 }) => h(Svg, { size, strokeWidth: "2" }, h("rect", { x: "3", y: "5", width: "18", height: "14", rx: "2" }), h("rect", { x: "12", y: "12", width: "6", height: "4", rx: "1" })),
   Shrink: ({ size = 18 }) => h(Svg, { size, strokeWidth: "2" }, h("path", { d: "M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5" })),
   Check: ({ size = 18 }) => h(Svg, { size, strokeWidth: "2.4" }, h("path", { d: "M5 12.5l4.5 4.5L19 7.5" })),
   /** File manager (config files): folder, new folder, new file, upload, rename, move, picture, row menu, plus. */

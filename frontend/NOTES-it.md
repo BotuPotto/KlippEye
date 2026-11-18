@@ -552,8 +552,8 @@ La risposta dell'AI è testo Markdown. `src/app/53-ai-markdown.js` lo legge e lo
 
 ## Menù impostazioni
 
-Il pulsante a tre linee in alto a sinistra (accanto al logo, in tutte le pagine, anche sul PC) apre un pannello laterale come quello di
-Mobileraker. Ha sette pagine (`src/app/59-settings.js`, stili `src/css/65-settings.css`); ogni modifica vale subito e viene salvata un attimo dopo.
+Il pulsante a tre linee in alto a sinistra (accanto al logo, in tutte le pagine, anche sul PC) apre un pannello laterale.
+Ha sette pagine (`src/app/59-settings.js`, stili `src/css/65-settings.css`); ogni modifica vale subito e viene salvata un attimo dopo.
 
 | Pagina | Cosa si sceglie |
 |---|---|

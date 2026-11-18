@@ -26,7 +26,7 @@
   pointer-events: none;
 }
 .pull-refresh.is-dragging { transition: none; }
-.pull-refresh__arrow { font-size: 18px; line-height: 1; transition: transform var(--oui-dur-base) var(--oui-ease); }
+.pull-refresh__arrow { font-size: 17px; line-height: 1; transition: transform var(--oui-dur-base) var(--oui-ease); }
 .pull-refresh__spinner {
   display: none;
   width: 18px;

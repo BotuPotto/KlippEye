@@ -38,7 +38,6 @@
   align-items: flex-end;
   justify-content: center;
   background: rgba(0, 0, 0, 0.45);
-  animation: oui-fade var(--oui-dur-base) linear;
 }
 .help-sheet {
   display: flex;
@@ -49,18 +48,18 @@
   background: var(--oui-glass-solid, #14161c);
   border: 1px solid var(--oui-stroke-strong);
   border-bottom: 0;
-  border-radius: 24px 24px 0 0;
+  border-radius: 28px 28px 0 0;
   box-shadow: var(--oui-shadow-float);
 }
 @media (min-width: 700px) {
   .help-overlay { align-items: center; }
-  .help-sheet { border-bottom: 1px solid var(--oui-stroke-strong); border-radius: 24px; }
+  .help-sheet { border-bottom: 1px solid var(--oui-stroke-strong); border-radius: 28px; }
 }
 .help-sheet__head { display: flex; align-items: center; gap: 12px; padding: 16px 16px 8px; }
 .help-sheet__mark { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: var(--oui-accent); color: var(--oui-on-accent, #0b0b10); font-weight: 800; }
 .help-sheet__title { flex: 1; min-width: 0; font-size: 20px; font-weight: 700; }
 .help-sheet__body { overflow-y: auto; overscroll-behavior: contain; padding: 4px 18px calc(22px + env(safe-area-inset-bottom, 0)); }
-.help-section { padding: 10px 12px; margin: 0 -12px; border-radius: 14px; }
+.help-section { padding: 10px 12px; margin: 0 -12px; border-radius: 12px; }
 .help-section.is-highlight { background: var(--oui-surface-3); }
 .help-section h3 { margin: 0 0 6px; font-size: 15px; font-weight: 700; }
 .help-section p { margin: 0 0 8px; font-size: 14px; line-height: 1.5; color: var(--oui-text-2); }
@@ -82,7 +81,6 @@
   background: rgba(0, 0, 0, 0.55);
   -webkit-backdrop-filter: blur(14px);
   backdrop-filter: blur(14px);
-  animation: oui-fade var(--oui-dur-base) linear;
 }
 .setup {
   display: flex;
@@ -97,9 +95,9 @@
 .setup__head { display: flex; align-items: center; gap: 10px; padding: calc(14px + env(safe-area-inset-top, 0)) 16px 6px; }
 .setup__heading { flex: 1; min-width: 0; }
 .setup__count { font-size: 12px; color: var(--oui-text-3); }
-.setup__title { font-size: 22px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.setup__title { font-size: 24px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .setup__dots { display: flex; gap: 6px; padding: 2px 18px 8px; }
-.setup__dot { flex: 1; height: 4px; border-radius: 2px; background: var(--oui-surface-3); }
+.setup__dot { flex: 1; height: 4px; border-radius: 3px; background: var(--oui-surface-3); }
 .setup__dot.is-past { background: var(--oui-accent); opacity: 0.5; }
 .setup__dot.is-current { background: var(--oui-accent); }
 .setup__foot { display: flex; justify-content: space-between; gap: 10px; padding: 10px 16px calc(12px + env(safe-area-inset-bottom, 0)); border-top: 1px solid var(--oui-stroke); }
@@ -117,7 +115,7 @@ body:has(.setup-overlay) .nt-invite,
 body:has(.setup-overlay) .bottom-nav { display: none; }
 .help-steps { list-style: decimal; }
 .help-steps li { display: list-item; }
-.set-snapshot { display: block; width: 100%; max-height: 260px; object-fit: contain; border-radius: 14px; background: #000; }
+.set-snapshot { display: block; width: 100%; max-height: 260px; object-fit: contain; border-radius: 12px; background: #000; }
 
 /* sliders: a vertical drag scrolls the page instead of moving them (1.24, with 15a-back.js) */
 input[type="range"] { touch-action: pan-y; }
@@ -135,7 +133,7 @@ input[type="range"] { touch-action: pan-y; }
 .ai-key { display: flex; flex-direction: column; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--oui-stroke); }
 .ai-key__head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 10px; }
 .ai-key__name { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; }
-.ai-key__free { font-size: 11px; } /* 1.119: was 10 px, the smallest text of the settings */
+.ai-key__free { font-size: 12px; } /* 1.119: was 10 px, the smallest text of the settings */
 .ai-key__status { color: var(--oui-text-3); font-size: 12px; overflow-wrap: anywhere; }
 .ai-key.is-set .ai-key__status { color: var(--oui-ok); }
 .ai-key__actions { flex-wrap: wrap; }

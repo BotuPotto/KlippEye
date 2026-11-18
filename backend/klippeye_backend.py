@@ -32,7 +32,6 @@ import shutil
 import socket
 import subprocess
 import sys
-import tempfile
 import threading
 import time
 import traceback
@@ -144,23 +143,7 @@ MONITOR_CONFIG_PATH = os.path.join(DATA_DIR, "monitor.json")   # the AI monitor 
 
 def write_json_atomic(path, data, private=False):
     """Writes a temporary file and swaps it in: a power cut never leaves half a file."""
-    folder = os.path.dirname(path)
-    os.makedirs(folder, exist_ok=True)
-    fd, tmp = tempfile.mkstemp(prefix=".tmp-", suffix=".json", dir=folder)
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2, ensure_ascii=False, sort_keys=True)
-            f.write("\n")
-            f.flush()
-            os.fsync(f.fileno())
-        os.chmod(tmp, 0o600 if private else 0o644)
-        os.replace(tmp, path)
-    except BaseException:
-        try:
-            os.unlink(tmp)
-        except OSError:
-            pass
-        raise
+    atomic.write_text(path, json.dumps(data, indent=2, ensure_ascii=False, sort_keys=True) + "\n", private)
 
 
 # === ACCESS (1.2.0): optional password, network checks, permissions of the secrets ===================================
@@ -173,6 +156,7 @@ def write_json_atomic(path, data, private=False):
 # With the password on, a request also needs the session cookie or the internal token of the services on the Raspberry.
 sys.path.insert(0, BACKEND_DIR)
 import access  # noqa: E402
+import atomic  # noqa: E402  (1.133.1: the one safe way to write a file)
 
 ACCESS = access.Store(DATA_DIR)
 ACCESS_THROTTLE = access.Throttle()
@@ -666,6 +650,12 @@ def access_remove_guest():
     return jsonify({"ok": True, "guest_enabled": False})
 
 
+@app.route("/api/auth/check", methods=["GET"])
+def access_check():
+    """1.133.1: nginx asks here before sending a request on to Moonraker (scripts/web_front.py): _access_guard decides."""
+    return "", 204
+
+
 @app.route("/api/auth/logout_all", methods=["POST"])
 def access_logout_all():
     settings = _access_settings()
@@ -752,10 +742,10 @@ CONFIG_SPEC = [
      "help": "Besides every change OpenCV sees, which it looks at at once. Each look takes a fraction of a second of the Raspberry."},
     {"key": "local_doubt", "type": "int", "default": 35, "min": 5, "max": 95, "step": 5, "unit": "%", "group": "local",
      "label": "In doubt from",
-     "help": "From this rating the local model has a doubt: an alarm of the motion detection goes to the online AI, three doubtful looks in a row ask it too, and for a minute OpenCV raises an alarm sooner."},
+     "help": "From this rating the local model has a doubt: an alarm of the motion detection goes to the online AI, three doubtful looks in a row ask it too, and for a minute OpenCV raises an alarm sooner. In the first five minutes of the print the doubtful looks alone do not ask it."},
     {"key": "local_sure", "type": "int", "default": 80, "min": 10, "max": 99, "step": 1, "unit": "%", "group": "local",
      "label": "Sure from",
-     "help": "From this rating the local model is sure there is a failure: two sure looks in a row ask the online AI at once, even without an alarm of the motion detection."},
+     "help": "From this rating the local model is sure there is a failure: two sure looks in a row ask the online AI at once, even without an alarm of the motion detection. In the first five minutes of the print it waits for three: the bed is still almost empty."},
     {"key": "personal_learning", "type": "bool", "default": False, "group": "local", "label": "Learn from this printer's prints",
      "help": "The local model also learns from your answers to «How did the print go?» and from the labelled recordings: a small layer of its own, trained on the Raspberry in a few seconds after each answer. The pictures stay on this printer."},
     {"key": "roi", "type": "area", "default": [20, 20, 60, 60], "group": "area", "label": "Watched area",
@@ -1112,7 +1102,7 @@ def moonraker_status(query, timeout=3):
 
 
 # The operations Moonraker answers only when the work is done (updates, service restarts): 10 seconds are not enough.
-LONG_MOONRAKER_PATHS = ("machine/update/", "machine/services/")
+LONG_MOONRAKER_PATHS = ("machine/update/", "machine/services/", "server/files/upload", "api/files")  # 1.133.1: big uploads
 # Headers that describe one connection, not the content: never copied from one side of a proxy to the other (RFC 9110).
 HOP_BY_HOP = {"connection", "keep-alive", "proxy-authenticate", "proxy-authorization", "te", "trailer", "transfer-encoding", "upgrade"}
 PROXY_REQUEST_SKIP = HOP_BY_HOP | {"host", "content-length", "x-api-key", "cookie", access.HEADER_INTERNAL.lower()}
@@ -1130,6 +1120,20 @@ def relay(upstream):
     return response
 
 
+class SizedBody:
+    """A request body read as it goes, with its length known: requests then sends Content-Length and no chunked
+    encoding (a file-like object without a length got both, and Moonraker waited for a body that never ended)."""
+
+    def __init__(self, stream, length):
+        self.stream, self.length = stream, length
+
+    def __len__(self):
+        return self.length
+
+    def read(self, size=-1):
+        return self.stream.read(size)
+
+
 def proxy_moonraker(path):
     """The request, as it is, to Moonraker. Our own session cookie and internal token are not passed on."""
     url = "%s/%s" % (MOONRAKER_URL, path)
@@ -1137,8 +1141,12 @@ def proxy_moonraker(path):
         url += "?" + request.query_string.decode()
     headers = {name: value for name, value in request.headers if name.lower() not in PROXY_REQUEST_SKIP}
     wait = (5, 600) if path.startswith(LONG_MOONRAKER_PATHS) else 10
+    if request.content_length:  # 1.133.1: a G-code of hundreds of MB goes on as it is read, never whole in memory
+        body = SizedBody(request.stream, request.content_length)
+    else:
+        body = request.get_data()  # no body, or one without a length (chunked): small
     try:
-        return relay(requests.request(request.method, url, data=request.get_data(), headers=headers, timeout=wait, stream=True))
+        return relay(requests.request(request.method, url, data=body, headers=headers, timeout=wait, stream=True))
     except requests.RequestException as error:
         return jsonify({"error": str(error)}), 502
 
@@ -1285,14 +1293,20 @@ def moonraker_proxy(path=""):
 
 
 # The camera, through KlippEye too: /webcam/, /webcam and /webcam/<path> (the stream is sent on as it arrives).
-@app.route("/webcam/")
-@app.route("/webcam")
-@app.route("/webcam/<path:path>")
-def webcam_proxy(path=""):
-    url = "%s/%s" % (CAMERA_NGINX_URL, path)
+# 1.134.1: also /webcam2, /webcam3… (the printer's other cameras), and POST: a camera's WebRTC page, shown from the
+# dashboard's own address, starts its stream with POST requests to the same address.
+@app.route("/webcam/", methods=["GET", "POST"])
+@app.route("/webcam", methods=["GET", "POST"])
+@app.route("/webcam/<path:path>", methods=["GET", "POST"])
+@app.route("/webcam<int:number>/", methods=["GET", "POST"])
+@app.route("/webcam<int:number>/<path:path>", methods=["GET", "POST"])
+def webcam_proxy(path="", number=None):
+    url = "%s%s/%s" % (CAMERA_NGINX_URL, "" if number is None else number, path)
     if request.query_string:
         url += "?" + request.query_string.decode()
     try:
+        if request.method == "POST":
+            return relay(requests.post(url, data=request.get_data(), headers={"Content-Type": request.content_type or "application/json"}, timeout=15, stream=True))
         return relay(requests.get(url, timeout=15, stream=True))
     except requests.RequestException as error:
         return jsonify({"error": str(error)}), 502
@@ -1750,6 +1764,7 @@ CONFIRM_HIDDEN_WAIT_S = 30  # 1.123: the second look waits up to this long for t
 LOCAL_CHANGE_MEMORY_S = 300  # 1.124: a change the motion detection saw is looked at closer by the local model for 5 minutes,
                              # also once the background has absorbed it (a part come off does not move any more)
 LOCAL_SOON_S = 3             # 1.124: a new change: the local model looks at once, at most this often
+LOCAL_WARMUP_S = 300         # 1.132: the first minutes of a print: the bed is almost empty, the local model alone asks less
 LOCAL_BOOST_S = 60           # 1.124: after a doubtful look, the motion detection is more ready to raise an alarm for this long
 CROP_MARGIN = 0.5            # 1.124: a close look takes the box and half of its size around it on each side...
 CROP_MIN = 0.3               # ...and at least 30% of the picture's height, so the model still sees what is around
@@ -1866,14 +1881,6 @@ def distrust_empty_bed(parsed, minimum, language="en", z=None, with_reference=Tr
     return out, True
 
 
-def distrust_low_empty_bed(parsed, z, minimum, language="en"):
-    """The 1.102 rule alone (the height): kept for the callers that know nothing else."""
-    if z is None or z >= EMPTY_BED_MIN_Z:
-        return parsed, False
-    out, changed = distrust_empty_bed(parsed, minimum, language, z=z)
-    return out, changed and out.get("action") != parsed.get("action")
-
-
 def part_hint(objects, z, picture_places=None):
     """One line for the AI about the part (1.121): how many objects, how big, how tall now, and where they are in the
     picture when the camera is calibrated. Without it the AI judged «empty bed» without knowing what to look for."""
@@ -1959,9 +1966,7 @@ def record_alert(event, image_path=None, reference_path=None):
                 pass
             lines.append(json.dumps(event, ensure_ascii=False))
             lines = lines[-ALERT_HISTORY_KEEP:]
-            with open(log + ".tmp", "w", encoding="utf-8") as fh:
-                fh.write("\n".join(lines) + "\n")
-            os.replace(log + ".tmp", log)
+            atomic.write_text(log, "\n".join(lines) + "\n")
             keep = set()
             for line in lines:
                 try:
@@ -2084,9 +2089,6 @@ def real_print_check(status, min_progress, hotend_tol, warmup):
 AI_DEFECT_KEYS = ("spaghetti", "empty_bed", "layer_shift", "warping")
 
 
-AI_ACTIONS = ("CONTINUE", "PAUSE", "CANCEL")
-
-
 def normalize_action(value):
     """The AI's advice as CONTINUE / PAUSE / CANCEL, also when written the Italian way (CONTINUA / PAUSA / CANCELLA,
     releases before 1.6.0 and answers in Italian); "" when there is none."""
@@ -2115,7 +2117,7 @@ def build_ai_prompt(score, state, filename, progress, hotend, ref_age=None, lang
             noticed += " A small image model on the printer rates the picture %.0f%% likely to show a failed print (it can be wrong both ways)." % local["score"]
     pictures = ("I am sending TWO pictures: the first is BEFORE (about %d seconds ago), the second is NOW. Compare them: what counts is what changed and stays." % (ref_age or 0)
                 if ref_age is not None else "I am sending ONE picture (now).")
-    return f"""You are watching a 3D print (a Klipper printer). The camera is fixed, very close and above the bed, in a corner: the print head, its cables and parts of the gantry often appear in the picture.
+    return f"""You are watching a 3D print (a Klipper printer). The camera is fixed: the print head, its cables and parts of the gantry may appear in the picture.
 
 {noticed}
 
@@ -2181,6 +2183,7 @@ class LightDetector(FrameJudge):
         self.thread = None
         self.generation = 0  # every start() opens a new one: an old loop still asleep understands by itself that it must end
         self.last_ai_call = 0
+        self.print_real_at = None  # 1.132: when this print really started (the monitor's first check of it)
         self.local_state = {}  # 1.106: the local model's last look (score, when, runs of sure / doubtful looks, counts)
         self.local_vec = None  # 1.125: how the model described the picture of its last look (the view that counted)
         self.purge = None      # 1.125: {"before", "before_pos", "marks", "done", "share"} of this print
@@ -2318,9 +2321,6 @@ class LightDetector(FrameJudge):
         self.stats["zone"] = self.zone.get("source") if zone is not None else None
         return zone
 
-    def set_roi(self, x, y, w, h):
-        self.roi = (x,y,w,h)
-
     def start(self):
         if not HAS_CV2:
             print("[OPENCV] Cannot start: cv2 missing")
@@ -2379,6 +2379,7 @@ class LightDetector(FrameJudge):
                         self._reset_reference()  # a new print starts with a new background
                         if state != "paused":
                             self.zone, self.zone_reading = {}, None  # the next print has its own objects
+                            self.print_real_at = None
                         self.stats["status"] = f"idle (state={state})"
                         self.stats["real_print_started"] = False
                         self.stats["real_print_reason"] = f"state={state}"
@@ -2408,6 +2409,9 @@ class LightDetector(FrameJudge):
                         self.stats["status"] = f"heating/mesh - waiting for the real print ({'; '.join(reasons)[:80]})"
                         self._nap(generation, 3)
                         continue
+
+                    if self.print_real_at is None:
+                        self.print_real_at = time.time()
 
                 except Exception as e:
                     print(f"[DETECTOR] real_print check err: {e}")
@@ -2468,7 +2472,7 @@ class LightDetector(FrameJudge):
                         self.last_alert_img_path = full_path
                         ref_path, ref_age = self._save_reference(full_path)
                         local = ({"score": self.local_state.get("score"), "why": self.local_state.get("why"), "vector": self.local_vec,
-                                  "model": local_ai.model.version if local_ai.model is not None else None} if self.local_state.get("at") == now else None)
+                                  "model": memory_version()} if self.local_state.get("at") == now else None)
                         threading.Thread(target=self.call_ai_analysis, args=(full_path, ref_path, ref_age), kwargs={"local": local}, daemon=True).start()
                     except Exception as e:
                         print(f"[OPENCV] save alert fail: {e}")
@@ -2499,14 +2503,14 @@ class LightDetector(FrameJudge):
             print("[LOCAL] where the part is: %s" % error)
             return None
 
-    def _bed_box(self):
+    def _bed_box(self, z=None):
         """1.130: where the watched bed is in the picture (x, y, w, h in fractions: the bed and the space above it up to the
-        nozzle, from the camera calibration), or None."""
+        nozzle, from the camera calibration), or None. z: the height (mm) to look up to; default the nozzle's now."""
         try:
             known = camera_cal.bed_area()[0]
             if not known or not camera_cal.usable() or not camera_cal.saved:
                 return None
-            z = self._height_now()
+            z = self._height_now() if z is None else z
             points = [p for polygon in print_zone.outlines(camera_cal.calibration(), [], z if z is not None else 0.0, known[0], known[1])["watched"]
                       for p in (polygon or [])]
             if not points:
@@ -2609,6 +2613,9 @@ class LightDetector(FrameJudge):
         seconds; -> whether to ask the online AI now (the reason in self.local_state["why"]):
           an alarm of the motion detection: when the model is at least «in doubt» (or always, with local_filter off);
           by itself: two «sure» looks in a row, or three «in doubt» in a row.
+        1.132: in the first LOCAL_WARMUP_S of the print, by itself only three «sure» looks in a row: the bed is still
+        almost empty, with a first small layer under the toolhead, and the model took that for a failure (measured on
+        labelled recordings: most of the times it asked by itself when the print was fine were in those minutes).
         Without a model (or switched off) only the motion detection decides, as before."""
         state = self.local_state
         # 1.124: a change the motion detection has just seen is judged at once, closer, without waiting for local_every
@@ -2627,7 +2634,7 @@ class LightDetector(FrameJudge):
                      peak=max(state.get("peak") or 0, score))
         sure, doubt = score >= self.local_sure, score >= self.local_doubt
         # 1.125: a scene already marked as a false alarm (by the person, or «fine» for the online AI) is no doubt
-        known = false_memory.match(self.local_vec, score, local_ai.model.version if local_ai.model is not None else None, now) if doubt else None
+        known = false_memory.match(self.local_vec, score, memory_version(), now) if doubt else None
         state["known"] = {"source": known["source"], "score": known["score"]} if known else None
         if known:
             sure = doubt = False
@@ -2646,15 +2653,17 @@ class LightDetector(FrameJudge):
             state["why"] = None
             return False
         why = None
+        early = self.print_real_at is not None and now - self.print_real_at < LOCAL_WARMUP_S
+        state["early"] = early
         if triggered:
             if doubt or not self.local_filter:
                 why = "motion+local"
             else:
                 state["filtered"] = state.get("filtered", 0) + 1
                 print("[LOCAL] alarm of the motion detection, the local model gives %.0f%%: the online AI is not asked" % score)
-        elif state["sure_run"] >= 2:
+        elif state["sure_run"] >= (3 if early else 2):
             why = "local_sure"
-        elif state["doubt_run"] >= 3:
+        elif state["doubt_run"] >= 3 and not early:
             why = "local_doubt"
         if why and why != "motion+local" and now < self.cooldown_until:
             why = None   # resting after an alarm: the local model waits too
@@ -2765,6 +2774,8 @@ class LightDetector(FrameJudge):
         if ask:
             if self._hides_part():
                 self.ask_waiting = self.ask_waiting or now
+                # 1.132.4: the rest starts when the question goes: during it the loop does not look, the question would be lost
+                self.cooldown_until = min(self.cooldown_until, now)
                 self.stats["ai_put_off"] = self.stats.get("ai_put_off", 0) + 1
                 self.stats["status"] = "the toolhead hides the part: the AI is asked when it moves"
                 return False
@@ -2775,6 +2786,7 @@ class LightDetector(FrameJudge):
                 self.ask_waiting = None
             elif not self._hides_part():
                 self.ask_waiting = None
+                self.cooldown_until = max(self.cooldown_until, now + self.cooldown_sec)
                 return True
         return False
 
@@ -3062,8 +3074,9 @@ class LightDetector(FrameJudge):
                 self.last_analysis["alert_id"] = recorded.get("id")
                 self.last_analysis["image"] = recorded.get("image")
             # 1.125: the online AI sees no problem where the local model had a doubt: the local model learns it, for a while
-            if (normalize_action(parsed.get("action")) == "CONTINUE" and local and local.get("vector") is not None
-                    and (local.get("score") or 0) >= self.local_doubt):
+            # 1.132.4: not a stop the second look did not confirm: the first look saw a problem there
+            if (normalize_action(parsed.get("action")) == "CONTINUE" and not parsed.get("original_action") and local
+                    and local.get("vector") is not None and (local.get("score") or 0) >= self.local_doubt):
                 false_memory.add(local["vector"], local["score"], "online", (recorded or {}).get("id") or round(time.time()), local.get("model"))
         except Exception as e:
             print(f"[OPENCV] AI call fail: {e}")
@@ -3183,8 +3196,18 @@ def keep_examples_later():
 
 def personal_view():
     """1.130: the part of the picture the monitor's main view is (the bed, rounded), for the personal layer's examples."""
-    box = detector._bed_box() if HAS_CV2 else None
+    box = detector._bed_box(z=0.0) if HAS_CV2 else None   # the bed alone: the nozzle's height of the last print would change it
     return tuple(round(float(v), 3) for v in box) if box else None
+
+
+def memory_version():
+    """The false alarms' embeddings are valid for this base model and this view of the pictures (1.132.2: after a
+    calibration the monitor looks at another part of the picture, and they are described again), or None."""
+    model = local_ai.model
+    if model is None:
+        return None
+    view = personal_view()
+    return model.version if not view else "%s|%s" % (model.version, ",".join("%.3f" % v for v in view))
 
 
 def personal_stale():
@@ -3756,9 +3779,7 @@ def label_alert(alert_id, label, session=None):
                 if entry is not None:
                     return entry
             return None
-        with open(log + ".tmp", "w", encoding="utf-8") as fh:
-            fh.write("\n".join(lines) + "\n")
-        os.replace(log + ".tmp", log)
+        atomic.write_text(log, "\n".join(lines) + "\n")
     if found.get("session"):
         recorder.label_alert(found["session"], alert_id, label)
     _learn_from_label(found, label)
@@ -3772,7 +3793,7 @@ def _learn_from_label(entry, label):
         alert_id = entry.get("id")
         if label != "false":
             vector = _alarm_vector(entry) if label == "right" else None
-            false_memory.forget(key=alert_id, near=vector, model=local_ai.model.version if local_ai.model is not None else None)
+            false_memory.forget(key=alert_id, near=vector, model=memory_version())
             return
         vector = _alarm_vector(entry)
         if vector is not None:
@@ -3781,7 +3802,7 @@ def _learn_from_label(entry, label):
                 score = entry.get("confidence")   # an alarm of the local model alone: its score
             if not isinstance(score, (int, float)):
                 score = detector.local_state.get("score") or detector.local_sure
-            false_memory.add(vector, max(float(score), float(detector.local_doubt)), "person", alert_id, local_ai.model.version,
+            false_memory.add(vector, max(float(score), float(detector.local_doubt)), "person", alert_id, memory_version(),
                              picture=cv2.imread(os.path.join(ALERT_HISTORY_DIR, os.path.basename(entry["image"]))))
     except Exception as error:  # a help only
         print("[LOCAL] false alarm not learned: %s" % error)
@@ -3793,7 +3814,7 @@ def refresh_false_alarms():
     if model is None or not HAS_CV2:
         return
     try:
-        false_memory.refresh(model.version, lambda picture: detector.local_vec if detector.local_judge(picture, cover=False) is not None else None)
+        false_memory.refresh(memory_version(), lambda picture: detector.local_vec if detector.local_judge(picture, cover=False) is not None else None)
     except Exception as error:  # a help only
         print("[LOCAL] false alarms not described again: %s" % error)
 
@@ -3844,18 +3865,16 @@ def api_local_model():
     if request.method == "POST":
         local_ai.reload()
         detector.apply_config(effective_config(backend_config.snapshot()))   # 1.130: another model, maybe other levels
-        model = local_ai.model
         if personal_stale():
             train_personal_later("new base model")   # the embeddings change with the model: computed again
         refresh_false_alarms()
     state = detector.local_state
-    model = local_ai.model
     levels = model_levels()
     return _no_store(jsonify(dict(local_ai.info(), ok=True, enabled=detector.local_enabled, personal=personal.info(),
                                   bed_view=personal_view(),   # 1.130: the bed's box the local model judges (x, y, w, h) or None
                                   levels={"doubt": detector.local_doubt, "sure": detector.local_sure, "model": list(levels) if levels else None,
                                           "from_model": bool(levels) and (detector.local_doubt, detector.local_sure) == levels},
-                                  false_alarms=false_memory.info(model.version if model is not None else None),
+                                  false_alarms=false_memory.info(memory_version()),
                                   last={k: state.get(k) for k in ("score", "at", "checks", "filtered", "asked", "why")},
                                   folders={"own": LOCAL_MODEL_OWN_DIR, "base": LOCAL_MODEL_BASE_DIR})))
 
@@ -3876,7 +3895,7 @@ def _local_model_test():
     if result is None:
         return jsonify({"ok": False, "error": bt("The local model could not judge the picture", lang)}), 500
     score, views, best = result
-    known = false_memory.match(detector.local_vec, score, local_ai.model.version) if score >= detector.local_doubt else None
+    known = false_memory.match(detector.local_vec, score, memory_version()) if score >= detector.local_doubt else None
     return _no_store(jsonify({"ok": True, "score": score, "views": views, "best": best,
                               "known": {"source": known["source"], "score": known["score"]} if known else None,
                               "doubt": detector.local_doubt, "sure": detector.local_sure}))
@@ -4542,9 +4561,22 @@ def api_camera_fit():
     return _camera_call(lambda: {"fit": camera_cal.fit()})
 
 
+def _view_changed():
+    """1.132.2: a calibration saved or forgotten: the monitor looks at another part of the picture, so the false alarms
+    and the personal layer are described again on that view. -> nothing (for _camera_call)."""
+    threading.Thread(target=refresh_false_alarms, name="false-alarms", daemon=True).start()
+    if personal_stale():
+        train_personal_later("new calibration")
+
+
 @app.route("/api/camera/calibration/save", methods=["POST"])
 def api_camera_save():
-    return _camera_call(lambda: {"saved": camera_cal.save() and camera_cal.summary()["saved"]})
+    def save():
+        saved = camera_cal.save() and camera_cal.summary()["saved"]
+        if saved:
+            _view_changed()
+        return {"saved": saved}
+    return _camera_call(save)
 
 
 @app.route("/api/camera/calibration/reset", methods=["POST"])
@@ -4554,7 +4586,11 @@ def api_camera_reset():
 
 @app.route("/api/camera/calibration", methods=["DELETE"])
 def api_camera_forget():
-    return _camera_call(lambda: camera_cal.forget())
+    def forget():
+        done = camera_cal.forget()
+        _view_changed()
+        return done
+    return _camera_call(forget)
 
 
 # === PRINTER FUNCTIONS (phase 5b): the macros KlippEye writes into klippeye_macros.cfg ==================================
@@ -4937,10 +4973,7 @@ def api_https_set():
         if _HTTPS["relay"]:
             _HTTPS["relay"].stop()
             _HTTPS["relay"] = None
-    os.makedirs(DATA_DIR, exist_ok=True)
-    with open(HTTPS_FILE + ".tmp", "w", encoding="utf-8") as handle:
-        json.dump(settings, handle)
-    os.replace(HTTPS_FILE + ".tmp", HTTPS_FILE)
+    atomic.write_text(HTTPS_FILE, json.dumps(settings))
     _HTTPS["error"] = None
     if web_status().get("main"):  # 1.94: nginx on 443 with the certificate, or without it
         if settings["enabled"]:

@@ -1,5 +1,128 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.134.2
+
+- The full-screen camera, the full-screen console and a photo opened full screen now grow out of the button you tapped
+  and shrink back into it when they close, like the dialogs. Before, they appeared and vanished at once.
+- The guide (the «?» buttons) and the AI monitoring panel now pop in like the other dialogs and fade out when they
+  close. The guided set-up rises in and slides away when you leave it.
+- The invitation to turn on notifications and the strip that says the printer cannot be reached now slide in instead
+  of appearing at once.
+- The computer's console drawer arrives with the same spring as the rest.
+
+## 1.134.1
+
+- A card folded with the arrow at its top right now closes and opens with a motion, and the cards below slide up or
+  down with it. Before, its content vanished at once and the page jumped.
+- The side menu, its pages and their rows, and the sections that open inside a card now arrive with the same spring as
+  the dialogs. Closing stays quick, as before.
+- A WebRTC camera now shows a clean picture: no play button, no time and no progress bar over it. It plays by itself,
+  without sound. This works when the camera's address starts with /webcam (the usual one); a camera with an address of
+  its own still shows its own player.
+- On a phone, full screen and the small window are in a menu with three dots next to the light button.
+
+## 1.134.0
+
+- On a phone, Home now changes with the print. While the printer heats for a print, the movement and spool cards step
+  aside; while it prints, the spool steps aside. When the AI monitor suggests a pause or a cancel, the camera moves to
+  the top and the other cards dim, except the print card with Pause and Cancel. The cards you hid in Settings →
+  Appearance → Cards stay hidden, and the order stays yours. The computer's layout is unchanged.
+- The cards slide to their new places when Home changes, instead of jumping.
+- Dialogs grow out of the button you tapped and shrink back into it when they close.
+- Dialogs, menus, cards and the tab marker now arrive with a spring that settles with a very small bounce. With
+  *reduce motion* on in the device, nothing moves, as before.
+- Changing page with the tab bar, the new page comes in from the side of the tab you tapped.
+- The camera card has a small window button: the picture moves into a small window above the tab bar and stays there
+  on every page. A tap on it brings it back to Home.
+- When the AI monitor raises an alarm, its badge at the top hops three times.
+
+## 1.133.1
+
+- With KlippEye on port 80 (`klippeye web main`), the password and the guest limits now cover Moonraker's live
+  connection and the file uploads too. Before, those two went past KlippEye: a guest, or anyone without the password,
+  could send G-code through them. nginx now asks KlippEye first. With a password on, a slicer that uploads to port 80
+  must use KlippEye's address from a device that is logged in, or upload to Moonraker directly, as on port 8085.
+- A large G-code uploaded through port 8085 (by a slicer, for example) no longer passes through the Raspberry's memory
+  whole: it goes on to Moonraker as it arrives, and the upload may take up to ten minutes instead of ten seconds.
+- Settings, calibrations, the labels of the kept examples, the alarm history and the print reviews are written so that a
+  power cut leaves the old file or the new one, never half of one. Before, several files skipped the step that forces the
+  data to the card, and removing a print's label rewrote the kept examples' labels in place: a power cut at that moment
+  could lose the labels of every kept example.
+- While the local model has a doubt and the toolhead hides the part, a change outside the part now counts against the
+  lowered threshold, as everywhere else. Before, it counted against the normal one and the alarm could come one check
+  later.
+- KlippEye starts a little faster: the check of the program files after a power cut runs one git command instead of one
+  per file (about 0.7 s to 0.1 s here, more on a slow Raspberry).
+- Code that nothing used is gone: a second copy of the empty-bed rule, an unused list of notifications the notifier kept
+  for ever, an old confidence filter in the notifier that was always zero, and a few names in the dashboard and the tools.
+
+## 1.133.0
+
+- No text in the dashboard is smaller than 12 px any more. The labels of the tab bar were 11 px (10 px on the narrowest
+  phones), and so were the axes of the temperature and input shaper charts, the bed mesh values, the step numbers on the
+  movement pad and a few captions. The pad's numbers are still about 11 px on a 320 px phone, where the pad is smaller.
+  The other text sizes now follow one scale of ten sizes instead of 23; most moved by 1 px.
+- The heater tiles say «Nozzle» and «Bed» in the dashboard's language. They said HOTEND and BED, in English and in
+  capitals, in every language.
+- Corners follow fewer radii (19 before, 7 now). Small boxes such as the print's figures on a computer use 12 px.
+- In the print card, «See the layers» and «More details» are light text buttons. On the phone they sit under Pause and
+  Cancel print, so Pause and Cancel are the only full buttons in the card. On a computer they sit next to Pause.
+  «More details» opens the same list as before, on the phone too.
+
+## 1.132.5
+
+- The text sent to the online AI no longer says the camera is above the bed in a corner (true for one printer only). It
+  now says only that the camera is fixed and that the print head, its cables and the gantry may be in the picture.
+- When the camera changes its exposure, black parts of the picture (black filament, shadows) no longer count as changed
+  for the motion detection.
+
+## 1.132.4
+
+- A stop the online AI proposed and its second look did not confirm is no longer learned as «fine» for the next hours:
+  the first look saw a problem there. Before, that scene was then ignored by the local model (and an alarm of the
+  motion detection on it filtered) for up to 6 hours, even when a failure was growing in it.
+- A question the local model wanted to ask while the toolhead hid the part is no longer lost: the monitor's rest now
+  starts when the question goes, not when it is put off (during the rest nobody looked whether the part showed again, so
+  the question expired and the failure was reported a few minutes later).
+- The camera calibration: three lines that did nothing are gone.
+
+## 1.132.3
+
+- The camera calibration refuses a printer whose bed moves forward and back (a bed slinger) with the camera on the frame,
+  instead of saving a calibration that is wrong whatever its rating (the nozzle tip stays in one place of the picture when
+  Y moves: it is the bed that moves). Simulated: 3 such cameras out of 8 got a «good» calibration before. These printers
+  are not supported yet; a camera on the bed (it moves with it) works as before.
+
+## 1.132.2
+
+- After the camera is calibrated (or calibrated again, or its calibration deleted), the local model looks at another
+  part of the picture: the false alarms marked by the person are now described again on that view at once, and the
+  personal layer taught again. Before, the false alarms marked earlier stopped being recognised until the next base
+  model, and the personal layer kept the old view until a restart.
+- The personal layer's cache of picture descriptions keeps only the examples there are: the ones that are gone no
+  longer stay in it for ever.
+
+## 1.132.1
+
+- The personal layer is no longer taught again, all of its examples looked at anew, after every restart and every
+  answer to «How did the print go?»: the part of the picture it learns on (the bed) was taken up to the height the last
+  print ended at, so it changed from one time to the next. It is now the bed alone, always the same.
+
+## 1.132.0
+
+**A calmer start of the print for the local model.** In the first five minutes after the monitor starts checking a
+print, the local model asks the online AI by itself only after three «sure» looks in a row (two later on), and doubtful
+looks alone do not ask at all. In those minutes the bed is still almost empty, with a first small layer under the
+toolhead, and the model took that for a failure: on 14 judged recordings it asked by itself 3 times when the print was
+fine, at one look every 15 s, and these rules leave 1, catching the same failures as quickly. An alarm of the motion
+detection with a doubt still goes to the online AI from the first minute.
+
+- `ml/evaluate.py` adds a «monitor» row: it counts the times the local model would ask by itself with the monitor's own
+  rule (one look every `--every-s` seconds, two «sure» or three «in doubt» in a row with the model's levels, the first
+  `--warmup` seconds stricter), next to the table of single thresholds.
+- A smoothed score (an average over time) and a level raised by each print's normal score were measured too, and left
+  out: on the same recordings they caught fewer failures, later, without fewer false alarms.
+
 ## 1.131.0
 
 **The local model looks at the bed, not at the whole picture.** With a calibrated camera it now judges the bed and the

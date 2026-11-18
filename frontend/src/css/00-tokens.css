@@ -69,7 +69,7 @@
   --oui-shadow-float: 0 10px 32px rgba(0, 0, 0, 0.42);
   --oui-blur: 24px;
 
-  /* ---- motion (Samsung One UI: one basic curve, nothing shorter than 100 ms or longer than 500 ms) ---- */
+  /* ---- motion (One UI's curve, plus a spring since 1.134; nothing shorter than 100 ms or longer than 550 ms) ---- */
   --oui-ease: cubic-bezier(0.22, 0.25, 0, 1); /* One UI basic motion: quick start, long soft landing */
   --oui-ease-in: cubic-bezier(0.4, 0, 1, 1); /* things that leave: slow start, then away */
   --oui-dur-press: 100ms; /* touch feedback: the shortest motion that is still seen */
@@ -79,11 +79,19 @@
   --oui-dur-exit: 150ms; /* layers going away: shorter than they came (keep LAYER_EXIT_MS, app/22-motion.js, equal) */
   --oui-dur-bar: 450ms; /* progress bars */
   --oui-stagger: 35ms; /* delay between the cards of a page as it comes in */
+  /* 1.134: a spring with a barely visible bounce (response 0.55 s, damping 0.8) for things that arrive or move;
+     what leaves keeps --oui-ease-in. Without linear() (an old WebView) it falls back to the basic curve below. */
+  --oui-spring: var(--oui-ease);
+  --oui-dur-spring: 550ms;
 
   /* ---- layout ---- */
   --oui-header-h: 64px;
   --oui-nav-h: 68px;
   --oui-gutter: 16px;
+}
+
+@supports (transition-timing-function: linear(0, 1)) {
+  :root { --oui-spring: linear(0, 0.023, 0.081, 0.159, 0.249, 0.343, 0.439, 0.528, 0.609, 0.684, 0.749, 0.804, 0.851, 0.891, 0.923, 0.948, 0.968, 0.983, 0.995, 1.003, 1.009, 1.012, 1.014, 1.015, 1.015, 1.014, 1.013, 1.012, 1); }
 }
 
 /* "Reduce motion" (system setting): everything still happens, just without the movement. */
@@ -95,6 +103,7 @@
     --oui-dur-slow: 1ms;
     --oui-dur-exit: 1ms;
     --oui-dur-bar: 1ms;
+    --oui-dur-spring: 1ms;
     --oui-stagger: 0ms;
   }
 }

@@ -67,7 +67,7 @@ with sync_playwright() as p:
     heaters = pg.locator('[data-card="heaters"]')
     h0 = heaters.bounding_box()["height"]
     heaters.locator(".oui-card__fold").click()
-    ok("the chevron folds a card down to its title", wait_until(lambda: "is-collapsed" in heaters.get_attribute("class")) and heaters.bounding_box()["height"] < h0 / 2 and heaters.locator(".heater-tile").count() >= 0 and not heaters.locator(".heater-tile").first.is_visible(), heaters.bounding_box())
+    ok("the chevron folds a card down to its title", wait_until(lambda: "is-collapsed" in heaters.get_attribute("class") and heaters.bounding_box()["height"] < h0 / 2 and not heaters.locator(".heater-tile").first.is_visible()), (h0, heaters.bounding_box()))  # 1.134.1: the content stays while it folds
     pg.reload()
     pg.wait_for_timeout(2400)
     ok("... it stays folded on this device", wait_until(lambda: "is-collapsed" in pg.locator('[data-card="heaters"]').get_attribute("class")))

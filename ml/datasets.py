@@ -10,7 +10,7 @@ Sources, any number of each:
                    and each such box is also cut out with its surroundings (small spaghetti become large); a picture whose
                    boxes are only of a normal print (nozzle, part, print…) is «fine»; one with only defects of quality
                    (stringing, zits…) is left out; with --empty-is-ok a picture without boxes counts as «fine».
-                   --fail-classes NAME,NAME... : the classes that are failures (default: by their names, see FAILURE).
+                   --fail-classes NAME,NAME... : the classes that are failures (default: by their names, see kind_of).
   --classes DIR    a dataset of class folders (Roboflow «folder» export: train/<class>/*.jpg): the classes by their names;
                    or a multi-label one (Roboflow «multiclass» export: _classes.csv with a 0/1 column per class).
   --frames DIR     pictures of prints going well, one folder per print (ml/download.py --bambu): all «fine», except the
@@ -45,7 +45,6 @@ import labelled_prints  # noqa: E402  (the prints judged in the dashboard: one r
 IMAGE_EXT = (".jpg", ".jpeg", ".png", ".bmp", ".webp")
 # the classes of the datasets, by their names: a failure that ruins the print (what the monitor must catch), a defect of
 # quality (the print goes on: left out, neither failed nor fine), a normal print or a part of the printer (fine)
-FAILURE = re.compile(r"spag|fail|error|detach|blob|shift|warp|clog|nest|knot|collaps|broken|defect|bad|fault|anomal|adhes|curl|messy|mess", re.I)
 QUALITY = re.compile(r"string|zit|under|over|gap|ring|ghost|crack|bridg|line|rough|elephant|seam|pillow|hair|z.?wobble|banding|burn", re.I)
 NORMAL = re.compile(r"^(ok|good|normal|nominal|success\w*|fine|correct|no.?defect\w*|(successful|good|normal|ok|fine|correct)[ _-]?print\w*|"
                     r"nozzle|print|printing|printed|object|part|parts|model|bed|extruder|"

@@ -81,19 +81,14 @@ function DesktopPrintCard({ status, controls, monitor }) {
       h(
         "div",
         { className: "desk-print__actions" },
-        h(
-          "button",
-          { type: "button", className: cx("oui-btn oui-btn--sm desk-print__more", more && "is-open"), "aria-expanded": more, "data-print-more": "1", onClick: () => setMore(!more) },
-          tx("More details"),
-          h(Icons.Chevron, { size: 14 }),
-        ),
-        h(GcodeViewButton, { status }),
         h(ExcludeObjectButton, { status }),
         h("span", { className: "desk-print__gap" }),
+        h(GcodeViewButton, { status }),
+        h(MoreDetailsButton, { more, setMore }),
         h("button", { onClick: controls.togglePause, className: "oui-btn oui-btn--sm desk-print__pause" }, status.state === "paused" ? tx("Resume") : tx("Pause")),
         h("button", { onClick: controls.askCancel, className: "oui-btn oui-btn--sm oui-btn--danger-soft desk-print__cancel" }, tx("Cancel print")),
       ),
-      more && h(PrintDetails, { status, open: true }),
+      more && h(PrintDetails, { status }),
     ),
   );
 }

@@ -537,5 +537,5 @@ function GcodeViewerLayer() {
 function GcodeViewButton({ status }) {
   const path = status.filePath || status.filename;
   if (!path || path === "-") return null;
-  return h("button", { type: "button", className: "oui-btn oui-btn--sm oui-btn--block gcode-view-btn", onClick: () => gcodeViewerStore.open(path) }, h(Icons.Layers, { size: 16 }), tx("See the layers"));
+  return h("button", { type: "button", className: "oui-btn oui-btn--quiet oui-btn--sm gcode-view-btn", onClick: () => gcodeViewerStore.open(path) }, h(Icons.Layers, { size: 16 }), tx("See the layers"));
 }

@@ -20,6 +20,8 @@ import shutil
 import threading
 import time
 
+import atomic
+
 ACTIVE_STATES = ("printing", "paused")
 # the ones that ruin a print (what the AI monitor must catch), then the defects of quality; the order the dashboard shows
 PROBLEMS = ("spaghetti", "detached", "layer_shift", "nozzle_blob", "clog", "warping",
@@ -74,10 +76,7 @@ class PrintReviews:
     def _save(self, review):
         folder = os.path.join(self.root, review["id"])
         try:
-            os.makedirs(folder, exist_ok=True)
-            with open(os.path.join(folder, "review.json.tmp"), "w", encoding="utf-8") as handle:
-                json.dump(review, handle, ensure_ascii=False)
-            os.replace(os.path.join(folder, "review.json.tmp"), os.path.join(folder, "review.json"))
+            atomic.write_text(os.path.join(folder, "review.json"), json.dumps(review, ensure_ascii=False))
         except OSError as error:
             print("[REVIEW] not saved: %s" % error)
 

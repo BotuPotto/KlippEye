@@ -736,13 +736,13 @@ sbp = b_ai.started_by_progress
 check("1.102: with the slicer's M73 its figure decides (0% while the file is at 1.5%: not started yet); without, the file as before",
       not sbp(0.0, 0.015, 2) and sbp(0.02, 0.03, 2) and sbp(0.012, 0.012, 2) and not sbp(0.005, 0.005, 2) and sbp(0.0, 0.0, 0))
 _empty = {"empty_bed": {"detected": True, "confidence": 95}, "spaghetti": {"detected": False, "confidence": 0}, "action": "CANCEL", "summary": "bed empty"}
-v, changed = b_ai.distrust_low_empty_bed(_empty, 0.2, 70, "it")
+v, changed = b_ai.distrust_empty_bed(_empty, 70, "it", z=0.2)
 check("1.102: «empty bed» on a print 0.2 mm high: not trusted, CANCEL becomes CONTINUE (the original kept), the reason in the language",
       changed and v["action"] == "CONTINUE" and v["original_action"] == "CANCEL" and v["empty_bed"]["detected"] is False and "2 mm" in v["summary"] and "piatto vuoto" in v["summary"], v)
 check("... 5 mm high, or the height unknown: as the AI said",
-      b_ai.distrust_low_empty_bed(_empty, 5.0, 70)[0]["action"] == "CANCEL" and b_ai.distrust_low_empty_bed(_empty, None, 70)[0]["action"] == "CANCEL")
+      b_ai.distrust_empty_bed(_empty, 70, z=5.0)[0]["action"] == "CANCEL" and b_ai.distrust_empty_bed(_empty, 70, z=None)[0]["action"] == "CANCEL")
 _both = dict(_empty, spaghetti={"detected": True, "confidence": 90})
-check("... spaghetti seen too on the flat print: the stop stays", b_ai.distrust_low_empty_bed(_both, 0.2, 70)[0]["action"] == "CANCEL")
+check("... spaghetti seen too on the flat print: the stop stays", b_ai.distrust_empty_bed(_both, 70, z=0.2)[0]["action"] == "CANCEL")
 print("== 1.121: «empty bed» needs the earlier picture, a part big enough and a sure AI")
 de = b_ai.distrust_empty_bed
 v, changed = de(_empty, 70, "it", z=8.0, with_reference=False, side=60)
@@ -777,7 +777,14 @@ _d._hides_part = lambda: _hide["on"]
 check("1.123: the part hidden: not asked now, the question waits", _d._put_off_when_hidden(True, 1000.0) is False and _d.ask_waiting == 1000.0)
 check("... still hidden at the next round: still waiting", _d._put_off_when_hidden(False, 1003.0) is False and _d.ask_waiting == 1000.0)
 _hide["on"] = False
-check("... the head moved away: asked at once, nothing waits any more", _d._put_off_when_hidden(False, 1006.0) is True and _d.ask_waiting is None)
+_d.cooldown_until, _d.cooldown_sec = 1000.0 + 90, 90   # the rest a local «sure» starts with its question
+_d.ask_waiting, _hide["on"] = None, True
+_d._put_off_when_hidden(True, 1000.0)
+check("1.132.4: put off, the question does not start the monitor's rest (it would not look again, and the question would be lost)", _d.cooldown_until <= 1000.0, _d.cooldown_until)
+_hide["on"] = False
+check("... the head moved away: asked at once, nothing waits any more, and the rest starts now", _d._put_off_when_hidden(False, 1006.0) is True and _d.ask_waiting is None
+      and _d.cooldown_until == 1006.0 + 90, _d.cooldown_until)
+_d.cooldown_until = 0
 _hide["on"] = True
 _d._put_off_when_hidden(True, 2000.0)
 _hide["on"] = False
@@ -1197,6 +1204,13 @@ check("... camera, Moonraker, file e log chiusi (401)", set(blocked.values()) ==
 check("... anche i comandi: /api/gcode e /api/update/channel", cb.post("/api/gcode", json={"script": "M112"}).status_code == 401 and cb.post("/api/update/channel", json={"channel": "dev"}).status_code == 401)
 check("... restano aperti: stato dell'accesso e aggiornamento dell'app", cb.get("/api/auth/status").status_code == 200 and cb.get("/api/app/version").status_code == 200)
 check("... lo stato dice: attiva, non sei dentro", cb.get("/api/auth/status").get_json()["enabled"] is True and cb.get("/api/auth/status").get_json()["logged_in"] is False)
+check("1.133.1: /api/auth/check (nginx asks it before Moonraker's WebSocket and uploads on port 80): 401 without logging in, 204 logged in",
+      cb.get("/api/auth/check").status_code == 401 and ca.get("/api/auth/check").status_code == 204)
+ca.post("/api/auth/guest", json={"current": "segreta123", "new": "guarda1234"})
+cg = ba.app.test_client()
+cg.post("/api/auth/login", json={"password": "guarda1234"})
+check("... a guest: 403 (looks, never commands: no WebSocket, no uploads)", cg.get("/api/version").status_code == 200 and cg.get("/api/auth/check").status_code == 403)
+ca.post("/api/auth/guest/remove", json={"current": "segreta123"})
 
 r = cb.post("/api/auth/login", json={"password": "sbagliata"})
 check("password sbagliata: 401 'password'", r.status_code == 401 and r.get_json()["error"] == "password")
@@ -1223,7 +1237,7 @@ check("i servizi del Raspberry (notifiche) passano col gettone interno", ba.app.
 check("... un gettone interno sbagliato no", ba.app.test_client().get("/api/version", headers={"X-KlippEye-Token": "a" * 64}).status_code == 401)
 check("un cookie falsificato non vale", ba.app.test_client().get("/api/version", headers={"Cookie": "klippeye_session=eyJ2IjoxLCJleHAiOjk5OTk5OTk5OTksImdlbiI6OTl9.firmafalsa"}).status_code == 401)
 _s = ba.ACCESS.load()
-check("un gettone scaduto non vale", not ba.access.token_valid(_s, ba.access.make_token(_s, now=time.time() - 200 * 86400)) and ba.access.token_valid(_s, ba.access.make_token(_s)))
+check("un gettone scaduto non vale", ba.access.token_role(_s, ba.access.make_token(_s, now=time.time() - 200 * 86400)) is None and ba.access.token_role(_s, ba.access.make_token(_s)) == "admin")
 
 r = ca.post("/api/auth/password", json={"current": "sbagliata", "new": "nuova4567"})
 check("cambiare la password vuole quella attuale", r.status_code == 401)
@@ -1327,6 +1341,15 @@ import re  # noqa: E402
 sys.path.insert(0, os.path.join(ROOT, "backend"))
 import recorder as _rec  # noqa: E402
 import monitor_core as _core  # noqa: E402
+
+# 1.132.5: the camera brightens the picture: what was black stays black, it does not become «changed»
+_fj = _core.FrameJudge()
+_fj.bg = _core.np.full((60, 100), 100, _core.np.uint8)
+_fj.bg[:, :20] = 0                                  # a black part (black filament, a shadow)
+_bright = _core.np.full((60, 100), 150, _core.np.uint8)
+_bright[:, :20] = 0                                 # the rest 50 levels brighter: the average moves by 40
+_fj._compare_with_background(_bright)
+check("1.132.5: an exposure change does not turn black points into changed ones", _fj.stats["global_change"] < 1, _fj.stats["global_change"])
 
 # --- the recorder alone
 rroot = os.path.join(tmp(), "recordings")
@@ -2097,6 +2120,10 @@ check("the macros of the files of that folder are listed (review 1.116)", _mj["o
       and _mj["macros"][0]["file"] == "macros.cfg" and _mj["macros"][0]["source"] == "filesystem", _mj)
 _lj = _pbc.get("/api/logs/list").get_json()
 check("the logs page lists the logs of that folder", _lj.get("dir") == os.path.join(_proot, "lg") and [f["name"] for f in _lj["files"]] == ["klippy.log"], _lj)
+_codes = {n: _pbc.get("/api/logs/download", query_string={"file": n}).status_code
+          for n in ("klippy.log", "../cfg/macros.cfg", "..\\cfg\\macros.cfg", os.path.join(_proot, "cfg", "macros.cfg"), "..", "")}
+check("1.132.1: a log downloads; a path out of the logs folder (the config, the AI keys next to it) never does",
+      _codes == {"klippy.log": 200, "../cfg/macros.cfg": 400, "..\\cfg\\macros.cfg": 400, os.path.join(_proot, "cfg", "macros.cfg"): 400, "..": 400, "": 400}, _codes)
 _pp.forget()
 fake.state["roots"] = None
 _home = tmp()
@@ -2432,7 +2459,7 @@ check("1.82: no guest without the main password", _acc.verify_guest_password(_ac
 _st = _acc.set_guest_password(_acc.set_password(_st, "segreta123"), "guarda123")
 check("1.82: the guest password opens as guest, the main one as admin", _acc.verify_guest_password(_st, "guarda123") and not _acc.verify_guest_password(_st, "segreta123") and _acc.verify_password(_st, "segreta123") and not _acc.verify_password(_st, "guarda123"))
 _tg, _ta = _acc.make_token(_st, role="guest"), _acc.make_token(_st)
-check("1.82: token roles", _acc.token_role(_st, _tg) == "guest" and _acc.token_role(_st, _ta) == "admin" and _acc.token_valid(_st, _tg))
+check("1.82: token roles", _acc.token_role(_st, _tg) == "guest" and _acc.token_role(_st, _ta) == "admin")
 _st2 = _acc.set_guest_password(dict(_st), "altra1234")
 check("1.82: a new guest password logs the guests out, not the admins", _acc.token_role(_st2, _tg) is None and _acc.token_role(_st2, _ta) == "admin")
 check("1.82: removing the main password removes the guests too", _acc.clear_password(dict(_st))["guest_enabled"] is False)
@@ -2446,6 +2473,13 @@ check("1.82: a guest may not command, nor read the configuration, logs or settin
               ("GET", "/server/files/config/printer.cfg", {}), ("GET", "/server/files/list", {"root": "config"}), ("GET", "/server/files/directory", {"path": "config"}), ("GET", "/server/files/content", {"root": "config", "path": "printer.cfg"}),
               ("GET", "/api/logs/list", {}), ("GET", "/api/notifications/channels", {}), ("GET", "/api/ai/config", {}), ("GET", "/machine/update/status", {"refresh": "true"}),
               ("GET", "/printer/restart", {}), ("GET", "/server/database/item", {"namespace": "moonraker"}), ("GET", "/server/database/item", {}), ("POST", "/api/auth/password", {}), ("GET", "/server/files/gcodes/../config/printer.cfg", {}))))
+check("1.134.1: a guest may start a camera's WebRTC stream (POST), nothing else through it",
+      _may("POST", "/webcam/webrtc") and _may("POST", "/webcam2/webrtc") and not _may("POST", "/webcam/../printer/gcode/script") and not _may("POST", "/printer/gcode/script"))
+_cam = load_brain(NEW_BRAIN, tmp(), fake, brain_json={"values": {"enabled": False}}).app.test_client()
+_before = len(fake.posts)
+_r1 = _cam.post("/webcam/webrtc", json={"type": "request"})
+_r2 = _cam.post("/webcam2/webrtc", json={"type": "request"})
+check("... the camera proxy passes a WebRTC page's POST on, for /webcam and /webcam2", _r1.status_code == 200 and _r2.status_code == 200 and fake.posts[_before:] == ["/webcam/webrtc", "/webcam2/webrtc"], (fake.posts[_before:], _r1.status_code, _r2.status_code))
 
 # 1.84: klippeye benchmark (scripts/benchmark.py): a busy process named like the KlippEye service is measured
 _busy = subprocess.Popen([sys.executable, "-c", "import time\nt = time.time() + 6\nwhile time.time() < t: pass", "klippeye_backend.py"])
@@ -2608,6 +2642,8 @@ check("1.94: «main»: the page on port 80 moved to the next free port (81 is ta
 check("1.94: KlippEye's site: the camera as the previous page had it, Moonraker's WebSocket and uploads straight to Moonraker, the rest to the service",
       "proxy_pass http://mjpgstreamer1/;" in _ks and "location /websocket" in _ks and "location = /server/files/upload" in _ks and "location /api/files/" in _ks
       and "proxy_pass http://127.0.0.1:8085;" in _ks and "X-Forwarded-Proto $scheme" in _ks and "listen 443" not in _ks)
+check("1.133.1: ... nginx asks KlippEye before the WebSocket and the two upload paths (password, guests)",
+      _ks.count("auth_request /_klippeye_auth;") == 3 and "location = /_klippeye_auth" in _ks and "proxy_pass http://127.0.0.1:8085/api/auth/check;" in _ks, _ks[:600])
 _r2 = _web("main", "--https", os.path.join(_ng, "c.pem"), os.path.join(_ng, "k.pem")) if not _nginx else None
 if _nginx:  # the real nginx checks the certificate files: a real one
     _hc_cert, _hc_key = _hr.ensure_certificate(os.path.join(_ng, "cert"), names=["printer"], addresses=[])
@@ -2643,6 +2679,21 @@ _wc.get("/api/job")
 _wc.get("/api/printer", headers={"X-Api-Key": "abc"})
 check("1.94: OctoPrint's upload, job and printer questions go to Moonraker", _seen == ["api/files/local", "api/job", "api/printer"], _seen)
 _wb.proxy_moonraker = _orig_proxy
+# 1.133.1: an upload through the service goes on to Moonraker as it is read (a big G-code never whole in memory)
+_sent = {}
+_orig_request = _wb.requests.request
+def _capture(method, url, data=None, headers=None, **kw):
+    sent = _wb.requests.Request(method, url, data=data, headers=headers).prepare()  # the headers requests really sends
+    _sent.update(url=url, streamed=hasattr(data, "read"), length=sent.headers.get("Content-Length"), chunked="Transfer-Encoding" in sent.headers,
+                 timeout=kw.get("timeout"), body=data.read() if hasattr(data, "read") else data)
+    raise _wb.requests.RequestException("captured")
+_wb.requests.request = _capture
+_wc.post("/server/files/upload", data=b"G1 X1\n" * 1000, content_type="application/octet-stream")
+check("1.133.1: an upload goes on to Moonraker as a stream, with its length (not chunked too) and the long wait", _sent.get("streamed") is True and _sent.get("length") == "6000" and _sent.get("chunked") is False
+      and _sent.get("body") == b"G1 X1\n" * 1000 and _sent.get("timeout") == (5, 600), {k: v for k, v in _sent.items() if k != "body"})
+_wc.get("/server/info")
+check("... a question without a body is sent as before", _sent.get("streamed") is False and _sent.get("body") == b"", {k: v for k, v in _sent.items() if k != "body"})
+_wb.requests.request = _orig_request
 
 # 1.100.1 review: the logs read from their end (a log of hundreds of MB no longer read whole); /api/gcode's three ways
 _lf = os.path.join(tmp(), "klippy.log")
@@ -2891,6 +2942,19 @@ check("... three doubtful looks in a row (50%): asked at the third", _r == [Fals
 _with_scores([0.5, 0.1, 0.5, 0.5])
 _r = [_det._local_look(_frame, 5000.0 + 15 * k, False) for k in range(4)]
 check("... a calm look in between starts the count again", _r == [False, False, False, False], _r)
+_det.print_real_at = 5500.0   # 1.132: the print really started 100 s ago
+_with_scores([0.5, 0.5, 0.5, 0.5])
+_r = [_det._local_look(_frame, 5600.0 + 15 * k, False) for k in range(4)]
+check("1.132: in the first minutes of the print, doubtful looks alone do not ask", _r == [False] * 4 and _det.local_state["early"] is True, _r)
+_with_scores([0.9, 0.9, 0.9])
+_r = [_det._local_look(_frame, 5600.0 + 15 * k, False) for k in range(3)]
+check("... sure looks: three in a row instead of two", _r == [False, False, True] and _det.local_state["why"] == "local_sure", _r)
+_with_scores([0.5])
+check("... an alarm of the motion detection with a doubt is asked as before", _det._local_look(_frame, 5700.0, True) is True)
+_with_scores([0.9, 0.9])
+_r = [_det._local_look(_frame, 5500.0 + _lb.LOCAL_WARMUP_S + 15 * k, False) for k in range(2)]
+check("... after the first minutes: two sure looks again", _r == [False, True] and _det.local_state["early"] is False, _r)
+_det.print_real_at = None
 _lb.AI_CONFIG_PATH = os.path.join(tmp(), "ai.json")   # no key at all: no online AI can answer
 _det.local_alone = True
 _with_scores([0.95, 0.95, 0.95])
@@ -3017,7 +3081,7 @@ _views = _det.local_views(_frame, 100.0)
 check("... a change seen by OpenCV: also a closer look at it (a square crop of the picture)",
       [n for n, _ in _views] == ["whole", "change"] and _views[1][1].shape[0] == _views[1][1].shape[1] < _frame.shape[0], [(n, v.shape) for n, v in _views])
 check("... forgotten after 5 minutes", [n for n, _ in _det.local_views(_frame, 100.0 + _lb.LOCAL_CHANGE_MEMORY_S + 1)] == ["whole"])
-_det._bed_box = lambda: (0.15, 0.36, 0.70, 0.61)   # 1.130: a calibrated camera: where the bed is
+_det._bed_box = lambda z=None: (0.15, 0.36, 0.70, 0.61)   # 1.130: a calibrated camera: where the bed is
 _views = _det.local_views(_frame, 100.0)
 _fh, _fw = _frame.shape[:2]
 check("1.130: a calibrated camera: the bed instead of the whole picture (the frame and the cables around it look like tangles)",
@@ -3026,7 +3090,19 @@ check("1.130: a calibrated camera: the bed instead of the whole picture (the fra
 check("... the bed's view is not squared, with a small margin; almost the whole picture or nothing: no bed view",
       _lb.bed_rect((0.1, 0.2, 0.5, 0.4), 1000, 500) == (80, 92, 620, 308) and _lb.bed_rect((0.0, 0.0, 1.0, 1.0), 1000, 500) is None
       and _lb.bed_rect(None, 1000, 500) is None and _lb.bed_rect((0.5, 0.5, 0.01, 0.01), 1000, 500) is None, _lb.bed_rect((0.1, 0.2, 0.5, 0.4), 1000, 500))
-_det._bed_box = lambda: None
+_saved_box = _lb.detector._bed_box
+_lb.detector._bed_box = lambda z=None: (0.1, 0.2, 0.3, 0.4 + (0.1 if z is None else z / 100.0))   # taller with the nozzle's height
+check("1.132.1: the personal layer's view is the bed alone, whatever the height the last print ended at (no training again at each restart)",
+      _lb.personal_view() == (0.1, 0.2, 0.3, 0.4), _lb.personal_view())
+_v_bed = _lb.memory_version()
+_lb.detector._bed_box = lambda z=None: (0.2, 0.2, 0.3, 0.4)   # the camera calibrated again: another view
+_v_other = _lb.memory_version()
+_lb.detector._bed_box = lambda z=None: None                   # no calibration: the whole picture
+check("1.132.2: the false alarms' embeddings belong to the model and the view (a new calibration: described again)",
+      _v_bed == _lb.local_ai.model.version + "|0.100,0.200,0.300,0.400" and _v_other != _v_bed and _lb.memory_version() == _lb.local_ai.model.version,
+      (_v_bed, _v_other, _lb.memory_version()))
+_lb.detector._bed_box = _saved_box
+_det._bed_box = lambda z=None: None
 _with_scores([0.10, 0.70])
 check("... the highest of the looks counts, and which one gave it", _det.local_judge(_frame, 100.0) == (70.0, {"whole": 10.0, "change": 70.0}, "change"))
 _with_scores([0.10] * 9)
@@ -3052,6 +3128,17 @@ _det.boost = True
 _boosted = _det.limits()
 _det.boost = False
 check("... the threshold at 60% and one suspicious check fewer (never below one)", _boosted == (1.5, 2) and _det.limits() == (2.5, 3), _boosted)
+# 1.133.1: with the part hidden by the toolhead, a change outside it above the threshold in use (lowered by the doubt) counts
+import monitor_core as _mcz
+_jz = _mcz.FrameJudge()
+_jz.verbose, _jz.persist_checks, _jz.boost = False, 1, True
+_th = _np.zeros((360, 540), _np.uint8)
+_th[0:60, 0:65] = 255  # 2.0% of the bed changed, outside the part: above 1.5 (boosted), below 2.5
+_part = _np.zeros((360, 540), _np.uint8)
+_part[200:260, 200:260] = 255
+_keep = 255 - _part  # the toolhead hides the whole part
+_zs = _jz._zone_score(_th, _keep, (_np.full((360, 540), 255, _np.uint8), _np.zeros((360, 540), _np.uint8), _part))
+check("1.133.1: part hidden, the local model in doubt: 2% outside the part counts (the lowered threshold), not «no answer»", _zs is not None and abs(_zs - 2.006) < 0.01, _zs)
 _det.stats["peak_score"] = 7.5
 _det.in_print = False
 _det._follow_print("printing")
@@ -3177,6 +3264,14 @@ check("1.125: the online AI answers «fine» to a doubt of the local model: that
 b_ai.false_memory.forget()
 b_ai.detector.call_ai_analysis(cur, prev, 60, local={"score": 20.0, "why": None, "vector": _scene, "model": "test-1"})
 check("... not when the local model had no doubt (20%)", b_ai.false_memory.info("test-1") == {"person": 0, "online": 0})
+post, calls = _chain_post({"groq": ["PAUSE"], "gemini": ["CONTINUE"]})
+b_ai, cur, prev = _two_services(post)
+b_ai.false_memory.forget()
+b_ai.detector.local_doubt = 35
+b_ai.detector.call_ai_analysis(cur, prev, 60, local={"score": 95.0, "why": "local_sure", "vector": _scene, "model": "test-1"})
+check("1.132.4: a stop the second look did not confirm is no «fine» to learn: the first look saw a problem there",
+      (b_ai.detector.last_analysis.get("analysis") or {}).get("original_action") == "PAUSE" and b_ai.false_memory.info("test-1") == {"person": 0, "online": 0},
+      (b_ai.detector.last_analysis.get("analysis"), b_ai.false_memory.info()))
 _lb.local_ai.model = None
 
 stop_all()

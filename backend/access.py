@@ -25,9 +25,10 @@ import json
 import os
 import secrets
 import sys
-import tempfile
 import threading
 import time
+
+import atomic
 
 FORMAT = 1
 ITERATIONS = 120000          # PBKDF2-SHA256: about half a second on a slow Raspberry, unnoticeable for a one-off login
@@ -51,25 +52,6 @@ def data_dir_default():
     if os.path.isdir(os.path.join(home, "printer_data")):
         return os.path.join(home, "printer_data", "klippeye")
     return os.path.join(home, "klippeye_data")
-
-
-def _write_private(path, text):
-    folder = os.path.dirname(path)
-    os.makedirs(folder, exist_ok=True)
-    fd, tmp = tempfile.mkstemp(prefix=".tmp-", dir=folder)
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            f.write(text)
-            f.flush()
-            os.fsync(f.fileno())
-        os.chmod(tmp, 0o600)
-        os.replace(tmp, path)
-    except BaseException:
-        try:
-            os.unlink(tmp)
-        except OSError:
-            pass
-        raise
 
 
 def default_settings():
@@ -126,7 +108,7 @@ class Store:
             return dict(data)
 
     def _save(self, data):
-        _write_private(self.path, json.dumps(data, indent=2, sort_keys=True) + "\n")
+        atomic.write_text(self.path, json.dumps(data, indent=2, sort_keys=True) + "\n", private=True)
 
     def save(self, data):
         with self.lock:
@@ -147,7 +129,7 @@ class Store:
             except OSError:
                 pass
             value = secrets.token_hex(32)
-            _write_private(self.internal_path, value + "\n")
+            atomic.write_text(self.internal_path, value + "\n", private=True)
             self._internal = value
             return value
 
@@ -231,10 +213,6 @@ def make_token(settings, now=None, role="admin"):
     return body + "." + sig
 
 
-def token_valid(settings, token, now=None):
-    return token_role(settings, token, now) is not None
-
-
 def token_role(settings, token, now=None):
     """Who the token is for: "admin" (the password), "guest" (the guest password, 1.82), or None (not valid)."""
     if not token or not isinstance(token, str) or token.count(".") != 1 or len(token) > 512:
@@ -282,7 +260,8 @@ def guest_may(method, path, args=None):
     args = args or {}
     method = (method or "").upper()
     if method == "POST":
-        return path in GUEST_POST
+        # 1.134.1: a camera's WebRTC page asks for its stream with POST; it starts a picture, it commands nothing
+        return path in GUEST_POST or (path.startswith("/webcam") and "/.." not in path)
     if method not in ("GET", "HEAD"):
         return False
     if "/.." in path or "//" in path:

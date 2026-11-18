@@ -67,7 +67,7 @@
 .dialog-text b,
 .dialog-text code { color: var(--oui-text); font-weight: 600; overflow-wrap: anywhere; }
 .dialog-text code { font-family: var(--oui-font-mono); font-size: 14px; overflow-wrap: anywhere; }
-.dialog-unit { font-size: 18px; font-weight: 600; color: var(--oui-text-2); }
+.dialog-unit { font-size: 17px; font-weight: 600; color: var(--oui-text-2); }
 .dialog-close {
   display: flex;
   align-items: center;
