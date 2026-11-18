@@ -149,6 +149,21 @@ with sync_playwright() as p:
     ok("editor: removed", P.pg.locator(".screen--editor").count() == 0)
     ok("no page errors (menu/editor)", not errs(P), errs(P)[:3]); P.close()
 
+    # ------------------------------------------------------------------ 1.134.2: the layers that used to appear and vanish at once
+    P = fresh()
+    P.pg.locator(".camera-more").first.click(); P.pg.locator(".camera-full-open").first.click(); P.pg.wait_for_timeout(30)
+    ok("1.134.2: full-screen camera grows in", cs(P, ".camera-full", "animationName") == "oui-fade, oui-pop", cs(P, ".camera-full", "animationName"))
+    P.pg.wait_for_timeout(700)
+    P.pg.locator('.camera-full button[aria-label="Esci da schermo intero"]').click(); P.pg.wait_for_timeout(40)
+    ok("... and shrinks away", P.pg.locator("[data-presence=leaving] .camera-full").count() == 1 and "oui-pop-out" in cs(P, ".camera-full", "animationName"), cs(P, ".camera-full", "animationName"))
+    P.pg.click('button[aria-label="Impostazioni"]'); P.pg.wait_for_selector(".drawer"); P.pg.wait_for_timeout(600)
+    P.pg.locator(".drawer__help").click(); P.pg.wait_for_timeout(30)
+    ok("... the guide's sheet pops in", cs(P, ".help-sheet", "animationName") == "oui-fade, oui-pop", cs(P, ".help-sheet", "animationName"))
+    P.pg.wait_for_timeout(700)
+    P.pg.keyboard.press("Escape"); P.pg.wait_for_timeout(40)
+    ok("... and leaves with a fade", P.pg.locator("[data-presence=leaving] .help-overlay").count() == 1 and cs(P, ".help-overlay", "animationName") == "oui-fade-out", cs(P, ".help-overlay", "animationName"))
+    ok("no page errors (1.134.2 layers)", not errs(P), errs(P)[:3]); P.close()
+
     # ------------------------------------------------------------------ reduce motion
     P = fresh(reduced=True)
     tok = P.pg.evaluate("() => ['--oui-dur-press','--oui-dur-base','--oui-dur-slow','--oui-dur-exit','--oui-stagger'].map(k => getComputedStyle(document.documentElement).getPropertyValue(k).trim())")

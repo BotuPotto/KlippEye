@@ -87,7 +87,7 @@ function PhotoViewerLayer() {
     photoListeners.add(setPhoto);
     return () => photoListeners.delete(setPhoto);
   }, []);
-  return photo ? h(PhotoViewer, { key: photo.src, photo }) : null;
+  return h(Presence, null, photo && h(PhotoViewer, { key: photo.src, photo }));
 }
 
 /**

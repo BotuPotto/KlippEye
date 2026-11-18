@@ -1249,22 +1249,35 @@ body:has(.modal, .confirm-overlay, .sheet-overlay, .screen) .bottom-nav { opacit
 /* ---- layers coming in ---- */
 .modal,
 .confirm-overlay,
-.sheet-overlay { animation: oui-fade var(--oui-dur-base) linear; }
+.sheet-overlay,
+.help-overlay,
+.setup-overlay { animation: oui-fade var(--oui-dur-base) linear; }
 .modal-card,
 .confirm-card,
-.sheet-card { animation: oui-fade var(--oui-dur-fast) linear, oui-pop var(--oui-dur-spring) var(--oui-spring); }
+.sheet-card,
+.help-sheet { animation: oui-fade var(--oui-dur-fast) linear, oui-pop var(--oui-dur-spring) var(--oui-spring); }
+/* 1.134.2: the full-screen camera, console and photo grow out of the tapped point too; the guided set-up rises */
+.camera-full,
+.console-full,
+.photo-viewer { animation: oui-fade var(--oui-dur-base) linear, oui-pop var(--oui-dur-spring) var(--oui-spring); }
+.setup { animation: oui-layer-in var(--oui-dur-spring) var(--oui-spring); }
+/* the notices at the edges slide in (they are centred with translateX(-50%), which the keyframes keep) */
+.nt-invite { animation: oui-toast-in var(--oui-dur-spring) var(--oui-spring); }
+.live-banner { animation: oui-banner-in var(--oui-dur-spring) var(--oui-spring); }
+@keyframes oui-banner-in { from { opacity: 0; transform: translateX(-50%) translateY(-8px); } }
 .oui-menu { animation: oui-fade var(--oui-dur-fast) linear, oui-menu-in var(--oui-dur-spring) var(--oui-spring); } /* grows out of its button (transform-origin is set in app/21-dropdown.js) */
 .screen:not(.screen--inline) { animation: oui-fade var(--oui-dur-base) linear, oui-layer-in var(--oui-dur-spring) var(--oui-spring); }
 .screen--inline { animation: oui-fade var(--oui-dur-fast) linear; }
-.desk-drawer { animation: oui-fade var(--oui-dur-fast) linear, oui-rise var(--oui-dur-base) var(--oui-ease); }
+.desk-drawer { animation: oui-fade var(--oui-dur-fast) linear, oui-rise var(--oui-dur-spring) var(--oui-spring); }
 
 /* ---- layers going away (app/22-motion.js keeps them for one exit; taps pass through meanwhile) ---- */
 .oui-presence { display: contents; }
 [data-presence="leaving"] { pointer-events: none; }
-[data-presence="leaving"] :is(.modal, .confirm-overlay, .sheet-overlay) { animation: oui-fade-out var(--oui-dur-exit) linear forwards; }
-[data-presence="leaving"] :is(.modal-card, .confirm-card, .sheet-card) { animation: oui-fade-out var(--oui-dur-exit) linear forwards, oui-pop-out var(--oui-dur-exit) var(--oui-ease-in) forwards; }
+[data-presence="leaving"] :is(.modal, .confirm-overlay, .sheet-overlay, .help-overlay, .setup-overlay) { animation: oui-fade-out var(--oui-dur-exit) linear forwards; }
+[data-presence="leaving"] :is(.modal-card, .confirm-card, .sheet-card, .help-sheet, .camera-full, .console-full, .photo-viewer) { animation: oui-fade-out var(--oui-dur-exit) linear forwards, oui-pop-out var(--oui-dur-exit) var(--oui-ease-in) forwards; }
 [data-presence="leaving"] .oui-menu { animation: oui-fade-out var(--oui-dur-exit) linear forwards; }
 [data-presence="leaving"] .screen:not(.screen--inline) { animation: oui-fade-out var(--oui-dur-exit) linear forwards, oui-layer-out var(--oui-dur-exit) var(--oui-ease-in) forwards; }
+[data-presence="leaving"] .setup { animation: oui-layer-out var(--oui-dur-exit) var(--oui-ease-in) forwards; }
 [data-presence="leaving"] .desk-drawer { animation: oui-fade-out var(--oui-dur-exit) linear forwards; }
 
 /* ---- a page coming in: its cards rise one after the other (also a card that appears later, e.g. the print card) ---- */
@@ -5128,7 +5141,6 @@ body:has(.modal, .confirm-overlay, .sheet-overlay, .screen, .drawer) .nt-invite 
   align-items: flex-end;
   justify-content: center;
   background: rgba(0, 0, 0, 0.45);
-  animation: oui-fade var(--oui-dur-base) linear;
 }
 .help-sheet {
   display: flex;
@@ -5172,7 +5184,6 @@ body:has(.modal, .confirm-overlay, .sheet-overlay, .screen, .drawer) .nt-invite 
   background: rgba(0, 0, 0, 0.55);
   -webkit-backdrop-filter: blur(14px);
   backdrop-filter: blur(14px);
-  animation: oui-fade var(--oui-dur-base) linear;
 }
 .setup {
   display: flex;
@@ -10321,7 +10332,7 @@ function usePrinterFunctions() {
    ========================================================================== */
 
 /** Written by build.py from the VERSION file of the release; stays as it is when the page is built by hand. */
-const DASHBOARD_RELEASE = "1.134.1";
+const DASHBOARD_RELEASE = "1.134.2";
 const dashboardRelease = () => (DASHBOARD_RELEASE.startsWith("__") ? "sviluppo" : DASHBOARD_RELEASE);
 
 /** The interface level this page needs from the backend (the backend says its own in /api/version). */
@@ -11661,6 +11672,7 @@ function springTiming() {
 /* A dialog grows out of the point that was tapped: its transform-origin goes there as it is added (css/22-motion.css,
    oui-pop). The box is read with the animation switched off for a moment, or the half-grown size would be read. */
 let lastTap = null;
+const GROW_FROM_TAP = ".modal-card, .confirm-card, .sheet-card, .help-sheet, .camera-full, .console-full, .photo-viewer";
 document.addEventListener("pointerdown", (event) => (lastTap = { x: event.clientX, y: event.clientY, at: Date.now() }), true);
 if (typeof MutationObserver === "function") {
   new MutationObserver((records) => {
@@ -11668,7 +11680,7 @@ if (typeof MutationObserver === "function") {
     for (const record of records)
       for (const node of record.addedNodes) {
         if (node.nodeType !== 1) continue;
-        const cards = node.matches(".modal-card, .confirm-card, .sheet-card") ? [node] : node.querySelectorAll(".modal-card, .confirm-card, .sheet-card");
+        const cards = node.matches(GROW_FROM_TAP) ? [node] : node.querySelectorAll(GROW_FROM_TAP);
         for (const card of cards) {
           card.style.animation = "none";
           const box = card.getBoundingClientRect();
@@ -24562,7 +24574,7 @@ function PhotoViewerLayer() {
     photoListeners.add(setPhoto);
     return () => photoListeners.delete(setPhoto);
   }, []);
-  return photo ? h(PhotoViewer, { key: photo.src, photo }) : null;
+  return h(Presence, null, photo && h(PhotoViewer, { key: photo.src, photo }));
 }
 
 /**
