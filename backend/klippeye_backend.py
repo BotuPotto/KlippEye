@@ -1746,6 +1746,7 @@ from monitor_core import HAS_CV2, cv2, np  # noqa: E402
 from recorder import Recorder  # noqa: E402  (the pictures of the prints, to measure the monitor)
 import print_zone  # noqa: E402  (phase 4c: where the objects of the print are)
 import purge_marks  # noqa: E402  (1.125: the marks of the purge, hidden from the local model)
+import machine_masks  # noqa: E402  (1.135: the machine covered in the local model's views)
 if not HAS_CV2:
     print("[OPENCV] cv2/numpy not installed, detector off - install with: sudo apt install python3-opencv")
 
@@ -2522,11 +2523,13 @@ class LightDetector(FrameJudge):
             print("[LOCAL] where the bed is: %s" % error)
             return None
 
-    def local_views(self, frame, now=None):
+    def local_views(self, frame, now=None, plain=None):
         """The pictures the local model judges (1.124): the whole picture; with a calibrated camera, a closer look at the
         printed part; when the motion detection saw a change in the last minutes, a closer look at it.
         1.130: with a calibrated camera, the bed (and the space above it) instead of the whole picture: the frame, the
         cables and the toolhead around it look like tangles to the model, and the picture's highest view is the score.
+        1.135: `plain` is the picture the change's view is cut from (default `frame`): `frame` may have the machine covered,
+        and the motion detection already found the change outside the machine.
         -> [(name, picture)]."""
         now = time.time() if now is None else now
         height, width = frame.shape[:2]
@@ -2536,7 +2539,8 @@ class LightDetector(FrameJudge):
                           ("change", self.change_box if self.change_at is not None and now - self.change_at <= LOCAL_CHANGE_MEMORY_S else None)):
             rect = crop_rect(box, width, height)
             if rect and (rect[2] - rect[0]) < 0.95 * min(width, height) + 1:
-                views.append((name, frame[rect[1]:rect[3], rect[0]:rect[2]]))
+                source = plain if name == "change" and plain is not None else frame
+                views.append((name, source[rect[1]:rect[3], rect[0]:rect[2]]))
         return views
 
     def local_judge(self, frame, now=None, cover=True):
@@ -2545,7 +2549,8 @@ class LightDetector(FrameJudge):
         model = local_ai.model
         version = model.version if model is not None else None
         scores, vectors = {}, {}
-        for name, picture in self.local_views(self._without_purge(frame) if cover else frame, now):
+        base = self._without_purge(frame) if cover else frame
+        for name, picture in self.local_views(self._without_machine(base) if cover else base, now, plain=base):
             result = local_ai.predict(picture)
             if result is None:
                 if name == "whole":
@@ -2556,6 +2561,25 @@ class LightDetector(FrameJudge):
         best = max(scores, key=scores.get)
         self.local_vec = vectors.get(best)
         return scores[best], scores, best
+
+    def _covers_machine(self):
+        """1.135: the local model's bed and part views are judged with the toolhead and the gantry covered."""
+        return bool(self.machine_masks) and camera_cal.usable() and bool(camera_cal.saved)
+
+    # shortcut: the personal layer's examples are not covered (no positions kept with them); cover them when measurements show the layer drifting.
+    def _without_machine(self, frame):
+        """1.135: the picture with the toolhead and the gantry (where they were around the snapshot) filled from what is
+        around them: a close camera sees the toolhead, its cables and its sleeve large, and the model took them for tangles.
+        Unchanged without a usable calibration or a known position."""
+        if not self._covers_machine():
+            return frame
+        try:
+            height, width = frame.shape[:2]
+            mask = camera_cal.monitor_mask([self.meta.get("live"), self.meta.get("live2")], width // 2, height // 2)
+            return machine_masks.cover(cv2, np, frame, mask)
+        except Exception as error:  # a help only
+            print("[LOCAL] machine not covered: %s" % error)
+            return frame
 
     def _without_purge(self, frame):
         """1.125: the picture with the marks of this print's purge covered by the empty bed (unchanged without marks)."""
@@ -3207,7 +3231,8 @@ def memory_version():
     if model is None:
         return None
     view = personal_view()
-    return model.version if not view else "%s|%s" % (model.version, ",".join("%.3f" % v for v in view))
+    key = model.version if not view else "%s|%s" % (model.version, ",".join("%.3f" % v for v in view))
+    return key + "|th" if detector._covers_machine() else key   # 1.135: the views are judged with the toolhead covered
 
 
 def personal_stale():
