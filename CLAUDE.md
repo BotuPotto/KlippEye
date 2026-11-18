@@ -318,7 +318,7 @@ keeps it readable).
   PR yet. `--paste 0.2` gives ~660 + 660 pictures (20% of ~3,300 whole fine pictures).
 - **The data is ready** (17 Nov, CPU run): `MyDrive/klippeye-training/prepared.zip` in the owner's Google Drive (7.3 GB,
   `ml/data` + `ml/work`, manifest paths relative; 47,972 pictures: 28,234 failed / 19,738 fine, 658 pasted failures +
-  658 clean pieces, 4,403 look-alikes). Do **not** redo steps 4–5 of section 7. On 17 Nov Colab gave a GPU only in the evening.
+  658 clean pieces, 4,403 look-alikes). Do **not** redo steps 4–5 of section 7. On 17 Nov Colab gave a GPU only in the evening, on 18 Nov none.
 - Resume with a T4: Escape, ctrl+shift+p, «tipo di runtime», T4, «Salva», run a cell. Allocation can take minutes. If
   «Nessun backend con GPU disponibile» / «Impossibile connettere al backend GPU» appears, press «Annulla» / «Chiudi»,
   never «Connetti» / «Connetti senza GPU» (that is a CPU runtime). Retry every ~3 h (`send_later`). With a GPU, one-line
@@ -335,6 +335,21 @@ keeps it readable).
   Close the Colab tab whenever nothing runs (the owner's request: an idle page wastes the free quota).
   Measure with `C:\Users\coroz\Downloads\klippeye-data.zip` (section 6). Afterwards tell the owner he can delete
   `klippeye-training` from Drive.
+- **18 Nov: trained on Kaggle, not shipped.** Colab gave no GPU (daily limit) so `ml/KlippEye_kaggle.ipynb` (branch
+  `paste-failures`; «Save & Run All» runs in the background up to 12 h, 30 GPU h a week, T4 x2, 55 min for 15 epochs)
+  trained from `prepared.zip` (Drive id in the notebook's first cell, typed in Kaggle, never committed). Model
+  20261118-1834 on the owner's 14 prints, bed box: «monitor» row 0 false asks in 3.7 h but **2 of 5** failures caught
+  (base 20261116-1408: 0.27/h, 3 of 5); at its own threshold 2 of 5 (base 4 of 5). Worse, so `models/base` stays.
+  On the larger set `klippeye-misura.zip` (owner's Downloads, split zip, join with `zip -s 0`; 38 labelled prints,
+  16 failed, 11.9 h of fine prints) with the calibration's bed box `0,0.368,1,0.632` (the monitor's real view; the
+  0.15,… box above is older): the two curves are about the same. Base: 0.95 → 0.42/h, 6 of 16; 0.90 → 3.8/h, 8;
+  0.86 → 9.0/h, 9; «monitor» 6.1/h, 7 of 16. New: 0.95 → 0.6/h, 5; 0.80 → 4.7/h, 8; 0.70 → 8.7/h, 11; «monitor»
+  1.0/h, 5 of 16. No clear gain, and the pasted pieces are wrong, so not shipped.
+  Why: the contact sheet shows the pasted pieces are **round patches** cut around the boxes, often not spaghetti at
+  all (black or white discs, pieces of another scene): the model learns «a foreign round patch», which never happens
+  on a real printer. Next try: paste only the spaghetti's own pixels (a mask from the colour/edges inside the box, or
+  skip boxes whose patch does not look like strands), check the sheet **before** training, then train on Kaggle again.
+  Colab's own rule: no second account to get round its limits (FAQ), Kaggle is a separate service and is fine.
 - **Next**: train (section 7) → measure against `models/base` on the owner's recordings → look at the contact sheet
   (pasted pieces must not look fake) → ship only if better (new `models/base/*`, `CREDITS.md`, measurements in
   `models/base/README.md`, CHANGELOG). Few pasted pictures → raise `--paste`. Distillation only if not enough.
