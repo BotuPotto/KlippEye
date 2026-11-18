@@ -1293,14 +1293,20 @@ def moonraker_proxy(path=""):
 
 
 # The camera, through KlippEye too: /webcam/, /webcam and /webcam/<path> (the stream is sent on as it arrives).
-@app.route("/webcam/")
-@app.route("/webcam")
-@app.route("/webcam/<path:path>")
-def webcam_proxy(path=""):
-    url = "%s/%s" % (CAMERA_NGINX_URL, path)
+# 1.134.1: also /webcam2, /webcam3… (the printer's other cameras), and POST: a camera's WebRTC page, shown from the
+# dashboard's own address, starts its stream with POST requests to the same address.
+@app.route("/webcam/", methods=["GET", "POST"])
+@app.route("/webcam", methods=["GET", "POST"])
+@app.route("/webcam/<path:path>", methods=["GET", "POST"])
+@app.route("/webcam<int:number>/", methods=["GET", "POST"])
+@app.route("/webcam<int:number>/<path:path>", methods=["GET", "POST"])
+def webcam_proxy(path="", number=None):
+    url = "%s%s/%s" % (CAMERA_NGINX_URL, "" if number is None else number, path)
     if request.query_string:
         url += "?" + request.query_string.decode()
     try:
+        if request.method == "POST":
+            return relay(requests.post(url, data=request.get_data(), headers={"Content-Type": request.content_type or "application/json"}, timeout=15, stream=True))
         return relay(requests.get(url, timeout=15, stream=True))
     except requests.RequestException as error:
         return jsonify({"error": str(error)}), 502

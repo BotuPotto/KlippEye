@@ -255,7 +255,12 @@ keeps it readable).
 - **Home follows the moment** (1.134, phone only): `homeMoment` (alarm / pause / heat / print / idle) and
   `HOME_MOMENTS` in `app/99-main.js` filter the cards; the order and hidden cards stay the person's (Settings →
   Appearance → Cards); an alarm puts the camera first and dims the rest except the print card. The camera can go into
-  a small window above the tab bar (`CameraMini`, `cameraMiniStore` in `app/41-camera.js`).
+  a small window above the tab bar (`CameraMini`, `cameraMiniStore` in `app/41-camera.js`); on a phone full screen and
+  the small window are in the «⋮» menu next to the light (`CameraMoreMenu`, 1.134.1).
+- **A WebRTC camera is a clean picture** (1.134.1): a `/webcam…` WebRTC page is loaded from the dashboard's own origin
+  (`CameraMedia`) so `cleanCameraPage` can take away its player's controls and play it muted; the backend's `/webcam`
+  proxy passes POST (the page's signalling) and `/webcam2…`, and a guest may POST there (`access.guest_may`). A camera
+  with an absolute address stays as it is (another origin).
 - **Layouts**: phone below **1100 px** (pages + floating tab bar; never scroll sideways; fits 320–360 px wide: five tabs,
   brand, AI badge and three round buttons); desktop from 1100 px (`useIsDesktop()`, `is-wide`, `desk-*` classes in
   `70-desktop.css`): the same cards arranged in columns, fixed-height pages with columns scrolling on their own, files

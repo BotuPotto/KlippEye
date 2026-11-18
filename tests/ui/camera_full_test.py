@@ -61,8 +61,9 @@ with sync_playwright() as p:
     # ---- a phone's browser, held upright
     P = fresh(b)
     pg = P.pg
+    pg.locator(".camera-more").first.click()   # 1.134.1: in the «⋮» menu next to the light
     btn = pg.locator(".camera-full-open").first
-    ok("the camera card has a full-screen button", btn.count() == 1 and btn.get_attribute("aria-label") == "Schermo intero")
+    ok("the camera card has a full-screen button", btn.count() == 1 and "Schermo intero" in btn.inner_text())
     btn.click()
     ok("it opens the camera over the whole screen", wait_until(lambda: full(P).count() == 1) and full(P).bounding_box()["width"] >= 389 and full(P).bounding_box()["height"] >= 843)
     ok("the screen stays upright: the picture is turned 90°", wait_until(lambda: full(P).get_attribute("data-rotated") == "true"))
@@ -79,21 +80,21 @@ with sync_playwright() as p:
     pg.locator('.camera-full button[aria-label="Esci da schermo intero"]').click()
     ok("'Esci da schermo intero' closes it", wait_until(lambda: full(P).count() == 0))
     ok("... and the card shows the camera again", wait_until(lambda: pg.locator(".camera-frame .camera-frame__video").count() == 1))
-    btn.click()
+    pg.locator(".camera-more").first.click(); pg.locator(".camera-full-open").first.click()
     wait_until(lambda: full(P).count() == 1)
     ok("the phone's back closes it (app back button)", pg.evaluate("() => window.klippeyeBack && window.klippeyeBack()") and wait_until(lambda: full(P).count() == 0))
     P.close()
 
     # ---- held sideways: nothing to turn
     P = fresh(b, w=844, h=390)
-    P.pg.locator(".camera-full-open").first.click()
+    P.pg.locator(".camera-more").first.click(); P.pg.locator(".camera-full-open").first.click()
     ok("a landscape screen: the picture is not turned, no turn button", wait_until(lambda: full(P).count() == 1) and full(P).get_attribute("data-rotated") == "false" and P.pg.locator('.camera-full button[aria-label*="immagine"]').count() == 0)
     P.pg.screenshot(path=out + "/landscape.png")
     P.close()
 
     # ---- the KlippEye app
     P = fresh(b, script=APP8)
-    P.pg.locator(".camera-full-open").first.click()
+    P.pg.locator(".camera-more").first.click(); P.pg.locator(".camera-full-open").first.click()
     ok("in the app 1.5.0: Android is asked for full screen and landscape", wait_until(lambda: P.pg.evaluate("window.__fs") == [[True, True]]), P.pg.evaluate("window.__fs"))
     P.pg.locator('.camera-full button[aria-label="Esci da schermo intero"]').click()
     ok("... and given its screen back on leaving", wait_until(lambda: P.pg.evaluate("window.__fs") == [[True, True], [False, False]]), P.pg.evaluate("window.__fs"))

@@ -596,7 +596,32 @@ function CameraMedia({ className, reloads }) {
   const style = flipStyle(camera);
   if (camera.method === "mjpeg") return h(CameraStream, { key: "mjpeg" + reloads + url, className, url, style });
   if (camera.method === "adaptive") return h(CameraSnapshots, { key: "adaptive" + reloads + url, className, url, fps: camera.fps, style });
-  return h("iframe", { key: camera.method + reloads + url, className, src: url, style, allow: "autoplay; fullscreen", loading: "eager", title: camera.name });
+  // 1.134.1: a WebRTC page of the printer comes from the dashboard's own address, so that its player can be made a clean picture
+  const own = camera.method === "webrtc" && /^\/webcam\d*\//.test(camera.address || "");
+  return h("iframe", { key: camera.method + reloads + url, className, src: own ? window.location.origin + camera.address : url, style, allow: "autoplay; fullscreen", loading: "eager", title: camera.name, onLoad: own ? (event) => cleanCameraPage(event.currentTarget) : undefined });
+}
+
+/**
+ * 1.134.1: the camera's WebRTC page shows its picture in a video player (play button, time, progress bar). The page has
+ * the dashboard's address, so its player loses the controls and plays muted by itself, like a picture. A page from
+ * another address cannot be reached and stays as it is.
+ */
+function cleanCameraPage(frame) {
+  try {
+    const page = frame.contentDocument;
+    if (!page || !page.body) return;
+    const style = page.createElement("style");
+    style.textContent = "html,body{margin:0;background:#000;overflow:hidden}video::-webkit-media-controls{display:none!important}";
+    page.head.appendChild(style);
+    const quiet = () =>
+      page.querySelectorAll("video").forEach((video) => {
+        video.controls = false;
+        video.muted = true; // a muted video may play without a tap
+        if (video.paused) video.play().catch(noop);
+      });
+    quiet();
+    new MutationObserver(quiet).observe(page.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["controls"] });
+  } catch (error) {} // a help only
 }
 
 /* ---------------------------------------------------------------------------
@@ -766,6 +791,19 @@ function CameraMini({ onOpen }) {
   return h("button", { ref, type: "button", className: "camera-mini", "aria-label": tx("Camera: tap to open it again"), onClick: open }, h(CameraMedia, { reloads }));
 }
 
+/** 1.134.1: «⋮» next to the light: full screen and the small window. */
+function CameraMoreMenu({ onFull, onMini }) {
+  const menu = useDropdown();
+  const item = (className, icon, title, onClick) =>
+    h("button", { type: "button", className: "oui-menu__item " + className, role: "menuitem", onClick: () => (menu.close(), onClick()) }, h("span", { className: "oui-menu__icon" }, icon), h("span", { className: "oui-menu__text" }, h("span", { className: "oui-menu__title" }, title)));
+  return h(
+    React.Fragment,
+    null,
+    h("button", { type: "button", ref: menu.anchorRef, className: "icon-btn camera-more", "aria-label": tx("More"), title: tx("More"), "aria-haspopup": "menu", "aria-expanded": menu.open, onClick: menu.toggle }, h(Icons.Dots, { size: 18 })),
+    h(DropdownMenu, { menu }, item("camera-full-open", h(Icons.Expand, { size: 18 }), tx("Full screen"), onFull), item("camera-mini-open", h(Icons.PictureInPicture, { size: 18 }), tx("Small window"), onMini)),
+  );
+}
+
 function CameraCard() {
   const light = useCaseLight();
   const reloads = useCameraReloads();
@@ -792,15 +830,13 @@ function CameraCard() {
           { className: "camera-head-actions" },
           h(CameraPicker),
           light.available && h(LightButton, light),
-          h(CameraFullscreenButton, { onOpen: () => setFull(true) }),
+          h(CameraMoreMenu, { onFull: () => setFull(true), onMini: toMini }),
         ),
       ),
       h(
         "div",
         { className: "camera-frame", ref: frame },
         !full && h(CameraMedia, { className: "camera-frame__video", reloads }),
-        // on the picture, not in the header: the header has no room left on a 320 px phone
-        h("button", { type: "button", className: "camera-full__btn camera-mini-open", "aria-label": tx("Small window"), title: tx("Small window"), onClick: toMini }, h(Icons.PictureInPicture, { size: 20 })),
       ),
     ),
     h(Presence, null, full && h(CameraFullscreen, { onClose: () => setFull(false) })),

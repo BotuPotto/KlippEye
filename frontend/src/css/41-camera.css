@@ -107,7 +107,7 @@
 .desk-camera__full { background: var(--oui-glass); border: 1px solid var(--oui-stroke-strong); color: var(--oui-text); }
 .camera-full__tap { position: absolute; inset: 0; z-index: 2; }
 .camera-full-open { flex: none; }
-.camera-frame > .camera-mini-open { position: absolute; right: 8px; bottom: 8px; z-index: 3; } /* 1.134: the small window */
+.camera-more { flex: none; }
 
 /* ---- 1.37: the round button and its arrow; the lights panel ---- */
 .light-group { display: inline-flex; align-items: center; gap: 4px; }
