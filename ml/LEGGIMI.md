@@ -16,6 +16,8 @@ Apri [il notebook su Colab](https://colab.research.google.com/github/BotuPotto/K
 ed esegui le celle dall'alto in basso: scarica da solo **tutte** le raccolte pubbliche elencate in `ml/sources.json`
 (serve solo una chiave Roboflow gratuita), aggiunge le tue stampe se carichi il loro zip, addestra con la GPU gratuita,
 misura e ti fa scaricare il modello. I passaggi sotto sono gli stessi, per chi preferisce il proprio computer.
+Quando Colab non ha più GPU gratis, `ml/KlippEye_kaggle.ipynb` addestra su Kaggle partendo dai dati preparati su
+Colab (compressi e condivisi da Google Drive); gira in background, quindi una pagina chiusa non lo ferma.
 
 ## 1. Le foto
 
