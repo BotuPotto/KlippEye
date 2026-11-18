@@ -14,7 +14,7 @@ Sources, any number of each:
   --classes DIR    a dataset of class folders (Roboflow «folder» export: train/<class>/*.jpg): the classes by their names;
                    or a multi-label one (Roboflow «multiclass» export: _classes.csv with a 0/1 column per class).
   --frames DIR     pictures of prints going well, one folder per print (ml/download.py --bambu): all «fine», except the
-                   prints named in DIR/failed.txt.
+                   prints named in DIR/failed.txt, which give their last picture (DIR/last-pictures/) as «failed».
   --klippeye DIR   KlippEye's data folder copied from the Raspberry (the folder with recordings/ and reviews/): the
                    labelled recordings and the answers to «How did the print go?». Fine prints give «fine» pictures; a
                    failed print gives «failed» pictures from FAILED_AFTER seconds after its moment on, «fine» before it.
@@ -269,7 +269,12 @@ def from_frames(root):
         folder = os.path.join(frames, name)
         if os.path.isdir(folder) and name not in left_out:
             rows += [(path, 0, "frames:" + name, "frames") for path in images_in(folder)]
-    print("[frames] %s: %d prints going well (%d left out by failed.txt)" % (os.path.basename(root.rstrip(os.sep)), len({r[2] for r in rows}), len(left_out)))
+    # 1.135: a print of failed.txt gives its last picture as a failure: a whole printer seen by a fixed camera, the scene
+    # the monitor sees and the photo collections rarely show
+    ends = [os.path.join(root, "last-pictures", name + ".jpg") for name in sorted(left_out)]
+    rows += [(path, 1, "frames:" + os.path.basename(path)[:-4], "frames") for path in ends if os.path.isfile(path)]
+    print("[frames] %s: %d prints going well, %d failed ones by their last picture (failed.txt)" % (
+        os.path.basename(root.rstrip(os.sep)), len({r[2] for r in rows if r[1] == 0}), len([r for r in rows if r[1] == 1])))
     return rows
 
 

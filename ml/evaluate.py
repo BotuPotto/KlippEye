@@ -101,6 +101,13 @@ def count(results, times_of):
     return per_hour, false_alarms, fine_hours, caught, failed, (delays[len(delays) // 2] if delays else None)
 
 
+def same_print_once(prints, within=300):
+    """1.135: a print both recorded and answered in «How did the print go?» counted once, by its recording (the
+    monitor's own pictures; the answer's are small, one a minute): counted twice it weighed double, with worse pictures."""
+    recorded = [p["started"] for p in prints if p["kind"] == "recording" and p["started"]]
+    return [p for p in prints if p["kind"] == "recording" or not any(abs((p["started"] or 0) - t) < within for t in recorded)]
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--model", required=True, help="the model's folder (model.onnx + model.json)")
@@ -127,7 +134,7 @@ def main(argv=None):
     if model is None:
         print("No model in %s (model.onnx and model.json are needed)" % args.model)
         return 1
-    prints = labelled_prints.prints_of(args.data)
+    prints = same_print_once(labelled_prints.prints_of(args.data))
     if not prints:
         print("No labelled print in %s: label some (Recordings, or «How did the print go?») and copy the folder again." % args.data)
         return 1
