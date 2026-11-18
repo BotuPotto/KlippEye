@@ -26,22 +26,35 @@
 /* ---- layers coming in ---- */
 .modal,
 .confirm-overlay,
-.sheet-overlay { animation: oui-fade var(--oui-dur-base) linear; }
+.sheet-overlay,
+.help-overlay,
+.setup-overlay { animation: oui-fade var(--oui-dur-base) linear; }
 .modal-card,
 .confirm-card,
-.sheet-card { animation: oui-fade var(--oui-dur-fast) linear, oui-pop var(--oui-dur-spring) var(--oui-spring); }
+.sheet-card,
+.help-sheet { animation: oui-fade var(--oui-dur-fast) linear, oui-pop var(--oui-dur-spring) var(--oui-spring); }
+/* 1.134.2: the full-screen camera, console and photo grow out of the tapped point too; the guided set-up rises */
+.camera-full,
+.console-full,
+.photo-viewer { animation: oui-fade var(--oui-dur-base) linear, oui-pop var(--oui-dur-spring) var(--oui-spring); }
+.setup { animation: oui-layer-in var(--oui-dur-spring) var(--oui-spring); }
+/* the notices at the edges slide in (they are centred with translateX(-50%), which the keyframes keep) */
+.nt-invite { animation: oui-toast-in var(--oui-dur-spring) var(--oui-spring); }
+.live-banner { animation: oui-banner-in var(--oui-dur-spring) var(--oui-spring); }
+@keyframes oui-banner-in { from { opacity: 0; transform: translateX(-50%) translateY(-8px); } }
 .oui-menu { animation: oui-fade var(--oui-dur-fast) linear, oui-menu-in var(--oui-dur-spring) var(--oui-spring); } /* grows out of its button (transform-origin is set in app/21-dropdown.js) */
 .screen:not(.screen--inline) { animation: oui-fade var(--oui-dur-base) linear, oui-layer-in var(--oui-dur-spring) var(--oui-spring); }
 .screen--inline { animation: oui-fade var(--oui-dur-fast) linear; }
-.desk-drawer { animation: oui-fade var(--oui-dur-fast) linear, oui-rise var(--oui-dur-base) var(--oui-ease); }
+.desk-drawer { animation: oui-fade var(--oui-dur-fast) linear, oui-rise var(--oui-dur-spring) var(--oui-spring); }
 
 /* ---- layers going away (app/22-motion.js keeps them for one exit; taps pass through meanwhile) ---- */
 .oui-presence { display: contents; }
 [data-presence="leaving"] { pointer-events: none; }
-[data-presence="leaving"] :is(.modal, .confirm-overlay, .sheet-overlay) { animation: oui-fade-out var(--oui-dur-exit) linear forwards; }
-[data-presence="leaving"] :is(.modal-card, .confirm-card, .sheet-card) { animation: oui-fade-out var(--oui-dur-exit) linear forwards, oui-pop-out var(--oui-dur-exit) var(--oui-ease-in) forwards; }
+[data-presence="leaving"] :is(.modal, .confirm-overlay, .sheet-overlay, .help-overlay, .setup-overlay) { animation: oui-fade-out var(--oui-dur-exit) linear forwards; }
+[data-presence="leaving"] :is(.modal-card, .confirm-card, .sheet-card, .help-sheet, .camera-full, .console-full, .photo-viewer) { animation: oui-fade-out var(--oui-dur-exit) linear forwards, oui-pop-out var(--oui-dur-exit) var(--oui-ease-in) forwards; }
 [data-presence="leaving"] .oui-menu { animation: oui-fade-out var(--oui-dur-exit) linear forwards; }
 [data-presence="leaving"] .screen:not(.screen--inline) { animation: oui-fade-out var(--oui-dur-exit) linear forwards, oui-layer-out var(--oui-dur-exit) var(--oui-ease-in) forwards; }
+[data-presence="leaving"] .setup { animation: oui-layer-out var(--oui-dur-exit) var(--oui-ease-in) forwards; }
 [data-presence="leaving"] .desk-drawer { animation: oui-fade-out var(--oui-dur-exit) linear forwards; }
 
 /* ---- a page coming in: its cards rise one after the other (also a card that appears later, e.g. the print card) ---- */

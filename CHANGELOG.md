@@ -1,5 +1,15 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.134.2
+
+- The full-screen camera, the full-screen console and a photo opened full screen now grow out of the button you tapped
+  and shrink back into it when they close, like the dialogs. Before, they appeared and vanished at once.
+- The guide (the «?» buttons) and the AI monitoring panel now pop in like the other dialogs and fade out when they
+  close. The guided set-up rises in and slides away when you leave it.
+- The invitation to turn on notifications and the strip that says the printer cannot be reached now slide in instead
+  of appearing at once.
+- The computer's console drawer arrives with the same spring as the rest.
+
 ## 1.134.1
 
 - A card folded with the arrow at its top right now closes and opens with a motion, and the cards below slide up or

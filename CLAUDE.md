@@ -249,6 +249,10 @@ keeps it readable).
   (`useCardMorph`, keyed by `data-slot`). 1.134.1: the side menu, its pages and rows, and `Collapse` use the spring
   too; a folded card animates its height (`Card` + `foldCard` in `app/20-ui-primitives.js`: the height at the
   chevron's tap → the new one, content kept by `is-folding` while it folds, folding at half the spring's time).
+  1.134.2: the full-screen camera, console and photo grow from the tap like dialogs (`GROW_FROM_TAP` in
+  `app/22-motion.js`); the guide / AI panel (`.help-overlay`, `.help-sheet`) and the guided set-up enter and leave like
+  the other layers; the notification invite and the connection strip slide in. Every layer added since must get an
+  enter rule and a `[data-presence="leaving"]` rule in `css/22-motion.css` (`motion_test.py` checks a few of them).
   Only opacity and transforms are animated, plus `Collapse` heights and a card's fold.
   `prefers-reduced-motion` makes every duration 1 ms. Nothing animates at rest (`tests/ui/motion_test.py`).
   Rejected by the owner: a view of all pages at once, full redesigns (three demos, 17 Nov), Dock magnification.

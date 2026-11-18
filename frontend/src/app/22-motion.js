@@ -75,6 +75,7 @@ function springTiming() {
 /* A dialog grows out of the point that was tapped: its transform-origin goes there as it is added (css/22-motion.css,
    oui-pop). The box is read with the animation switched off for a moment, or the half-grown size would be read. */
 let lastTap = null;
+const GROW_FROM_TAP = ".modal-card, .confirm-card, .sheet-card, .help-sheet, .camera-full, .console-full, .photo-viewer";
 document.addEventListener("pointerdown", (event) => (lastTap = { x: event.clientX, y: event.clientY, at: Date.now() }), true);
 if (typeof MutationObserver === "function") {
   new MutationObserver((records) => {
@@ -82,7 +83,7 @@ if (typeof MutationObserver === "function") {
     for (const record of records)
       for (const node of record.addedNodes) {
         if (node.nodeType !== 1) continue;
-        const cards = node.matches(".modal-card, .confirm-card, .sheet-card") ? [node] : node.querySelectorAll(".modal-card, .confirm-card, .sheet-card");
+        const cards = node.matches(GROW_FROM_TAP) ? [node] : node.querySelectorAll(GROW_FROM_TAP);
         for (const card of cards) {
           card.style.animation = "none";
           const box = card.getBoundingClientRect();
