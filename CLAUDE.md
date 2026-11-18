@@ -339,10 +339,11 @@ keeps it readable).
   trained from `prepared.zip` (Drive id in the notebook's first cell, typed in Kaggle, never committed). Model
   20261118-1834 on the owner's 14 prints, bed box: «monitor» row 0 false asks in 3.7 h but **2 of 5** failures caught
   (base 20261116-1408: 0.27/h, 3 of 5); at its own threshold 2 of 5 (base 4 of 5). Worse, so `models/base` stays.
-  Confirmed on the larger set `klippeye-misura.zip` (owner's Downloads, split zip, join with `zip -s 0`; 38 labelled
-  prints, 16 failed, 11.9 h of fine prints): «monitor» base 5 of 16 at 0.08/h, new 3 of 16 at 0; at the same ~0.17/h
-  base 8 of 16 (0.86), new 5 of 16 (0.90). Note: on this set the base model alone catches only 5 of 16 with the
-  monitor's rule (9 of 16 at 0.80 for 2.4/h); motion detection and the online AI do the rest.
+  On the larger set `klippeye-misura.zip` (owner's Downloads, split zip, join with `zip -s 0`; 38 labelled prints,
+  16 failed, 11.9 h of fine prints) with the calibration's bed box `0,0.368,1,0.632` (the monitor's real view; the
+  0.15,… box above is older): the two curves are about the same. Base: 0.95 → 0.42/h, 6 of 16; 0.90 → 3.8/h, 8;
+  0.86 → 9.0/h, 9; «monitor» 6.1/h, 7 of 16. New: 0.95 → 0.6/h, 5; 0.80 → 4.7/h, 8; 0.70 → 8.7/h, 11; «monitor»
+  1.0/h, 5 of 16. No clear gain, and the pasted pieces are wrong, so not shipped.
   Why: the contact sheet shows the pasted pieces are **round patches** cut around the boxes, often not spaghetti at
   all (black or white discs, pieces of another scene): the model learns «a foreign round patch», which never happens
   on a real printer. Next try: paste only the spaghetti's own pixels (a mask from the colour/edges inside the box, or
