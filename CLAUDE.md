@@ -341,6 +341,24 @@ keeps it readable).
 - Known limit (audit 17 Nov): `ml/train.py` picks the epoch, the temperature and the threshold on the same pictures
   kept aside, and writes its «measured» from them too: optimistic. Only `ml/evaluate.py` on the owner's prints decides.
 
+### Online AI calls and the owner's false alarms (18 Nov, waiting for the retrained model)
+- The owner's close fisheye: the base model scores fine prints 80–90 on the «bed» view (empty bed at the start already
+  66–92; the front of the bed alone 7–29): the view's edges (frame rails, gantry, the calibrated outline wider than the
+  plate) fool it. Rejected after measuring on 19 judged recordings: covering the toolhead/gantry (inpaint, grey, black,
+  bed colour, history background: false asks 6.1 → 12.2/h), a view cut to the objects' area + 20/40 mm (worse: the
+  toolhead fills the crop), a per-print relative threshold (no gain), a heavier model on the phone (same unfamiliar scene).
+- **Approved, not started** (the owner asked to wait for the retrained base model, then re-measure first):
+  `docs/superpowers/specs/2026-11-18-online-calls-design.md` and `docs/superpowers/plans/2026-11-18-online-calls.md`:
+  `BLEND_MAX` 0.6 → 0.25 (personal layer; at 0.4+ the monitor went blind), online «fine» kept 10 min instead of 6 h.
+  Simulated: 2.3–3.3 false online calls/h, failures asked about in ~100 s (today 4.7/h, 312 s). Release 1.134.3 then.
+- The simulation needs the owner's data again (the session's scratchpad is gone): on the Pi
+  `cd ~/printer_data/klippeye && zip -r -s 25m ~/klippeye-misura.zip camera.json machine_shape.json recordings reviews`,
+  uploaded in parts (30 MB limit). Bed box from the calibration then: `0,0.368,1,0.632`. `recordings/*/session.json`
+  keeps the objects (`zone`), `frames.jsonl` the toolhead positions (`live`, `live2`) and motion triggers (`trig`).
+- Free quotas (Nov 2026, from published pages): Groq qwen3.8-27b 1,000/day but 200k tokens/day (~60–100 calls with
+  pictures); Gemini 3.8 Flash 20/day; Flash-Lite 500/day; Gemma 4 31B (same Gemini key) 14,400/day. Advised chain:
+  Gemma 4 → Gemini 3.8 Flash → Groq → Claude Haiku 5.5 (paid, Console credit; Pro does not include API calls).
+
 ### Camera calibration: bed slingers (remind the owner now and then)
 - 1.132.3 refuses bed slingers with the camera on the frame (`bed_moves_in_y`); a camera on the bed works.
 - **Plan**: (1) option «the bed moves in Y»; (2) second set of points = a fixed detail **on the bed** (clip, corner,
