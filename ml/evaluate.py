@@ -27,10 +27,8 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "backend"))
-import camera_calibration  # noqa: E402
 import labelled_prints  # noqa: E402
 import local_model  # noqa: E402
-import machine_masks  # noqa: E402
 
 THRESHOLDS = (0.5, 0.6, 0.7, 0.8, 0.9, 0.95)
 FAILED_AFTER = labelled_prints.FAILED_AFTER
@@ -103,18 +101,6 @@ def count(results, times_of):
     return per_hour, false_alarms, fine_hours, caught, failed, (delays[len(delays) // 2] if delays else None)
 
 
-def _positions(folder):
-    """1.135: {picture number: [where the toolhead was before and after it]} from a recording's frames.jsonl."""
-    found = {}
-    try:
-        lines = labelled_prints._json_lines(os.path.join(folder, "frames.jsonl"))
-    except (OSError, ValueError):
-        return found   # a review's pictures: no positions, judged as they are
-    for line in lines:
-        found[line.get("n", 0)] = [line.get("live"), line.get("live2")]
-    return found
-
-
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--model", required=True, help="the model's folder (model.onnx + model.json)")
@@ -126,9 +112,6 @@ def main(argv=None):
     parser.add_argument("--warmup", type=float, default=300, help="«monitor» row: the first seconds of a print, with a stricter rule")
     parser.add_argument("--json", help="write the details here")
     parser.add_argument("--box", default="", help="x,y,w,h in fractions: judge only that part of each picture (the bed)")
-    parser.add_argument("--cover", action="store_true",
-                        help="cover the toolhead and the gantry first, as the monitor does with a calibrated camera (1.135; needs camera.json and "
-                        "machine_shape.json in --data; recordings only, a review's pictures stay as they are)")
     args = parser.parse_args(argv)
     box = None
     if args.box:
@@ -140,12 +123,6 @@ def main(argv=None):
             return 1
     import cv2
     import numpy as np
-    calibration = None
-    if args.cover:
-        calibration = camera_calibration.CameraCalibration(args.data, None, None, None, cv2, np)
-        if not calibration.usable():
-            print("--cover: no usable camera calibration (camera.json) in %s" % args.data)
-            return 1
     model = local_model.load(args.model, cv2, np)
     if model is None:
         print("No model in %s (model.onnx and model.json are needed)" % args.model)
@@ -159,13 +136,9 @@ def main(argv=None):
     for one in prints:
         pictures = one["pictures"][:: args.every] if one["kind"] == "recording" else one["pictures"]
         scored = []
-        where = _positions(os.path.dirname(pictures[0][2])) if calibration and pictures else {}
-        for n, t, path in pictures:
+        for _, t, path in pictures:
             image = cv2.imread(path)
             if image is not None:
-                if calibration:
-                    h, w = image.shape[:2]
-                    image = machine_masks.cover(cv2, np, image, calibration.monitor_mask(where.get(n, []), w, h))
                 if box:
                     h, w = image.shape[:2]
                     image = image[int(box[1] * h):int((box[1] + box[3]) * h), int(box[0] * w):int((box[0] + box[2]) * w)]

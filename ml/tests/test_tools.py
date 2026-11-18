@@ -109,12 +109,6 @@ check("... the levels: model.json's, else as ml/train.py chooses them", evaluate
       and evaluate.levels_of({}, 0.86) == (75, 86))
 prints = evaluate.labelled_prints.prints_of(paths["klippeye"])
 check("evaluate: the labelled prints of a data folder (two recordings, one review)", sorted(p["kind"] for p in prints) == ["recording", "recording", "review"])
-import contextlib  # noqa: E402
-import io  # noqa: E402
-_said = io.StringIO()
-with contextlib.redirect_stdout(_said):
-    _code = evaluate.main(["--model", root, "--data", paths["klippeye"], "--cover"])
-check("1.135.0: evaluate --cover without a camera calibration says so", _code == 1 and "calibration" in _said.getvalue(), _said.getvalue())
 
 check("local_model: no folder or no model.onnx: None (the monitor works without)", local_model.load("", cv2, np) is None and local_model.load(root, cv2, np) is None)
 broken = os.path.join(root, "broken")
