@@ -693,7 +693,7 @@ button.oui-tile:active { transform: scale(0.985); background: var(--oui-surface-
 .oui-card__fold { display: grid; flex-shrink: 0; place-items: center; width: 36px; height: 36px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--oui-text-3); cursor: pointer; transition: transform var(--oui-dur-fast) var(--oui-ease), background var(--oui-dur-fast) var(--oui-ease); }
 .oui-card__fold:hover { background: var(--oui-surface-3); color: var(--oui-text); }
 .oui-card__fold[aria-expanded="false"] { transform: rotate(-90deg); }
-.oui-card.is-collapsed > :not(.oui-card__head) { display: none; }
+.oui-card.is-collapsed:not(.is-folding) > :not(.oui-card__head) { display: none; } /* 1.134.1: still shown while the card folds (app/20-ui-primitives.js) */
 .oui-card.is-collapsed > .oui-card__head { margin-bottom: 0; }
 .oui-card--flush.is-collapsed > .oui-card__head { padding-bottom: 18px; }
 
@@ -1284,7 +1284,7 @@ body:has(.modal, .confirm-overlay, .sheet-overlay, .screen) .bottom-nav { opacit
 .desk-page .desk-col > .desk-detail { animation: oui-fade var(--oui-dur-fast) linear; } /* the detail panel is rebuilt for every file: a quick cross-fade only */
 
 /* ---- a section unfolding (app/22-motion.js, Collapse) ---- */
-.oui-collapse { display: grid; grid-template-rows: 0fr; transition: grid-template-rows var(--oui-dur-slow) var(--oui-ease); }
+.oui-collapse { display: grid; grid-template-rows: 0fr; transition: grid-template-rows var(--oui-dur-spring) var(--oui-spring); }
 .oui-collapse.is-open { grid-template-rows: 1fr; }
 .oui-collapse__inner { min-height: 0; overflow: hidden; }
 
@@ -1333,7 +1333,7 @@ body:has(.modal, .confirm-overlay, .sheet-overlay, .screen) .bottom-nav { opacit
 .ai-header-badge:not(.ai-header-badge--idle) .ai-header-badge__dot { animation: oui-breathe 2.4s ease-in-out infinite; }
 @keyframes oui-breathe { 50% { transform: scale(0.7); opacity: 0.6; } }
 /* the menu's lines come in one after the other */
-.drawer .set-group--menu .set-entry { animation: oui-fade var(--oui-dur-base) linear backwards, oui-rise var(--oui-dur-slow) var(--oui-ease) backwards; }
+.drawer .set-group--menu .set-entry { animation: oui-fade var(--oui-dur-base) linear backwards, oui-rise var(--oui-dur-spring) var(--oui-spring) backwards; }
 .drawer .set-group--menu:nth-of-type(2) .set-entry { animation-delay: calc(var(--oui-stagger) * 1); }
 .drawer .set-group--menu:nth-of-type(3) .set-entry { animation-delay: calc(var(--oui-stagger) * 2); }
 .drawer .set-group--menu:nth-of-type(4) .set-entry { animation-delay: calc(var(--oui-stagger) * 3); }
@@ -4452,7 +4452,7 @@ button.ai-header-badge { cursor: pointer; font: inherit; color: inherit; }
   border-right: 1px solid var(--oui-stroke-strong);
   border-radius: 0 var(--oui-r-card) var(--oui-r-card) 0;
   box-shadow: var(--oui-shadow-float);
-  animation: drawer-in var(--oui-dur-slow) var(--oui-ease);
+  animation: drawer-in var(--oui-dur-spring) var(--oui-spring);
 }
 @keyframes drawer-in { from { transform: translateX(-100%); } }
 @keyframes drawer-out { to { transform: translateX(-100%); } }
@@ -4474,7 +4474,7 @@ button.ai-header-badge { cursor: pointer; font: inherit; color: inherit; }
   overflow-y: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
-  animation: oui-fade var(--oui-dur-base) linear, drawer-page-in var(--oui-dur-slow) var(--oui-ease);
+  animation: oui-fade var(--oui-dur-base) linear, drawer-page-in var(--oui-dur-spring) var(--oui-spring);
 }
 .drawer__body > * { flex-shrink: 0; }
 
@@ -4752,7 +4752,7 @@ button.ai-header-badge { cursor: pointer; font: inherit; color: inherit; }
   border: 1px solid var(--oui-stroke-strong);
   border-radius: var(--oui-r-card);
   transition: none;
-  animation: drawer-panel-in var(--oui-dur-slow) var(--oui-ease);
+  animation: drawer-panel-in var(--oui-dur-spring) var(--oui-spring);
 }
 @keyframes drawer-panel-in { from { opacity: 0; transform: scale(0.97) translateY(8px); } }
 [data-presence="leaving"] .drawer.drawer--panel { animation: oui-fade-out var(--oui-dur-exit) linear forwards; }
@@ -10321,7 +10321,7 @@ function usePrinterFunctions() {
    ========================================================================== */
 
 /** Written by build.py from the VERSION file of the release; stays as it is when the page is built by hand. */
-const DASHBOARD_RELEASE = "1.134.0";
+const DASHBOARD_RELEASE = "1.134.1";
 const dashboardRelease = () => (DASHBOARD_RELEASE.startsWith("__") ? "sviluppo" : DASHBOARD_RELEASE);
 
 /** The interface level this page needs from the backend (the backend says its own in /api/version). */
@@ -11050,7 +11050,28 @@ const CardFoldContext = React.createContext(null);
 function Card({ className, flush, cardId, children, ...rest }) {
   const layout = useLayout();
   const collapsed = Boolean(cardId && layout.collapsed[cardId]);
-  const card = h("div", { className: cx("oui-card", flush && "oui-card--flush", cardId && "oui-card--foldable", collapsed && "is-collapsed", className), "data-card": cardId || undefined, ...rest }, children);
+  const ref = useRef(null);
+  useLayoutEffect(() => {
+    // 1.134.1: the card's height moves from what it was at the chevron's tap (foldFrom) to its new one, and the cards
+    // below follow; while it folds, its content stays (is-folding) and is clipped. Opens with the spring, folds faster.
+    const el = ref.current;
+    const from = el && el.foldFrom;
+    if (!from || !el.animate) return;
+    el.foldFrom = 0;
+    const to = el.offsetHeight;
+    if (Math.abs(to - from) < 2) return;
+    el.classList.add("is-folding");
+    el.style.overflow = "hidden";
+    const timing = collapsed ? { duration: springTiming().duration / 2, easing: "cubic-bezier(0.4, 0, 0.2, 1)" } : springTiming();
+    const done = () => {
+      el.classList.remove("is-folding");
+      el.style.overflow = "";
+    };
+    const motion = el.animate([{ height: from + "px" }, { height: to + "px" }], timing);
+    motion.onfinish = done;
+    motion.oncancel = done;
+  }, [collapsed]);
+  const card = h("div", { ref, className: cx("oui-card", flush && "oui-card--flush", cardId && "oui-card--foldable", collapsed && "is-collapsed", className), "data-card": cardId || undefined, ...rest }, children);
   return cardId ? h(CardFoldContext.Provider, { value: { id: cardId, collapsed } }, card) : card;
 }
 
@@ -11064,6 +11085,13 @@ function SectionTitle({ children, className }) {
   return h("span", { className: cx("oui-card-title", className) }, children);
 }
 
+/** The chevron's tap: the card's height now, for the motion (Card), then fold or open it. */
+function foldCard(button, id) {
+  const card = button.closest(".oui-card");
+  if (card) card.foldFrom = card.offsetHeight;
+  layoutStore.toggleCollapsed(id);
+}
+
 /** Card header: title on the left, optional actions on the right (and the fold chevron of a foldable card). */
 function CardHeader({ title, children }) {
   const fold = useContext(CardFoldContext);
@@ -11074,7 +11102,7 @@ function CardHeader({ title, children }) {
     "div",
     { className: "oui-card__head has-fold" },
     h("div", { className: "oui-card__main" }, h(SectionTitle, null, title), !fold.collapsed && children && h("div", { className: "oui-card__tools" }, children)),
-    h("button", { type: "button", className: "oui-card__fold", "aria-expanded": !fold.collapsed, "aria-label": fold.collapsed ? tx("Open «{name}»", { name: title }) : tx("Fold «{name}»", { name: title }), title: fold.collapsed ? txc("card", "Open") : txc("card", "Fold"), onClick: () => layoutStore.toggleCollapsed(fold.id) }, h(Icons.Chevron, { size: 18 })),
+    h("button", { type: "button", className: "oui-card__fold", "aria-expanded": !fold.collapsed, "aria-label": fold.collapsed ? tx("Open «{name}»", { name: title }) : tx("Fold «{name}»", { name: title }), title: fold.collapsed ? txc("card", "Open") : txc("card", "Fold"), onClick: (event) => foldCard(event.currentTarget, fold.id) }, h(Icons.Chevron, { size: 18 })),
   );
 }
 

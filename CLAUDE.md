@@ -246,7 +246,10 @@ keeps it readable).
   scale 0.6; a MutationObserver in `app/22-motion.js` sets their transform-origin) and shrink back into it; every new
   dialog/sheet is wrapped in `Presence` (or is a `ConfirmDialog`). Tab change: the marker slides, the new page's cards
   come from the side of the tab (`--oui-page-dx`) one after another (35 ms apart). Home's cards slide to new places
-  (`useCardMorph`, keyed by `data-slot`). Only opacity and transforms are animated (plus `Collapse` heights).
+  (`useCardMorph`, keyed by `data-slot`). 1.134.1: the side menu, its pages and rows, and `Collapse` use the spring
+  too; a folded card animates its height (`Card` + `foldCard` in `app/20-ui-primitives.js`: the height at the
+  chevron's tap → the new one, content kept by `is-folding` while it folds, folding at half the spring's time).
+  Only opacity and transforms are animated, plus `Collapse` heights and a card's fold.
   `prefers-reduced-motion` makes every duration 1 ms. Nothing animates at rest (`tests/ui/motion_test.py`).
   Rejected by the owner: a view of all pages at once, full redesigns (three demos, 17 Nov), Dock magnification.
 - **Home follows the moment** (1.134, phone only): `homeMoment` (alarm / pause / heat / print / idle) and
@@ -380,4 +383,4 @@ keeps it readable).
   there would hide them until the next print).
 
 ### Open PRs
-None (18 Nov: #175, release 1.134.0, merged). Update this line when a PR opens or merges.
+#176 (release 1.134.1: card fold and side menu with the spring, plus notes), open 18 Nov. Update this line when a PR opens or merges.
