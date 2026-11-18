@@ -388,4 +388,4 @@ keeps it readable).
   there would hide them until the next print).
 
 ### Open PRs
-#176 (release 1.134.1: card fold and side menu with the spring, plus notes), open 18 Nov. Update this line when a PR opens or merges.
+None (18 Nov: #176, release 1.134.1, merged). Update this line when a PR opens or merges.
