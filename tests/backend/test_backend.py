@@ -3184,6 +3184,37 @@ _lb.local_ai.model = type("M", (), {"version": "test-1", "predict": lambda self,
 _det.change_box, _det.change_at = None, None
 _det.local_judge(_purged, 100.0)
 check("... and the local model gets the covered picture", _seen[:1] == [80], _seen)
+
+# 1.135.0: with a calibrated camera the bed and part views are judged without the toolhead; the change view as it is
+_th = _purged.copy()
+_th[100:200, 800:900] = 250                                   # a bright «toolhead», away from the purge and the part
+_th_mask = np.zeros((360, 540), np.uint8)
+_th_mask[50:100, 400:450] = 255                               # its machine mask, at the monitor's half size
+_cc_saved = (_lb.camera_cal.usable, _lb.camera_cal.monitor_mask, _lb.camera_cal.saved, _det.machine_masks, _det.meta)
+_lb.camera_cal.usable = lambda: True
+_lb.camera_cal.saved = {"points": {}}
+_lb.camera_cal.monitor_mask = lambda positions, w, h: _th_mask if any(positions) else None
+_det.machine_masks, _det.meta = True, {"live": [100.0, 100.0, 1.0], "live2": [110.0, 100.0, 1.0]}
+_det._bed_box = lambda z=None: (0.05, 0.05, 0.9, 0.9)
+_det.change_box, _det.change_at = (0.7, 0.1, 0.15, 0.2), 100.0
+_seen_v = {}
+_lb.local_ai.model = type("M", (), {"version": "test-1", "predict": lambda self, f: (_seen_v.setdefault(len(_seen_v), f.copy()), (0.1, None))[1]})()
+_names = [n for n, _ in _det.local_views(_th, 100.0)]
+_det.local_judge(_th, 100.0)
+_bed_v, _chg_v = _seen_v.get(0), _seen_v.get(_names.index("change")) if "change" in _names else None
+_by = lambda v, y, x: int(v[int(y * v.shape[0]), int(x * v.shape[1]), 0])   # noqa: E731
+check("1.135.0: the local model sees the bed without the toolhead", _bed_v is not None and int(_bed_v.max()) < 250, _names)
+check("... the change view keeps the picture as it is", _chg_v is not None and int(_chg_v.max()) == 250, _names)
+check("... the purge is covered too", _bed_v is not None and abs(_by(_bed_v, (600 - 36) / 648.0, (500 - 54) / 972.0) - 80) < 10)
+_det.meta = {"live": None, "live2": None}
+_seen_v.clear()
+_det.local_judge(_th, 100.0)
+check("... without a toolhead position nothing is covered", _seen_v.get(0) is not None and int(_seen_v[0].max()) == 250)
+_v_on = _lb.memory_version()
+_det.machine_masks = False
+check("... the false-alarm memory knows the toolhead is covered", _v_on.endswith("|th") and not _lb.memory_version().endswith("|th"), (_v_on, _lb.memory_version()))
+_lb.camera_cal.usable, _lb.camera_cal.monitor_mask, _lb.camera_cal.saved, _det.machine_masks, _det.meta = _cc_saved
+_det._bed_box = lambda z=None: None
 _det.in_print = False
 _det._follow_print("printing")
 check("... a new print forgets the purge of the last one", _det.purge is None)
