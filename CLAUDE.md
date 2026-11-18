@@ -359,6 +359,9 @@ keeps it readable).
 - 17 Nov: analysis and demos (phone and computer) of an optimised look in claude.ai artifacts; the owner likes the
   current style and wants it refined, not replaced. 1.133.0/1.133.1 (#171) did: type scale, radii, «Nozzle» / «Bed» on
   the heater tiles, «See the layers» and «More details» as light buttons under Pause / Cancel (one `MoreDetailsButton`).
+- Tests that measure a layer or a panel must wait for its animation to end (`getAnimations()`, finite ones only: the
+  progress sweep and the AI badge loop forever): the 550 ms spring made `lights_test` and `editor_test` read half-grown
+  boxes in CI (1.134.0).
 - CI's headless Chromium has no hyphenation dictionaries: text that fits only by hyphenating (`hyphens: auto`) passes
   locally and fails there. Check narrow tables with DejaVu Sans and `hyphens: none` (the shaper table, 1.133.1).
 - Proposed, not done (waits for the owner): AI state and score strip under the camera on Home, the print card's two
@@ -377,4 +380,4 @@ keeps it readable).
   there would hide them until the next print).
 
 ### Open PRs
-#175 (release 1.134.0: Home by moment, spring motion, camera small window), open 17 Nov. Update this line when a PR opens or merges.
+None (18 Nov: #175, release 1.134.0, merged). Update this line when a PR opens or merges.
