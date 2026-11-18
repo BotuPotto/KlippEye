@@ -100,9 +100,10 @@ warm-up seconds, minimum progress, hotend at temperature), one check every `chec
 4. **Personal layer** (`personal_layer.py`, optional `personal_learning`): logistic layer on the embeddings, trained on
    the owner's answers to «How did the print go?» and labelled recordings; copies of the examples kept apart
    (`personal/kept/`, at most 4000, deleting recordings loses nothing); trained again when the model or the view
-   changes (`personal_stale`, `personal_view` = the bed at height 0); blended with the base score.
+   changes (`personal_stale`, `personal_view` = the bed at height 0); blended with the base score at weight `BLEND`
+   0.25 (1.134.3; it grew to 0.6 before, and at 0.4+ the monitor stopped asking about real failures).
 5. **False-alarm memory** (`false_alarms.py`): alarms marked «false» (until forgotten) and scenes the online AI called
-   fine **from the start** (6 h; a stop not confirmed is never learned). Keyed by `memory_version()` (model version +
+   fine **from the start** (10 min since 1.134.3, 6 h before; a stop not confirmed is never learned). Keyed by `memory_version()` (model version +
    view): refreshed after a new model or a calibration change (`_view_changed`).
 6. **Online AI** (`call_ai_analysis`): the chain of services (`ai_services.py`: Groq, Gemini, OpenAI, Anthropic, Mistral,
    OpenRouter, Meta, Together, Fireworks, any OpenAI-compatible «custom»; backups, per-service quotas/429), prompt `build_ai_prompt` (neutral, says what is and is not a problem, «when in
@@ -341,16 +342,17 @@ keeps it readable).
 - Known limit (audit 17 Nov): `ml/train.py` picks the epoch, the temperature and the threshold on the same pictures
   kept aside, and writes its «measured» from them too: optimistic. Only `ml/evaluate.py` on the owner's prints decides.
 
-### Online AI calls and the owner's false alarms (18 Nov, waiting for the retrained model)
+### Online AI calls and the owner's false alarms (18 Nov)
 - The owner's close fisheye: the base model scores fine prints 80–90 on the «bed» view (empty bed at the start already
   66–92; the front of the bed alone 7–29): the view's edges (frame rails, gantry, the calibrated outline wider than the
   plate) fool it. Rejected after measuring on 19 judged recordings: covering the toolhead/gantry (inpaint, grey, black,
   bed colour, history background: false asks 6.1 → 12.2/h), a view cut to the objects' area + 20/40 mm (worse: the
   toolhead fills the crop), a per-print relative threshold (no gain), a heavier model on the phone (same unfamiliar scene).
-- **Approved, not started** (the owner asked to wait for the retrained base model, then re-measure first):
+- **Done in 1.134.3** (the retrained model of 18 Nov was worse and not shipped, so the simulation on `models/base` stood):
   `docs/superpowers/specs/2026-11-18-online-calls-design.md` and `docs/superpowers/plans/2026-11-18-online-calls.md`:
   `BLEND_MAX` 0.6 → 0.25 (personal layer; at 0.4+ the monitor went blind), online «fine» kept 10 min instead of 6 h.
-  Simulated: 2.3–3.3 false online calls/h, failures asked about in ~100 s (today 4.7/h, 312 s). Release 1.134.3 then.
+  Simulated: 2.3–3.3 false online calls/h, failures asked about in ~100 s (before 4.7/h, 312 s). Re-run the simulation
+  with any new base model (it needs the owner's data, below).
 - The simulation needs the owner's data again (the session's scratchpad is gone): on the Pi
   `cd ~/printer_data/klippeye && zip -r -s 25m ~/klippeye-misura.zip camera.json machine_shape.json recordings reviews`,
   uploaded in parts (30 MB limit). Bed box from the calibration then: `0,0.368,1,0.632`. `recordings/*/session.json`
