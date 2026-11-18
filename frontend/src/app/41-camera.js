@@ -597,9 +597,18 @@ function CameraMedia({ className, reloads }) {
   if (camera.method === "mjpeg") return h(CameraStream, { key: "mjpeg" + reloads + url, className, url, style });
   if (camera.method === "adaptive") return h(CameraSnapshots, { key: "adaptive" + reloads + url, className, url, fps: camera.fps, style });
   // 1.134.1: a WebRTC page of the printer comes from the dashboard's own address, so that its player can be made a clean picture
-  const own = camera.method === "webrtc" && /^\/webcam\d*\//.test(camera.address || "");
+  // (only when the chosen address is this page's own machine: Settings → Addresses can send the camera elsewhere)
+  const own = camera.method === "webrtc" && /^\/webcam\d*\//.test(camera.address || "") && sameHost(url);
   return h("iframe", { key: camera.method + reloads + url, className, src: own ? window.location.origin + camera.address : url, style, allow: "autoplay; fullscreen", loading: "eager", title: camera.name, onLoad: own ? (event) => cleanCameraPage(event.currentTarget) : undefined });
 }
+
+const sameHost = (url) => {
+  try {
+    return new URL(url).hostname === window.location.hostname;
+  } catch (error) {
+    return false;
+  }
+};
 
 /**
  * 1.134.1: the camera's WebRTC page shows its picture in a video player (play button, time, progress bar). The page has
