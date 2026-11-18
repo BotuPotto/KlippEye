@@ -1,5 +1,13 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.134.3
+
+- When the online AI says a print looks fine, the monitor now trusts that answer for 10 minutes instead of 6 hours.
+  Before, a failure that the local model saw as "the same scene" could go unasked about for the rest of the print.
+- «Learn from this printer's prints» now always weighs 25% in the local model's score. Before, its weight grew up to
+  60% as you judged more failed prints, and in tests on real recordings the monitor then stopped asking about real
+  failures. At 25% it still cuts most needless questions to the online AI.
+
 ## 1.134.2
 
 - The full-screen camera, the full-screen console and a photo opened full screen now grow out of the button you tapped

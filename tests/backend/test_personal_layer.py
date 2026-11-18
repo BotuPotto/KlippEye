@@ -97,9 +97,9 @@ check("off: the base model's score is kept", layer.blend(0.1, np.ones(64), "v1")
 info = layer.train(model)
 check("trained on the examples", info.get("trained") and info["examples"] == len(pl.examples_of(data)), info)
 check("... measured on the examples kept aside", (info.get("measured") or {}).get("right", 0) >= 0.9, info.get("measured"))
-check("... its weight grows with the failed examples, at most BLEND_MAX", pl.BLEND_MIN <= info["weight"] <= pl.BLEND_MAX, info)
-check("the weight: none below the minimum, then growing, then the most", pl.weight_for(pl.MIN_FAILED - 1) == 0 and pl.weight_for(pl.MIN_FAILED) == pl.BLEND_MIN
-      and pl.weight_for(30) < pl.weight_for(50) and pl.weight_for(500) == pl.BLEND_MAX)
+check("... its weight in the final score", info["weight"] == 0.25, info)
+check("1.134.3: the weight: none below the minimum, then 0.25 however many failed examples (more made the monitor blind)",
+      pl.weight_for(pl.MIN_FAILED - 1) == 0 and pl.weight_for(pl.MIN_FAILED) == 0.25 and pl.weight_for(500) == 0.25)
 check("layer.json and the cache are written", os.path.isfile(os.path.join(data, "personal", "layer.json")) and os.path.isfile(os.path.join(data, "personal", "cache.npz")))
 calls = model.calls
 layer.train(model)
@@ -238,6 +238,16 @@ check("1.130: with a view (the bed) each example is cut to it, and the cache kno
       viewed._look(image).shape == (240, 320, 3) and viewed.signature("v1") != plain and viewed.signature("v1").startswith("v1|"), viewed.signature("v1"))
 viewed.view = (0.0, 0.0, 0.01, 0.01)
 check("... a view too small: the whole picture", viewed._look(image).shape == image.shape)
+
+# 1.134.3: an online «fine» is remembered 10 minutes (it used to be 6 hours: a failure that looked like the scene stayed unseen)
+import false_alarms  # noqa: E402
+_mem = false_alarms.FalseAlarms(tempfile.mkdtemp(), np)
+_v1, _v2 = np.eye(64)[0], np.eye(64)[1]
+_mem.add(_v1, 80, "online", "a", "m", now=1000.0)
+_mem.add(_v2, 80, "person", "b", "m", now=1000.0)
+check("1.134.3: an online «fine» silences the same scene for 10 minutes, then no more",
+      _mem.match(_v1, 80, "m", 1000.0 + 9 * 60) is not None and _mem.match(_v1, 80, "m", 1000.0 + 11 * 60) is None)
+check("... the person's marks stay", _mem.match(_v2, 80, "m", 1000.0 + 86400) is not None)
 
 print("\n%d failure(s)" % len(FAILS) + (": " + ", ".join(FAILS) if FAILS else ""))
 sys.exit(1 if FAILS else 0)
