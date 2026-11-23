@@ -24,7 +24,7 @@ A dashboard and AI print monitor for **Klipper** printers, made to run on the pr
 | Android app | `android/` | A full-screen WebView on the dashboard with push notifications, downloads, addresses (home / VPN), HTTPS pinning, in-app updates. Own version in `android/VERSION`; GitHub builds and publishes the APK into `apk/` (never by hand). |
 | Install / update | `scripts/install.sh`, `scripts/repair.sh`, `scripts/klippeye`, `systemd/` | Install once as the normal user (never root); `repair.sh` runs at every start and fixes a damaged install; the `klippeye` command (diagnose, benchmark, web, …). Updates come through **Moonraker's update manager** (git): channel **stable** (tagged releases) or **dev** (every commit of `main`). The service must keep the name `klippeye`. |
 | Local model | `models/base/` (+ `ml/` to train it) | MobileNetV3-Small, ONNX, run by OpenCV DNN on the Pi. |
-| CI | `.github/workflows/` | `tests.yml` (Tests, ~1 h: backend/notifier/app CI/frontend build, local model training chain, Android compile, install & updates on a simulated Raspberry, dashboard in the browser), `release.yml` (tags `vX.Y.Z` after a merge whose tests pass on main), `app.yml` (APK), `e2e.yml`, `bench-models.yml`. |
+| CI | `.github/workflows/` | `tests.yml` (Tests, ~1 h: backend/notifier/app CI/frontend build, local model training chain, Android compile, install & updates on a simulated Raspberry, dashboard in the browser), `release.yml` (tags `vX.Y.Z` after a merge whose tests pass on main), `app.yml` (APK), `e2e.yml`. |
 
 On a printer: program in `~/klippeye`, the person's data in `~/printer_data/klippeye/` (settings `monitor.json`,
 `ai.json` mode 600 with the AI keys, recordings, alerts, `personal/`, `camera.json`, …). Updates replace only the program.
@@ -277,8 +277,8 @@ keeps it readable).
 
 ## 6. The owner's setup (for measuring and testing; part of the base model's training since 1.135.0)
 
-- Printer: a **VzBot** (CoreXY, Z moves the bed), close **fisheye** camera on the frame, calibrated with the «detail»
-  method. Raspberry Pi with **32-bit** Raspberry Pi OS Bookworm (`getconf LONG_BIT` = 32; Python 3.11, OpenCV 4.6),
+- Printer: a **VzBot** (CoreXY, Z moves the bed), close **fisheye** camera on the frame, calibrated with the «markers» method
+  (the 6 blobs of filament, no «detail»). Raspberry Pi with **32-bit** Raspberry Pi OS Bookworm (`getconf LONG_BIT` = 32; Python 3.11, OpenCV 4.6),
   dashboard `http://raspberrypi.local:8085`. No onnxruntime package exists for it.
 - The owner's **Windows PC** can be linked to the session (desktop app). Downloads folder: `C:\Users\coroz\Downloads`.
   The **built-in browser** runs there: it drives Colab and can open the Pi's dashboard (each site needs the owner's
@@ -432,5 +432,24 @@ keeps it readable).
   side column instead of disappearing), the «finished» moment (Klipper keeps `complete` for hours, so hiding cards
   there would hide them until the next print).
 
+### Camera change (23 Nov)
+- The owner's old camera stopped working: he is mounting a new one (other quality, maybe other position) and will
+  calibrate it with the 6 blobs. The old camera's recordings stay as the training and measuring data (sections 3 and 6).
+- **The new camera is the independent test**, as if it were another user's camera: its recordings are **never trained
+  on**, only used to measure the base model and the monitor (`ml/evaluate.py`, `scripts/replay.py`). The old
+  measurements (bed box `0,0.368,1,0.632`, thresholds, kept-out prints) are valid for the old camera only.
+
+### Owner's notes of 23 Nov (to do, in this order)
+1. Release 1.135.1 (#184): plainer texts, guide, no benchmark of other models. Done when merged.
+2. Calibration: take out the automatic «detail» method (the owner uses the 6 blobs); bed corners as dots to drag by
+   hand; check how an adaptive mesh sizes the watched area; whether the monitor should watch the whole rectangle
+   when there is no calibration (measure before changing).
+3. Install and uninstall: ask at install whether KlippEye is the main interface (port 80) or the secondary one (8085);
+   a real `uninstall` command (instead of «undo install») that removes everything without manual steps.
+4. Later: how the learning on the Pi can give per-printer gains like the owner's prints gave the base model; other
+   libraries than OpenCV (32-bit Pi, no onnxruntime).
+5. Last: read and rewrite all the documentation for a generic user, in English and Italian, with pictures, in current
+   writing rules.
+
 ### Open PRs
-None (23 Nov: #182, release 1.135.0 with the new base model, merged; #181 closed). Update this line when a PR opens or merges.
+#184 (release 1.135.1: guide and texts cleanup, `klippeye benchmark --models` removed), open 23 Nov. Update this line when a PR opens or merges.
