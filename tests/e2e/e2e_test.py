@@ -367,6 +367,34 @@ if scenario("install") or scenario("update") or scenario("undo"):
     ok("[install] run again: no new backup, moonraker.conf the same", (sorted(os.listdir(os.path.join(w.data, "backup"))) if os.path.isdir(os.path.join(w.data, "backup")) else []) == backups_before
        and open(os.path.join(w.pd, "config", "moonraker.conf")).read() == conf, out2)
 
+    if scenario("install"):
+        # 1.137.0: main page or second page. A fake nginx: its folder with a page on port 80, a running "nginx" service,
+        # and `nginx -t` / reload replaced by `true` (web_front.py itself is tested with a real nginx in test_backend.py)
+        ng = os.path.join(w.root, "nginx")
+        for d in ("sites-available", "sites-enabled"):
+            os.makedirs(os.path.join(ng, d), exist_ok=True)
+        webui = os.path.join(ng, "sites-available", "webui")
+        open(webui, "w").write("server {\n    listen 80 default_server;\n    root %s;\n}\n" % ng)
+        os.symlink(webui, os.path.join(ng, "sites-enabled", "webui"))
+        open(os.path.join(w.units, "nginx.service"), "w").write("[Service]\nExecStart=/bin/sleep 100000\n")
+        w.systemctl("start", "nginx")
+        ngenv = {"KLIPPEYE_NGINX_DIR": ng, "KLIPPEYE_NGINX_TEST": "true", "KLIPPEYE_NGINX_RELOAD": "true"}
+
+        def web_main():
+            r = w.run([sys.executable, os.path.join(w.repo, "scripts", "web_front.py"), "status"], env_extra=ngenv)
+            return json.loads(r.stdout).get("main") if r.returncode == 0 else None
+        rw = w.install("--web", env_extra=ngenv)
+        on80 = rw.returncode == 0 and web_main() is True and "listen 81" in open(webui).read()
+        rw2 = w.install(env_extra=ngenv)
+        kept_main = rw2.returncode == 0 and web_main() is True
+        rn = w.install("--no-web", env_extra=ngenv)
+        back = rn.returncode == 0 and web_main() is False and "listen 80 default_server;" in open(webui).read() and "Port 80 given back" in rn.stdout
+        rn2 = w.install(env_extra=ngenv)
+        ok("1.137.0: a second run with no option keeps the second page", rn2.returncode == 0 and web_main() is False and "listen 80 default_server;" in open(webui).read(), rn2.stdout[-1500:])
+        ok("... --web puts KlippEye on port 80, --no-web gives it back", on80 and kept_main and back, (rw.stdout + rw2.stdout + rn.stdout)[-2500:])
+        w.systemctl("stop", "nginx")
+        os.remove(os.path.join(w.units, "nginx.service"))
+
     if scenario("update"):
         def touch_notifier(dev):
             open(os.path.join(dev, "notifier", "klippeye_notifier.py"), "a").write("\n# test change 1.0.1\n")

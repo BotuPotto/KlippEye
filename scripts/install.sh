@@ -7,7 +7,9 @@
 #   bash ~/klippeye/scripts/install.sh --channel=dev    updates: every change (dev) instead of the tested releases (stable, default)
 #   bash ~/klippeye/scripts/install.sh --no-ai          do not install OpenCV (the AI monitor stays off, less to download)
 #   bash ~/klippeye/scripts/install.sh --no-packages    install nothing with apt (only say what is missing)
-#   bash ~/klippeye/scripts/install.sh --no-web         leave the Raspberry's own address (port 80 of nginx) as it is
+#   bash ~/klippeye/scripts/install.sh --web            KlippEye is the Raspberry's main page (http://IP, port 80 of nginx)
+#   bash ~/klippeye/scripts/install.sh --no-web         KlippEye is a second page (http://IP:8085); port 80 goes back to the page it had
+#   (with neither, the installer asks; with no terminal it keeps the current choice, the main page on a first install)
 #   (the Italian options of older releases still work: --senza-moonraker, --annulla, --aiuto)
 #
 # What it does, in this order:
@@ -20,8 +22,8 @@
 #   4. puts the commands "klippeye" and "klippeye-notifiche" in /usr/local/bin
 #   5. connects the program to Moonraker's UPDATE MANAGER (moonraker.conf and moonraker.asvc): that is what makes the
 #      "Update" button of the dashboard and Moonraker's update manager work
-#   6. puts KlippEye at the Raspberry's own address, http://<raspberry> without a port (nginx, scripts/web_front.py):
-#      the page that was there moves to port 81 (or the next free one); `klippeye web restore` puts it back
+#   6. asks whether KlippEye is the Raspberry's main page, http://<raspberry> without a port (nginx, scripts/web_front.py):
+#      if so, the page that was there moves to port 81 (or the next free one); --no-web or `klippeye web restore` puts it back
 #
 # The code lives in one folder (this one), your things in another: updates only touch the first one.
 
@@ -68,13 +70,14 @@ note() { printf '           %s\n' "$*"; }
 warn() { printf '   WARNING %s\n' "$*"; }
 stop() { printf '\n   ERROR   %s\n\n' "$*"; exit 1; }
 
-usage() { sed -n '2,11p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; }
+usage() { sed -n '2,13p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; }
 
 MODE=install
 WITH_MOONRAKER=1
 WITH_AI=1        # 0: OpenCV is not installed (--no-ai)
 WITH_PACKAGES=1  # 0: nothing is installed with apt (--no-packages)
-WITH_WEB="${KLIPPEYE_WEB:-1}"  # 0: the Raspberry's own address is left as it is (--no-web)
+WITH_WEB="${KLIPPEYE_WEB:-1}"  # 1: KlippEye at port 80 (--web), 0: only at port 8085 (--no-web)
+WEB_GIVEN=0; [ -n "${KLIPPEYE_WEB:-}" ] && WEB_GIVEN=1   # 1.137.0: with neither option the installer asks (step 6)
 CHANNEL=stable   # update channel of a new [update_manager klippeye] entry: tagged releases only
 CHANNEL_GIVEN=0
 for arg in "$@"; do
@@ -84,11 +87,14 @@ for arg in "$@"; do
     --no-moonraker|--senza-moonraker) WITH_MOONRAKER=0 ;;
     --no-ai) WITH_AI=0 ;;
     --no-packages) WITH_PACKAGES=0 ;;
-    --no-web) WITH_WEB=0 ;;
+    --web) WITH_WEB=1; WEB_GIVEN=1 ;;
+    --no-web) WITH_WEB=0; WEB_GIVEN=1 ;;
     -h|--help|--aiuto) usage; exit 0 ;;
     *) stop "Unknown option: $arg   (try:  bash $0 --help)" ;;
   esac
 done
+
+FIRST_INSTALL=1; [ -f "$UNIT_DIR/klippeye.service" ] && FIRST_INSTALL=0   # 1.137.0: decides the default of step 6
 
 sudo_run() { if [ -n "$SUDO" ]; then $SUDO "$@"; else "$@"; fi; }
 
@@ -498,9 +504,34 @@ fi
 step "6/7  KlippEye at the Raspberry's own address (no port)"
 WEB_MAIN=0
 NGINX_DIR="${KLIPPEYE_NGINX_DIR:-/etc/nginx}"
+# 1.137.0: is KlippEye's site in place now (web_front.py status, readable without root)
+WEB_NOW=0
+"$PYTHON" "$REPO/scripts/web_front.py" status 2>/dev/null | "$PYTHON" -c 'import json,sys; sys.exit(0 if json.load(sys.stdin).get("main") else 1)' 2>/dev/null && WEB_NOW=1
+NGINX_UP=0
+[ -d "$NGINX_DIR" ] && sudo_run "$SYSTEMCTL" is-active nginx >/dev/null 2>&1 && NGINX_UP=1
+if [ "$WEB_GIVEN" = 0 ]; then
+  # no option: a re-run keeps what is in place, a first install makes KlippEye the main page
+  if [ "$FIRST_INSTALL" = 1 ]; then WITH_WEB=1; else WITH_WEB="$WEB_NOW"; fi
+  if [ "$NGINX_UP" = 1 ] && [ -t 0 ] && [ -t 1 ]; then
+    if [ "$WITH_WEB" = 1 ]; then hint="[Y/n]"; else hint="[y/N]"; fi
+    while :; do
+      answer=""
+      read -r -p "   Make KlippEye the Raspberry's main page (http://IP, without :8085)? $hint " answer || answer=""
+      case "$(printf '%s' "$answer" | tr '[:upper:]' '[:lower:]')" in
+        "") break ;;
+        y|yes|s|si|sì) WITH_WEB=1; break ;;
+        n|no) WITH_WEB=0; break ;;
+        *) say "   Please answer y or n." ;;
+      esac
+    done
+  fi
+fi
 if [ "$WITH_WEB" = 0 ]; then
-  note "Skipped (--no-web): the dashboard stays at port 8085."
-elif [ ! -d "$NGINX_DIR" ] || ! sudo_run "$SYSTEMCTL" is-active nginx >/dev/null 2>&1; then
+  if [ "$WEB_NOW" = 1 ]; then
+    if out="$(sudo_run "$PYTHON" "$REPO/scripts/web_front.py" restore 2>&1)"; then good "Port 80 given back: $out"; else warn "$out"; fi
+  fi
+  note "KlippEye is a second page: the dashboard is at port 8085."
+elif [ "$NGINX_UP" = 0 ]; then
   note "nginx is not running on this Raspberry: the dashboard stays at port 8085."
 else
   web_args=()
@@ -509,7 +540,7 @@ else
   fi
   if out="$(sudo_run "$PYTHON" "$REPO/scripts/web_front.py" main "${web_args[@]}" 2>&1)"; then
     good "$out"; WEB_MAIN=1
-    note "To give the address back to the previous page:  klippeye web restore"
+    note "To make KlippEye a second page again:  bash $REPO/scripts/install.sh --no-web   (or: klippeye web restore)"
   else
     warn "$out"
     note "The dashboard stays at port 8085."

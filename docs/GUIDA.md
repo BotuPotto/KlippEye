@@ -80,16 +80,20 @@ più recente. Sul telefono e sul computer non si installa niente: basta il brows
    La prima riga installa `git` se manca (se c'è già, non fa danni). La seconda scarica KlippEye nella cartella `klippeye`
    del tuo utente. La terza lo installa.
 
-3. Aspetta la fine. La prima volta ci vuole qualche minuto, per via di OpenCV. Ogni passo scrive `OK`. Se qualcosa non
+3. Rispondi all'unica domanda dell'installatore: «Make KlippEye the Raspberry's main page (http://IP, without :8085)?»
+   (KlippEye diventa la pagina principale del Raspberry?). Premi Invio per il sì, oppure scrivi `n` per tenere KlippEye
+   come seconda pagina sulla porta 8085. Quando rilanci l'installatore ti propone la scelta dell'ultima volta.
+
+4. Aspetta la fine. La prima volta ci vuole qualche minuto, per via di OpenCV. Ogni passo scrive `OK`. Se qualcosa non
    va compare `WARNING` o `ERROR`, con la spiegazione di cosa fare. Alla fine leggi l'indirizzo della dashboard e
    `Moonraker sees KlippEye`.
 
-4. Apri la dashboard: scrivi nel browser `http://<indirizzo del Raspberry>`, per esempio `http://192.168.1.20`.
+5. Apri la dashboard: scrivi nel browser `http://<indirizzo del Raspberry>`, per esempio `http://192.168.1.20`.
 
-   KlippEye prende l'indirizzo principale del Raspberry (la porta 80) e la pagina web che c'era si sposta sulla porta **81**
-   (o sulla prima libera dopo; l'installatore ti dice quale): la raggiungi ancora da `http://192.168.1.20:81`. Se preferisci
-   lasciare la pagina di prima all'indirizzo principale, scrivi `klippeye web restore`: KlippEye resta allora sulla porta
-   **8085** (`http://192.168.1.20:8085`), che funziona sempre in ogni caso.
+   Come pagina principale, KlippEye prende l'indirizzo principale del Raspberry (la porta 80) e la pagina web che c'era si
+   sposta sulla porta **81** (o sulla prima libera dopo; l'installatore ti dice quale): la raggiungi ancora da
+   `http://192.168.1.20:81`. Come seconda pagina, KlippEye è sulla porta **8085** (`http://192.168.1.20:8085`), che
+   funziona sempre in ogni caso. Per cambiare idea dopo, rilancia l'installatore con `--web` o `--no-web`.
 
 In breve, l'installatore controlla cosa manca e lo installa; crea la cartella dei tuoi dati (`~/printer_data/klippeye`), che
 gli aggiornamenti non toccano mai; crea due servizi, `klippeye` (la dashboard) e `klippeye-notifier` (le notifiche), che
@@ -106,7 +110,8 @@ Le opzioni si scrivono dopo `install.sh`:
 | `--no-ai` | non installa OpenCV. Il monitor IA resta spento; rilancia l'installatore senza l'opzione per aggiungerlo dopo |
 | `--no-packages` | non installa niente con `apt`, ti dice solo cosa manca |
 | `--no-moonraker` | non tocca la configurazione di Moonraker |
-| `--no-web` | lascia l'indirizzo principale del Raspberry alla pagina che ce l'ha ora (KlippEye sulla porta 8085) |
+| `--web` | fa di KlippEye la pagina principale del Raspberry (porta 80) senza chiedere |
+| `--no-web` | fa di KlippEye una seconda pagina (porta 8085) senza chiedere; se KlippEye aveva la porta 80, la pagina che c'era la riavrà |
 | `--channel=dev` | installa ogni modifica appena pubblicata, invece delle versioni collaudate (vedi [9](#9-aggiornamenti)) |
 | `--undo` | toglie KlippEye (vedi [15](#15-togliere-klippeye)) |
 

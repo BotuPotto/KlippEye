@@ -79,15 +79,20 @@ Nothing is installed on your phone or computer: a browser is enough.
    The first line installs `git` if it is missing (if it is already there, it does no harm). The second downloads KlippEye
    into the `klippeye` folder of your user. The third installs it.
 
-3. Wait for the end. The first time it takes a few minutes, because of OpenCV. Each step prints `OK`. If something is
+3. Answer the installer's one question: «Make KlippEye the Raspberry's main page (http://IP, without :8085)?». Press
+   Enter for yes, or type `n` to keep KlippEye as a second page at port 8085. When you run the installer again it
+   offers what you chose last time.
+
+4. Wait for the end. The first time it takes a few minutes, because of OpenCV. Each step prints `OK`. If something is
    wrong you see `WARNING` or `ERROR` with an explanation of what to do. At the end you read the address of the dashboard and
    `Moonraker sees KlippEye`.
 
-4. Open the dashboard: type `http://<address of the Raspberry>` in your browser, for example `http://192.168.1.20`.
+5. Open the dashboard: type `http://<address of the Raspberry>` in your browser, for example `http://192.168.1.20`.
 
-   KlippEye takes the Raspberry's main address (port 80), and the web page that was there moves to port **81** (or the
-   next free one; the installer tells you which): you can still reach it at `http://192.168.1.20:81`. If you'd rather keep the old page on the main address, run
-   `klippeye web restore`: KlippEye then stays at port **8085** (`http://192.168.1.20:8085`), which always works anyway.
+   As the main page, KlippEye takes the Raspberry's main address (port 80), and the web page that was there moves to port
+   **81** (or the next free one; the installer tells you which): you can still reach it at `http://192.168.1.20:81`. As a
+   second page, KlippEye is at port **8085** (`http://192.168.1.20:8085`), which always works anyway. To change your mind
+   later, run the installer again with `--web` or `--no-web`.
 
 What the installer does, in short: it checks what is missing and installs it; it creates the folder of your data
 (`~/printer_data/klippeye`), which updates never touch; it creates two services, `klippeye` (the dashboard) and
@@ -104,7 +109,8 @@ Options (add them after `install.sh`):
 | `--no-ai` | doesn't install OpenCV. The AI monitor stays off; run the installer again without it to add it later |
 | `--no-packages` | installs nothing with `apt`, it only tells you what is missing |
 | `--no-moonraker` | doesn't touch Moonraker's configuration |
-| `--no-web` | leaves the Raspberry's main address to the page that has it now (KlippEye on port 8085) |
+| `--web` | makes KlippEye the Raspberry's main page (port 80) without asking |
+| `--no-web` | makes KlippEye a second page (port 8085) without asking; if KlippEye had port 80, the page that was there gets it back |
 | `--channel=dev` | installs every change as soon as it is published, instead of the tested releases (see [9](#9-updates)) |
 | `--undo` | removes KlippEye (see [15](#15-removing-klippeye)) |
 
