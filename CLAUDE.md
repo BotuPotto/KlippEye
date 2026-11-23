@@ -433,4 +433,4 @@ keeps it readable).
   there would hide them until the next print).
 
 ### Open PRs
-None besides the 1.135.0 model PR (23 Nov). Update this line when a PR opens or merges.
+#182 (release 1.135.0: the new base model), open 23 Nov; #181 closed (replaced). Update this line when a PR opens or merges.
