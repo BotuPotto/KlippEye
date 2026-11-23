@@ -79,9 +79,10 @@ Nothing is installed on your phone or computer: a browser is enough.
    The first line installs `git` if it is missing (if it is already there, it does no harm). The second downloads KlippEye
    into the `klippeye` folder of your user. The third installs it.
 
-3. Answer the installer's one question: «Make KlippEye the Raspberry's main page (http://IP, without :8085)?». Press
-   Enter for yes, or type `n` to keep KlippEye as a second page at port 8085. When you run the installer again it
-   offers what you chose last time.
+3. If the Raspberry runs nginx (the web server of most Klipper images), the installer asks one question: «Make
+   KlippEye the Raspberry's main page (http://IP, without :8085)?». Type `y` or `n`. Enter takes the choice in capitals:
+   yes on the first install, then what you chose last time. Without nginx there is no question and KlippEye is at
+   port 8085.
 
 4. Wait for the end. The first time it takes a few minutes, because of OpenCV. Each step prints `OK`. If something is
    wrong you see `WARNING` or `ERROR` with an explanation of what to do. At the end you read the address of the dashboard and
@@ -529,13 +530,18 @@ klippeye uninstall
 ```
 
 It removes the services, the `klippeye` command and the entry in Moonraker's update manager. If KlippEye had taken the
-Raspberry's main address, the page that was there gets it back. Then it asks before deleting the program folder
-(`~/klippeye`) and your data folder (`~/printer_data/klippeye`: settings, recordings, the prints you judged): type `yes`
-to delete them. Nothing is left to do by hand.
+Raspberry's main address, the page that was there gets it back. If you used the printer functions, it removes
+`klippeye_macros.cfg` and its `[include klippeye_macros.cfg]` line in `printer.cfg`; it does not restart Klipper, so
+restart it when you can. Then it asks before deleting the program folder (`~/klippeye`) and your data folder
+(`~/printer_data/klippeye`: settings, recordings, the prints you judged): type `yes` to delete them. The copies of the
+files it changed move to `~/printer_data/klippeye-backup-<date>` first.
 
 To keep your data folder, for example to install KlippEye again later, write `klippeye uninstall --keep-data`. The
-system packages KlippEye used (Python's Flask, OpenCV) stay, because other programs may need them. If a print is
-running, Moonraker is not restarted: restart it when the print ends.
+system packages KlippEye used (Python's Flask, OpenCV) stay, because other programs may need them.
+
+During a print, Moonraker is not restarted and the macros stay: the command tells you what to do when the print ends.
+A data folder that is a link (to a USB stick, say) is kept, and so is the program folder if your data is inside it
+and you asked to keep the data.
 
 ## A. Where KlippEye keeps its files
 

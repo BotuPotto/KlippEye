@@ -2,15 +2,19 @@
 
 ## 1.137.0
 
-- The installer asks one question: should KlippEye be the Raspberry's main page (`http://IP`, port 80) or a second
-  page at port 8085? Press Enter for the main page. When you run the installer again it offers what you chose last
-  time, and with no terminal (from a script) it keeps that choice. Before, every run put KlippEye back on port 80,
+- When the Raspberry runs nginx, the installer asks one question: should KlippEye be the Raspberry's main page
+  (`http://IP`, port 80) or a second page at port 8085? On a first install Enter means the main page. When you run
+  the installer again Enter keeps what you chose last time, and with no terminal (from a script) it keeps that choice. Before, every run put KlippEye back on port 80,
   even after `klippeye web restore`.
 - New option `--web` for the main page without the question. `--no-web` now makes KlippEye a second page: if KlippEye
   had port 80, the page that was there gets it back.
-- `klippeye uninstall` takes KlippEye off the Raspberry with nothing left to do by hand: services, commands, the
-  update manager entry, port 80, and then, after you type `yes`, the program folder and the data folder.
-  `--keep-data` keeps your settings and recordings. While a print runs, Moonraker is not restarted.
+- `klippeye uninstall` takes KlippEye off the Raspberry: services, commands, the update manager entry, port 80, the
+  printer functions' `klippeye_macros.cfg` and its include in `printer.cfg`, and then, after you type `yes`, the
+  program folder and the data folder. The copies of the files it changed move to `printer_data/klippeye-backup-<date>`.
+  `--keep-data` keeps your settings and recordings. Klipper is not restarted: restart it when you can.
+- During a print it restarts neither Moonraker nor Klipper and leaves the macros, and says what to do afterwards. A
+  data folder that is a link is kept, and so is the program folder when the data is inside it and you keep the data.
+  If port 80 cannot be given back, both folders stay so you can try again.
 - `klippeye undo-install` still works as before (folders kept), but the help and the guide now show `uninstall`.
 
 ## 1.136.0

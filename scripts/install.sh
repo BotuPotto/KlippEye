@@ -99,14 +99,20 @@ for arg in "$@"; do
     *) stop "Unknown option: $arg   (try:  bash $0 --help)" ;;
   esac
 done
+if [ "$MODE" != uninstall ] && { [ "$YES" = 1 ] || [ "$KEEP_DATA" = 1 ]; }; then
+  stop "--yes and --keep-data go with --uninstall   (try:  bash $0 --help)"
+fi
 
 # 1.137.0: --uninstall deletes the program folder, this script's own folder: bash reads a script as it runs, so run a
 # copy from the temporary folder. The copy unlinks itself at once (bash keeps reading it through its open file).
+# KLIPPEYE_UNINSTALL_FROM counts only in that copy (its name is klippeye-uninstall.*), never in the real script.
 if [ "$MODE" = uninstall ]; then
-  if [ -z "${KLIPPEYE_UNINSTALL_FROM:-}" ]; then
-    copy="$(mktemp "${TMPDIR:-/tmp}/klippeye-uninstall.XXXXXX")" && cp "${BASH_SOURCE[0]}" "$copy" || stop "Cannot copy myself to a temporary file."
-    KLIPPEYE_UNINSTALL_FROM="$REPO" exec bash "$copy" "$@"
-  fi
+  case "$(basename "${BASH_SOURCE[0]}")" in
+    klippeye-uninstall.*) [ -n "${KLIPPEYE_UNINSTALL_FROM:-}" ] || stop "KLIPPEYE_UNINSTALL_FROM is missing." ;;
+    *)
+      copy="$(mktemp "${TMPDIR:-/tmp}/klippeye-uninstall.XXXXXX")" && cp "${BASH_SOURCE[0]}" "$copy" || stop "Cannot copy myself to a temporary file."
+      KLIPPEYE_UNINSTALL_FROM="$REPO" exec bash "$copy" "$@" ;;
+  esac
   rm -f "${BASH_SOURCE[0]}"
   REPO="$KLIPPEYE_UNINSTALL_FROM"; HERE="$REPO/scripts"
   cd "$HOME" 2>/dev/null || cd /
@@ -118,12 +124,12 @@ sudo_run() { if [ -n "$SUDO" ]; then $SUDO "$@"; else "$@"; fi; }
 
 RELEASE="$(tr -d '[:space:]' < "$REPO/VERSION" 2>/dev/null || true)"
 RELEASE="${RELEASE:-unknown}"
-say "KlippEye $RELEASE - installation on the Raspberry"
+if [ "$MODE" = install ]; then say "KlippEye $RELEASE - installation on the Raspberry"; else say "KlippEye $RELEASE - taking KlippEye off the Raspberry"; fi
 WORK_EARLY="$(mktemp "${TMPDIR:-/tmp}/klippeye-apt.XXXXXX")" || WORK_EARLY=/dev/null
 trap 'rm -f "$WORK_EARLY"' EXIT
 
 # --- 1. checks --------------------------------------------------------------------------------------------------------
-step "1/7  Checking the Raspberry"
+if [ "$MODE" = install ]; then step "1/7  Checking the Raspberry"; else step "Checking the Raspberry"; fi
 if [ "$(id -u)" = "0" ] && [ -z "${KLIPPEYE_ALLOW_ROOT:-}" ]; then
   stop "Do not run me with sudo or as root: I must run as the normal user (usually 'pi').
           Try again like this:   bash $REPO/scripts/install.sh
@@ -133,6 +139,8 @@ PYTHON="${KLIPPEYE_PYTHON:-$(command -v python3 || true)}"
 [ -n "$PYTHON" ] || stop "Python 3 is not installed. Install it with:  sudo apt install -y python3"
 "$PYTHON" -c 'import sys; sys.exit(0 if sys.version_info >= (3, 7) else 1)' || stop "Python 3.7 or newer is needed (here there is $("$PYTHON" --version 2>&1))."
 good "$("$PYTHON" --version 2>&1) ($PYTHON)"
+# 1.137.0: the checks below are for installing; a broken install must still come off (--undo, --uninstall)
+if [ "$MODE" = install ]; then
 case "$REPO$DATA" in *" "*) stop "Folder names must not contain spaces ($REPO, $DATA)." ;; esac
 [ -f "$REPO/backend/klippeye_backend.py" ] || stop "$REPO/backend/klippeye_backend.py not found: this does not look like the KlippEye folder."
 # What KlippEye needs, as Debian / Raspberry Pi OS packages (the same names on Bullseye, Bookworm and Trixie, and on the printer images built on them):
@@ -193,6 +201,7 @@ else
   note "Install it with:   sudo apt install -y python3-opencv"
 fi
 [ -f "$REPO/frontend/klippeye_frontend.html" ] || warn "$REPO/frontend/klippeye_frontend.html is missing: the backend starts, but the dashboard page does not open."
+fi
 
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/klippeye-install.XXXXXX")" || stop "Cannot create a temporary folder."
 trap 'rm -rf "$WORK"; rm -f "$WORK_EARLY"' EXIT
@@ -272,7 +281,8 @@ install_command() {  # name: writes /usr/local/bin/<name>, which runs the script
 #  --undo
 # ====================================================================================================================
 if [ "$MODE" = "undo" ] || [ "$MODE" = "uninstall" ]; then
-  step "Undoing KlippEye $RELEASE"
+  if [ "$MODE" = undo ]; then step "Undoing KlippEye $RELEASE"; else step "Taking KlippEye $RELEASE off"; fi
+  WEB_FAILED=0
   stop_new_units
   good "Services klippeye and klippeye-notifier stopped and removed"
   for name in klippeye klippeye-notifiche; do
@@ -280,7 +290,7 @@ if [ "$MODE" = "undo" ] || [ "$MODE" = "uninstall" ]; then
   done
   good "Commands $BIN_DIR/klippeye and klippeye-notifiche removed"
   if [ -f "${KLIPPEYE_NGINX_DIR:-/etc/nginx}/sites-available/klippeye" ] || [ -f "${KLIPPEYE_NGINX_DIR:-/etc/nginx}/conf.d/klippeye.conf" ]; then
-    if out="$(sudo_run "$PYTHON" "$REPO/scripts/web_front.py" restore 2>&1)"; then good "The Raspberry's own address: $out"; else warn "$out"; fi
+    if out="$(sudo_run "$PYTHON" "$REPO/scripts/web_front.py" restore 2>&1)"; then good "The Raspberry's own address: $out"; else warn "$out"; WEB_FAILED=1; fi
   fi
   if [ "$WITH_MOONRAKER" = 1 ]; then
     conf="$PRINTER_DATA/config/moonraker.conf"; asvc="$PRINTER_DATA/moonraker.asvc"
@@ -312,6 +322,8 @@ PY
     else
       sudo_run "$SYSTEMCTL" restart "$MOONRAKER_SERVICE" && good "Moonraker restarted"
     fi
+  else
+    note "--no-moonraker: the entry [update_manager klippeye] stays in moonraker.conf; remove it by hand if you want."
   fi
   if [ "$MODE" = undo ]; then
     say ""
@@ -319,43 +331,107 @@ PY
     say "delete them by hand if you no longer need them, or run:  bash $REPO/scripts/install.sh --uninstall"
     exit 0
   fi
-  # 1.137.0: --uninstall also deletes the folders, after a yes
+  # 1.137.0: the printer functions' macros (backend/printer_macros.py): klippeye_macros.cfg next to printer.cfg and its
+  # include. Klipper is never restarted here; while printing both stay (Klipper reads them only at its next start).
+  step "Printer functions (klippeye_macros.cfg)"
+  cfg_dir="$PRINTER_DATA/config"; printer_cfg="$cfg_dir/printer.cfg"; macros_cfg="$cfg_dir/klippeye_macros.cfg"
+  include_re='^[[:space:]]*\[include[[:space:]]+klippeye_macros\.cfg[[:space:]]*\]'
+  if ! [ -f "$macros_cfg" ] && ! { [ -f "$printer_cfg" ] && grep -Eq "$include_re" "$printer_cfg"; }; then
+    note "None written by KlippEye."
+  elif is_printing; then
+    warn "Printing: $macros_cfg and its line [include klippeye_macros.cfg] in printer.cfg stay."
+    note "After the print remove that line from printer.cfg, delete klippeye_macros.cfg and restart Klipper."
+  else
+    removed=1
+    if [ -f "$printer_cfg" ] && grep -Eq "$include_re" "$printer_cfg"; then
+      backup_file "$printer_cfg" printer.cfg
+      if "$PYTHON" - "$printer_cfg" <<'PY'
+import os, re, sys
+p = sys.argv[1]
+text = open(p, encoding="utf-8").read()
+text = re.sub(r"\n?# KlippEye \(Settings -> Printer functions\)\n(?=[ \t]*\[include\s+klippeye_macros\.cfg\s*\])", "\n", text)
+text = re.sub(r"(?m)^[ \t]*\[include\s+klippeye_macros\.cfg\s*\][ \t]*\n?", "", text)
+tmp = p + ".klippeye-tmp"
+with open(tmp, "w", encoding="utf-8") as f:
+    f.write(text)
+os.replace(tmp, p)
+PY
+      then good "Line [include klippeye_macros.cfg] removed from printer.cfg"; else warn "Cannot change $printer_cfg"; removed=0; fi
+    fi
+    if [ "$removed" = 1 ] && [ -f "$macros_cfg" ]; then
+      backup_file "$macros_cfg" klippeye_macros.cfg
+      rm -f "$macros_cfg" && good "klippeye_macros.cfg deleted"
+    fi
+    [ "$removed" = 1 ] && note "Klipper is not restarted: restart it when you can, and the macros are gone."
+  fi
+
+  # 1.137.0: then the folders, after a yes
   step "Folders"
+  if [ "$WEB_FAILED" = 1 ]; then
+    warn "Port 80 could not be given back to the previous page, so both folders are kept: the program folder holds the tool for it."
+    note "When nginx works again run:  bash $REPO/scripts/install.sh --uninstall"
+    exit 1
+  fi
+  strip_slash() { local p="$1"; while [ "$p" != / ] && [ "${p%/}" != "$p" ]; do p="${p%/}"; done; printf '%s' "$p"; }
+  REPO="$(strip_slash "$REPO")"; DATA="$(strip_slash "$DATA")"
   real() { (cd "$1" 2>/dev/null && pwd -P); }
-  safe_folder() {  # folder file_it_must_hold|"" : 0 when it may be deleted
-    local r; r="$(real "$1")"
-    [ -n "$r" ] && [ "$r" != / ] && [ "$r" != "$(real "$HOME")" ] || return 1
-    if [ -n "$2" ]; then [ -f "$r/$2" ]; else case "$(basename "$r")" in klippeye|klippeye_data) return 0 ;; *) return 1 ;; esac; fi
+  inside() { case "$1/" in "$2"/*) return 0 ;; *) return 1 ;; esac; }   # real path $1 is $2 or inside it
+  may_delete() {  # folder program|data -> 0 when it may be deleted (else it says why)
+    local r
+    if [ -L "$1" ]; then note "$1 is a link to $(readlink -f "$1"): kept. Delete what it points to by hand if you want."; return 1; fi
+    [ -d "$1" ] || { note "No folder at $1"; return 1; }
+    r="$(real "$1")"
+    if [ -z "$r" ] || [ "$r" = / ] || [ "$r" = "$(real "$HOME")" ]; then warn "$1 is not a folder to delete: kept."; return 1; fi
+    if [ "$2" = program ]; then [ -f "$r/backend/klippeye_backend.py" ] && return 0
+    else case "$(basename "$r")" in klippeye|klippeye_data) return 0 ;; esac; fi
+    warn "$1 does not look like KlippEye's $2 folder: kept."; return 1
   }
   remove_folder() { rm -rf "$1" 2>/dev/null || sudo_run rm -rf "$1"; [ ! -e "$1" ]; }
-  if [ "$KEEP_DATA" = 1 ]; then what="the program folder $REPO"; else what="the program folder $REPO and the data folder $DATA (settings, recordings, labels)"; fi
+  DEL_REPO=0; DEL_DATA=0; DATA_GOES=0
+  may_delete "$REPO" program && DEL_REPO=1
+  RR="$(real "$REPO")"; RD="$(real "$DATA")"
+  DATA_IN_REPO=0; [ -n "$RD" ] && [ -n "$RR" ] && inside "$RD" "$RR" && DATA_IN_REPO=1
+  if [ "$DATA_IN_REPO" = 1 ]; then
+    if [ "$KEEP_DATA" = 1 ]; then
+      [ "$DEL_REPO" = 1 ] && note "The data folder $DATA is inside the program folder: the program folder is kept too."
+      DEL_REPO=0
+    elif [ "$DEL_REPO" = 1 ]; then
+      DATA_GOES=1; note "The data folder $DATA is inside the program folder: it goes with it."
+    fi
+  elif [ "$KEEP_DATA" = 0 ] && may_delete "$DATA" data; then
+    DEL_DATA=1; DATA_GOES=1
+  fi
+  what=""; paths=""
+  [ "$DEL_REPO" = 1 ] && { what="the program folder $REPO"; paths="$(printf ' %q' "$REPO")"; }
+  [ "$DEL_DATA" = 1 ] && { what="${what:+$what and }the data folder $DATA (settings, recordings, labels)"; paths="$paths$(printf ' %q' "$DATA")"; }
+  [ "$DATA_GOES" = 1 ] && [ "$DEL_DATA" = 0 ] && what="$what, with the data folder in it (settings, recordings, labels)"
+  [ "$KEEP_DATA" = 1 ] && note "Data folder kept: $DATA"
+  if [ -z "$what" ]; then
+    say ""; say "Done. No folder to delete."; exit 0
+  fi
   answer=no
   if [ "$YES" = 1 ]; then answer=yes
   elif [ -t 0 ]; then read -r -p "   Delete $what? Type yes to delete: " answer || answer=no
-  else note "No terminal to ask on and no --yes: nothing deleted."
+  else note "No terminal to ask on and no --yes: folders not deleted."
   fi
   if [ "$answer" != yes ]; then
     note "Kept: $what."
-    if [ "$KEEP_DATA" = 1 ]; then note "To delete it:  rm -rf $REPO"; else note "To delete them:  rm -rf $REPO $DATA"; fi
+    note "To delete:  rm -rf$paths"
     exit 0
   fi
-  if [ "$KEEP_DATA" = 1 ]; then
-    note "Data folder kept: $DATA"
-  elif [ ! -d "$DATA" ]; then
-    note "No data folder at $DATA"
-  elif ! safe_folder "$DATA" ""; then
-    warn "$DATA does not look like KlippEye's data folder: not deleted."
-  elif remove_folder "$DATA"; then
-    good "Data folder deleted: $DATA"
-  else
-    warn "Cannot delete $DATA"
+  if [ "$DATA_GOES" = 1 ] && [ -d "$DATA/backup" ]; then   # the copies of the files KlippEye changed outlive the data folder
+    if [ -d "$PRINTER_DATA" ] && ! inside "$(real "$PRINTER_DATA")" "$RD"; then keep_bk="$PRINTER_DATA"; else keep_bk="$HOME"; fi
+    keep_bk="$keep_bk/klippeye-backup-$(date +%Y%m%d-%H%M%S)"
+    if mv "$DATA/backup" "$keep_bk" 2>/dev/null || sudo_run mv "$DATA/backup" "$keep_bk"; then good "Backup copies of the changed files moved to $keep_bk"
+    else warn "Cannot move $DATA/backup: folders kept."; exit 1; fi
   fi
-  if ! safe_folder "$REPO" backend/klippeye_backend.py; then
-    warn "$REPO does not look like KlippEye's program folder: not deleted."
-  elif remove_folder "$REPO"; then
-    good "Program folder deleted: $REPO"
-  else
-    warn "Cannot delete $REPO"
+  if [ "$DEL_DATA" = 1 ]; then
+    if remove_folder "$DATA"; then good "Data folder deleted: $DATA"; else warn "Cannot delete $DATA"; fi
+  fi
+  if [ "$DEL_REPO" = 1 ]; then
+    if [ ! -e "$REPO" ]; then good "Program folder deleted with the data folder: $REPO"
+    elif remove_folder "$REPO"; then good "Program folder deleted: $REPO"
+    else warn "Cannot delete $REPO"; fi
   fi
   say ""
   say "Done. KlippEye is off this Raspberry. The system packages it used (python3-flask, python3-opencv...) stay: other programs may need them."

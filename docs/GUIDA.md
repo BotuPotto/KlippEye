@@ -80,9 +80,10 @@ più recente. Sul telefono e sul computer non si installa niente: basta il brows
    La prima riga installa `git` se manca (se c'è già, non fa danni). La seconda scarica KlippEye nella cartella `klippeye`
    del tuo utente. La terza lo installa.
 
-3. Rispondi all'unica domanda dell'installatore: «Make KlippEye the Raspberry's main page (http://IP, without :8085)?»
-   (KlippEye diventa la pagina principale del Raspberry?). Premi Invio per il sì, oppure scrivi `n` per tenere KlippEye
-   come seconda pagina sulla porta 8085. Quando rilanci l'installatore ti propone la scelta dell'ultima volta.
+3. Se il Raspberry ha nginx (il server web della maggior parte delle immagini per Klipper), l'installatore fa una domanda:
+   «Make KlippEye the Raspberry's main page (http://IP, without :8085)?» (KlippEye diventa la pagina principale del
+   Raspberry?). Scrivi `y` o `n`. Invio sceglie la risposta in maiuscolo: sì alla prima installazione, poi la scelta
+   dell'ultima volta. Senza nginx la domanda non c'è e KlippEye è sulla porta 8085.
 
 4. Aspetta la fine. La prima volta ci vuole qualche minuto, per via di OpenCV. Ogni passo scrive `OK`. Se qualcosa non
    va compare `WARNING` o `ERROR`, con la spiegazione di cosa fare. Alla fine leggi l'indirizzo della dashboard e
@@ -538,13 +539,18 @@ klippeye uninstall
 ```
 
 Toglie i servizi, il comando `klippeye` e la voce nel gestore degli aggiornamenti di Moonraker. Se KlippEye aveva preso
-l'indirizzo principale del Raspberry, la pagina che c'era prima lo riavrà. Poi chiede prima di cancellare la cartella del
-programma (`~/klippeye`) e quella dei tuoi dati (`~/printer_data/klippeye`: impostazioni, registrazioni, le stampe che hai
-giudicato): scrivi `yes` per cancellarle. Non resta niente da fare a mano.
+l'indirizzo principale del Raspberry, la pagina che c'era prima lo riavrà. Se hai usato le funzioni della stampante, toglie
+`klippeye_macros.cfg` e la sua riga `[include klippeye_macros.cfg]` in `printer.cfg`; non riavvia Klipper, quindi
+riavvialo tu quando puoi. Poi chiede prima di cancellare la cartella del programma (`~/klippeye`) e quella dei tuoi dati
+(`~/printer_data/klippeye`: impostazioni, registrazioni, le stampe che hai giudicato): scrivi `yes` per cancellarle. Le
+copie dei file che aveva cambiato vanno prima in `~/printer_data/klippeye-backup-<data>`.
 
 Per tenere la cartella dei dati, per esempio per reinstallare KlippEye più avanti, scrivi `klippeye uninstall --keep-data`.
-I pacchetti di sistema usati da KlippEye (Flask di Python, OpenCV) restano, perché possono servire ad altri programmi. Se
-c'è una stampa in corso, Moonraker non viene riavviato: riavvialo quando la stampa finisce.
+I pacchetti di sistema usati da KlippEye (Flask di Python, OpenCV) restano, perché possono servire ad altri programmi.
+
+Durante una stampa Moonraker non viene riavviato e le macro restano: il comando ti dice cosa fare quando la stampa finisce.
+Una cartella dei dati che è un collegamento (a una chiavetta USB, per esempio) resta, e resta anche la cartella del
+programma se i tuoi dati sono lì dentro e hai chiesto di tenerli.
 
 ## A. Dove KlippEye tiene i suoi file
 

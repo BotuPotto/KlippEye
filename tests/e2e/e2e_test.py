@@ -482,16 +482,28 @@ if scenario("install") or scenario("update") or scenario("undo"):
             return (not os.path.exists(os.path.join(w.units, "klippeye.service")) and not os.path.exists(os.path.join(w.units, "klippeye-notifier.service"))
                     and not os.path.exists(os.path.join(w.bin, "klippeye")) and not os.path.exists(os.path.join(w.bin, "klippeye-notifiche"))
                     and "[update_manager klippeye]" not in confu and wait(lambda: backend_release() is None, 20))
+        pcfg = os.path.join(w.pd, "config", "printer.cfg")
+        mcfg = os.path.join(w.pd, "config", "klippeye_macros.cfg")
+        pcfg_text = "[printer]\nkinematics: corexy\n\n# KlippEye (Settings -> Printer functions)\n[include klippeye_macros.cfg]\n\n#*# <---------------------- SAVE_CONFIG ---------------------->\n#*# [probe]\n"
+        open(pcfg, "w").write(pcfg_text)
+        open(mcfg, "w").write("[gcode_macro KLIPPEYE_PARK]\ngcode:\n  G28\n")
         ru = w.run([os.path.join(w.bin, "klippeye"), "uninstall", "--yes"], cwd=w.repo, timeout=300)
+        kept_bk = [n for n in os.listdir(w.pd) if n.startswith("klippeye-backup-")]
+        pcfg_after = open(pcfg).read()
         ok("1.137.0: uninstall --yes removes services, commands, the update manager entry and both folders",
            ru.returncode == 0 and gone_but_folders() and not os.path.exists(w.repo) and not os.path.exists(w.data) and "Program folder deleted" in ru.stdout, ru.stdout + ru.stderr)
+        ok("... the macros' include and file go (printer.cfg's other lines and SAVE_CONFIG stay, Klipper not restarted), the backups move next to the data",
+           "klippeye_macros" not in pcfg_after and "kinematics: corexy" in pcfg_after and "#*# [probe]" in pcfg_after and "# KlippEye" not in pcfg_after
+           and not os.path.exists(mcfg) and "Klipper is not restarted" in ru.stdout and not any(c.split()[:2] in (["restart", "klipper"], ["stop", "klipper"]) for c in w.calls())
+           and len(kept_bk) == 1 and any(f.startswith("printer.cfg") for _, _, fs in os.walk(os.path.join(w.pd, kept_bk[0])) for f in fs), (pcfg_after, kept_bk, ru.stdout[-1500:]))
+        ok("... the temporary copy of the installer is gone", not [n for n in os.listdir(w.tmp) if n.startswith("klippeye-uninstall.")], os.listdir(w.tmp))
         installed = reinstall()
         rk = w.run([os.path.join(w.bin, "klippeye"), "uninstall", "--yes", "--keep-data"], timeout=300)
         ok("... --keep-data keeps the data folder", installed and rk.returncode == 0 and gone_but_folders() and not os.path.exists(w.repo) and os.path.isdir(w.data), rk.stdout + rk.stderr)
         installed = reinstall()
         rt = w.install("--uninstall")
         ok("... with no terminal and no --yes nothing is deleted", installed and rt.returncode == 0 and gone_but_folders() and os.path.isfile(os.path.join(w.repo, "backend", "klippeye_backend.py"))
-           and os.path.isdir(w.data) and "nothing deleted" in rt.stdout, rt.stdout + rt.stderr)
+           and os.path.isdir(w.data) and "folders not deleted" in rt.stdout, rt.stdout + rt.stderr)
     w.teardown()
 
 # ----------------------------------------------------------------------------------- update channel
@@ -631,6 +643,16 @@ if scenario("printing"):
     out = r.stdout + r.stderr
     ok("[printing] the installer succeeds but does NOT restart Moonraker, and says so", r.returncode == 0 and not any(c.startswith("restart moonraker") for c in w.calls()) and "Printing" in out, out)
     ok("[printing] the entry is written to moonraker.conf anyway", "[update_manager klippeye]" in open(os.path.join(w.pd, "config", "moonraker.conf")).read())
+    pcfg = os.path.join(w.pd, "config", "printer.cfg")
+    open(pcfg, "w").write("[printer]\n\n# KlippEye (Settings -> Printer functions)\n[include klippeye_macros.cfg]\n")
+    open(os.path.join(w.pd, "config", "klippeye_macros.cfg"), "w").write("[gcode_macro KLIPPEYE_PARK]\ngcode:\n  G28\n")
+    restarts = len([c for c in w.calls() if c.startswith("restart")])
+    ru = w.install("--uninstall", "--yes", env_extra={"KLIPPEYE_MOONRAKER_URL": "http://127.0.0.1:7455"})
+    outu = ru.stdout + ru.stderr
+    ok("1.137.0: uninstall while printing: Moonraker not restarted, the macros and their include stay, and it says so",
+       ru.returncode == 0 and len([c for c in w.calls() if c.startswith("restart")]) == restarts and "Printing: Moonraker is not restarted" in outu
+       and "[include klippeye_macros.cfg]" in open(pcfg).read() and os.path.isfile(os.path.join(w.pd, "config", "klippeye_macros.cfg")) and "After the print" in outu
+       and not os.path.exists(w.repo), outu)
     fake.shutdown()
     fake.server_close()
     w.teardown()
@@ -1071,6 +1093,27 @@ if scenario("safety"):
     ok("[safety] --help shows the usage", r.returncode == 0 and "--undo" in r.stdout, r.stdout)
     r = w.install("--aiuto")
     ok("[safety] the Italian options of older releases still work (--aiuto)", r.returncode == 0 and "--undo" in r.stdout, r.stdout)
+    r = w.install("--keep-data")
+    ok("1.137.0: --yes / --keep-data without --uninstall: refused", r.returncode != 0 and "go with --uninstall" in r.stdout, r.stdout)
+    # a data folder that is a link (to a USB stick): the link and what it points to stay; the program folder goes
+    usb = os.path.join(w.root, "usb", "klippeye")
+    os.makedirs(usb)
+    open(os.path.join(usb, "monitor.json"), "w").write("{}")
+    link = os.path.join(w.pd, "klippeye-link")
+    os.symlink(usb, link)
+    r = w.install("--uninstall", "--yes", "--no-moonraker", env_extra={"KLIPPEYE_DATA": link + "/"})
+    ok("... a data folder that is a link is kept, with what it points to", r.returncode == 0 and os.path.islink(link) and os.path.isfile(os.path.join(usb, "monitor.json"))
+       and "is a link to" in r.stdout and not os.path.exists(w.repo) and "the entry [update_manager klippeye] stays" in r.stdout, r.stdout + r.stderr)
+    # the data folder inside the program folder (old layouts): --keep-data keeps both
+    w.run(["git", "clone", "-q", w.origin, w.repo])
+    inner = os.path.join(w.repo, "klippeye_data")
+    os.makedirs(inner)
+    open(os.path.join(inner, "monitor.json"), "w").write("{}")
+    r = w.install("--uninstall", "--yes", "--keep-data", "--no-moonraker", env_extra={"KLIPPEYE_DATA": inner})
+    ok("... the data folder inside the program folder and --keep-data: both kept", r.returncode == 0 and os.path.isfile(os.path.join(inner, "monitor.json"))
+       and os.path.isfile(os.path.join(w.repo, "backend", "klippeye_backend.py")) and "No folder to delete" in r.stdout, r.stdout + r.stderr)
+    r = w.install("--uninstall", "--yes", "--keep-data", "--no-moonraker", env_extra={"KLIPPEYE_DATA": w.repo})
+    ok("... the data folder equal to the program folder and --keep-data: kept", r.returncode == 0 and os.path.isfile(os.path.join(w.repo, "backend", "klippeye_backend.py")), r.stdout + r.stderr)
     w.teardown()
 
 print("\nRESULT: %d check(s) failed" % len(FAILS))
