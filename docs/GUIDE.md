@@ -79,15 +79,21 @@ Nothing is installed on your phone or computer: a browser is enough.
    The first line installs `git` if it is missing (if it is already there, it does no harm). The second downloads KlippEye
    into the `klippeye` folder of your user. The third installs it.
 
-3. Wait for the end. The first time it takes a few minutes, because of OpenCV. Each step prints `OK`. If something is
+3. If the Raspberry runs nginx (the web server of most Klipper images), the installer asks one question: «Make
+   KlippEye the Raspberry's main page (http://IP, without :8085)?». Type `y` or `n`. Enter takes the choice in capitals:
+   yes on the first install, then what you chose last time. Without nginx there is no question and KlippEye is at
+   port 8085.
+
+4. Wait for the end. The first time it takes a few minutes, because of OpenCV. Each step prints `OK`. If something is
    wrong you see `WARNING` or `ERROR` with an explanation of what to do. At the end you read the address of the dashboard and
    `Moonraker sees KlippEye`.
 
-4. Open the dashboard: type `http://<address of the Raspberry>` in your browser, for example `http://192.168.1.20`.
+5. Open the dashboard: type `http://<address of the Raspberry>` in your browser, for example `http://192.168.1.20`.
 
-   KlippEye takes the Raspberry's main address (port 80), and the web page that was there moves to port **81** (or the
-   next free one; the installer tells you which): you can still reach it at `http://192.168.1.20:81`. If you'd rather keep the old page on the main address, run
-   `klippeye web restore`: KlippEye then stays at port **8085** (`http://192.168.1.20:8085`), which always works anyway.
+   As the main page, KlippEye takes the Raspberry's main address (port 80), and the web page that was there moves to port
+   **81** (or the next free one; the installer tells you which): you can still reach it at `http://192.168.1.20:81`. As a
+   second page, KlippEye is at port **8085** (`http://192.168.1.20:8085`), which always works anyway. To change your mind
+   later, run the installer again with `--web` or `--no-web`.
 
 What the installer does, in short: it checks what is missing and installs it; it creates the folder of your data
 (`~/printer_data/klippeye`), which updates never touch; it creates two services, `klippeye` (the dashboard) and
@@ -104,9 +110,10 @@ Options (add them after `install.sh`):
 | `--no-ai` | doesn't install OpenCV. The AI monitor stays off; run the installer again without it to add it later |
 | `--no-packages` | installs nothing with `apt`, it only tells you what is missing |
 | `--no-moonraker` | doesn't touch Moonraker's configuration |
-| `--no-web` | leaves the Raspberry's main address to the page that has it now (KlippEye on port 8085) |
+| `--web` | makes KlippEye the Raspberry's main page (port 80) without asking |
+| `--no-web` | makes KlippEye a second page (port 8085) without asking; if KlippEye had port 80, the page that was there gets it back |
 | `--channel=dev` | installs every change as soon as it is published, instead of the tested releases (see [9](#9-updates)) |
-| `--undo` | removes KlippEye (see [15](#15-removing-klippeye)) |
+| `--uninstall` | removes KlippEye, its folders included (see [15](#15-removing-klippeye)) |
 
 With more than one printer on the same Raspberry, choose the data folder by hand:
 `KLIPPEYE_PRINTER_DATA=~/printer_2_data bash ~/klippeye/scripts/install.sh`.
@@ -519,13 +526,22 @@ spare.
 On the Raspberry:
 
 ```bash
-klippeye undo-install
+klippeye uninstall
 ```
 
-It removes the services, the `klippeye` command and the entry in Moonraker's update manager. Your data folder
-(`~/printer_data/klippeye`) and the installed packages stay; delete the folders `~/klippeye` and
-`~/printer_data/klippeye` by hand if you want them gone too. If KlippEye had taken the Raspberry's main address, the page
-that was there gets it back.
+It removes the services, the `klippeye` command and the entry in Moonraker's update manager. If KlippEye had taken the
+Raspberry's main address, the page that was there gets it back. If you used the printer functions, it removes
+`klippeye_macros.cfg` and its `[include klippeye_macros.cfg]` line in `printer.cfg`; it does not restart Klipper, so
+restart it when you can. Then it asks before deleting the program folder (`~/klippeye`) and your data folder
+(`~/printer_data/klippeye`: settings, recordings, the prints you judged): type `yes` to delete them. The copies of the
+files it changed move to `~/printer_data/klippeye-backup-<date>` first.
+
+To keep your data folder, for example to install KlippEye again later, write `klippeye uninstall --keep-data`. The
+system packages KlippEye used (Python's Flask, OpenCV) stay, because other programs may need them.
+
+During a print, Moonraker is not restarted and the macros stay: the command tells you what to do when the print ends.
+A data folder that is a link (to a USB stick, say) is kept, and so is the program folder if your data is inside it
+and you asked to keep the data.
 
 ## A. Where KlippEye keeps its files
 
@@ -567,5 +583,5 @@ Type them on the Raspberry. You won't need them often: everyday things happen in
 | `klippeye benchmark` | how much processor and memory the printer's programs use |
 | `klippeye replay` | replays the AI monitor on the recorded prints (options at the top of `scripts/replay.py`) |
 | `klippeye web main` · `web restore` · `web status` | KlippEye on the Raspberry's main address, or back to port 8085 |
-| `klippeye undo-install` | removes KlippEye |
+| `klippeye uninstall` · `uninstall --keep-data` | removes KlippEye and its folders · keeps the data folder |
 | `klippeye help` | the list of commands |

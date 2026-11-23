@@ -80,16 +80,21 @@ più recente. Sul telefono e sul computer non si installa niente: basta il brows
    La prima riga installa `git` se manca (se c'è già, non fa danni). La seconda scarica KlippEye nella cartella `klippeye`
    del tuo utente. La terza lo installa.
 
-3. Aspetta la fine. La prima volta ci vuole qualche minuto, per via di OpenCV. Ogni passo scrive `OK`. Se qualcosa non
+3. Se il Raspberry ha nginx (il server web della maggior parte delle immagini per Klipper), l'installatore fa una domanda:
+   «Make KlippEye the Raspberry's main page (http://IP, without :8085)?» (KlippEye diventa la pagina principale del
+   Raspberry?). Scrivi `y` o `n`. Invio sceglie la risposta in maiuscolo: sì alla prima installazione, poi la scelta
+   dell'ultima volta. Senza nginx la domanda non c'è e KlippEye è sulla porta 8085.
+
+4. Aspetta la fine. La prima volta ci vuole qualche minuto, per via di OpenCV. Ogni passo scrive `OK`. Se qualcosa non
    va compare `WARNING` o `ERROR`, con la spiegazione di cosa fare. Alla fine leggi l'indirizzo della dashboard e
    `Moonraker sees KlippEye`.
 
-4. Apri la dashboard: scrivi nel browser `http://<indirizzo del Raspberry>`, per esempio `http://192.168.1.20`.
+5. Apri la dashboard: scrivi nel browser `http://<indirizzo del Raspberry>`, per esempio `http://192.168.1.20`.
 
-   KlippEye prende l'indirizzo principale del Raspberry (la porta 80) e la pagina web che c'era si sposta sulla porta **81**
-   (o sulla prima libera dopo; l'installatore ti dice quale): la raggiungi ancora da `http://192.168.1.20:81`. Se preferisci
-   lasciare la pagina di prima all'indirizzo principale, scrivi `klippeye web restore`: KlippEye resta allora sulla porta
-   **8085** (`http://192.168.1.20:8085`), che funziona sempre in ogni caso.
+   Come pagina principale, KlippEye prende l'indirizzo principale del Raspberry (la porta 80) e la pagina web che c'era si
+   sposta sulla porta **81** (o sulla prima libera dopo; l'installatore ti dice quale): la raggiungi ancora da
+   `http://192.168.1.20:81`. Come seconda pagina, KlippEye è sulla porta **8085** (`http://192.168.1.20:8085`), che
+   funziona sempre in ogni caso. Per cambiare idea dopo, rilancia l'installatore con `--web` o `--no-web`.
 
 In breve, l'installatore controlla cosa manca e lo installa; crea la cartella dei tuoi dati (`~/printer_data/klippeye`), che
 gli aggiornamenti non toccano mai; crea due servizi, `klippeye` (la dashboard) e `klippeye-notifier` (le notifiche), che
@@ -106,9 +111,10 @@ Le opzioni si scrivono dopo `install.sh`:
 | `--no-ai` | non installa OpenCV. Il monitor IA resta spento; rilancia l'installatore senza l'opzione per aggiungerlo dopo |
 | `--no-packages` | non installa niente con `apt`, ti dice solo cosa manca |
 | `--no-moonraker` | non tocca la configurazione di Moonraker |
-| `--no-web` | lascia l'indirizzo principale del Raspberry alla pagina che ce l'ha ora (KlippEye sulla porta 8085) |
+| `--web` | fa di KlippEye la pagina principale del Raspberry (porta 80) senza chiedere |
+| `--no-web` | fa di KlippEye una seconda pagina (porta 8085) senza chiedere; se KlippEye aveva la porta 80, la pagina che c'era la riavrà |
 | `--channel=dev` | installa ogni modifica appena pubblicata, invece delle versioni collaudate (vedi [9](#9-aggiornamenti)) |
-| `--undo` | toglie KlippEye (vedi [15](#15-togliere-klippeye)) |
+| `--uninstall` | toglie KlippEye, cartelle comprese (vedi [15](#15-togliere-klippeye)) |
 
 Con più stampanti sullo stesso Raspberry, scegli tu la cartella dei dati:
 `KLIPPEYE_PRINTER_DATA=~/printer_2_data bash ~/klippeye/scripts/install.sh`.
@@ -529,13 +535,22 @@ Android.
 Sul Raspberry:
 
 ```bash
-klippeye undo-install
+klippeye uninstall
 ```
 
-Toglie i servizi, il comando `klippeye` e la voce nel gestore degli aggiornamenti di Moonraker. La cartella dei tuoi dati
-(`~/printer_data/klippeye`) e i pacchetti installati restano; cancella a mano le cartelle `~/klippeye` e
-`~/printer_data/klippeye` se vuoi eliminare anche quelle. Se KlippEye aveva preso l'indirizzo principale del Raspberry, la
-pagina che c'era prima lo riavrà.
+Toglie i servizi, il comando `klippeye` e la voce nel gestore degli aggiornamenti di Moonraker. Se KlippEye aveva preso
+l'indirizzo principale del Raspberry, la pagina che c'era prima lo riavrà. Se hai usato le funzioni della stampante, toglie
+`klippeye_macros.cfg` e la sua riga `[include klippeye_macros.cfg]` in `printer.cfg`; non riavvia Klipper, quindi
+riavvialo tu quando puoi. Poi chiede prima di cancellare la cartella del programma (`~/klippeye`) e quella dei tuoi dati
+(`~/printer_data/klippeye`: impostazioni, registrazioni, le stampe che hai giudicato): scrivi `yes` per cancellarle. Le
+copie dei file che aveva cambiato vanno prima in `~/printer_data/klippeye-backup-<data>`.
+
+Per tenere la cartella dei dati, per esempio per reinstallare KlippEye più avanti, scrivi `klippeye uninstall --keep-data`.
+I pacchetti di sistema usati da KlippEye (Flask di Python, OpenCV) restano, perché possono servire ad altri programmi.
+
+Durante una stampa Moonraker non viene riavviato e le macro restano: il comando ti dice cosa fare quando la stampa finisce.
+Una cartella dei dati che è un collegamento (a una chiavetta USB, per esempio) resta, e resta anche la cartella del
+programma se i tuoi dati sono lì dentro e hai chiesto di tenerli.
 
 ## A. Dove KlippEye tiene i suoi file
 
@@ -578,5 +593,5 @@ comandi sono in inglese, ma i vecchi nomi italiani (`stato`, `riavvia`, `aggiorn
 | `klippeye benchmark` | quanto processore e memoria usano i programmi della stampante |
 | `klippeye replay` | fa rigirare il monitor IA sulle stampe registrate (opzioni in cima a `scripts/replay.py`) |
 | `klippeye web main` · `web restore` · `web status` | KlippEye all'indirizzo principale del Raspberry, o di nuovo sulla porta 8085 |
-| `klippeye undo-install` | toglie KlippEye |
+| `klippeye uninstall` · `uninstall --keep-data` | toglie KlippEye e le sue cartelle · tiene la cartella dei dati |
 | `klippeye help` | l'elenco dei comandi |

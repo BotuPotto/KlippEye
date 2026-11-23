@@ -448,10 +448,15 @@ keeps it readable).
    no-calibration rectangle is still to measure.
 3. Install and uninstall: ask at install whether KlippEye is the main interface (port 80) or the secondary one (8085);
    a real `uninstall` command (instead of «undo install») that removes everything without manual steps.
+   Status: done in 1.137.0 (#187): `--web` / `--no-web` or a question, a re-run keeps the choice; `klippeye uninstall`
+   (`--yes`, `--keep-data`), backups moved to `printer_data/klippeye-backup-<date>`, links and data inside the program
+   folder kept, the macros include removed without restarting Klipper (kept while another file includes it).
 4. Later: how the learning on the Pi can give per-printer gains like the owner's prints gave the base model; other
    libraries than OpenCV (32-bit Pi, no onnxruntime).
+   After 3: the full audit, plan in `docs/superpowers/plans/2026-11-23-full-audit.md` (the owner's request of 23 Nov:
+   every line, the look of every page, structure and logic), then 4 and 5.
 5. Last: read and rewrite all the documentation for a generic user, in English and Italian, with pictures, in current
    writing rules.
 
 ### Open PRs
-#186 (release 1.136.0: markers-only calibration, draggable bed corners, branch `calibration-markers-only`), open 23 Nov. Update this line when a PR opens or merges.
+#187 (release 1.137.0: install question, `klippeye uninstall`, branch `install-uninstall`), open 23 Nov. #186 (1.136.0) merged 23 Nov. Update this line when a PR opens or merges.

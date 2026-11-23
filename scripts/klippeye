@@ -157,7 +157,11 @@ PY
       *) echo "Usage: klippeye web [main|restore|status]"; exit 2 ;;
     esac
     ;;
-  undo-install)
+  uninstall)  # 1.137.0: everything off, folders included (install.sh asks before deleting them)
+    shift
+    exec bash "$REPO/scripts/install.sh" --uninstall "$@"
+    ;;
+  undo-install)  # services, commands and update manager entry only; kept for older guides, out of the help
     exec bash "$REPO/scripts/install.sh" --undo
     ;;
   *)
@@ -177,7 +181,7 @@ klippeye benchmark [--seconds 30]   how much processor and memory KlippEye and t
 klippeye replay [--current] [--set KEY=VALUE]   measure the AI monitor on the recorded prints: alarms per hour, how many false
 klippeye web main            KlippEye at the Raspberry's own address (http://IP, no port); the previous page moves to port 81
 klippeye web restore         give the Raspberry's own address back to the previous page   (also: status)
-klippeye undo-install        take KlippEye off (services, commands, update manager entry)
+klippeye uninstall [--keep-data]   take KlippEye off this Raspberry, its folders included
 The Italian names of older releases still work (stato, riavvia, aggiorna...).
 HELP
     ;;

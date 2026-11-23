@@ -3,11 +3,15 @@
 #
 #   bash ~/klippeye/scripts/install.sh                  install or repair
 #   bash ~/klippeye/scripts/install.sh --no-moonraker   do not touch Moonraker's configuration
-#   bash ~/klippeye/scripts/install.sh --undo           take KlippEye off (services, commands, update manager entry)
+#   bash ~/klippeye/scripts/install.sh --uninstall      take KlippEye off this Raspberry, its folders included (asks first;
+#                                                       --yes: no question, --keep-data: keep the data folder)
+#   bash ~/klippeye/scripts/install.sh --undo           take KlippEye off but leave its folders (services, commands, update manager entry)
 #   bash ~/klippeye/scripts/install.sh --channel=dev    updates: every change (dev) instead of the tested releases (stable, default)
 #   bash ~/klippeye/scripts/install.sh --no-ai          do not install OpenCV (the AI monitor stays off, less to download)
 #   bash ~/klippeye/scripts/install.sh --no-packages    install nothing with apt (only say what is missing)
-#   bash ~/klippeye/scripts/install.sh --no-web         leave the Raspberry's own address (port 80 of nginx) as it is
+#   bash ~/klippeye/scripts/install.sh --web            KlippEye is the Raspberry's main page (http://IP, port 80 of nginx)
+#   bash ~/klippeye/scripts/install.sh --no-web         KlippEye is a second page (http://IP:8085); port 80 goes back to the page it had
+#   (with neither, the installer asks; with no terminal it keeps the current choice, the main page on a first install)
 #   (the Italian options of older releases still work: --senza-moonraker, --annulla, --aiuto)
 #
 # What it does, in this order:
@@ -20,8 +24,8 @@
 #   4. puts the commands "klippeye" and "klippeye-notifiche" in /usr/local/bin
 #   5. connects the program to Moonraker's UPDATE MANAGER (moonraker.conf and moonraker.asvc): that is what makes the
 #      "Update" button of the dashboard and Moonraker's update manager work
-#   6. puts KlippEye at the Raspberry's own address, http://<raspberry> without a port (nginx, scripts/web_front.py):
-#      the page that was there moves to port 81 (or the next free one); `klippeye web restore` puts it back
+#   6. asks whether KlippEye is the Raspberry's main page, http://<raspberry> without a port (nginx, scripts/web_front.py):
+#      if so, the page that was there moves to port 81 (or the next free one); --no-web or `klippeye web restore` puts it back
 #
 # The code lives in one folder (this one), your things in another: updates only touch the first one.
 
@@ -68,38 +72,64 @@ note() { printf '           %s\n' "$*"; }
 warn() { printf '   WARNING %s\n' "$*"; }
 stop() { printf '\n   ERROR   %s\n\n' "$*"; exit 1; }
 
-usage() { sed -n '2,11p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; }
+usage() { sed -n '2,15p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; }
 
 MODE=install
 WITH_MOONRAKER=1
 WITH_AI=1        # 0: OpenCV is not installed (--no-ai)
 WITH_PACKAGES=1  # 0: nothing is installed with apt (--no-packages)
-WITH_WEB="${KLIPPEYE_WEB:-1}"  # 0: the Raspberry's own address is left as it is (--no-web)
+WITH_WEB="${KLIPPEYE_WEB:-1}"  # 1: KlippEye at port 80 (--web), 0: only at port 8085 (--no-web)
+WEB_GIVEN=0; [ -n "${KLIPPEYE_WEB:-}" ] && WEB_GIVEN=1   # 1.137.0: with neither option the installer asks (step 6)
 CHANNEL=stable   # update channel of a new [update_manager klippeye] entry: tagged releases only
 CHANNEL_GIVEN=0
+YES=0; KEEP_DATA=0   # 1.137.0: --uninstall --yes / --keep-data
 for arg in "$@"; do
   case "$arg" in
     --channel=stable|--channel=dev) CHANNEL="${arg#--channel=}"; CHANNEL_GIVEN=1 ;;
     --undo|--annulla) MODE=undo ;;
+    --uninstall) MODE=uninstall ;;
+    --yes) YES=1 ;;
+    --keep-data) KEEP_DATA=1 ;;
     --no-moonraker|--senza-moonraker) WITH_MOONRAKER=0 ;;
     --no-ai) WITH_AI=0 ;;
     --no-packages) WITH_PACKAGES=0 ;;
-    --no-web) WITH_WEB=0 ;;
+    --web) WITH_WEB=1; WEB_GIVEN=1 ;;
+    --no-web) WITH_WEB=0; WEB_GIVEN=1 ;;
     -h|--help|--aiuto) usage; exit 0 ;;
     *) stop "Unknown option: $arg   (try:  bash $0 --help)" ;;
   esac
 done
+if [ "$MODE" != uninstall ] && { [ "$YES" = 1 ] || [ "$KEEP_DATA" = 1 ]; }; then
+  stop "--yes and --keep-data go with --uninstall   (try:  bash $0 --help)"
+fi
+
+# 1.137.0: --uninstall deletes the program folder, this script's own folder: bash reads a script as it runs, so run a
+# copy from the temporary folder. The copy unlinks itself at once (bash keeps reading it through its open file).
+# KLIPPEYE_UNINSTALL_FROM counts only in that copy (its name is klippeye-uninstall.*), never in the real script.
+if [ "$MODE" = uninstall ]; then
+  case "$(basename "${BASH_SOURCE[0]}")" in
+    klippeye-uninstall.*) [ -n "${KLIPPEYE_UNINSTALL_FROM:-}" ] || stop "KLIPPEYE_UNINSTALL_FROM is missing." ;;
+    *)
+      copy="$(mktemp "${TMPDIR:-/tmp}/klippeye-uninstall.XXXXXX")" && cp "${BASH_SOURCE[0]}" "$copy" || stop "Cannot copy myself to a temporary file."
+      KLIPPEYE_UNINSTALL_FROM="$REPO" exec bash "$copy" "$@" ;;
+  esac
+  rm -f "${BASH_SOURCE[0]}"
+  REPO="$KLIPPEYE_UNINSTALL_FROM"; HERE="$REPO/scripts"
+  cd "$HOME" 2>/dev/null || cd /
+fi
+
+FIRST_INSTALL=1; [ -f "$UNIT_DIR/klippeye.service" ] && FIRST_INSTALL=0   # 1.137.0: decides the default of step 6
 
 sudo_run() { if [ -n "$SUDO" ]; then $SUDO "$@"; else "$@"; fi; }
 
 RELEASE="$(tr -d '[:space:]' < "$REPO/VERSION" 2>/dev/null || true)"
 RELEASE="${RELEASE:-unknown}"
-say "KlippEye $RELEASE - installation on the Raspberry"
+if [ "$MODE" = install ]; then say "KlippEye $RELEASE - installation on the Raspberry"; else say "KlippEye $RELEASE - taking KlippEye off the Raspberry"; fi
 WORK_EARLY="$(mktemp "${TMPDIR:-/tmp}/klippeye-apt.XXXXXX")" || WORK_EARLY=/dev/null
 trap 'rm -f "$WORK_EARLY"' EXIT
 
 # --- 1. checks --------------------------------------------------------------------------------------------------------
-step "1/7  Checking the Raspberry"
+if [ "$MODE" = install ]; then step "1/7  Checking the Raspberry"; else step "Checking the Raspberry"; fi
 if [ "$(id -u)" = "0" ] && [ -z "${KLIPPEYE_ALLOW_ROOT:-}" ]; then
   stop "Do not run me with sudo or as root: I must run as the normal user (usually 'pi').
           Try again like this:   bash $REPO/scripts/install.sh
@@ -109,6 +139,8 @@ PYTHON="${KLIPPEYE_PYTHON:-$(command -v python3 || true)}"
 [ -n "$PYTHON" ] || stop "Python 3 is not installed. Install it with:  sudo apt install -y python3"
 "$PYTHON" -c 'import sys; sys.exit(0 if sys.version_info >= (3, 7) else 1)' || stop "Python 3.7 or newer is needed (here there is $("$PYTHON" --version 2>&1))."
 good "$("$PYTHON" --version 2>&1) ($PYTHON)"
+# 1.137.0: the checks below are for installing; a broken install must still come off (--undo, --uninstall)
+if [ "$MODE" = install ]; then
 case "$REPO$DATA" in *" "*) stop "Folder names must not contain spaces ($REPO, $DATA)." ;; esac
 [ -f "$REPO/backend/klippeye_backend.py" ] || stop "$REPO/backend/klippeye_backend.py not found: this does not look like the KlippEye folder."
 # What KlippEye needs, as Debian / Raspberry Pi OS packages (the same names on Bullseye, Bookworm and Trixie, and on the printer images built on them):
@@ -169,6 +201,7 @@ else
   note "Install it with:   sudo apt install -y python3-opencv"
 fi
 [ -f "$REPO/frontend/klippeye_frontend.html" ] || warn "$REPO/frontend/klippeye_frontend.html is missing: the backend starts, but the dashboard page does not open."
+fi
 
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/klippeye-install.XXXXXX")" || stop "Cannot create a temporary folder."
 trap 'rm -rf "$WORK"; rm -f "$WORK_EARLY"' EXIT
@@ -247,8 +280,9 @@ install_command() {  # name: writes /usr/local/bin/<name>, which runs the script
 # ====================================================================================================================
 #  --undo
 # ====================================================================================================================
-if [ "$MODE" = "undo" ]; then
-  step "Undoing KlippEye $RELEASE"
+if [ "$MODE" = "undo" ] || [ "$MODE" = "uninstall" ]; then
+  if [ "$MODE" = undo ]; then step "Undoing KlippEye $RELEASE"; else step "Taking KlippEye $RELEASE off"; fi
+  WEB_FAILED=0
   stop_new_units
   good "Services klippeye and klippeye-notifier stopped and removed"
   for name in klippeye klippeye-notifiche; do
@@ -256,7 +290,7 @@ if [ "$MODE" = "undo" ]; then
   done
   good "Commands $BIN_DIR/klippeye and klippeye-notifiche removed"
   if [ -f "${KLIPPEYE_NGINX_DIR:-/etc/nginx}/sites-available/klippeye" ] || [ -f "${KLIPPEYE_NGINX_DIR:-/etc/nginx}/conf.d/klippeye.conf" ]; then
-    if out="$(sudo_run "$PYTHON" "$REPO/scripts/web_front.py" restore 2>&1)"; then good "The Raspberry's own address: $out"; else warn "$out"; fi
+    if out="$(sudo_run "$PYTHON" "$REPO/scripts/web_front.py" restore 2>&1)"; then good "The Raspberry's own address: $out"; else warn "$out"; WEB_FAILED=1; fi
   fi
   if [ "$WITH_MOONRAKER" = 1 ]; then
     conf="$PRINTER_DATA/config/moonraker.conf"; asvc="$PRINTER_DATA/moonraker.asvc"
@@ -288,10 +322,127 @@ PY
     else
       sudo_run "$SYSTEMCTL" restart "$MOONRAKER_SERVICE" && good "Moonraker restarted"
     fi
+  else
+    note "--no-moonraker: the entry [update_manager klippeye] stays in moonraker.conf; remove it by hand if you want."
+  fi
+  if [ "$MODE" = undo ]; then
+    say ""
+    say "Done. The program folder ($REPO) and the data folder ($DATA) stayed where they are:"
+    say "delete them by hand if you no longer need them, or run:  bash $REPO/scripts/install.sh --uninstall"
+    exit 0
+  fi
+  # 1.137.0: the printer functions' macros (backend/printer_macros.py): klippeye_macros.cfg next to printer.cfg and its
+  # include. Klipper is never restarted here; while printing both stay (Klipper reads them only at its next start).
+  step "Printer functions (klippeye_macros.cfg)"
+  cfg_dir="$PRINTER_DATA/config"; printer_cfg="$cfg_dir/printer.cfg"; macros_cfg="$cfg_dir/klippeye_macros.cfg"
+  include_re='^[[:space:]]*\[include[[:space:]]+klippeye_macros\.cfg[[:space:]]*\]'
+  if ! [ -f "$macros_cfg" ] && ! { [ -f "$printer_cfg" ] && grep -Eq "$include_re" "$printer_cfg"; }; then
+    note "None written by KlippEye."
+  elif is_printing; then
+    warn "Printing: $macros_cfg and its line [include klippeye_macros.cfg] in printer.cfg stay."
+    note "After the print remove that line from printer.cfg, delete klippeye_macros.cfg and restart Klipper."
+  else
+    removed=1
+    if [ -f "$printer_cfg" ] && grep -Eq "$include_re" "$printer_cfg"; then
+      backup_file "$printer_cfg" printer.cfg
+      if "$PYTHON" - "$printer_cfg" <<'PY'
+import os, re, sys
+p = os.path.realpath(sys.argv[1])   # a printer.cfg linked into a git folder: change the real file, keep the link
+mode = os.stat(p).st_mode & 0o777
+text = open(p, encoding="utf-8").read()
+text = re.sub(r"\n?# KlippEye \(Settings -> Printer functions\)\n(?=[ \t]*\[include\s+klippeye_macros\.cfg\s*\])", "\n", text)
+text = re.sub(r"(?m)^[ \t]*\[include\s+klippeye_macros\.cfg\s*\][ \t]*\n?", "", text)
+tmp = p + ".klippeye-tmp"
+with open(tmp, "w", encoding="utf-8") as f:
+    f.write(text)
+os.chmod(tmp, mode)
+os.replace(tmp, p)
+PY
+      then good "Line [include klippeye_macros.cfg] removed from printer.cfg"; else warn "Cannot change $printer_cfg"; removed=0; fi
+    fi
+    # an include left in another file (not printer.cfg) would stop Klipper at its next start if the file went
+    if [ "$removed" = 1 ] && grep -RElq --include='*.cfg' "$include_re" "$cfg_dir" 2>/dev/null; then
+      warn "Another file of the configuration still includes klippeye_macros.cfg: the file stays."
+      note "Remove that [include klippeye_macros.cfg] line, then delete klippeye_macros.cfg and restart Klipper."
+      removed=0
+    fi
+    if [ "$removed" = 1 ] && [ -f "$macros_cfg" ]; then
+      backup_file "$macros_cfg" klippeye_macros.cfg
+      rm -f "$macros_cfg" && good "klippeye_macros.cfg deleted"
+    fi
+    [ "$removed" = 1 ] && note "Klipper is not restarted: restart it when you can, and the macros are gone."
+  fi
+
+  # 1.137.0: then the folders, after a yes
+  step "Folders"
+  if [ "$WEB_FAILED" = 1 ]; then
+    warn "Port 80 could not be given back to the previous page, so both folders are kept: the program folder holds the tool for it."
+    note "When nginx works again run:  bash $REPO/scripts/install.sh --uninstall"
+    exit 1
+  fi
+  strip_slash() { local p="$1"; while [ "$p" != / ] && [ "${p%/}" != "$p" ]; do p="${p%/}"; done; printf '%s' "$p"; }
+  REPO="$(strip_slash "$REPO")"; DATA="$(strip_slash "$DATA")"
+  real() { (cd "$1" 2>/dev/null && pwd -P); }
+  inside() { case "$1/" in "$2"/*) return 0 ;; *) return 1 ;; esac; }   # real path $1 is $2 or inside it
+  may_delete() {  # folder program|data -> 0 when it may be deleted (else it says why)
+    local r
+    if [ -L "$1" ]; then note "$1 is a link to $(readlink -f "$1"): kept. Delete what it points to by hand if you want."; return 1; fi
+    [ -d "$1" ] || { note "No folder at $1"; return 1; }
+    r="$(real "$1")"
+    if [ -z "$r" ] || [ "$r" = / ] || [ "$r" = "$(real "$HOME")" ] || inside "$(real "$HOME")" "$r"; then warn "$1 is not a folder to delete: kept."; return 1; fi
+    if [ "$2" = program ]; then [ -f "$r/backend/klippeye_backend.py" ] && return 0
+    else case "$(basename "$r")" in klippeye|klippeye_data) return 0 ;; esac; fi
+    warn "$1 does not look like KlippEye's $2 folder: kept."; return 1
+  }
+  remove_folder() { rm -rf "$1" 2>/dev/null || sudo_run rm -rf "$1"; [ ! -e "$1" ]; }
+  DEL_REPO=0; DEL_DATA=0; DATA_GOES=0
+  may_delete "$REPO" program && DEL_REPO=1
+  RR="$(real "$REPO")"; RD="$(real "$DATA")"
+  DATA_IN_REPO=0; [ -n "$RD" ] && [ -n "$RR" ] && inside "$RD" "$RR" && DATA_IN_REPO=1
+  if [ "$DATA_IN_REPO" = 1 ]; then
+    if [ "$KEEP_DATA" = 1 ]; then
+      [ "$DEL_REPO" = 1 ] && note "The data folder $DATA is inside the program folder: the program folder is kept too."
+      DEL_REPO=0
+    elif [ "$DEL_REPO" = 1 ]; then
+      DATA_GOES=1; note "The data folder $DATA is inside the program folder: it goes with it."
+    fi
+  elif [ "$KEEP_DATA" = 0 ] && may_delete "$DATA" data; then
+    DEL_DATA=1; DATA_GOES=1
+  fi
+  what=""; paths=""
+  [ "$DEL_REPO" = 1 ] && { what="the program folder $REPO"; paths="$(printf ' %q' "$REPO")"; }
+  [ "$DEL_DATA" = 1 ] && { what="${what:+$what and }the data folder $DATA (settings, recordings, labels)"; paths="$paths$(printf ' %q' "$DATA")"; }
+  [ "$DATA_GOES" = 1 ] && [ "$DEL_DATA" = 0 ] && what="$what, with the data folder in it (settings, recordings, labels)"
+  [ "$KEEP_DATA" = 1 ] && note "Data folder kept: $DATA"
+  if [ -z "$what" ]; then
+    say ""; say "Done. No folder to delete."; exit 0
+  fi
+  answer=no
+  if [ "$YES" = 1 ]; then answer=yes
+  elif [ -t 0 ]; then read -r -p "   Delete $what? Type yes to delete: " answer || answer=no
+  else note "No terminal to ask on and no --yes: folders not deleted."
+  fi
+  if [ "$answer" != yes ]; then
+    note "Kept: $what."
+    note "To delete:  rm -rf$paths"
+    exit 0
+  fi
+  if [ "$DATA_GOES" = 1 ] && [ -d "$DATA/backup" ]; then   # the copies of the files KlippEye changed outlive the data folder
+    if [ -d "$PRINTER_DATA" ] && ! inside "$(real "$PRINTER_DATA")" "$RD"; then keep_bk="$PRINTER_DATA"; else keep_bk="$HOME"; fi
+    keep_bk="$keep_bk/klippeye-backup-$(date +%Y%m%d-%H%M%S)"
+    if mv "$DATA/backup" "$keep_bk" 2>/dev/null || sudo_run mv "$DATA/backup" "$keep_bk"; then good "Backup copies of the changed files moved to $keep_bk"
+    else warn "Cannot move $DATA/backup: folders kept."; exit 1; fi
+  fi
+  if [ "$DEL_DATA" = 1 ]; then
+    if remove_folder "$DATA"; then good "Data folder deleted: $DATA"; else warn "Cannot delete $DATA"; fi
+  fi
+  if [ "$DEL_REPO" = 1 ]; then
+    if [ ! -e "$REPO" ]; then good "Program folder deleted with the data folder: $REPO"
+    elif remove_folder "$REPO"; then good "Program folder deleted: $REPO"
+    else warn "Cannot delete $REPO"; fi
   fi
   say ""
-  say "Done. The program folder ($REPO) and the data folder ($DATA) stayed where they are:"
-  say "delete them by hand if you no longer need them."
+  say "Done. KlippEye is off this Raspberry. The system packages it used (python3-flask, python3-opencv...) stay: other programs may need them."
   exit 0
 fi
 
@@ -498,9 +649,34 @@ fi
 step "6/7  KlippEye at the Raspberry's own address (no port)"
 WEB_MAIN=0
 NGINX_DIR="${KLIPPEYE_NGINX_DIR:-/etc/nginx}"
+# 1.137.0: is KlippEye's site in place now (web_front.py status, readable without root)
+WEB_NOW=0
+"$PYTHON" "$REPO/scripts/web_front.py" status 2>/dev/null | "$PYTHON" -c 'import json,sys; sys.exit(0 if json.load(sys.stdin).get("main") else 1)' 2>/dev/null && WEB_NOW=1
+NGINX_UP=0
+[ -d "$NGINX_DIR" ] && sudo_run "$SYSTEMCTL" is-active nginx >/dev/null 2>&1 && NGINX_UP=1
+if [ "$WEB_GIVEN" = 0 ]; then
+  # no option: a re-run keeps what is in place, a first install makes KlippEye the main page
+  if [ "$FIRST_INSTALL" = 1 ]; then WITH_WEB=1; else WITH_WEB="$WEB_NOW"; fi
+  if [ "$NGINX_UP" = 1 ] && [ -t 0 ] && [ -t 1 ]; then
+    if [ "$WITH_WEB" = 1 ]; then hint="[Y/n]"; else hint="[y/N]"; fi
+    while :; do
+      answer=""
+      read -r -p "   Make KlippEye the Raspberry's main page (http://IP, without :8085)? $hint " answer || answer=""
+      case "$(printf '%s' "$answer" | tr '[:upper:]' '[:lower:]')" in
+        "") break ;;
+        y|yes|s|si|sì) WITH_WEB=1; break ;;
+        n|no) WITH_WEB=0; break ;;
+        *) say "   Please answer y or n." ;;
+      esac
+    done
+  fi
+fi
 if [ "$WITH_WEB" = 0 ]; then
-  note "Skipped (--no-web): the dashboard stays at port 8085."
-elif [ ! -d "$NGINX_DIR" ] || ! sudo_run "$SYSTEMCTL" is-active nginx >/dev/null 2>&1; then
+  if [ "$WEB_NOW" = 1 ]; then
+    if out="$(sudo_run "$PYTHON" "$REPO/scripts/web_front.py" restore 2>&1)"; then good "Port 80 given back: $out"; else warn "$out"; fi
+  fi
+  note "KlippEye is a second page: the dashboard is at port 8085."
+elif [ "$NGINX_UP" = 0 ]; then
   note "nginx is not running on this Raspberry: the dashboard stays at port 8085."
 else
   web_args=()
@@ -509,7 +685,7 @@ else
   fi
   if out="$(sudo_run "$PYTHON" "$REPO/scripts/web_front.py" main "${web_args[@]}" 2>&1)"; then
     good "$out"; WEB_MAIN=1
-    note "To give the address back to the previous page:  klippeye web restore"
+    note "To make KlippEye a second page again:  bash $REPO/scripts/install.sh --no-web   (or: klippeye web restore)"
   else
     warn "$out"
     note "The dashboard stays at port 8085."
