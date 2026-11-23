@@ -10,7 +10,7 @@ small logistic regression on those numbers, trained in a few seconds on this pri
   - the examples imported from another printer (export / import below).
 1.125: a small copy of every picture that became an example (personal/kept/) is kept apart, with its label: deleting
 recordings, or the oldest answers going (the last 60 prints are kept), does not take examples away (keep_examples()).
-Its score is blended with the base model's, more as the examples grow (BLEND_MAX at most): the base model keeps its say.
+Its score is blended with the base model's at weight BLEND: the base model keeps its say.
 
 On disk, in <data>/personal/:
     cache.npz       the embeddings already computed {key -> vector} for one base model version (computed again when the
@@ -36,8 +36,8 @@ import labelled_prints
 FAILED_AFTER = labelled_prints.FAILED_AFTER   # seconds after the person's moment from which the pictures show the failure
 OK_EVERY = 4            # of a fine recording, one picture in OK_EVERY
 MIN_FAILED, MIN_FINE = 5, 20   # fewer examples than these: no layer (the base model alone)
-BLEND_MIN, BLEND_MAX = 0.25, 0.6   # the personal layer's weight in the final score: from MIN_FAILED failed examples ...
-BLEND_FULL_AT = 60                 # ... up to this many, where it is the most
+BLEND = 0.25    # 1.134.3: the personal layer's weight in the final score (it was 0.25 growing to 0.6): measured on judged
+                # recordings, at 0.4 and more the monitor stopped asking about real failures
 MAX_EXAMPLES = 3000     # at most this many in one training (every failed one, the fine ones evenly picked): the first
                         # training of a Raspberry 4 with many recordings takes a minute or two, the next ones a few seconds
 EXPORT_MAX = 600        # pictures in an export (the failed ones first, then the fine ones)
@@ -172,10 +172,7 @@ def _imported(data_dir):
 
 def weight_for(failed):
     """The personal layer's weight in the final score for this many failed examples (0 below MIN_FAILED)."""
-    if failed < MIN_FAILED:
-        return 0.0
-    share = min(1.0, (failed - MIN_FAILED) / float(BLEND_FULL_AT - MIN_FAILED))
-    return round(BLEND_MIN + (BLEND_MAX - BLEND_MIN) * share, 3)
+    return BLEND if failed >= MIN_FAILED else 0.0
 
 
 def fit(np, x, y, l2=1e-3, steps=400, lr=0.5):

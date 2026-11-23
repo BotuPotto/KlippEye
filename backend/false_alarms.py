@@ -7,7 +7,7 @@ from labelled prints, but needs failed ones too. This memory needs only the fals
 
   - the person marks an alarm «false» (print card or alarm list): the picture's embedding (how the model describes it,
     1024 numbers) is kept, with the model's score, until the person forgets it or marks the alarm «right» again;
-  - the online AI answers «fine» to a question the local model asked (or took part in): kept for ONLINE_HOURS.
+  - the online AI answers «fine» to a question the local model asked (or took part in): kept for ONLINE_MINUTES.
 
 At every look, a picture whose embedding is close to a kept one (cosine >= SIM) and whose score is not much higher than
 that one's (at most MARGIN points more) is a known false alarm: the look does not count as a doubt or as sure (no alarm,
@@ -28,7 +28,8 @@ import atomic
 
 SIM = 0.92           # this close (cosine of the embeddings) is the same scene
 MARGIN = 15.0        # ... and up to this many points higher than the kept score is the same false alarm
-ONLINE_HOURS = 6     # an online «fine» is kept this long (the scene of one print); the person's until forgotten
+ONLINE_MINUTES = 10  # 1.134.3: an online «fine» is kept this long (it was 6 h: a failure that looked like the scene went
+                     # unseen); the person's until forgotten
 MAX_KEPT = 300       # the oldest go first
 PICTURE_WIDTH = 320  # the small copy of a picture the person marked
 
@@ -111,7 +112,7 @@ class FalseAlarms:
                 pass
         now = time.time() if now is None else now
         item = {"key": str(key), "source": source, "score": round(float(score), 1), "at": round(now), "model": model,
-                "until": round(now + ONLINE_HOURS * 3600) if source == "online" else None}
+                "until": round(now + ONLINE_MINUTES * 60) if source == "online" else None}
         with self.lock:
             self._expire(now)
             if self.items:   # the same alarm again: replaced

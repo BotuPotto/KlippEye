@@ -100,9 +100,10 @@ warm-up seconds, minimum progress, hotend at temperature), one check every `chec
 4. **Personal layer** (`personal_layer.py`, optional `personal_learning`): logistic layer on the embeddings, trained on
    the owner's answers to «How did the print go?» and labelled recordings; copies of the examples kept apart
    (`personal/kept/`, at most 4000, deleting recordings loses nothing); trained again when the model or the view
-   changes (`personal_stale`, `personal_view` = the bed at height 0); blended with the base score.
+   changes (`personal_stale`, `personal_view` = the bed at height 0); blended with the base score at weight `BLEND`
+   0.25 (1.134.3; it grew to 0.6 before, and at 0.4+ the monitor stopped asking about real failures).
 5. **False-alarm memory** (`false_alarms.py`): alarms marked «false» (until forgotten) and scenes the online AI called
-   fine **from the start** (6 h; a stop not confirmed is never learned). Keyed by `memory_version()` (model version +
+   fine **from the start** (10 min since 1.134.3, 6 h before; a stop not confirmed is never learned). Keyed by `memory_version()` (model version +
    view): refreshed after a new model or a calibration change (`_view_changed`).
 6. **Online AI** (`call_ai_analysis`): the chain of services (`ai_services.py`: Groq, Gemini, OpenAI, Anthropic, Mistral,
    OpenRouter, Meta, Together, Fireworks, any OpenAI-compatible «custom»; backups, per-service quotas/429), prompt `build_ai_prompt` (neutral, says what is and is not a problem, «when in
@@ -317,7 +318,7 @@ keeps it readable).
   PR yet. `--paste 0.2` gives ~660 + 660 pictures (20% of ~3,300 whole fine pictures).
 - **The data is ready** (17 Nov, CPU run): `MyDrive/klippeye-training/prepared.zip` in the owner's Google Drive (7.3 GB,
   `ml/data` + `ml/work`, manifest paths relative; 47,972 pictures: 28,234 failed / 19,738 fine, 658 pasted failures +
-  658 clean pieces, 4,403 look-alikes). Do **not** redo steps 4–5 of section 7. On 17 Nov Colab gave a GPU only in the evening.
+  658 clean pieces, 4,403 look-alikes). Do **not** redo steps 4–5 of section 7. On 17 Nov Colab gave a GPU only in the evening, on 18 Nov none.
 - Resume with a T4: Escape, ctrl+shift+p, «tipo di runtime», T4, «Salva», run a cell. Allocation can take minutes. If
   «Nessun backend con GPU disponibile» / «Impossibile connettere al backend GPU» appears, press «Annulla» / «Chiudi»,
   never «Connetti» / «Connetti senza GPU» (that is a CPU runtime). Retry every ~3 h (`send_later`). With a GPU, one-line
@@ -334,6 +335,21 @@ keeps it readable).
   Close the Colab tab whenever nothing runs (the owner's request: an idle page wastes the free quota).
   Measure with `C:\Users\coroz\Downloads\klippeye-data.zip` (section 6). Afterwards tell the owner he can delete
   `klippeye-training` from Drive.
+- **18 Nov: trained on Kaggle, not shipped.** Colab gave no GPU (daily limit) so `ml/KlippEye_kaggle.ipynb` (branch
+  `paste-failures`; «Save & Run All» runs in the background up to 12 h, 30 GPU h a week, T4 x2, 55 min for 15 epochs)
+  trained from `prepared.zip` (Drive id in the notebook's first cell, typed in Kaggle, never committed). Model
+  20261118-1834 on the owner's 14 prints, bed box: «monitor» row 0 false asks in 3.7 h but **2 of 5** failures caught
+  (base 20261116-1408: 0.27/h, 3 of 5); at its own threshold 2 of 5 (base 4 of 5). Worse, so `models/base` stays.
+  On the larger set `klippeye-misura.zip` (owner's Downloads, split zip, join with `zip -s 0`; 38 labelled prints,
+  16 failed, 11.9 h of fine prints) with the calibration's bed box `0,0.368,1,0.632` (the monitor's real view; the
+  0.15,… box above is older): the two curves are about the same. Base: 0.95 → 0.42/h, 6 of 16; 0.90 → 3.8/h, 8;
+  0.86 → 9.0/h, 9; «monitor» 6.1/h, 7 of 16. New: 0.95 → 0.6/h, 5; 0.80 → 4.7/h, 8; 0.70 → 8.7/h, 11; «monitor»
+  1.0/h, 5 of 16. No clear gain, and the pasted pieces are wrong, so not shipped.
+  Why: the contact sheet shows the pasted pieces are **round patches** cut around the boxes, often not spaghetti at
+  all (black or white discs, pieces of another scene): the model learns «a foreign round patch», which never happens
+  on a real printer. Next try: paste only the spaghetti's own pixels (a mask from the colour/edges inside the box, or
+  skip boxes whose patch does not look like strands), check the sheet **before** training, then train on Kaggle again.
+  Colab's own rule: no second account to get round its limits (FAQ), Kaggle is a separate service and is fine.
 - **Next**: train (section 7) → measure against `models/base` on the owner's recordings → look at the contact sheet
   (pasted pieces must not look fake) → ship only if better (new `models/base/*`, `CREDITS.md`, measurements in
   `models/base/README.md`, CHANGELOG). Few pasted pictures → raise `--paste`. Distillation only if not enough.
@@ -341,16 +357,17 @@ keeps it readable).
 - Known limit (audit 17 Nov): `ml/train.py` picks the epoch, the temperature and the threshold on the same pictures
   kept aside, and writes its «measured» from them too: optimistic. Only `ml/evaluate.py` on the owner's prints decides.
 
-### Online AI calls and the owner's false alarms (18 Nov, waiting for the retrained model)
+### Online AI calls and the owner's false alarms (18 Nov)
 - The owner's close fisheye: the base model scores fine prints 80–90 on the «bed» view (empty bed at the start already
   66–92; the front of the bed alone 7–29): the view's edges (frame rails, gantry, the calibrated outline wider than the
   plate) fool it. Rejected after measuring on 19 judged recordings: covering the toolhead/gantry (inpaint, grey, black,
   bed colour, history background: false asks 6.1 → 12.2/h), a view cut to the objects' area + 20/40 mm (worse: the
   toolhead fills the crop), a per-print relative threshold (no gain), a heavier model on the phone (same unfamiliar scene).
-- **Approved, not started** (the owner asked to wait for the retrained base model, then re-measure first):
+- **Done in 1.134.3** (the retrained model of 18 Nov was worse and not shipped, so the simulation on `models/base` stood):
   `docs/superpowers/specs/2026-11-18-online-calls-design.md` and `docs/superpowers/plans/2026-11-18-online-calls.md`:
   `BLEND_MAX` 0.6 → 0.25 (personal layer; at 0.4+ the monitor went blind), online «fine» kept 10 min instead of 6 h.
-  Simulated: 2.3–3.3 false online calls/h, failures asked about in ~100 s (today 4.7/h, 312 s). Release 1.134.3 then.
+  Simulated: 2.3–3.3 false online calls/h, failures asked about in ~100 s (before 4.7/h, 312 s). Re-run the simulation
+  with any new base model (it needs the owner's data, below).
 - The simulation needs the owner's data again (the session's scratchpad is gone): on the Pi
   `cd ~/printer_data/klippeye && zip -r -s 25m ~/klippeye-misura.zip camera.json machine_shape.json recordings reviews`,
   uploaded in parts (30 MB limit). Bed box from the calibration then: `0,0.368,1,0.632`. `recordings/*/session.json`
