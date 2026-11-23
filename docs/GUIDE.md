@@ -23,11 +23,10 @@ The pictures show the dashboard with demo data. *Questa guida c'è anche in ital
 11. [Home Assistant and MQTT](#11-home-assistant-and-mqtt)
 12. [More than one printer](#12-more-than-one-printer)
 13. [When something goes wrong](#13-when-something-goes-wrong)
-14. [Questions people ask](#14-questions-people-ask)
+14. [FAQ](#14-faq)
 15. [Removing KlippEye](#15-removing-klippeye)
 
-Appendices: [A. Building your own Android app](#a-building-your-own-android-app) ·
-[B. Where KlippEye keeps its files](#b-where-klippeye-keeps-its-files) · [C. Terminal commands](#c-terminal-commands)
+Appendices: [A. Where KlippEye keeps its files](#a-where-klippeye-keeps-its-files) · [B. Terminal commands](#b-terminal-commands)
 
 ## 1. Before you start
 
@@ -194,9 +193,14 @@ Forget the false alarms it learned** forgets them all.
 real print starts. What appeared outside the parts (a purge line, also an adaptive one next to the print area, a blob)
 is covered with the empty bed before the local model looks, and OpenCV ignores it.
 
+**It waits for the real print.** The monitor starts checking only when the nozzle is at its temperature, the print has
+progressed at least 2% and 90 seconds have passed since it began. The heating, the mesh and a purge line in your start
+G-code come before that, so they are not judged. If your start G-code is long, raise **Wait after the print starts** and
+**Minimum progress** (**Fine adjustments → When it starts checking**).
+
 What happens next depends on your choice in **Settings → AI monitor → The AI service → Who judges the pictures**:
 
-- **Online AI and local model** (the usual choice): when the local model has a doubt, or is sure there is a problem, the
+- **Online AI and local model** (recommended): when the local model has a doubt, or is sure there is a problem, the
   picture goes to an online AI (Google Gemini, Groq, OpenAI and others) that gives the final word. It is more precise,
   and with a free key it costs nothing. Only the pictures of an alarm are sent, never the whole print.
 - **Local model only**: no picture leaves the Raspberry. The local model decides alone: when it is sure for three looks in a
@@ -253,7 +257,7 @@ the alarm and helps measure the monitor.
 **Settings → AI monitor → Monitor thresholds** starts with one choice that moves OpenCV and the local model together:
 
 - **Few false alarms**: only clear problems, a small defect may be noticed late;
-- **Balanced**: the usual values;
+- **Balanced** (recommended): a good balance between noticing problems early and avoiding false alarms;
 - **Notices more**: problems are noticed sooner, with more false alarms (the online AI, when used, filters many).
 
 Each number is under **Fine adjustments**, grouped by what it does. Change one by hand and the choice shows *Custom*;
@@ -493,7 +497,7 @@ printer's configuration are never touched. `klippeye repair log` tells you what 
 If you change the program files by hand on purpose, first create the file `~/printer_data/klippeye/no-repair`, otherwise the
 repair puts them back.
 
-## 14. Questions people ask
+## 14. FAQ
 
 **Does it replace my current Klipper interface?** No, unless you want it to. KlippEye works next to it: same Klipper, same
 Moonraker, same files. Both can stay open at the same time.
@@ -513,7 +517,7 @@ you.
 
 **Will it slow down my prints?** The monitor runs at low priority and Klipper comes first; it uses at most 2 cores at once
 and always leaves one free. On older Raspberry Pis (3 or Zero 2), `klippeye benchmark` tells you whether there is room to
-spare; `klippeye benchmark --models download` also times the networks that could replace the local model.
+spare.
 
 **iPhone?** The dashboard works in Safari, and notifications arrive through the ntfy app. The KlippEye app is Android only.
 
@@ -530,28 +534,7 @@ It removes the services, the `klippeye` command and the entry in Moonraker's upd
 `~/printer_data/klippeye` by hand if you want them gone too. If KlippEye had taken the Raspberry's main address, the page
 that was there gets it back.
 
-## A. Building your own Android app
-
-You need this only if you change the app yourself. The app published with KlippEye is already built and signed.
-
-GitHub builds the app for free in public repositories:
-
-1. Fork the repository on GitHub and install KlippEye from your fork
-   (`git clone https://github.com/<you>/KlippEye.git ~/klippeye`).
-2. Signing key password. Android updates an app only if it is signed with the same key. GitHub creates the key the
-   first time and encrypts it with a password you choose: in your repository go to **Settings → Secrets and variables →
-   Actions → New repository secret**, name **`KLIPPEYE_CHIAVE_PASSWORD`**, value a long sentence (at least 16 characters, on
-   one line). Keep it somewhere safe.
-3. **Settings → Actions → General → Workflow permissions → Read and write permissions**, so that the workflow can save the
-   app in `apk/`.
-4. **Actions → Android app → Run workflow.** After 5 to 10 minutes the app is in `apk/`. Update KlippEye from the dashboard
-   and install the app from *Settings → Updates → Android app* (uninstall first an app signed with a different key).
-5. **A new version of the app**: raise the number in `android/VERSION` (for example `1.8.1`); GitHub builds it by itself.
-
-When the workflow stops, it explains why in plain words (a missing secret, a short password, a different key…). Technical
-details: [android/README.md](../android/README.md).
-
-## B. Where KlippEye keeps its files
+## A. Where KlippEye keeps its files
 
 | Where | What |
 |---|---|
@@ -572,7 +555,7 @@ channel: stable
 managed_services: klippeye
 ```
 
-## C. Terminal commands
+## B. Terminal commands
 
 Type them on the Raspberry. You won't need them often: everyday things happen in the dashboard.
 

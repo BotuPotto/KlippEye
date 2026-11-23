@@ -4,7 +4,7 @@ name: Android app
 # The Raspberry receives it with KlippEye's normal update, and the dashboard (Settings → Updates → Android app) offers it
 # to the phone. It starts by itself when something changes in android/ AND the number in android/VERSION is new, or by
 # hand from Actions → Android app → Run workflow.
-# What is needed and how: docs/GUIDE.md, «Building your own Android app». The real steps are in ci/app_ci.py (tested apart).
+# What is needed and how: android/README.md, «How the APK is made». The real steps are in ci/app_ci.py (tested apart).
 
 on:
   push:

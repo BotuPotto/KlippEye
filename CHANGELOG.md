@@ -1,5 +1,19 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.135.1
+
+- The settings and the guide no longer say «the usual values». They say «recommended» or «default», which is what they
+  mean, in all nine languages.
+- The guide now says when the monitor starts to check: the nozzle at its temperature, 2% of the print done and 90
+  seconds since it began. The heating, the mesh and a purge line in your start G-code come before, so they are not judged.
+  If your start G-code is long, the guide says which two numbers to raise.
+- The picture of an alarm in the guide showed an Italian sentence under English buttons. The sentence now follows the
+  language of the picture. The real monitor already answered in the dashboard's language.
+- The guide no longer has the section on building your own Android app: the published app is already built. The steps
+  for those who fork the project are in `android/README.md`. The questions section is now called FAQ.
+- `klippeye benchmark --models download` is gone: KlippEye uses one model, so there is nothing to compare it with.
+  `klippeye benchmark` still times the model in use and says whether the Raspberry has room to spare.
+
 ## 1.135.0
 
 - A new local model. It was trained on the same public pictures as before, plus the last picture of 43 failed public

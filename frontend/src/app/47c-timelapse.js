@@ -439,7 +439,7 @@ function TimelapseSettingsFields({ timelapse }) {
         h("div", { className: "oui-list timelapse-switches" }, switchRow("autorender", tx("Make the video at the end of the print"), settings.autorender ? null : tx("Off: «Make the video» does it when you want")), switchRow("variable_fps", tx("Frames a second from the length"), tx("Aims at a video length instead of a fixed rate"))),
         settings.variable_fps ? number("targetlength", tx("Video length (s)"), 1, 600) : number("output_framerate", tx("Frames a second"), 1, 120),
         number("duplicatelastframe", tx("Repeat the last frame (times)"), 0, 600, tx("The finished object stays on screen at the end")),
-        number("constant_rate_factor", tx("Quality (CRF)"), 0, 51, tx("Lower: better and bigger; 23 is the usual")),
+        number("constant_rate_factor", tx("Quality (CRF)"), 0, 51, tx("Lower: better quality, bigger file; 23 is the default")),
         h("div", { className: "oui-list timelapse-switches" }, switchRow("previewimage", tx("Preview picture"), tx("The last frame, shown in the list")), switchRow("saveframes", tx("Keep the frames"), tx("A .zip next to the video"))),
         h(
           "button",

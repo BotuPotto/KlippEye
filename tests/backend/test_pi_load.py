@@ -3,8 +3,6 @@ at a lower priority) and the benchmark times the local model and the networks th
 import os
 import subprocess
 import sys
-import tempfile
-import shutil
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(os.path.dirname(HERE))
@@ -42,22 +40,18 @@ code = ("import os, sys; sys.path.insert(0, %r); sys.argv = ['x'];\n"
 out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=30)
 check("a backend installed before (no Nice in its service file) lowers its own priority, once", out.stdout.split() == ["10", "10"], out.stdout + out.stderr)
 
-folder = tempfile.mkdtemp()
-shutil.copy(os.path.join(ROOT, "models", "base", "model.onnx"), os.path.join(folder, "copy.onnx"))
-open(os.path.join(folder, "broken.onnx"), "w").write("not a network")
-cost = benchmark.model_cost(ROOT, folder, rounds=2)
+cost = benchmark.model_cost(ROOT, rounds=2)
 rows = {r["model"]: r for r in cost.get("models", [])}
-check("benchmark: the model in use and each .onnx of the folder, timed with 1 core and with the cores allowed",
-      "in use (MobileNetV3-Small)" in rows and "copy" in rows and set(rows["copy"]["ms"]) == set(cost["threads"]) and 1 in cost["threads"], cost)
+row = rows.get("in use (MobileNetV3-Small)", {})
+check("benchmark: the model in use, timed with 1 core and with the cores allowed",
+      set(row.get("ms", {})) == set(cost["threads"]) and 1 in cost["threads"], cost)
 check("... a check is up to 3 views; its share of one core at the monitor's pace",
-      abs(rows["copy"]["check_ms"] - rows["copy"]["ms"][cost["allowed"]] * 3) < 0.2 and rows["copy"]["core_percent"] > 0, rows.get("copy"))
-check("... a file OpenCV cannot run is said, not a crash", "error" in rows.get("broken", {}), rows.get("broken"))
+      abs(row["check_ms"] - row["ms"][cost["allowed"]] * 3) < 0.2 and row["core_percent"] > 0, row)
 text = "\n".join(benchmark.model_report(cost))
-check("... the report: one line per network", "copy" in text and "OpenCV cannot run it" in text and "per check" in text, text)
+check("... the report: one line per network", "in use" in text and "per check" in text, text)
 heavy = {"system": {"cpu_percent": 10, "memory_mb": 4000, "memory_available_mb": 3000, "temperature_max": 50, "throttled": None},
          "groups": {"KlippEye": {"processes": 1}}, "monitor": {}, "local": {"interval_s": 3.0, "models": [{"model": "big", "check_ms": 1200.0, "core_percent": 40.0}]}}
 check("... a network too heavy for this Raspberry is said in the verdict", any("big" in n for n in benchmark.verdict(heavy)), benchmark.verdict(heavy))
-shutil.rmtree(folder)
 
 print("\n%d FAIL" % len(FAILS) if FAILS else "\nall passed")
 sys.exit(1 if FAILS else 0)

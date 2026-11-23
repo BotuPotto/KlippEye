@@ -105,7 +105,7 @@ def run(browser, lang):
     P.close()
 
     # 4. an alarm of the AI during a print: the print card asks
-    def in_language(route):  # the mock's AI writes in Italian: the verdict in the language of the picture
+    def in_language(route):  # the mock's AI writes in Italian: the verdict in the language of the picture (the real AI answers in the dashboard's)
         answer = route.fetch().json()
         if answer.get("analysis"):
             answer["analysis"]["summary"] = SUMMARY[lang]
@@ -114,10 +114,11 @@ def run(browser, lang):
     mock.set(printing=True, detector_status="scanning", has_analysis=True, analysis_action="PAUSA")
     P = Page(browser, mock, 390, 844, locale=LOCALES[lang])
     P.pg.route("**/webcam/webrtc*", lambda route: route.fulfill(content_type="text/html", body=CAM))
-    P.pg.route("**/api/print/detector/status*", in_language)
+    P.pg.route("**/api/print/last_analysis", in_language)   # the card reads the verdict from here
     P.goto("home", 2600)
     P.pg.wait_for_selector("[data-ai-question]", timeout=10000)
     P.settle(600)
+    P.pg.add_style_tag(content=".bottom-nav { display: none }")   # the floating tab bar would cover the card
     save(shot(P, P.pg.locator("[data-ai-question]")), "ai-alarm", lang)
     P.close()
 

@@ -23,11 +23,10 @@ Le immagini mostrano la dashboard con dati di prova. *This guide is also availab
 11. [Home Assistant e MQTT](#11-home-assistant-e-mqtt)
 12. [Più di una stampante](#12-più-di-una-stampante)
 13. [Quando qualcosa non va](#13-quando-qualcosa-non-va)
-14. [Domande frequenti](#14-domande-frequenti)
+14. [FAQ](#14-faq)
 15. [Togliere KlippEye](#15-togliere-klippeye)
 
-Appendici: [A. Compilare la tua app Android](#a-compilare-la-tua-app-android) ·
-[B. Dove KlippEye tiene i suoi file](#b-dove-klippeye-tiene-i-suoi-file) · [C. Comandi del terminale](#c-comandi-del-terminale)
+Appendici: [A. Dove KlippEye tiene i suoi file](#a-dove-klippeye-tiene-i-suoi-file) · [B. Comandi del terminale](#b-comandi-del-terminale)
 
 ## 1. Prima di cominciare
 
@@ -199,9 +198,14 @@ piatto quando comincia la stampa vera. Quello che è comparso fuori dai pezzi (u
 accanto all'area di stampa, un blob) viene coperto con il piatto vuoto prima che il modello locale guardi, e OpenCV lo
 ignora.
 
+**Aspetta la stampa vera.** Il monitor comincia a controllare solo quando l'ugello è alla sua temperatura, la stampa è
+avanzata almeno del 2% e sono passati 90 secondi dall'inizio. Il riscaldamento, la mesh e una linea di spurgo nello start
+gcode vengono prima, quindi non vengono giudicati. Se il tuo start gcode è lungo, alza **Attesa dopo l'inizio della
+stampa** e **Avanzamento minimo** (**Regolazioni fini → Quando comincia a controllare**).
+
 Cosa succede dopo dipende dalla tua scelta in **Impostazioni → Monitor IA → Il servizio IA → Chi giudica le foto**:
 
-- **IA online e modello locale** (la scelta di partenza): quando il modello locale ha un dubbio, o è sicuro che ci sia un
+- **IA online e modello locale** (consigliato): quando il modello locale ha un dubbio, o è sicuro che ci sia un
   problema, la foto va a un'IA online (Google Gemini, Groq, OpenAI e altre) che dà l'ultima parola. È più precisa, e con
   una chiave gratuita non costa niente. Partono solo le foto di un allarme, mai tutta la stampa.
 - **Solo il modello locale**: nessuna foto esce dal Raspberry. Decide da solo il modello locale: quando è sicuro per tre
@@ -259,7 +263,7 @@ risposta chiude l'allarme e aiuta a misurare il monitor.
 **Impostazioni → Monitor IA → Soglie del monitor** comincia con una scelta che regola insieme OpenCV e il modello locale:
 
 - **Pochi falsi allarmi**: solo problemi chiari, un piccolo difetto può essere notato tardi;
-- **Equilibrato**: i valori di serie;
+- **Equilibrato** (consigliato): un buon equilibrio tra notare presto i problemi ed evitare i falsi allarmi;
 - **Nota di più**: i problemi vengono notati prima, con più falsi allarmi (l'IA online, se la usi, ne filtra molti).
 
 Ogni numero è in **Regolazioni fini**, raggruppato per quello che fa. Se ne cambi uno a mano la scelta diventa
@@ -503,7 +507,7 @@ ripristinato.
 Se cambi a mano i file del programma di proposito, crea prima il file `~/printer_data/klippeye/no-repair`, altrimenti la
 riparazione li rimette com'erano.
 
-## 14. Domande frequenti
+## 14. FAQ
 
 **Sostituisce la mia interfaccia di Klipper?** No, a meno che tu non voglia. KlippEye le lavora accanto: stesso Klipper,
 stesso Moonraker, stessi file. Puoi tenerle aperte tutte e due insieme.
@@ -522,8 +526,7 @@ il modello locale* non esce niente dal Raspberry.
 pagamento li scegli tu.
 
 **Rallenta le stampe?** Il monitor gira a bassa priorità e Klipper ha la precedenza; usa al massimo 2 core alla volta e ne
-lascia sempre uno libero. Sui Raspberry Pi più vecchi (3 o Zero 2), `klippeye benchmark` ti dice se c'è margine;
-`klippeye benchmark --models download` misura anche le reti che potrebbero sostituire il modello locale.
+lascia sempre uno libero. Sui Raspberry Pi più vecchi (3 o Zero 2), `klippeye benchmark` ti dice se c'è margine.
 
 **E l'iPhone?** La dashboard funziona in Safari e le notifiche arrivano con l'app ntfy. L'app KlippEye esiste solo per
 Android.
@@ -541,28 +544,7 @@ Toglie i servizi, il comando `klippeye` e la voce nel gestore degli aggiornament
 `~/printer_data/klippeye` se vuoi eliminare anche quelle. Se KlippEye aveva preso l'indirizzo principale del Raspberry, la
 pagina che c'era prima lo riavrà.
 
-## A. Compilare la tua app Android
-
-Ti serve solo se modifichi l'app tu stesso. L'app pubblicata con KlippEye è già compilata e firmata.
-
-GitHub compila l'app gratis nei repository pubblici:
-
-1. Fai un fork del repository su GitHub e installa KlippEye dal tuo fork
-   (`git clone https://github.com/<tu>/KlippEye.git ~/klippeye`).
-2. La password della chiave di firma. Android aggiorna un'app solo se è firmata con la stessa chiave. GitHub crea la chiave
-   la prima volta e la cifra con una password che scegli tu: nel tuo repository vai in **Settings → Secrets and variables →
-   Actions → New repository secret**, nome **`KLIPPEYE_CHIAVE_PASSWORD`**, valore una frase lunga (almeno 16 caratteri, su
-   una riga). Conservala in un posto sicuro.
-3. **Settings → Actions → General → Workflow permissions → Read and write permissions**, così il workflow può salvare l'app
-   in `apk/`.
-4. **Actions → Android app → Run workflow.** Dopo 5-10 minuti l'app è in `apk/`. Aggiorna KlippEye dalla dashboard e installa
-   l'app da *Impostazioni → Aggiornamenti → App Android* (prima disinstalla un'app firmata con un'altra chiave).
-5. Per una versione nuova dell'app alza il numero in `android/VERSION` (per esempio `1.8.1`); GitHub la compila da solo.
-
-Quando il workflow si ferma, spiega il motivo in parole semplici (un segreto mancante, una password corta, una chiave
-diversa…). Dettagli tecnici, in inglese: [android/README.md](../android/README.md).
-
-## B. Dove KlippEye tiene i suoi file
+## A. Dove KlippEye tiene i suoi file
 
 | Dove | Cosa |
 |---|---|
@@ -583,7 +565,7 @@ channel: stable
 managed_services: klippeye
 ```
 
-## C. Comandi del terminale
+## B. Comandi del terminale
 
 Si scrivono sul Raspberry. Ti serviranno di rado: le cose di tutti i giorni si fanno dalla dashboard. Per abitudine i
 comandi sono in inglese, ma i vecchi nomi italiani (`stato`, `riavvia`, `aggiorna`…) funzionano ancora.

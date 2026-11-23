@@ -111,7 +111,7 @@ function AiPage({ active, menu }) {
             "p",
             { className: cx("set-group__note", confidence > CONFIDENCE_WARN_ABOVE && "fn-warn") },
             confidence > CONFIDENCE_WARN_ABOVE
-              ? tx("High: the AI is rarely this sure, so a failed print may NOT be stopped. 70% is the usual value.")
+              ? tx("High: the AI is rarely this sure, so a failed print may NOT be stopped. 70% is the recommended value.")
               : tx("If the AI suggests to pause or cancel but no defect reaches this, the verdict becomes «continue» and stays in the history in orange. This is the only threshold."),
           ),
         ),

@@ -33,7 +33,7 @@ BUILT_APK = os.path.join("android", "app", "build", "outputs", "apk", "release",
 # and the secret is in the settings of whoever builds the app): renaming them would only break what works.
 KEY_FOLDER = os.path.join("android", "chiave")
 PASSWORD_SECRET = "KLIPPEYE_CHIAVE_PASSWORD"
-GUIDE = "docs/GUIDE.md, «Building your own Android app»"
+GUIDE = "android/README.md, «How the APK is made»"
 MISSING_SECRET = "the secret %s is missing: create it (%s) and then start the «Android app» workflow by hand" % (PASSWORD_SECRET, GUIDE)
 
 

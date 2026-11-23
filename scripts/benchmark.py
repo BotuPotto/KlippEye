@@ -3,18 +3,14 @@
 KlippEye benchmark: how much of the Raspberry KlippEye and the printer's services use, measured for a while.
 
     python3 scripts/benchmark.py [--seconds 30] [--repo DIR] [--json]
-    python3 scripts/benchmark.py --models download     # 1.129: also time the networks that could replace the local model
 
 Run by `klippeye benchmark`. For --seconds it samples, every second, the processor time and the memory of:
 KlippEye (the service and the notifier), Moonraker, Klipper and the camera streamer, and of the whole Raspberry
 (processor, memory, temperature). Then it times the AI monitor's check of one picture on this processor (it needs
 OpenCV, as the monitor does) and says what that costs at the monitor's pace.
 1.129: it also times the local model on this processor (each picture is judged in up to 3 views: the whole picture, the
-part, the place that changed), with 1 core, with the cores KlippEye lets OpenCV use, and with all of them. With --models
-it times other networks too: a folder of .onnx files, or "download" for the candidates KlippEye publishes (random
-weights, only for timing: ml/export_candidates.py), kept in a folder of the data.
-It only READS: nothing is changed, nothing is sent anywhere (--models download only downloads the candidates). Best run
-while a print is going, with the monitor on.
+part, the place that changed), with 1 core, with the cores KlippEye lets OpenCV use, and with all of them.
+It only READS: nothing is changed, nothing is sent anywhere. Best run while a print is going, with the monitor on.
 Standard library only, except OpenCV and NumPy for the monitor part (skipped without them).
 """
 import argparse
@@ -206,35 +202,9 @@ def monitor_cost(repo, rounds=12):
 
 
 LOCAL_VIEWS = 3   # the local model judges up to 3 views of each picture (whole, part, change)
-RELEASES = "https://api.github.com/repos/BotuPotto/KlippEye/releases?per_page=30"
-
-
-def download_candidates(folder):
-    """The candidate networks attached to KlippEye's releases (bench-<name>.onnx), into `folder`. -> the folder."""
-    import urllib.request
-
-    os.makedirs(folder, exist_ok=True)
-    request = urllib.request.Request(RELEASES, headers={"Accept": "application/vnd.github+json", "User-Agent": "klippeye-benchmark"})
-    with urllib.request.urlopen(request, timeout=30) as answer:
-        releases = json.loads(answer.read().decode("utf-8"))
-    for release in releases:
-        assets = [a for a in release.get("assets") or [] if a.get("name", "").startswith("bench-") and a["name"].endswith(".onnx")]
-        if not assets:
-            continue
-        for asset in assets:
-            target = os.path.join(folder, asset["name"][len("bench-"):])
-            if os.path.isfile(target) and os.path.getsize(target) == asset.get("size"):
-                continue
-            sys.stderr.write("Downloading %s (%.1f MB)...\n" % (asset["name"], asset.get("size", 0) / 1048576.0))
-            urllib.request.urlretrieve(asset["browser_download_url"], target + ".part")
-            os.replace(target + ".part", target)
-        return folder
-    raise RuntimeError("no candidate networks published yet")
-
-
-def model_cost(repo, folder=None, rounds=12, interval=3.0):
-    """How long the local model (and each .onnx of `folder`) takes to judge one view here (ms), with 1 core, with the
-    cores KlippEye lets OpenCV use, and with all of them; and what a check costs at the monitor's pace."""
+def model_cost(repo, rounds=12, interval=3.0):
+    """How long the local model takes to judge one view here (ms), with 1 core, with the cores KlippEye lets OpenCV
+    use, and with all of them; and what a check costs at the monitor's pace."""
     try:
         import cv2
         import numpy as np
@@ -250,10 +220,6 @@ def model_cost(repo, folder=None, rounds=12, interval=3.0):
     base = os.path.join(repo, "models", "base", "model.onnx")
     if os.path.isfile(base):
         models.append(("in use (MobileNetV3-Small)", base))
-    if folder:
-        for name in sorted(os.listdir(folder)):
-            if name.endswith(".onnx"):
-                models.append((name[:-5], os.path.join(folder, name)))
     if not models:
         return {"skipped": "no local model here"}
     rng = np.random.default_rng(2)
@@ -365,16 +331,11 @@ def main(argv=None):
     parser.add_argument("--repo", default=os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     parser.add_argument("--json", action="store_true")
     parser.add_argument("--no-monitor", action="store_true", help="do not time the AI monitor's check")
-    parser.add_argument("--models", default="", help='a folder of .onnx networks to time too, or "download" for the candidates')
     parser.add_argument("--model-only", action="store_true", help="only time the local model (no sampling of the services)")
     parser.add_argument("--rounds", type=int, default=12)
     args = parser.parse_args(argv)
-    folder = args.models or None
-    if folder == "download":
-        data = os.environ.get("KLIPPEYE_DATA") or os.path.expanduser("~/printer_data/klippeye")
-        folder = download_candidates(os.path.join(data if os.path.isdir(data) else os.path.expanduser("~"), "bench-models"))
     if args.model_only:
-        cost = model_cost(args.repo, folder, max(1, args.rounds))
+        cost = model_cost(args.repo, max(1, args.rounds))
         print(json.dumps(cost, indent=2) if args.json else "\n".join(model_report(cost)).strip())
         return 0 if not cost.get("skipped") and not any(r.get("error") for r in cost.get("models", [])) else 1
     seconds = max(2.0, min(600.0, args.seconds))
@@ -385,7 +346,7 @@ def main(argv=None):
     if show:
         sys.stderr.write("\r" + " " * 30 + "\r")
     result["monitor"] = None if args.no_monitor else monitor_cost(args.repo)
-    result["local"] = None if args.no_monitor else model_cost(args.repo, folder, max(1, args.rounds))
+    result["local"] = None if args.no_monitor else model_cost(args.repo, max(1, args.rounds))
     result["verdict"] = verdict(result)
     print(json.dumps(result, indent=2) if args.json else report(result))
     return 0

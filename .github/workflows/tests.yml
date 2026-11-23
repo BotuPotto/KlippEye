@@ -83,16 +83,11 @@ jobs:
           pip install -r ml/requirements.txt
       - name: Run the chain
         run: python ml/tests/smoke_train.py
-      - name: The candidate networks export and run in OpenCV (1.129, for scripts/benchmark.py --models)
-        run: |
-          pip install timm
-          python ml/export_candidates.py --out /tmp/candidates
-          python scripts/benchmark.py --models /tmp/candidates --model-only --rounds 3
-      - name: ... and in OpenCV 4.6, the one of Debian Bookworm on the Raspberry
+      - name: The local model runs in OpenCV 4.6, the one of Debian Bookworm on the Raspberry
         run: |
           python -m venv /tmp/cv46
           /tmp/cv46/bin/pip install -q "numpy<2" opencv-python-headless==4.6.0.66
-          /tmp/cv46/bin/python scripts/benchmark.py --models /tmp/candidates --model-only --rounds 2
+          /tmp/cv46/bin/python scripts/benchmark.py --model-only --rounds 2
 
   app:
     name: Android app compiles
