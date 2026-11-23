@@ -317,8 +317,8 @@ keeps it readable).
 ## 8. Topics (status; update at the end of each piece of work)
 
 ### Local model (base model training)
-- `--paste` (public spaghetti on fine pictures + clean bed pieces as counterweight) is on branch `paste-failures`, no
-  PR yet. `--paste 0.2` gives ~660 + 660 pictures (20% of ~3,300 whole fine pictures).
+- `--paste` (public spaghetti on fine pictures + clean bed pieces as counterweight) comes with #182 (branch
+  `paste-failures`) but the shipped model was trained without it (the patches looked fake). `--paste 0.2` gives ~660 + 660 pictures (20% of ~3,300 whole fine pictures).
 - **The data is ready** (17 Nov, CPU run): `MyDrive/klippeye-training/prepared.zip` in the owner's Google Drive (7.3 GB,
   `ml/data` + `ml/work`, manifest paths relative; 47,972 pictures: 28,234 failed / 19,738 fine, 658 pasted failures +
   658 clean pieces, 4,403 look-alikes). Do **not** redo steps 4–5 of section 7. On 17 Nov Colab gave a GPU only in the evening, on 18 Nov none.
@@ -433,4 +433,6 @@ keeps it readable).
   there would hide them until the next print).
 
 ### Open PRs
-#182 (release 1.135.0: the new base model), open 23 Nov; #181 closed (replaced). Update this line when a PR opens or merges.
+#182 (release 1.135.0: the new base model, branch `paste-failures`), open 23 Nov: first CI run failed on
+`ml/tests/smoke_train.py` (the test's reviewed print had the same start as a recording, so `same_print_once` merged
+them), fixed in 31a919c; CI rerunning. Merge it once all green. #181 closed (replaced). Update this line when a PR opens or merges.
