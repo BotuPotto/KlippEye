@@ -156,31 +156,28 @@ with sync_playwright() as p:
     ok("Monitor IA says what it looks at: only the outer band until the camera is calibrated", "Solo la fascia esterna" in body(pg), body(pg)[:400])
     entry = pg.locator('.set-entry[data-page="camcal"]')
     ok("'Monitor IA' has 'Calibrazione della telecamera', 'Non calibrata'", entry.count() == 1 and wait(pg, lambda: "Non calibrata" in entry.inner_text()), entry.inner_text() if entry.count() else "")
+    old = b.camera_cal.saved
     entry.click()
     pg.wait_for_timeout(1200)
     ok("not calibrated: the page says so and offers to calibrate", wait(pg, lambda: "La telecamera non è calibrata" in body(pg)) and pg.locator('[data-start="1"]').count() == 1, body(pg)[:300])
+    b.camera_cal.saved = {"saved": 1, "method": "detail", "quality": "good", "points": {}, "rms_px": 1.0}
+    ok("1.136.0: an old detail calibration says to calibrate again", wait(pg, lambda: "calibra di nuovo con i segni" in body(pg).lower(), 8), body(pg)[:400])
+    pg.click('button[aria-label="Indietro"]')
+    ok("1.136.0: the Settings menu line of an old detail calibration says to calibrate again", wait(pg, lambda: "Metodo vecchio: calibra di nuovo" in entry.inner_text(), 12), entry.inner_text() if entry.count() else "")
+    b.camera_cal.saved = old
+    wait(pg, lambda: "Non calibrata" in entry.inner_text(), 12)
+    entry.click()
+    wait(pg, lambda: "La telecamera non è calibrata" in body(pg), 8)
     pg.click('[data-start="1"]')
     pg.wait_for_timeout(800)
     ok("step 1: how Z moves, guessed from Klipper (Z moves the bed)", "come si muove l'asse z?" in body(pg).lower() and "Dalla configurazione di Klipper sembra: Z muove il piatto." in body(pg), body(pg)[:600])
     pg.screenshot(path=os.path.join(out, "01_kind.png"))
     pg.locator("button", has_text="Avanti").click()
-    # 1.128: Z moves the bed: first offered without printing anything (a detail of the toolhead), markers as the other way
-    method = pg.locator('[role="radiogroup"][aria-label="Come calibrare"]')
-    ok("1.128: 'Come calibrare': a detail of the toolhead chosen by default, with how to choose it", wait(pg, lambda: method.count() == 1)
-       and "Un dettaglio della testina (niente da stampare)" in method.locator('[aria-checked="true"]').inner_text()
-       and pg.locator("[data-detail-help]").count() == 1 and "la testa di una vite" in pg.locator("[data-detail-help]").inner_text(), body(pg)[-900:])
-    ok("... nothing to print: no markers step, 12 points (the tip and the detail at six places)", pg.locator(".cal-target").count() == 12 and "Stampa i segni (consigliato)" not in body(pg)
-       and "Piatto vuoto" in body(pg), body(pg)[-600:])
-    ok("... before any tap: tap the tip and the detail at the first place, then it follows them", "segue da solo" in pg.locator('[data-auto="no-template"]').inner_text())
-    pg.locator('.cal-target[data-target="feat1"]').click()
-    words = pg.locator(".cal-instruction").inner_text()
-    ok("... point 2: tap the detail of the toolhead (with its drawing)", "DETTAGLIO DELLA TESTINA" in words and pg.locator('.cal-instruction-row .cal-hint[aria-label*="dettaglio"]').count() == 1, words)
-    pg.locator('.cal-target[data-target="tip1"]').click()
-    ok("... point 1: the nozzle tip, the bed under it, no marker", "PUNTO PIÙ BASSO DELL'UGELLO" in pg.locator(".cal-instruction").inner_text() and "segno" not in pg.locator(".cal-instruction").inner_text())
-    pg.locator(".drawer").screenshot(path=os.path.join(out, "01b_detail.png"))
-    method.locator("button", has_text="Segni sul piatto").click()
-    ok("1.128: 'Segni sul piatto': the markers' way as before", wait(pg, lambda: b.camera_cal.method() == "markers"))
-    ok("... 'Avanti' keeps it: the markers step, no points yet", wait(pg, lambda: "segni sul piatto" in body(pg).lower() and "Stampa i segni (consigliato)" in body(pg)) and pg.locator(".cal-target").count() == 0, body(pg)[-600:])
+    # 1.136.0: Z moves the bed: only the markers' way; no method step
+    ok("1.136.0: no method step: the markers flow starts", wait(pg, lambda: "Stampa i segni (consigliato)" in body(pg)) and pg.locator('[role="radiogroup"][aria-label="Come calibrare"]').count() == 0
+       and pg.locator("[data-detail-help]").count() == 0 and pg.locator(".cal-target").count() == 0, body(pg)[-900:])
+    ok("1.136.0: no text about a detail of the toolhead on the page", "dettaglio della testina" not in body(pg).lower(), body(pg)[-900:])
+    pg.screenshot(path=os.path.join(out, "01b_markers.png"))
     stl = pg.evaluate("async () => { const r = await fetch('/api/camera/markers.stl'); return [r.status, (await r.arrayBuffer()).byteLength]; }")
     ok("the STL link downloads the six pyramids", pg.locator('[data-stl="1"]').count() == 1 and stl == [200, 84 + 36 * 50], stl)
     ok("the printed file is offered first (its name says markers)", wait(pg, lambda: pg.locator('[data-file="1"]').input_value() == "klippeye-camera-markers_0.2mm_PLA.gcode"), body(pg)[-400:])
@@ -328,6 +325,42 @@ with sync_playwright() as p:
        and abs(b.camera_cal.bed_area()[0][1][0] - (x1 - 5)) < 0.01 and pg.locator('[data-bed-source="person"]').count() == 1), b.camera_cal.bed_area())
     pg.click("[data-bed-auto]")
     ok("... «Work it out again by itself»: back to the travel", wait(pg, lambda: b.camera_cal.bed_area()[1] == "travel" and pg.locator('[data-bed-source="travel"]').count() == 1), b.camera_cal.bed_area())
+    # 1.136.0: the corners of the dashed bed outline can be dragged on the picture
+    ok("1.136.0: four bed corner dots on the live picture of the saved calibration", wait(pg, lambda: pg.locator("[data-bed-corner]").count() == 4)
+       and pg.locator('[data-bed-corner="x1y1"]').get_attribute("aria-label") == "Angolo del piatto", pg.locator("[data-bed-corner]").count())
+    dot = pg.locator('[data-bed-corner="x1y1"]')
+    dot.scroll_into_view_if_needed()
+    pg.wait_for_timeout(400)
+    db = dot.bounding_box()
+    cx_, cy_ = db["x"] + db["width"] / 2, db["y"] + db["height"] / 2
+    with pg.expect_request(lambda r: r.url.endswith("/api/camera/bed_corner") and r.method == "POST") as corner_post:
+        pg.mouse.move(cx_, cy_)
+        pg.mouse.down()
+        for k in range(1, 6):
+            pg.mouse.move(cx_ - 4 * k, cy_ - 4 * k)   # 20 px towards the middle of the bed
+            pg.wait_for_timeout(60)
+        pg.mouse.up()
+    sent = corner_post.value.post_data_json
+    ok("... dragging it 20 px posts the corner and the picture point; the bed is then set by the person", sent.get("corner") == "x1y1" and 0 <= sent.get("u") <= 1
+       and wait(pg, lambda: b.camera_cal.bed_area()[1] == "person" and pg.locator('[data-bed-source="person"]').count() == 1), (sent, b.camera_cal.bed_area()))
+    posts = []
+    pg.on("request", lambda r: posts.append(r.post_data_json) if r.url.endswith("/api/camera/bed_corner") else None)
+    target = pg.locator('[data-bed-corner="x0y1"]').bounding_box()
+    db = dot.bounding_box()
+    cx_, cy_ = db["x"] + db["width"] / 2, db["y"] + db["height"] / 2
+    tx2, ty2 = target["x"] + target["width"] / 2 - 30, target["y"] + target["height"] / 2
+    pg.wait_for_timeout(600)   # past SHAPE_SEND_EVERY_MS since the last drag's send: the first move sends
+    pg.mouse.move(cx_, cy_)
+    pg.mouse.down()
+    for k in (1, 2, 3):   # quick: one send at the start, one on release
+        pg.mouse.move(cx_ + (tx2 - cx_) * k / 3, cy_ + (ty2 - cy_) * k / 3)
+    pg.mouse.up()
+    ok("... dragged over the opposite corner: the release is refused, the reason shown, the bed stays a valid one", wait(pg, lambda: pg.locator("[data-corner-error]").count() == 1)
+       and b.camera_cal.bed_area()[0][1][0] - b.camera_cal.bed_area()[0][0][0] >= 20, (body(pg)[-400:], b.camera_cal.bed_area()))
+    pg.wait_for_timeout(800)
+    ok("... one send on release (two in all for a quick drag), the release's last", len(posts) == 2 and posts[-1]["u"] < posts[0]["u"], posts)
+    pg.click("[data-bed-auto]")
+    wait(pg, lambda: b.camera_cal.bed_area()[1] == "travel")
     pg.click('[data-size="toolhead.below.minus"]')
     ok("'below the nozzle tip' goes down to 0 (not refused) and stops there", wait(pg, lambda: pg.locator('[data-value="toolhead.below"]').inner_text().startswith("0")
        and b.camera_cal.get_shape()["toolhead"]["below"] == 0.0) and pg.locator('[data-size="toolhead.below.minus"]').is_disabled(), b.camera_cal.get_shape()["toolhead"])

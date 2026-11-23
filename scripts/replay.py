@@ -91,7 +91,7 @@ def truth_of(session):
 def load_masks(data_dir):
     """The camera calibration and the shape of the moving parts, when the calibration is good enough. -> dict or None."""
     calibration = read_json(os.path.join(data_dir, "camera.json"))
-    if not isinstance(calibration, dict) or calibration.get("quality") not in ("good", "fair") or not calibration.get("params"):
+    if not isinstance(calibration, dict) or calibration.get("quality") not in ("good", "fair") or not calibration.get("params") or calibration.get("method", "markers") != "markers":   # 1.136.0: as usable()
         return None
     stored = read_json(os.path.join(data_dir, "machine_shape.json"))
     try:

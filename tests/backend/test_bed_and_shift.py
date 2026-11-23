@@ -164,7 +164,58 @@ cc._write_json(cal.path, cal.saved)
 masks = replay.load_masks(data)
 check("1.127: the replay watches the same bed and uses the correction", masks["limits"] == [[10.0, 15.0], [340.0, 335.0]] and masks["calibration"].get("correction") == cal.saved["shift_fix"]["matrix"],
       (masks["limits"], masks["calibration"].get("correction")))
+import json as _json  # noqa: E402
+_good = _json.load(open(os.path.join(data, "camera.json")))
+_json.dump(dict(_good, method="detail"), open(os.path.join(data, "camera.json"), "w"))
+check("1.136.0: the replay ignores a calibration made with the removed detail method", replay.load_masks(data) is None)
+_json.dump(_good, open(os.path.join(data, "camera.json"), "w"))
 check("camera_watch: small and agree", cw.small({"state": "moved", "matrix": [[1, 0, 0], [0, 1, 0]], "shift_px": 10, "rotation_deg": 1}) and not cw.small({"state": "moved", "matrix": [[1, 0, 0], [0, 1, 0]], "shift_px": 90, "rotation_deg": 1}))
+
+# ---- 1.136.0: the corners of the watched bed dragged on the picture
+FROT, FT = look_at(np.array([175.0, -70.0, 110.0]), [175.0, 210.0, -60.0])   # the fisheye of test_calibration_auto.py
+FISH = {"model": "fisheye", "width": W, "height": H, "params": [W / 3.0, W / 2 + 12, H / 2 - 8, 0.02, -0.01] + list(cm.rotation_to_vector(FROT)) + list(FT),
+        "quality": "good", "z_moves": "bed", "rms_px": 3.0, "rms": 0.002, "saved": 1700000000}
+
+
+def back_error(calibration, z):
+    worst = 0.0
+    for x in range(0, 351, 50):
+        for y in range(0, 351, 50):
+            ((u, v),), front = cm.project(calibration, [[x, y, z]])
+            hit = cm.unproject_to_plane(calibration, u, v, z) if front[0] else None
+            worst = max(worst, 1e9 if hit is None else float(np.hypot(hit[0] - x, hit[1] - y)))
+    return worst
+
+
+check("1.136.0: unproject_to_plane is the inverse of project (fisheye, bed at -20 mm), within 1 mm", back_error(FISH, -20.0) < 1.0, back_error(FISH, -20.0))
+check("... pinhole, with the correction of a small move", back_error(dict(SAVED, correction=[[1.01, 0.002, -0.01], [-0.003, 0.99, 0.02]]), 0.0) < 1.0)
+check("... a point above the horizon: None", cm.unproject_to_plane(SAVED, 0.5, -1.0, 0.0) is None)
+check("1.136.0: a fisheye point past 90 degrees is not on the bed", cm.unproject_to_plane(FISH, 0.5, 1.5, -20.0) is None, cm.unproject_to_plane(FISH, 0.5, 1.5, -20.0))
+dc = tempfile.mkdtemp()
+corner_cal = cc.CameraCalibration(dc, query, lambda script: None, lambda: None, cv2, np)
+corner_cal.saved = dict(FISH)
+corner_cal.set_shape({"bed": [[20, 20], [330, 330]]})
+ov = corner_cal.overlay()
+((cu, cv),), _ = cm.project(FISH, [[330.0, 330.0, -20.0]])
+check("1.136.0: the overlay gives the four corners, at the height the bed is drawn", sorted(ov["bed_corners"]) == sorted(cc.BED_CORNERS)
+      and np.allclose(ov["bed_corners"]["x1y1"], [cu, cv], atol=1e-3), ov["bed_corners"])
+((cu, cv),), _ = cm.project(FISH, [[340.0, 330.0, -20.0]])
+area = corner_cal.set_bed_corner("x1y1", cu, cv)
+check("... dragging x1y1 10 mm wider moves X max by 10 mm, the other edges stay", abs(area[1][0] - 340) < 1 and abs(area[1][1] - 330) < 1 and area[0] == [20.0, 20.0]
+      and corner_cal.bed_area() == ((area[0], area[1]), "person"), area)
+((cu, cv),), _ = cm.project(FISH, [[10.0, 330.0, -20.0]])
+try:
+    corner_cal.set_bed_corner("x1y1", cu, cv)
+    crossed = False
+except machine_masks.ShapeError:
+    crossed = True
+check("... over the opposite corner: refused, the bed stays", crossed and corner_cal.bed_area()[0] == (area[0], area[1]), corner_cal.bed_area())
+try:
+    corner_cal.set_bed_corner("x2y2", 0.5, 0.5)
+    unknown = False
+except ValueError as error:
+    unknown = str(error) == "unknown point"
+check("... an unknown corner: refused", unknown)
 
 print("\n%d FAIL" % len(FAILS) if FAILS else "\nall passed")
 sys.exit(1 if FAILS else 0)

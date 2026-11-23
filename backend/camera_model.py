@@ -196,62 +196,6 @@ def fit(points, pixels, width, height):
     return best
 
 
-OFFSET_GUESSES = ([0.0, 0.0, 25.0], [0.0, 0.0, 50.0], [0.0, -25.0, 35.0], [0.0, 25.0, 35.0], [25.0, 0.0, 35.0], [-25.0, 0.0, 35.0])
-MIN_OFFSET_HEIGHT = 8.0   # the detail of the toolhead must be at least this much higher than the nozzle tip
-
-
-def fit_offset(points, pixels, base, base_pixels, width, height):
-    """1.128: the camera from points whose place is known (the nozzle tip: all at one height when Z moves the bed) and
-    points of a detail of the toolhead: always at the same unknown offset d from the nozzle tip (`base`: where the nozzle
-    tip was for each). d is found with the camera. The second height the camera needs comes from the detail, so nothing has
-    to be printed. With points on two parallel planes the centre of the picture cannot be told apart from d: it is taken
-    as the middle of the picture (true for almost every camera to within a few percent).
-    -> the same dict as fit(), plus "offset": d (mm) and "errors_px" for the known points then the detail's."""
-    points, pixels = np.asarray(points, float), np.asarray(pixels, float)
-    base, base_pixels = np.asarray(base, float), np.asarray(base_pixels, float)
-    if len(points) < 4 or len(base) < 4 or len(points) + len(base) < MIN_POINTS:
-        raise ValueError("at least 8 points are needed")
-    cx, cy = width / 2.0, height / 2.0
-    all_pixels = np.vstack([pixels, base_pixels])
-    diag = math.hypot(width, height)
-    best = None
-
-    def unpack(q):
-        return np.r_[q[0], cx, cy, q[1], q[2], q[3:9]], q[9:12]
-
-    for model in MODELS:
-        for f0 in (width / math.pi, width / 2.4, width / 1.6, width / 1.1):
-            for d0 in OFFSET_GUESSES:
-                try:
-                    norm = _unproject_guess(all_pixels, f0, cx, cy, model)
-                    rot, t = _pose_dlt(np.vstack([points, base + d0]), norm)
-                except (ValueError, np.linalg.LinAlgError):
-                    continue
-                q0 = np.r_[f0, 0.0, 0.0, rotation_to_vector(rot), t, d0]
-
-                def residuals(q, model=model):
-                    params, d = unpack(q)
-                    return _residuals(params, np.vstack([points, base + d]), all_pixels, model)
-                q, _ = _levenberg_marquardt(q0, None, None, model, residuals=residuals)
-                params, d = unpack(q)
-                projected, z = project_params(params, np.vstack([points, base + d]), model)
-                if np.any(z <= 0) or params[0] <= 0:
-                    continue
-                err = np.linalg.norm(projected - all_pixels, axis=1)
-                rms = float(np.sqrt(np.mean(err ** 2)))
-                if best is None or rms < best["rms_px"] - 1e-9:
-                    best = {"model": model, "params": [float(x) for x in params], "rms_px": rms, "errors_px": [float(e) for e in err],
-                            "offset": [round(float(v), 2) for v in d]}
-    if best is None:
-        raise ValueError("no camera fits these points: check that each tap is on the nozzle tip")
-    if best["offset"][2] < MIN_OFFSET_HEIGHT:
-        raise ValueError("the detail of the toolhead must be clearly higher than the nozzle tip: choose one higher up")
-    best.update(width=int(width), height=int(height), points=len(points) + len(base), rms=best["rms_px"] / diag,
-                quality="good" if best["rms_px"] / diag <= GOOD_RMS else "fair" if best["rms_px"] / diag <= FAIR_RMS else "poor")
-    best["camera_position"] = [float(x) for x in camera_position(best)]
-    return best
-
-
 def camera_position(calibration):
     """Where the camera is, in the printer's coordinates (mm)."""
     p = np.asarray(calibration["params"], float)
@@ -269,6 +213,51 @@ def project(calibration, points):
         m = np.asarray(correction, float)
         uv = uv @ m[:, :2].T + m[:, 2]
     return uv, z > 0
+
+
+def unproject_to_plane(calibration, u, v, z):
+    """1.136.0: the inverse of `project` on a horizontal plane: the picture point (u, v) (fractions, the same frame as
+    `project` answers in, correction included) -> the machine (X, Y) at height `z` mm where that ray meets it, or None when
+    the ray does not reach the plane in front of the camera (above the horizon, parallel to it)."""
+    uv = np.array([float(u), float(v)])
+    correction = calibration.get("correction")
+    if isinstance(correction, (list, tuple)) and len(correction) == 2:
+        m = np.asarray(correction, float)
+        uv = np.linalg.solve(m[:, :2], uv - m[:, 2])
+    p = np.asarray(calibration["params"], float)
+    f, cx, cy, k1, k2 = p[:5]
+    d = (uv * [calibration["width"], calibration["height"]] - [cx, cy]) / f
+    rd = float(np.hypot(*d))
+    # undo the radial bending: Newton on x (1 + k1 x^2 + k2 x^4) = rd, x = theta (fisheye) or r = tan(theta) (pinhole)
+    x = rd
+    for _ in range(50):
+        g = x * (1 + k1 * x * x + k2 * x ** 4) - rd
+        dg = 1 + 3 * k1 * x * x + 5 * k2 * x ** 4
+        if abs(dg) < 1e-12:
+            return None
+        step = g / dg
+        x -= step
+        if abs(step) < 1e-12:
+            break
+    if x < 0 or abs(x * (1 + k1 * x * x + k2 * x ** 4) - rd) > 1e-6:
+        return None
+    direction = d / rd if rd > 1e-12 else np.zeros(2)
+    if calibration["model"] == "fisheye":
+        if x >= math.pi / 2:   # past 90 degrees the point is behind the camera (project's z <= 0): never on the bed
+            return None
+        ray = np.r_[direction * math.sin(x), math.cos(x)]
+    else:
+        ray = np.r_[direction * x, 1.0]
+    rot = rodrigues(p[5:8])
+    origin = -rot.T @ p[8:11]
+    ray = rot.T @ ray   # camera -> machine coordinates
+    if abs(ray[2]) < 1e-9:
+        return None
+    s = (float(z) - origin[2]) / ray[2]
+    if s <= 0:
+        return None
+    hit = origin + s * ray
+    return float(hit[0]), float(hit[1])
 
 
 def box_corners(x0, x1, y0, y1, z0, z1):

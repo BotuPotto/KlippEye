@@ -4374,9 +4374,9 @@ CAMERA_MESSAGES = (  # what camera_calibration.py and camera_model.py may answer
     btn("Klipper refused the command: {message}"),
     btn("homing could hit the markers on the bed"),
     btn("tap the nozzle by hand at one point first: KlippEye then finds it at the others"), btn("only the nozzle points can be found by themselves"),
-    btn("the method must be detail or markers"),
-    btn("tap the nozzle tip and the detail of the toolhead by hand at the first place: KlippEye then finds both at the others"),
-    btn("the detail of the toolhead must be clearly higher than the nozzle tip: choose one higher up"),
+    btn("the method must be markers"),
+    btn("that point of the picture is not on the bed"),
+    btn("the nozzle tip does not move in the picture when Y moves: the bed moves forward and back (a bed slinger) and the camera is on the frame. These printers are not supported yet"),
 )
 def _gcode_files():
     r = requests.get(f"{MOONRAKER_URL}/server/files/list?root=gcodes", timeout=10)
@@ -4453,8 +4453,8 @@ def api_camera_options():
 
 @app.route("/api/camera/calibration/template/<kind>", methods=["GET"])
 def api_camera_template(kind):
-    """1.128: the small picture of the nozzle tip or of the detail of the toolhead as tapped first (to tap the same again)."""
-    data = camera_cal.template_png("detail" if kind == "detail" else "nozzle")
+    """1.128: the small picture of the nozzle tip as tapped first (to tap the same again)."""
+    data = camera_cal.template_png() if kind == "nozzle" else None
     if not data:
         return jsonify({"ok": False}), 404
     response = Response(data, mimetype="image/png")
@@ -4704,6 +4704,14 @@ def api_camera_shape():
     """The size of the toolhead and of the gantry around the nozzle (mm): {"toolhead": {left, right, front, back, top, below},
     "gantry": {on, behind, depth, low, high}}; the values not given stay. The masks of the monitor use it at once."""
     return _camera_call(lambda: {"shape": camera_cal.set_shape(_camera_body())})
+
+
+@app.route("/api/camera/bed_corner", methods=["POST"])
+def api_camera_bed_corner():
+    """1.136.0: {"corner": "x0y0" | "x1y0" | "x1y1" | "x0y1", "u", "v"}: a corner of the watched bed dragged on the live
+    picture (fractions of the camera's own picture); the other two edges stay."""
+    body = _camera_body()
+    return _camera_call(lambda: {"bed": camera_cal.set_bed_corner(body.get("corner"), body.get("u"), body.get("v"))})
 
 
 @app.route("/api/camera/calibration/correction", methods=["POST"])
