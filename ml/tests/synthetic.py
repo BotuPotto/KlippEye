@@ -69,6 +69,7 @@ def make(root, n=60, seed=3):
     folder = os.path.join(data, "reviews", "20261102-090000-cube")
     os.makedirs(folder, exist_ok=True)
     thumbs = []
+    t0 += 86400  # 1.135: the next day, as its id says; at the same time it would be the same print (evaluate.same_print_once)
     for k in range(1, 13):
         cv2.imwrite(os.path.join(folder, "%04d.jpg" % k), picture(k >= 7, rng)[0])
         thumbs.append({"n": k, "t": t0 + k * 60, "progress": k * 8, "layer": k})
