@@ -132,7 +132,8 @@ class World:
         env = dict(self.env)
         if env_extra:
             env.update(env_extra)
-        return subprocess.run(cmd, capture_output=True, text=True, env=env, timeout=timeout, cwd=cwd or self.home)
+        # stdin from /dev/null: no terminal, as for a script (the installer then never asks)
+        return subprocess.run(cmd, capture_output=True, text=True, env=env, timeout=timeout, cwd=cwd or self.home, stdin=subprocess.DEVNULL)
 
     def git(self, *args, cwd=None):
         r = self.run(["git", "-c", "user.name=test", "-c", "user.email=test@example.com", "-c", "init.defaultBranch=main"] + list(args), cwd=cwd or self.dev)
@@ -468,6 +469,29 @@ if scenario("install") or scenario("update") or scenario("undo"):
         ok("[undo] the data folder and the program folder stay", os.path.isfile(ai) and os.path.isdir(w.repo))
         rr = w.install()
         ok("[undo] it installs again without problems", rr.returncode == 0 and wait(lambda: backend_release() == expected, 30), rr.stdout + rr.stderr)
+
+        # 1.137.0: klippeye uninstall, run from inside the program folder it deletes
+        def reinstall():
+            if not os.path.isdir(w.repo):
+                w.run(["git", "clone", "-q", w.origin, w.repo])
+            r = w.install()
+            return r.returncode == 0 and wait(lambda: backend_release() == expected, 30)
+
+        def gone_but_folders():
+            confu = open(os.path.join(w.pd, "config", "moonraker.conf")).read()
+            return (not os.path.exists(os.path.join(w.units, "klippeye.service")) and not os.path.exists(os.path.join(w.units, "klippeye-notifier.service"))
+                    and not os.path.exists(os.path.join(w.bin, "klippeye")) and not os.path.exists(os.path.join(w.bin, "klippeye-notifiche"))
+                    and "[update_manager klippeye]" not in confu and wait(lambda: backend_release() is None, 20))
+        ru = w.run([os.path.join(w.bin, "klippeye"), "uninstall", "--yes"], cwd=w.repo, timeout=300)
+        ok("1.137.0: uninstall --yes removes services, commands, the update manager entry and both folders",
+           ru.returncode == 0 and gone_but_folders() and not os.path.exists(w.repo) and not os.path.exists(w.data) and "Program folder deleted" in ru.stdout, ru.stdout + ru.stderr)
+        installed = reinstall()
+        rk = w.run([os.path.join(w.bin, "klippeye"), "uninstall", "--yes", "--keep-data"], timeout=300)
+        ok("... --keep-data keeps the data folder", installed and rk.returncode == 0 and gone_but_folders() and not os.path.exists(w.repo) and os.path.isdir(w.data), rk.stdout + rk.stderr)
+        installed = reinstall()
+        rt = w.install("--uninstall")
+        ok("... with no terminal and no --yes nothing is deleted", installed and rt.returncode == 0 and gone_but_folders() and os.path.isfile(os.path.join(w.repo, "backend", "klippeye_backend.py"))
+           and os.path.isdir(w.data) and "nothing deleted" in rt.stdout, rt.stdout + rt.stderr)
     w.teardown()
 
 # ----------------------------------------------------------------------------------- update channel

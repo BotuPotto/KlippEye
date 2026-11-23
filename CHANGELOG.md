@@ -1,5 +1,18 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.137.0
+
+- The installer asks one question: should KlippEye be the Raspberry's main page (`http://IP`, port 80) or a second
+  page at port 8085? Press Enter for the main page. When you run the installer again it offers what you chose last
+  time, and with no terminal (from a script) it keeps that choice. Before, every run put KlippEye back on port 80,
+  even after `klippeye web restore`.
+- New option `--web` for the main page without the question. `--no-web` now makes KlippEye a second page: if KlippEye
+  had port 80, the page that was there gets it back.
+- `klippeye uninstall` takes KlippEye off the Raspberry with nothing left to do by hand: services, commands, the
+  update manager entry, port 80, and then, after you type `yes`, the program folder and the data folder.
+  `--keep-data` keeps your settings and recordings. While a print runs, Moonraker is not restarted.
+- `klippeye undo-install` still works as before (folders kept), but the help and the guide now show `uninstall`.
+
 ## 1.136.0
 
 - The camera calibration no longer has the «detail of the toolhead» way, the one that printed nothing. It was not

@@ -113,7 +113,7 @@ Le opzioni si scrivono dopo `install.sh`:
 | `--web` | fa di KlippEye la pagina principale del Raspberry (porta 80) senza chiedere |
 | `--no-web` | fa di KlippEye una seconda pagina (porta 8085) senza chiedere; se KlippEye aveva la porta 80, la pagina che c'era la riavrà |
 | `--channel=dev` | installa ogni modifica appena pubblicata, invece delle versioni collaudate (vedi [9](#9-aggiornamenti)) |
-| `--undo` | toglie KlippEye (vedi [15](#15-togliere-klippeye)) |
+| `--uninstall` | toglie KlippEye, cartelle comprese (vedi [15](#15-togliere-klippeye)) |
 
 Con più stampanti sullo stesso Raspberry, scegli tu la cartella dei dati:
 `KLIPPEYE_PRINTER_DATA=~/printer_2_data bash ~/klippeye/scripts/install.sh`.
@@ -534,13 +534,17 @@ Android.
 Sul Raspberry:
 
 ```bash
-klippeye undo-install
+klippeye uninstall
 ```
 
-Toglie i servizi, il comando `klippeye` e la voce nel gestore degli aggiornamenti di Moonraker. La cartella dei tuoi dati
-(`~/printer_data/klippeye`) e i pacchetti installati restano; cancella a mano le cartelle `~/klippeye` e
-`~/printer_data/klippeye` se vuoi eliminare anche quelle. Se KlippEye aveva preso l'indirizzo principale del Raspberry, la
-pagina che c'era prima lo riavrà.
+Toglie i servizi, il comando `klippeye` e la voce nel gestore degli aggiornamenti di Moonraker. Se KlippEye aveva preso
+l'indirizzo principale del Raspberry, la pagina che c'era prima lo riavrà. Poi chiede prima di cancellare la cartella del
+programma (`~/klippeye`) e quella dei tuoi dati (`~/printer_data/klippeye`: impostazioni, registrazioni, le stampe che hai
+giudicato): scrivi `yes` per cancellarle. Non resta niente da fare a mano.
+
+Per tenere la cartella dei dati, per esempio per reinstallare KlippEye più avanti, scrivi `klippeye uninstall --keep-data`.
+I pacchetti di sistema usati da KlippEye (Flask di Python, OpenCV) restano, perché possono servire ad altri programmi. Se
+c'è una stampa in corso, Moonraker non viene riavviato: riavvialo quando la stampa finisce.
 
 ## A. Dove KlippEye tiene i suoi file
 
@@ -583,5 +587,5 @@ comandi sono in inglese, ma i vecchi nomi italiani (`stato`, `riavvia`, `aggiorn
 | `klippeye benchmark` | quanto processore e memoria usano i programmi della stampante |
 | `klippeye replay` | fa rigirare il monitor IA sulle stampe registrate (opzioni in cima a `scripts/replay.py`) |
 | `klippeye web main` · `web restore` · `web status` | KlippEye all'indirizzo principale del Raspberry, o di nuovo sulla porta 8085 |
-| `klippeye undo-install` | toglie KlippEye |
+| `klippeye uninstall` · `uninstall --keep-data` | toglie KlippEye e le sue cartelle · tiene la cartella dei dati |
 | `klippeye help` | l'elenco dei comandi |

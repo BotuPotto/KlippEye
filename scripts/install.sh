@@ -3,7 +3,9 @@
 #
 #   bash ~/klippeye/scripts/install.sh                  install or repair
 #   bash ~/klippeye/scripts/install.sh --no-moonraker   do not touch Moonraker's configuration
-#   bash ~/klippeye/scripts/install.sh --undo           take KlippEye off (services, commands, update manager entry)
+#   bash ~/klippeye/scripts/install.sh --uninstall      take KlippEye off this Raspberry, its folders included (asks first;
+#                                                       --yes: no question, --keep-data: keep the data folder)
+#   bash ~/klippeye/scripts/install.sh --undo           take KlippEye off but leave its folders (services, commands, update manager entry)
 #   bash ~/klippeye/scripts/install.sh --channel=dev    updates: every change (dev) instead of the tested releases (stable, default)
 #   bash ~/klippeye/scripts/install.sh --no-ai          do not install OpenCV (the AI monitor stays off, less to download)
 #   bash ~/klippeye/scripts/install.sh --no-packages    install nothing with apt (only say what is missing)
@@ -70,7 +72,7 @@ note() { printf '           %s\n' "$*"; }
 warn() { printf '   WARNING %s\n' "$*"; }
 stop() { printf '\n   ERROR   %s\n\n' "$*"; exit 1; }
 
-usage() { sed -n '2,13p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; }
+usage() { sed -n '2,15p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; }
 
 MODE=install
 WITH_MOONRAKER=1
@@ -80,10 +82,14 @@ WITH_WEB="${KLIPPEYE_WEB:-1}"  # 1: KlippEye at port 80 (--web), 0: only at port
 WEB_GIVEN=0; [ -n "${KLIPPEYE_WEB:-}" ] && WEB_GIVEN=1   # 1.137.0: with neither option the installer asks (step 6)
 CHANNEL=stable   # update channel of a new [update_manager klippeye] entry: tagged releases only
 CHANNEL_GIVEN=0
+YES=0; KEEP_DATA=0   # 1.137.0: --uninstall --yes / --keep-data
 for arg in "$@"; do
   case "$arg" in
     --channel=stable|--channel=dev) CHANNEL="${arg#--channel=}"; CHANNEL_GIVEN=1 ;;
     --undo|--annulla) MODE=undo ;;
+    --uninstall) MODE=uninstall ;;
+    --yes) YES=1 ;;
+    --keep-data) KEEP_DATA=1 ;;
     --no-moonraker|--senza-moonraker) WITH_MOONRAKER=0 ;;
     --no-ai) WITH_AI=0 ;;
     --no-packages) WITH_PACKAGES=0 ;;
@@ -93,6 +99,18 @@ for arg in "$@"; do
     *) stop "Unknown option: $arg   (try:  bash $0 --help)" ;;
   esac
 done
+
+# 1.137.0: --uninstall deletes the program folder, this script's own folder: bash reads a script as it runs, so run a
+# copy from the temporary folder. The copy unlinks itself at once (bash keeps reading it through its open file).
+if [ "$MODE" = uninstall ]; then
+  if [ -z "${KLIPPEYE_UNINSTALL_FROM:-}" ]; then
+    copy="$(mktemp "${TMPDIR:-/tmp}/klippeye-uninstall.XXXXXX")" && cp "${BASH_SOURCE[0]}" "$copy" || stop "Cannot copy myself to a temporary file."
+    KLIPPEYE_UNINSTALL_FROM="$REPO" exec bash "$copy" "$@"
+  fi
+  rm -f "${BASH_SOURCE[0]}"
+  REPO="$KLIPPEYE_UNINSTALL_FROM"; HERE="$REPO/scripts"
+  cd "$HOME" 2>/dev/null || cd /
+fi
 
 FIRST_INSTALL=1; [ -f "$UNIT_DIR/klippeye.service" ] && FIRST_INSTALL=0   # 1.137.0: decides the default of step 6
 
@@ -253,7 +271,7 @@ install_command() {  # name: writes /usr/local/bin/<name>, which runs the script
 # ====================================================================================================================
 #  --undo
 # ====================================================================================================================
-if [ "$MODE" = "undo" ]; then
+if [ "$MODE" = "undo" ] || [ "$MODE" = "uninstall" ]; then
   step "Undoing KlippEye $RELEASE"
   stop_new_units
   good "Services klippeye and klippeye-notifier stopped and removed"
@@ -295,9 +313,52 @@ PY
       sudo_run "$SYSTEMCTL" restart "$MOONRAKER_SERVICE" && good "Moonraker restarted"
     fi
   fi
+  if [ "$MODE" = undo ]; then
+    say ""
+    say "Done. The program folder ($REPO) and the data folder ($DATA) stayed where they are:"
+    say "delete them by hand if you no longer need them, or run:  bash $REPO/scripts/install.sh --uninstall"
+    exit 0
+  fi
+  # 1.137.0: --uninstall also deletes the folders, after a yes
+  step "Folders"
+  real() { (cd "$1" 2>/dev/null && pwd -P); }
+  safe_folder() {  # folder file_it_must_hold|"" : 0 when it may be deleted
+    local r; r="$(real "$1")"
+    [ -n "$r" ] && [ "$r" != / ] && [ "$r" != "$(real "$HOME")" ] || return 1
+    if [ -n "$2" ]; then [ -f "$r/$2" ]; else case "$(basename "$r")" in klippeye|klippeye_data) return 0 ;; *) return 1 ;; esac; fi
+  }
+  remove_folder() { rm -rf "$1" 2>/dev/null || sudo_run rm -rf "$1"; [ ! -e "$1" ]; }
+  if [ "$KEEP_DATA" = 1 ]; then what="the program folder $REPO"; else what="the program folder $REPO and the data folder $DATA (settings, recordings, labels)"; fi
+  answer=no
+  if [ "$YES" = 1 ]; then answer=yes
+  elif [ -t 0 ]; then read -r -p "   Delete $what? Type yes to delete: " answer || answer=no
+  else note "No terminal to ask on and no --yes: nothing deleted."
+  fi
+  if [ "$answer" != yes ]; then
+    note "Kept: $what."
+    if [ "$KEEP_DATA" = 1 ]; then note "To delete it:  rm -rf $REPO"; else note "To delete them:  rm -rf $REPO $DATA"; fi
+    exit 0
+  fi
+  if [ "$KEEP_DATA" = 1 ]; then
+    note "Data folder kept: $DATA"
+  elif [ ! -d "$DATA" ]; then
+    note "No data folder at $DATA"
+  elif ! safe_folder "$DATA" ""; then
+    warn "$DATA does not look like KlippEye's data folder: not deleted."
+  elif remove_folder "$DATA"; then
+    good "Data folder deleted: $DATA"
+  else
+    warn "Cannot delete $DATA"
+  fi
+  if ! safe_folder "$REPO" backend/klippeye_backend.py; then
+    warn "$REPO does not look like KlippEye's program folder: not deleted."
+  elif remove_folder "$REPO"; then
+    good "Program folder deleted: $REPO"
+  else
+    warn "Cannot delete $REPO"
+  fi
   say ""
-  say "Done. The program folder ($REPO) and the data folder ($DATA) stayed where they are:"
-  say "delete them by hand if you no longer need them."
+  say "Done. KlippEye is off this Raspberry. The system packages it used (python3-flask, python3-opencv...) stay: other programs may need them."
   exit 0
 fi
 

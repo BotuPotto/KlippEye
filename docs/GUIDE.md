@@ -112,7 +112,7 @@ Options (add them after `install.sh`):
 | `--web` | makes KlippEye the Raspberry's main page (port 80) without asking |
 | `--no-web` | makes KlippEye a second page (port 8085) without asking; if KlippEye had port 80, the page that was there gets it back |
 | `--channel=dev` | installs every change as soon as it is published, instead of the tested releases (see [9](#9-updates)) |
-| `--undo` | removes KlippEye (see [15](#15-removing-klippeye)) |
+| `--uninstall` | removes KlippEye, its folders included (see [15](#15-removing-klippeye)) |
 
 With more than one printer on the same Raspberry, choose the data folder by hand:
 `KLIPPEYE_PRINTER_DATA=~/printer_2_data bash ~/klippeye/scripts/install.sh`.
@@ -525,13 +525,17 @@ spare.
 On the Raspberry:
 
 ```bash
-klippeye undo-install
+klippeye uninstall
 ```
 
-It removes the services, the `klippeye` command and the entry in Moonraker's update manager. Your data folder
-(`~/printer_data/klippeye`) and the installed packages stay; delete the folders `~/klippeye` and
-`~/printer_data/klippeye` by hand if you want them gone too. If KlippEye had taken the Raspberry's main address, the page
-that was there gets it back.
+It removes the services, the `klippeye` command and the entry in Moonraker's update manager. If KlippEye had taken the
+Raspberry's main address, the page that was there gets it back. Then it asks before deleting the program folder
+(`~/klippeye`) and your data folder (`~/printer_data/klippeye`: settings, recordings, the prints you judged): type `yes`
+to delete them. Nothing is left to do by hand.
+
+To keep your data folder, for example to install KlippEye again later, write `klippeye uninstall --keep-data`. The
+system packages KlippEye used (Python's Flask, OpenCV) stay, because other programs may need them. If a print is
+running, Moonraker is not restarted: restart it when the print ends.
 
 ## A. Where KlippEye keeps its files
 
@@ -573,5 +577,5 @@ Type them on the Raspberry. You won't need them often: everyday things happen in
 | `klippeye benchmark` | how much processor and memory the printer's programs use |
 | `klippeye replay` | replays the AI monitor on the recorded prints (options at the top of `scripts/replay.py`) |
 | `klippeye web main` · `web restore` · `web status` | KlippEye on the Raspberry's main address, or back to port 8085 |
-| `klippeye undo-install` | removes KlippEye |
+| `klippeye uninstall` · `uninstall --keep-data` | removes KlippEye and its folders · keeps the data folder |
 | `klippeye help` | the list of commands |
