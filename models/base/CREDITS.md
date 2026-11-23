@@ -20,6 +20,10 @@
 - [xtremus3d/3d-printing-failures-old](https://universe.roboflow.com/xtremus3d/3d-printing-failures-old) v3 (object-detection): CC BY 4.0
 - [stringing/fdm-failures-stringing-uxbbo](https://universe.roboflow.com/stringing/fdm-failures-stringing-uxbbo) v1 (object-detection): CC BY 4.0
 - [3d-print-error-detection/3d-print-failure-detector](https://universe.roboflow.com/3d-print-error-detection/3d-print-failure-detector) v8 (classification): CC BY 4.0
-- [Bambu Timelapse Dataset](https://huggingface.co/datasets/v2thegreat/bambu-timelapse-dataset) (timelapses, 344 prints going well, 43 left out by hand): CC BY 4.0
+- [Bambu Timelapse Dataset](https://huggingface.co/datasets/v2thegreat/bambu-timelapse-dataset) (timelapses, 344 prints going well, 43 failed ones): CC BY 4.0
 
-The 43 Bambu timelapses left out (failed prints or unusable pictures, looked at by hand) are listed in bambu-failed.txt.
+The 43 failed Bambu timelapses (looked at by hand) are listed in bambu-failed.txt; since 1.135.0 the last picture of
+each one is a «failed» example.
+
+Also since 1.135.0: 10 judged prints of the KlippEye author's printer (a VzBot with a close fisheye camera), cropped to
+the bed. They are the author's own pictures, given with the model under the same licence as KlippEye (GPL-3.0).

@@ -65,6 +65,36 @@ def monitor_asks(scored, doubt, sure, every=15.0, warmup=300.0, cooldown=120.0):
     return out
 
 
+def whole_asks(scored, triggers, doubt, sure, fine_until, every=15.0, warmup=300.0, cooldown=120.0, fine_memory=600.0):
+    """1.135: the monitor's asks with motion detection too: the local model's own asks (monitor_asks) plus the motion
+    triggers recorded live that it lets through (its latest look at least «in doubt», local_filter); one rest between
+    asks, longer after an ask while the print is still fine (the online AI, taken as right, calls the scene fine and the
+    false-alarm memory keeps it fine_memory s, 1.134.3). fine_until = the moment the print failed, None if it never did.
+    shortcut: the triggers come from the live run (its thresholds, its boost from the old model's doubt), so a new model
+    that would have lowered the motion thresholds less is not seen; good enough to compare models, not to tune motion."""
+    moved = []
+    for t in triggers:
+        last = [score for when, score in scored if when <= t]
+        if last and last[-1] * 100 >= doubt:
+            moved.append(t)
+    out, quiet_until = [], None
+    for t in sorted(monitor_asks(scored, doubt, sure, every, warmup, cooldown) + moved):
+        if quiet_until is not None and t < quiet_until:
+            continue
+        out.append(t)
+        fine = fine_until is None or t < fine_until
+        quiet_until = t + (fine_memory if fine else cooldown)
+    return out
+
+
+def motion_triggers(one):
+    """1.135: the times the motion detection triggered in a recording (frames.jsonl "trig"); none for an answer."""
+    if one["kind"] != "recording" or not one["pictures"]:
+        return []
+    rows = labelled_prints._json_lines(os.path.join(os.path.dirname(one["pictures"][0][2]), "frames.jsonl"))
+    return [row["t"] for row in rows if row.get("trig")]
+
+
 def levels_of(info, threshold):
     """The model's «in doubt» and «sure» levels in % (model.json "levels", else as ml/train.py chooses them)."""
     levels = info.get("levels") or {}
@@ -101,6 +131,13 @@ def count(results, times_of):
     return per_hour, false_alarms, fine_hours, caught, failed, (delays[len(delays) // 2] if delays else None)
 
 
+def same_print_once(prints, within=300):
+    """1.135: a print both recorded and answered in «How did the print go?» counted once, by its recording (the
+    monitor's own pictures; the answer's are small, one a minute): counted twice it weighed double, with worse pictures."""
+    recorded = [p["started"] for p in prints if p["kind"] == "recording" and p["started"]]
+    return [p for p in prints if p["kind"] == "recording" or not any(abs((p["started"] or 0) - t) < within for t in recorded)]
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--model", required=True, help="the model's folder (model.onnx + model.json)")
@@ -127,7 +164,7 @@ def main(argv=None):
     if model is None:
         print("No model in %s (model.onnx and model.json are needed)" % args.model)
         return 1
-    prints = labelled_prints.prints_of(args.data)
+    prints = same_print_once(labelled_prints.prints_of(args.data))
     if not prints:
         print("No labelled print in %s: label some (Recordings, or «How did the print go?») and copy the folder again." % args.data)
         return 1
@@ -143,7 +180,7 @@ def main(argv=None):
                     h, w = image.shape[:2]
                     image = image[int(box[1] * h):int((box[1] + box[3]) * h), int(box[0] * w):int((box[0] + box[2]) * w)]
                 scored.append((t, model.predict(image)[0]))
-        one = dict(one, scored=scored)
+        one = dict(one, scored=scored, triggers=motion_triggers(one))
         one.pop("pictures")
         results.append(one)
         print("  %-40s %-6s %4d pictures, highest score %.2f" % (one["id"][:40], one["outcome"], len(scored), max([s for _, s in scored] or [0])))
@@ -159,6 +196,8 @@ def main(argv=None):
         table.append({"threshold": threshold, "false_alarms_per_hour": round(per_hour, 3), "false_alarms": false_alarms, "fine_hours": round(fine_hours, 2),
                       "caught": caught, "failed": failed, "median_delay_s": median})
     doubt, sure = levels_of(model.info, model.threshold)
+    by_scored = {id(one["scored"]): dict(one, fine_until=None if one["outcome"] == "ok" else (one["failed_at"] or 0) - 30)
+                 for one in results}
     per_hour, false_alarms, fine_hours, caught, failed, median = count(
         results, lambda scored: monitor_asks(scored, doubt, sure, args.every_s, args.warmup, args.cooldown))
     print(" monitor  | %6.2f (%d in %.1f h)               | %d of %d        | %s  (in doubt %.0f%%, sure %.0f%%, a look every %.0f s, warm-up %.0f s)" % (
@@ -166,6 +205,12 @@ def main(argv=None):
     table.append({"monitor": True, "doubt": doubt, "sure": sure, "every_s": args.every_s, "warmup_s": args.warmup,
                   "false_alarms_per_hour": round(per_hour, 3), "false_alarms": false_alarms, "fine_hours": round(fine_hours, 2),
                   "caught": caught, "failed": failed, "median_delay_s": median})
+    per_hour, false_alarms, fine_hours, caught, failed, median = count(results, lambda scored: whole_asks(
+        scored, by_scored[id(scored)]["triggers"], doubt, sure, by_scored[id(scored)]["fine_until"], args.every_s, args.warmup, args.cooldown))
+    print(" + motion |  %6.2f (%d in %.1f h)               | %d of %d        | %s  (and the motion triggers recorded live, an online «fine» kept 10 min)" % (
+        per_hour, false_alarms, fine_hours, caught, failed, ("%.0f s" % median) if median is not None else "-"))
+    table.append({"monitor_and_motion": True, "false_alarms_per_hour": round(per_hour, 3), "false_alarms": false_alarms,
+                  "fine_hours": round(fine_hours, 2), "caught": caught, "failed": failed, "median_delay_s": median})
     if args.json:
         with open(args.json, "w", encoding="utf-8") as handle:
             json.dump({"model": model.info, "table": table, "prints": results}, handle)

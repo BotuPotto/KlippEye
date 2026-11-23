@@ -12,6 +12,8 @@ only what a failed print looks like. On the Raspberry it runs with OpenCV, alrea
 
 The simplest way: open [the Colab notebook](https://colab.research.google.com/github/BotuPotto/KlippEye/blob/main/ml/KlippEye_local_model.ipynb)
 and run its cells from top to bottom (a free Roboflow key is all it needs).
+When Colab has no free GPU left, `ml/KlippEye_kaggle.ipynb` trains on Kaggle from the data the Colab notebook
+prepared (zipped and shared from Google Drive); it runs in the background, so a closed page does not stop it.
 
 1. Pictures of failed prints and of fine prints:
    - every public dataset of `ml/sources.json` at once: `ROBOFLOW_API_KEY=… python ml/download.py` (into `ml/data/`, with
@@ -32,16 +34,18 @@ and run its cells from top to bottom (a free Roboflow key is all it needs).
      looking at `last-pictures/` (`python ml/contact_sheet.py ml/data/bambu-timelapses/last-pictures` puts them
      on numbered sheets). `--auto` reads them as fine prints.
 
-   **The base model, the one shipped to everyone, is trained only on public, varied pictures**: never on one printer's.
-   Each printer's own prints go to its personal layer, which KlippEye learns on the Raspberry. Collections whose licence
-   does not let the model be shared (ShareAlike, NonCommercial, private) are deleted again by `download.py`.
+   The base model, the one shipped to everyone, is trained on public, varied pictures and, since 1.135.0, on a few
+   judged prints of the author's printer (`models/base/CREDITS.md`). Each printer's own prints go to its personal layer,
+   which KlippEye learns on the Raspberry. Collections whose licence does not let the model be shared (ShareAlike,
+   NonCommercial, private) are deleted again by `download.py`.
 2. The list of pictures: `pip install -r ml/requirements.txt` then
    `python ml/datasets.py --yolo ./spaghetti --klippeye ./klippeye-data --out ml/work`
    (`--fail-classes a,b` to name the failure classes of a dataset; `--empty-is-ok` when its pictures without boxes are fine prints).
    For a model that works on every printer add `--hard-cases 0.3` (look-alikes of a failure that are not failures — a
    purge line, a purge blob, a single loose strand, a brim outline — drawn on 30% of the fine pictures, and on a few failed
    ones too, so that a drawing says nothing by itself) and `--mine models/base` (the fine pictures the current model takes
-   for failures weigh 3 times as much in training: its mistakes).
+   for failures weigh 3 times as much in training: its mistakes). `--paste 0.2` pastes the spaghetti cut out of the public
+   photos on 20% of the fine pictures (failed) and as many pieces of clean bed the same way (fine): failures in new places.
    Public datasets are nearly all failures: pieces of the same photos away from the boxes become the fine examples, the
    whole photo is kept only when the failure covers at least a fifth of it, and each dataset gives at most 3000 pictures
    (`--max-per-dataset`).

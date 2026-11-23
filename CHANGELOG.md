@@ -1,5 +1,18 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.135.0
+
+- A new local model. It was trained on the same public pictures as before, plus the last picture of 43 failed public
+  timelapses and 10 judged prints of the author's printer. On 9 prints of that printer it had never seen, it asked the
+  online AI about fine prints 0 times in 2.5 hours, against about 10 times an hour for the previous model. It also
+  catches fewer failures by itself (1 of 4 instead of 3 of 4); with motion detection it caught 2 of 4, like before.
+  This is measured on one printer only, so treat it as a trial. If your monitor gets worse, say so: the previous model
+  can come back in the next release.
+- `ml/evaluate.py` adds a «+ motion» row: the questions the monitor would ask with the motion triggers recorded live,
+  not only the local model's own. A print judged twice (a recording and a review) now counts once.
+- `ml/train.py --checkpoint FILE` saves after every epoch and picks up from there after an interruption.
+- `ml/datasets.py`: a timelapse listed in `failed.txt` now gives its last picture as a failed example.
+
 ## 1.134.3
 
 - When the online AI says a print looks fine, the monitor now trusts that answer for 10 minutes instead of 6 hours.

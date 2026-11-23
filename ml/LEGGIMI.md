@@ -16,6 +16,8 @@ Apri [il notebook su Colab](https://colab.research.google.com/github/BotuPotto/K
 ed esegui le celle dall'alto in basso: scarica da solo **tutte** le raccolte pubbliche elencate in `ml/sources.json`
 (serve solo una chiave Roboflow gratuita), aggiunge le tue stampe se carichi il loro zip, addestra con la GPU gratuita,
 misura e ti fa scaricare il modello. I passaggi sotto sono gli stessi, per chi preferisce il proprio computer.
+Quando Colab non ha più GPU gratis, `ml/KlippEye_kaggle.ipynb` addestra su Kaggle partendo dai dati preparati su
+Colab (compressi e condivisi da Google Drive); gira in background, quindi una pagina chiusa non lo ferma.
 
 ## 1. Le foto
 
@@ -45,10 +47,10 @@ Servono foto di **stampe fallite** e di **stampe andate bene**.
   `ml/data/bambu-timelapses/failed.txt`, dopo aver guardato `last-pictures/` (`python ml/contact_sheet.py
   ml/data/bambu-timelapses/last-pictures` le mette su fogli numerati). `--auto` li legge come stampe buone.
 
-**Il modello base, quello che KlippEye dà a tutti, impara solo da foto pubbliche e varie**, mai da quelle di una
-stampante sola: le stampe di ognuno vanno nello strato personale che KlippEye impara sul Raspberry. Le raccolte con una
-licenza che non permette di condividere il modello (ShareAlike, non commerciale, privata) vengono scartate da
-`download.py`.
+Il modello base, quello che KlippEye dà a tutti, impara da foto pubbliche e varie e, dalla 1.135.0, da alcune stampe
+giudicate della stampante dell'autore (`models/base/CREDITS.md`). Le stampe di ognuno vanno nello strato personale che
+KlippEye impara sul Raspberry. Le raccolte con una licenza che non permette di condividere il modello (ShareAlike, non
+commerciale, privata) vengono scartate da `download.py`.
 
 ## 2. L'elenco delle foto
 
@@ -63,12 +65,14 @@ Le raccolte pubbliche hanno quasi solo stampe fallite: come esempi di stampa che
 foto lontani dai riquadri del difetto; la foto intera resta solo se il difetto ne copre almeno un quinto. Da ogni
 raccolta al massimo 3000 foto (`--max-per-dataset`), così nessuna pesa troppo e l'addestramento resta rapido.
 
-Per un modello che funzioni su ogni stampante aggiungi `--hard-cases 0.3 --mine models/base`:
+Per un modello che funzioni su ogni stampante aggiungi `--hard-cases 0.3 --mine models/base --paste 0.2`:
 - `--hard-cases 0.3` disegna su un terzo delle foto di stampe buone i **sosia di un errore** che non sono errori (una linea
   di spurgo, una goccia di spurgo, un filo singolo, il bordo di un brim), etichettati «buona»; gli stessi disegni anche su
   alcune foto fallite, che restano «fallita», così un disegno da solo non vuol dire niente;
 - `--mine models/base`: il modello attuale dà un voto a ogni foto di stampa buona, e quelle che scambia per errori pesano
-  il triplo nell'addestramento: impara proprio dai suoi sbagli.
+  il triplo nell'addestramento: impara proprio dai suoi sbagli;
+- `--paste 0.2` incolla gli spaghetti ritagliati dalle foto pubbliche sul 20% delle foto di stampe buone («fallita») e
+  altrettanti pezzi di piatto pulito allo stesso modo («buona»): errori in posti e scene nuovi.
 
 Opzioni utili: `--fail-classes spaghetti,detached` per dire quali classi di una raccolta sono guasti (in automatico: tutte
 tranne quelle che si chiamano come ok / print / nozzle…); `--empty-is-ok` se nella raccolta le foto senza riquadri sono

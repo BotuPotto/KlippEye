@@ -48,6 +48,17 @@ assert info["levels"]["doubt"] < info["levels"]["sure"] == round(info["threshold
 assert train.levels_for(0.86) == {"doubt": 75, "sure": 86} and train.levels_for(0.3) == {"doubt": 20, "sure": 30}
 assert abs(train.fit_temperature([4.0, -4.0, 4.0, -4.0], [1, 0, 0, 1]) - 8.0) < 0.5   # always half wrong: as unsure as can be
 print("calibration:", cal, "threshold", info["threshold"])
+# 1.134: a run cut after its last epoch resumes from the checkpoint and only finishes (no epoch trained again)
+ckpt, out2 = os.path.join(root, "ckpt.pt"), os.path.join(root, "model-resumed")
+small = ["--manifest", os.path.join(work, "manifest.csv"), "--epochs", "2", "--size", "64", "--batch", "16", "--workers", "0",
+         "--no-pretrained", "--checkpoint", ckpt]
+assert train.main(small + ["--out", os.path.join(root, "model-cut")]) == 0 and os.path.exists(ckpt)
+import contextlib, io  # noqa: E401,E402
+said = io.StringIO()
+with contextlib.redirect_stdout(said):
+    assert train.main(small + ["--out", out2]) == 0
+assert "resuming after epoch 2/2" in said.getvalue() and "epoch 1/2" not in said.getvalue(), said.getvalue()
+assert os.path.exists(os.path.join(out2, "model.onnx"))
 model = local_model.load(out, cv2, np)
 score, embedding = model.predict(cv2.imread(os.path.join(paths["klippeye"], "recordings", "20261101-100000-good", "000001.jpg")))
 assert 0.0 <= score <= 1.0 and embedding.shape == (1024,), (score, embedding.shape)

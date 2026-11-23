@@ -13,6 +13,7 @@ import cv2  # noqa: E402
 import numpy as np  # noqa: E402
 import datasets  # noqa: E402
 import evaluate  # noqa: E402
+import hard_cases  # noqa: E402
 import local_model  # noqa: E402
 import synthetic  # noqa: E402
 
@@ -73,6 +74,11 @@ os.symlink(paths["yolo"], os.path.join(auto_root, "a__yolo"))
 os.symlink(cls_root, os.path.join(auto_root, "b__cls"))
 rows = datasets.from_auto(auto_root, os.path.join(root, "w3"), set(), False, cv2)
 check("--auto: each downloaded dataset read as what it is (YOLO, class folders)", {r[3] for r in rows} == {"yolo", "yolo-crop", "yolo-bg", "classes"}, {r[3] for r in rows})
+pasted = hard_cases.paste(rows, os.path.join(root, "pasted"), 1.0, cv2, np)
+_crop_groups = {r[2] for r in rows if r[3] in ("yolo-crop", "yolo-bg")}
+check("1.134: paste: as many public failures (failed) as pieces of clean bed (fine), each with its piece's group, the picture changed",
+      pasted and sum(r[1] for r in pasted) * 2 == len(pasted) and {r[2] for r in pasted} <= _crop_groups
+      and all(cv2.imread(r[0]) is not None for r in pasted), [(r[1], r[3]) for r in pasted])
 
 rows = datasets.from_folders(paths["sorted"])
 check("folders: ok/ fine, fail/ failed", len([r for r in rows if r[1] == 0]) == 20 and len([r for r in rows if r[1] == 1]) == 20)
@@ -109,6 +115,17 @@ check("... the levels: model.json's, else as ml/train.py chooses them", evaluate
       and evaluate.levels_of({}, 0.86) == (75, 86))
 prints = evaluate.labelled_prints.prints_of(paths["klippeye"])
 check("evaluate: the labelled prints of a data folder (two recordings, one review)", sorted(p["kind"] for p in prints) == ["recording", "recording", "review"])
+looks = [(t, 0.95 if 600 <= t < 615 else 0.2) for t in range(0, 1200, 15)]
+check("1.135: ... with motion: a trigger is asked about only when the latest look is at least in doubt",
+      evaluate.whole_asks(looks, [300, 605], 75, 86, None) == [605], evaluate.whole_asks(looks, [300, 605], 75, 86, None))
+asks = evaluate.whole_asks([(t, 0.8) for t in range(0, 1800, 15)], [0, 300, 700], 75, 86, None)
+check("... and after an ask on a fine print the online «fine» keeps the next ones away for 10 minutes",
+      asks[0] == 0 and all(b - a >= 600 for a, b in zip(asks, asks[1:])) and len(asks) >= 2, asks)
+asks = evaluate.whole_asks([(t, 0.8) for t in range(0, 1800, 15)], [0, 300, 700], 75, 86, 0)
+check("... while once the print has failed only the usual rest", any(b - a < 600 for a, b in zip(asks, asks[1:])), asks)
+check("1.135: ... a print both recorded and reviewed counted once, by its recording; a review alone kept",
+      [p["id"] for p in evaluate.same_print_once([{"id": "r", "kind": "recording", "started": 1000}, {"id": "v", "kind": "review", "started": 1100},
+                                                  {"id": "w", "kind": "review", "started": 5000}])] == ["r", "w"])
 
 check("local_model: no folder or no model.onnx: None (the monitor works without)", local_model.load("", cv2, np) is None and local_model.load(root, cv2, np) is None)
 broken = os.path.join(root, "broken")
@@ -131,7 +148,6 @@ check("... a model.json of another format: refused", raised)
 
 # ---------------------------------------------------------------- 1.130: a model for every printer
 import download  # noqa: E402
-import hard_cases  # noqa: E402
 
 check("1.130: «Successful Print», «Normal print», «No defect» are fine; «Print Failure» failed",
       [datasets.kind_of(n) for n in ("Successful Print", "Normal print", "good_print", "No Defect", "Print Failure")] == [0, 0, 0, 0, 1],
@@ -189,7 +205,9 @@ with open(os.path.join(data, download.BAMBU_FOLDER, "failed.txt"), "a") as handl
     handle.write(kept[0] + "\n")
 rows = datasets.from_auto(data, os.path.join(root, "work2"), set(), False, cv2)
 check("... read by --auto as prints going well (fine), one group per print, the ones in failed.txt left out",
-      rows and all(r[1] == 0 and r[3] == "frames" for r in rows) and {r[2] for r in rows} == {"frames:" + kept[1]}, {r[2] for r in rows})
+      rows and all(r[3] == "frames" for r in rows) and {r[2] for r in rows if r[1] == 0} == {"frames:" + kept[1]}, {r[2] for r in rows})
+check("1.135: ... a print in failed.txt gives its last picture as a failure",
+      [(os.path.basename(r[0]), r[2]) for r in rows if r[1] == 1] == [(kept[0] + ".jpg", "frames:" + kept[0])], [r for r in rows if r[1] == 1])
 
 # the look-alikes
 fine_rows = [(p, 0, "g%d" % i, "folders") for i, p in enumerate(sorted(datasets.images_in(os.path.join(paths["sorted"], "mine", "ok"))))]
