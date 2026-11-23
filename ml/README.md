@@ -34,9 +34,10 @@ prepared (zipped and shared from Google Drive); it runs in the background, so a 
      looking at `last-pictures/` (`python ml/contact_sheet.py ml/data/bambu-timelapses/last-pictures` puts them
      on numbered sheets). `--auto` reads them as fine prints.
 
-   **The base model, the one shipped to everyone, is trained only on public, varied pictures**: never on one printer's.
-   Each printer's own prints go to its personal layer, which KlippEye learns on the Raspberry. Collections whose licence
-   does not let the model be shared (ShareAlike, NonCommercial, private) are deleted again by `download.py`.
+   The base model, the one shipped to everyone, is trained on public, varied pictures and, since 1.135.0, on a few
+   judged prints of the author's printer (`models/base/CREDITS.md`). Each printer's own prints go to its personal layer,
+   which KlippEye learns on the Raspberry. Collections whose licence does not let the model be shared (ShareAlike,
+   NonCommercial, private) are deleted again by `download.py`.
 2. The list of pictures: `pip install -r ml/requirements.txt` then
    `python ml/datasets.py --yolo ./spaghetti --klippeye ./klippeye-data --out ml/work`
    (`--fail-classes a,b` to name the failure classes of a dataset; `--empty-is-ok` when its pictures without boxes are fine prints).

@@ -47,10 +47,10 @@ Servono foto di **stampe fallite** e di **stampe andate bene**.
   `ml/data/bambu-timelapses/failed.txt`, dopo aver guardato `last-pictures/` (`python ml/contact_sheet.py
   ml/data/bambu-timelapses/last-pictures` le mette su fogli numerati). `--auto` li legge come stampe buone.
 
-**Il modello base, quello che KlippEye dà a tutti, impara solo da foto pubbliche e varie**, mai da quelle di una
-stampante sola: le stampe di ognuno vanno nello strato personale che KlippEye impara sul Raspberry. Le raccolte con una
-licenza che non permette di condividere il modello (ShareAlike, non commerciale, privata) vengono scartate da
-`download.py`.
+Il modello base, quello che KlippEye dà a tutti, impara da foto pubbliche e varie e, dalla 1.135.0, da alcune stampe
+giudicate della stampante dell'autore (`models/base/CREDITS.md`). Le stampe di ognuno vanno nello strato personale che
+KlippEye impara sul Raspberry. Le raccolte con una licenza che non permette di condividere il modello (ShareAlike, non
+commerciale, privata) vengono scartate da `download.py`.
 
 ## 2. L'elenco delle foto
 

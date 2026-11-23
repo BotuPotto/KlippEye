@@ -149,9 +149,10 @@ warm-up seconds, minimum progress, hotend at temperature), one check every `chec
   `recall` / `remember` keep durable notes for the workspace when memory is enabled (empty on 17 Nov 2026); the Free
   plan indexes only README.md among the documents, so this file is not in the graph.
 - **Universality**: KlippEye is for every Klipper printer. The base model in `models/base/` is trained on **public,
-  varied data only**, under licences that let the model be shared (`ml/download.py` drops ShareAlike / NonCommercial /
-  NoDerivatives / private ones; `models/base/CREDITS.md` lists the sources). The owner's prints go only to the personal
-  layer and to measuring. No text, prompt or default may assume the owner's printer or camera.
+  varied data**, under licences that let the model be shared (`ml/download.py` drops ShareAlike / NonCommercial /
+  NoDerivatives / private ones; `models/base/CREDITS.md` lists the sources). Since 1.135.0 (the owner's choice, 23 Nov:
+  he is the only user for now) 10 of the owner's judged prints are in its training too; 9 others stay kept out for
+  measuring and must never be trained on. No text, prompt or default may assume the owner's printer or camera.
 - **Lightness on the Pi**: the Pi runs Klipper; KlippEye must never slow it. OpenCV uses at most 2 cores, always one
   left free (`opencv_threads`), the service runs at Nice 10; no new dependency that is not in Raspberry Pi OS's apt
   (32-bit included: onnxruntime is not available there).
@@ -274,7 +275,7 @@ keeps it readable).
 - **Texts in the page**: short, plain, the user's words (`/humanizer`); explanations go in a setting's note or the help
   button, not on buttons. Every text in `tx()` with its 9 translations.
 
-## 6. The owner's setup (for measuring and testing, never for the base model)
+## 6. The owner's setup (for measuring and testing; part of the base model's training since 1.135.0)
 
 - Printer: a **VzBot** (CoreXY, Z moves the bed), close **fisheye** camera on the frame, calibrated with the «detail»
   method. Raspberry Pi with **32-bit** Raspberry Pi OS Bookworm (`getconf LONG_BIT` = 32; Python 3.11, OpenCV 4.6),
@@ -286,9 +287,11 @@ keeps it readable).
   `/api/recordings/<id>/frames/<n>.jpg`) with a small script run in the page.
 - Measuring a model on the owner's prints: `python3 ml/evaluate.py --model <folder> --data <unzipped>/klippeye
   --box <x,y,w,h> --json out.json`; read the **«monitor»** row (the monitor's real rule). The bed box is `bed_view` in
-  `GET /api/local_model` (about `0.15,0.36,0.70,0.61` on 16 Nov). Current base model **20261116-1408** (threshold 0.86,
-  temperature 2.67, levels 75/86): on the bed about 1–1.5 false asks an hour, 3 of 4 measurable failures caught
-  (one failed print has no pictures after the failure).
+  `GET /api/local_model` (about `0.15,0.36,0.70,0.61` on 16 Nov). Current base model **20261118-2036** (1.135.0, threshold 0.90,
+  temperature 2.965, levels 80/90; the previous one, 20261116-1408, is in git history). Box `0,0.368,1,0.632`, 9 kept-out
+  prints (4 failed, 2.5 h): «monitor» 0 false/h, 1 of 4 (before 10.5/h, 3 of 4); «+ motion» 0/h, 2 of 4 (before
+  4.8/h, 2 of 4). Kept-out recording prefixes, never to train on: 20261113-164121, 20261115-011215, 20261116-160817,
+  20261116-175000, 20261113-144408, 20261114-001218, 20261114-151534, 20261114-232613, 20261118-160816.
 
 ## 7. Colab (training the base model)
 
@@ -350,6 +353,9 @@ keeps it readable).
   on a real printer. Next try: paste only the spaghetti's own pixels (a mask from the colour/edges inside the box, or
   skip boxes whose patch does not look like strands), check the sheet **before** training, then train on Kaggle again.
   Colab's own rule: no second account to get round its limits (FAQ), Kaggle is a separate service and is fine.
+- **23 Nov: 20261118-2036 shipped in 1.135.0 as a trial** (Kaggle, no `--paste`, `--klippeye` with 10 of the owner's
+  prints, failed Bambu last pictures). Ask the owner after some prints how the monitor behaves; if worse (missed
+  failures), restore 20261116-1408 from git (`git show <commit>:models/base/model.onnx`) in a patch release.
 - **Next**: train (section 7) → measure against `models/base` on the owner's recordings → look at the contact sheet
   (pasted pieces must not look fake) → ship only if better (new `models/base/*`, `CREDITS.md`, measurements in
   `models/base/README.md`, CHANGELOG). Few pasted pictures → raise `--paste`. Distillation only if not enough.
@@ -427,4 +433,4 @@ keeps it readable).
   there would hide them until the next print).
 
 ### Open PRs
-#176 (release 1.134.1: card fold and side menu with the spring, plus notes), open 18 Nov. Update this line when a PR opens or merges.
+None besides the 1.135.0 model PR (23 Nov). Update this line when a PR opens or merges.
