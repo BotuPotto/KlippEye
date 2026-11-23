@@ -450,6 +450,8 @@ keeps it readable).
    a real `uninstall` command (instead of «undo install») that removes everything without manual steps.
 4. Later: how the learning on the Pi can give per-printer gains like the owner's prints gave the base model; other
    libraries than OpenCV (32-bit Pi, no onnxruntime).
+   After 3: the full audit, plan in `docs/superpowers/plans/2026-11-23-full-audit.md` (the owner's request of 23 Nov:
+   every line, the look of every page, structure and logic), then 4 and 5.
 5. Last: read and rewrite all the documentation for a generic user, in English and Italian, with pictures, in current
    writing rules.
 
