@@ -115,6 +115,14 @@ check("... the levels: model.json's, else as ml/train.py chooses them", evaluate
       and evaluate.levels_of({}, 0.86) == (75, 86))
 prints = evaluate.labelled_prints.prints_of(paths["klippeye"])
 check("evaluate: the labelled prints of a data folder (two recordings, one review)", sorted(p["kind"] for p in prints) == ["recording", "recording", "review"])
+looks = [(t, 0.95 if 600 <= t < 615 else 0.2) for t in range(0, 1200, 15)]
+check("1.135: ... with motion: a trigger is asked about only when the latest look is at least in doubt",
+      evaluate.whole_asks(looks, [300, 605], 75, 86, None) == [605], evaluate.whole_asks(looks, [300, 605], 75, 86, None))
+asks = evaluate.whole_asks([(t, 0.8) for t in range(0, 1800, 15)], [0, 300, 700], 75, 86, None)
+check("... and after an ask on a fine print the online «fine» keeps the next ones away for 10 minutes",
+      asks[0] == 0 and all(b - a >= 600 for a, b in zip(asks, asks[1:])) and len(asks) >= 2, asks)
+asks = evaluate.whole_asks([(t, 0.8) for t in range(0, 1800, 15)], [0, 300, 700], 75, 86, 0)
+check("... while once the print has failed only the usual rest", any(b - a < 600 for a, b in zip(asks, asks[1:])), asks)
 check("1.135: ... a print both recorded and reviewed counted once, by its recording; a review alone kept",
       [p["id"] for p in evaluate.same_print_once([{"id": "r", "kind": "recording", "started": 1000}, {"id": "v", "kind": "review", "started": 1100},
                                                   {"id": "w", "kind": "review", "started": 5000}])] == ["r", "w"])
