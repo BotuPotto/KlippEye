@@ -243,7 +243,7 @@ def unproject_to_plane(calibration, u, v, z):
         return None
     direction = d / rd if rd > 1e-12 else np.zeros(2)
     if calibration["model"] == "fisheye":
-        if x >= math.pi:
+        if x >= math.pi / 2:   # past 90 degrees the point is behind the camera (project's z <= 0): never on the bed
             return None
         ray = np.r_[direction * math.sin(x), math.cos(x)]
     else:

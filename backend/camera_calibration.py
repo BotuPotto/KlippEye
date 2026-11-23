@@ -1015,8 +1015,12 @@ class CameraCalibration:
         the bed at the height the overlay draws it. Moves that corner's X and Y edges, keeps the other two -> the new area."""
         if corner not in BED_CORNERS:
             raise ValueError("unknown point")
-        u, v = float(u), float(v)
-        if not (-0.5 <= u <= 1.5 and -0.5 <= v <= 1.5):
+        # shortcut: only points inside the picture; a corner outside it is reached with the − and + of «Bed area»
+        try:
+            u, v = float(u), float(v)
+        except (TypeError, ValueError):
+            u = v = -1.0
+        if not (0.0 <= u <= 1.0 and 0.0 <= v <= 1.0):
             raise ValueError("u and v must be fractions of the picture (0..1)")
         calibration = self.calibration()
         if not calibration:

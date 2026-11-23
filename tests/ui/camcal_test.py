@@ -339,6 +339,22 @@ with sync_playwright() as p:
     sent = corner_post.value.post_data_json
     ok("... dragging it 20 px posts the corner and the picture point; the bed is then set by the person", sent.get("corner") == "x1y1" and 0 <= sent.get("u") <= 1
        and wait(pg, lambda: b.camera_cal.bed_area()[1] == "person" and pg.locator('[data-bed-source="person"]').count() == 1), (sent, b.camera_cal.bed_area()))
+    posts = []
+    pg.on("request", lambda r: posts.append(r.post_data_json) if r.url.endswith("/api/camera/bed_corner") else None)
+    target = pg.locator('[data-bed-corner="x0y1"]').bounding_box()
+    db = dot.bounding_box()
+    cx_, cy_ = db["x"] + db["width"] / 2, db["y"] + db["height"] / 2
+    tx2, ty2 = target["x"] + target["width"] / 2 - 30, target["y"] + target["height"] / 2
+    pg.wait_for_timeout(600)   # past SHAPE_SEND_EVERY_MS since the last drag's send: the first move sends
+    pg.mouse.move(cx_, cy_)
+    pg.mouse.down()
+    for k in (1, 2, 3):   # quick: one send at the start, one on release
+        pg.mouse.move(cx_ + (tx2 - cx_) * k / 3, cy_ + (ty2 - cy_) * k / 3)
+    pg.mouse.up()
+    ok("... dragged over the opposite corner: the release is refused, the reason shown, the bed stays a valid one", wait(pg, lambda: pg.locator("[data-corner-error]").count() == 1)
+       and b.camera_cal.bed_area()[0][1][0] - b.camera_cal.bed_area()[0][0][0] >= 20, (body(pg)[-400:], b.camera_cal.bed_area()))
+    pg.wait_for_timeout(800)
+    ok("... one send on release (two in all for a quick drag), the release's last", len(posts) == 2 and posts[-1]["u"] < posts[0]["u"], posts)
     pg.click("[data-bed-auto]")
     wait(pg, lambda: b.camera_cal.bed_area()[1] == "travel")
     pg.click('[data-size="toolhead.below.minus"]')

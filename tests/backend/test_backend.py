@@ -1901,6 +1901,8 @@ check("1.136.0: POST bed_corner: an unknown corner is 400", r.status_code == 400
 corner = ov["bed_corners"]["x1y1"]
 r = ck.post("/api/camera/bed_corner", json={"corner": "x1y1", "u": corner[0], "v": corner[1]})
 check("... the corner where it is: ok, the bed area set by the person", r.status_code == 200 and r.get_json()["ok"] and mk.camera_cal.bed_area()[1] == "person", r.get_json())
+r = ck.post("/api/camera/bed_corner", json={"corner": "x1y1", "u": None, "v": "a"})
+check("... u or v missing or not a number: 400, not 500", r.status_code == 400 and "fractions" in r.get_json()["error"], (r.status_code, r.get_json()))
 mk.camera_cal.set_shape({"bed": None})
 mm1 = mk.camera_cal.monitor_mask([[175.0, 175.0, 5.0], [180.0, 175.0, 5.0]], 540, 360)
 check("the live monitor gets a mask; the printer's X travel is kept for the replay", mm1 is not None and mm1.shape == (360, 540) and mm1.any()

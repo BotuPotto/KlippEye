@@ -185,6 +185,7 @@ def back_error(calibration, z):
 check("1.136.0: unproject_to_plane is the inverse of project (fisheye, bed at -20 mm), within 1 mm", back_error(FISH, -20.0) < 1.0, back_error(FISH, -20.0))
 check("... pinhole, with the correction of a small move", back_error(dict(SAVED, correction=[[1.01, 0.002, -0.01], [-0.003, 0.99, 0.02]]), 0.0) < 1.0)
 check("... a point above the horizon: None", cm.unproject_to_plane(SAVED, 0.5, -1.0, 0.0) is None)
+check("1.136.0: a fisheye point past 90 degrees is not on the bed", cm.unproject_to_plane(FISH, 0.5, 1.5, -20.0) is None, cm.unproject_to_plane(FISH, 0.5, 1.5, -20.0))
 dc = tempfile.mkdtemp()
 corner_cal = cc.CameraCalibration(dc, query, lambda script: None, lambda: None, cv2, np)
 corner_cal.saved = dict(FISH)

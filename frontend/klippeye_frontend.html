@@ -32644,6 +32644,7 @@ function LiveCheck({ camera, draft, editShape, onBedChange = noop }) {
   const step = (label, dx, dy, dz) => h("button", { type: "button", className: "oui-btn oui-btn--sm", disabled: busy, onClick: () => jog(dx, dy, dz) }, label);
   const frameRef = useRef(null);
   const [dragging, setDragging] = useState(null); // { key, value } while a handle is held
+  const [cornerProblem, setCornerProblem] = useState(""); // 1.136.0: why the last bed corner was refused (the polling keeps it)
   return h(
     React.Fragment,
     null,
@@ -32659,7 +32660,7 @@ function LiveCheck({ camera, draft, editShape, onBedChange = noop }) {
               React.Fragment,
               null,
               overlay.shape && Array.isArray(overlay.handles) && h(ShapeHandles, { overlay, camera, frameRef, onDrag: setDragging, onSaved: () => readRef.current() }),
-              overlay.bed_corners && h(BedCorners, { corners: overlay.bed_corners, camera, frameRef, onSaved: () => Promise.all([readRef.current(), onBedChange()]) }),
+              overlay.bed_corners && h(BedCorners, { corners: overlay.bed_corners, camera, frameRef, onSaved: () => Promise.all([readRef.current(), onBedChange()]), onProblem: setCornerProblem }),
             )
           : null,
       },
@@ -32676,6 +32677,7 @@ function LiveCheck({ camera, draft, editShape, onBedChange = noop }) {
       h("p", { className: "set-group__note", "data-zone": overlay.zone.source }, tx("Green: where the parts of this print are expected ({count} from {source}). The monitor watches the whole bed around them.", { count: overlay.zone.objects, source: overlay.zone.source === "exclude_object" ? tx("Klipper's exclude_object") : tx("the G-code") })),
     h("div", { className: "cal-jog" }, step("X −20", -20, 0, 0), step("X +20", 20, 0, 0), step("Y −20", 0, -20, 0), step("Y +20", 0, 20, 0), step("Z −10", 0, 0, -10), step("Z +10", 0, 0, 10)),
     problem && h("p", { className: "set-field__error", role: "alert" }, problem),
+    cornerProblem && h("p", { className: "set-field__error", role: "alert", "data-corner-error": "1" }, cornerProblem),
     editShape && overlay && overlay.shape && h(ShapeEditor, { shape: overlay.shape, onSaved: () => readRef.current() }),
   );
 }
@@ -32765,41 +32767,55 @@ function ShapeHandles({ overlay, camera, frameRef, onDrag, onSaved }) {
 /**
  * 1.136.0: the four corners of the watched bed (the dashed outline) as dots on the live picture. A dot follows the finger;
  * the point under it, in the camera's own fractions, goes to the backend while dragging and on release, which reads it on
- * the bed and moves that corner's two edges. The dot then stays where the backend's new outline puts it.
+ * the bed and moves that corner's two edges. The dot then stays where the backend's new outline puts it. A refused point
+ * (crossed, too small, not on the bed) keeps the old outline and says why (`onProblem`).
  */
-function BedCorners({ corners, camera, frameRef, onSaved }) {
-  const [held, setHeld] = useState(null); // { corner, start: [u, v], at: [u, v], startX, startY, done }
+function BedCorners({ corners, camera, frameRef, onSaved, onProblem }) {
+  const [held, setHeld] = useState(null); // { corner, start: [u, v], at: [u, v], startX, startY }
+  const heldRef = useRef(null); // the same, read by the handlers (one release, one last send)
   const lastSent = useRef(0);
-  const send = async (corner, [u, v]) => {
+  const pending = useRef(Promise.resolve()); // the sends one after another: the release's always lands last
+  const hold = (next) => {
+    heldRef.current = next;
+    setHeld(next);
+  };
+  const send = (corner, [u, v]) => {
     lastSent.current = Date.now();
-    const reply = await camcalPost("bed_corner", { corner, u, v });
-    if (reply.ok) await onSaved();
+    pending.current = pending.current.then(async () => {
+      const reply = await camcalPost("bed_corner", { corner, u, v });
+      onProblem(reply.ok ? "" : reply.message);
+      if (reply.ok) await onSaved();
+    });
+    return pending.current;
   };
   const down = (event, corner) => {
     event.preventDefault();
     event.stopPropagation();
     if (event.currentTarget.setPointerCapture) event.currentTarget.setPointerCapture(event.pointerId);
-    setHeld({ corner, start: corners[corner], at: corners[corner], startX: event.clientX, startY: event.clientY });
+    hold({ corner, start: corners[corner], at: corners[corner], startX: event.clientX, startY: event.clientY });
   };
   const move = (event) => {
-    if (!held || held.done || !frameRef.current) return;
+    const current = heldRef.current;
+    if (!current || !frameRef.current) return;
     const box = frameRef.current.getBoundingClientRect();
-    // the movement in the camera's own fractions (the frame may be shown flipped)
-    const du = ((event.clientX - held.startX) / box.width) * (camera.flipH ? -1 : 1);
-    const dv = ((event.clientY - held.startY) / box.height) * (camera.flipV ? -1 : 1);
-    const at = [held.start[0] + du, held.start[1] + dv];
-    setHeld({ ...held, at });
-    if (Date.now() - lastSent.current > SHAPE_SEND_EVERY_MS) send(held.corner, at);
+    // the movement in the camera's own fractions (the frame may be shown flipped), kept inside the picture
+    const du = ((event.clientX - current.startX) / box.width) * (camera.flipH ? -1 : 1);
+    const dv = ((event.clientY - current.startY) / box.height) * (camera.flipV ? -1 : 1);
+    const at = [Math.min(1, Math.max(0, current.start[0] + du)), Math.min(1, Math.max(0, current.start[1] + dv))];
+    hold({ ...current, at });
+    if (Date.now() - lastSent.current > SHAPE_SEND_EVERY_MS) send(current.corner, at);
   };
   const up = async () => {
-    if (!held || held.done) return;
-    setHeld({ ...held, done: true });
-    if (held.at !== held.start) await send(held.corner, held.at);
+    const current = heldRef.current;
+    if (!current) return;
+    heldRef.current = null; // a second pointerup or a cancel does nothing more
+    if (current.at !== current.start) await send(current.corner, current.at);
+    else await pending.current;
     setHeld(null);
   };
   return h(
     "div",
-    { className: "cal-handles", onPointerMove: move, onPointerUp: up, onPointerCancel: up },
+    { className: "cal-handles" },
     Object.keys(corners).map((corner) => {
       const [u, v] = held && held.corner === corner ? held.at : corners[corner];
       if (u < -0.02 || u > 1.02 || v < -0.02 || v > 1.02) return null; // outside the picture: the − and + below stay
@@ -32814,6 +32830,7 @@ function BedCorners({ corners, camera, frameRef, onSaved }) {
         onPointerDown: (event) => down(event, corner),
         onPointerMove: move,
         onPointerUp: up,
+        onPointerCancel: up,
       });
     }),
   );
