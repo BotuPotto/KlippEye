@@ -14,7 +14,7 @@ if (!versionMatch.matches()) {
 }
 def appVersionCode = versionMatch.group(1).toInteger() * 10000 + versionMatch.group(2).toInteger() * 100 + versionMatch.group(3).toInteger()
 
-// The APK's signature. GitHub's computer adds it (see docs/GUIDE.md, "Building your own Android app"): it passes the key file
+// The APK's signature. GitHub's computer adds it (see android/README.md, "How the APK is made"): it passes the key file
 // and its password in these variables. On your own computer, without them, the "release" build stays unsigned and the
 // "debug" build of Android Studio is signed with its own test key.
 def keystoreFile = System.getenv('KLIPPEYE_KEYSTORE')

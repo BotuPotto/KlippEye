@@ -236,7 +236,7 @@ const HELP = {
       {
         id: "start",
         title: tx("To start"),
-        steps: [tx("A free AI key: Groq and Google Gemini give one. In «The AI service» open «Keys of the AI services», tap «Get a key» next to the service and paste the key there."), tx("Calibrate the camera (Camera calibration): then the whole bed is watched, not only a band around the picture."), tx("Leave the other values as they are: they are the usual ones.")],
+        steps: [tx("A free AI key: Groq and Google Gemini give one. In «The AI service» open «Keys of the AI services», tap «Get a key» next to the service and paste the key there."), tx("Calibrate the camera (Camera calibration): then the whole bed is watched, not only a band around the picture."), tx("Leave the other values as they are: they are the defaults.")],
       },
       {
         id: "service",
@@ -266,7 +266,7 @@ const HELP = {
           tx("«How watchful it is» moves both together. «Try the local model now», with a defect in front of the camera, shows whether it recognises it."),
         ],
       },
-      { id: "confidence", title: tx("Minimum AI confidence"), text: [tx("How sure the AI must be to propose a pause. 70% is the usual value; above 85% a failed print may not be stopped, because the AI is rarely that sure.")] },
+      { id: "confidence", title: tx("Minimum AI confidence"), text: [tx("How sure the AI must be to propose a pause. 70% is the recommended value; above 85% a failed print may not be stopped, because the AI is rarely that sure.")] },
       { id: "actions", title: tx("Automatic actions"), text: [tx("Off by default: you are told and you decide. «Pause by itself» stops the print when the AI is sure; a cancelled print cannot be recovered, so «Cancel by itself» is for when you really trust it.")] },
     ],
   },
@@ -292,7 +292,7 @@ const HELP = {
   detector: {
     title: tx("Monitor thresholds"),
     sections: [
-      { id: "what", title: tx("The fine numbers"), text: [tx("How sensitive the monitor is, how many checks in a row are needed before asking the AI, the pause between two analyses, when it starts during a print. The usual values work for most printers: change one at a time and watch the result in Recordings.")] },
+      { id: "what", title: tx("The fine numbers"), text: [tx("How sensitive the monitor is, how many checks in a row are needed before asking the AI, the pause between two analyses, when it starts during a print. The recommended values work for most printers: change one at a time and watch the result in Recordings.")] },
       { id: "fallback", title: tx("Without camera calibration"), text: [tx("Only then the rectangle and its outer band are used: the middle, where the part is, is not watched. Calibrate the camera to watch the whole bed.")] },
     ],
   },

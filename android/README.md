@@ -57,8 +57,20 @@ For a new version **raise the number in `VERSION`**. With a number lower than th
 **On GitHub (the normal way).** When something changes in `android/` *and* the number in `VERSION` is new, the workflow
 `.github/workflows/app.yml` builds the APK on GitHub's computer, signs it and puts it in `apk/KlippEye.apk` with `apk/version.json`
 (version, size, SHA-256 fingerprint, signature). The Raspberry receives it with the normal «Update KlippEye», the backend offers it to
-the phone (`/api/app/version`, `/app/KlippEye.apk`) and the dashboard in the app shows «Update the app». Step by step:
-[`docs/GUIDE.md`](../docs/GUIDE.md#a-building-your-own-android-app), appendix A.
+the phone (`/api/app/version`, `/app/KlippEye.apk`) and the dashboard in the app shows «Update the app».
+
+To build your own app from a fork (GitHub builds it for free in a public repository):
+
+1. Fork the repository on GitHub and install KlippEye from your fork (`git clone https://github.com/<you>/KlippEye.git ~/klippeye`).
+2. Signing key password. Android updates an app only if it is signed with the same key. GitHub creates the key the first time and
+   encrypts it with a password you choose: in your repository go to **Settings → Secrets and variables → Actions → New repository
+   secret**, name **`KLIPPEYE_CHIAVE_PASSWORD`**, value a long sentence (at least 16 characters, on one line). Keep it somewhere safe.
+3. **Settings → Actions → General → Workflow permissions → Read and write permissions**, so that the workflow can save the app in `apk/`.
+4. **Actions → Android app → Run workflow.** After 5 to 10 minutes the app is in `apk/`. Update KlippEye from the dashboard and install
+   the app from *Settings → Updates → Android app* (uninstall first an app signed with a different key).
+5. For a new version of the app, raise the number in `android/VERSION` (for example `1.8.1`); GitHub builds it by itself.
+
+When the workflow stops, it explains why in plain words (a missing secret, a short password, a different key…).
 
 **With Android Studio (to try a change).** *File → Open* and choose this folder (`android`); *Build → Build APK(s)*. Without the key the
 APK is a debug one, signed with Android Studio's key: it **cannot** be installed over the one built by GitHub (different signatures),

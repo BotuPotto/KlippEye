@@ -297,7 +297,7 @@ const LOOKS = ["oneui", "glass", "material", "hyperos", "studio", "soft", "fluen
 const lookLabel = (id) => ({ oneui: "One UI", glass: "Liquid Glass", material: "Material 3 Expressive", hyperos: "HyperOS 4", studio: "Studio", soft: "Soft", fluent: "Fluent", aurora: "Aurora" })[id];
 const lookDetail = (id) =>
   ({
-    oneui: tx("Glass cards on the logo's glow (the usual one)"),
+    oneui: tx("Glass cards on the logo's glow (the default)"),
     glass: tx("Clearer glass, a light edge, rounder corners"),
     material: tx("Solid surfaces tinted by the colour, bolder titles"),
     hyperos: tx("Black page, flat grey cards"),

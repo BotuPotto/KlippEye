@@ -69,7 +69,7 @@ with sync_playwright() as p:
     saved = json.loads(urllib.request.urlopen(mock.base + "/server/database/item?namespace=klippeye&key=settings").read())["result"]["value"].get("materials")
     ok("changed, removed, added: saved for every device", saved == [{"name": "PLA", "hotend": 205, "bed": 60}, {"name": "PETG", "hotend": 240, "bed": 80}, {"name": "ABS", "hotend": 250, "bed": 100},
                                                                      {"name": "ASA", "hotend": 255, "bed": 100}, {"name": "PA-CF", "hotend": 280, "bed": 90}], saved)
-    ok("... «Torna a quelli di base» offered", P.pg.locator("[data-material-reset]").count() == 1)
+    ok("... «Torna ai valori predefiniti» offered", P.pg.locator("[data-material-reset]").count() == 1)
     P.shot_vp(os.path.join(out, "materials.png"), 844)
     P.pg.keyboard.press("Escape"); P.settle(300)
     P.goto("home", 1400)

@@ -267,7 +267,7 @@ const WATCH_LEVELS = [
   {
     id: "balanced",
     label: tx("Balanced"),
-    note: tx("The usual values: a good compromise between noticing a problem early and not raising alarms for nothing."),
+    note: tx("Recommended: a good compromise between noticing a problem early and not raising alarms for nothing."),
     values: { sensitivity: 35, score_threshold: 2.5, trigger_count: 3, persist_checks: 3, local_doubt: 35, local_sure: 80, local_every: 15 },
   },
   {
