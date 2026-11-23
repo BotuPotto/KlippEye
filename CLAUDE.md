@@ -433,6 +433,4 @@ keeps it readable).
   there would hide them until the next print).
 
 ### Open PRs
-#182 (release 1.135.0: the new base model, branch `paste-failures`), open 23 Nov: first CI run failed on
-`ml/tests/smoke_train.py` (the test's reviewed print had the same start as a recording, so `same_print_once` merged
-them), fixed in 31a919c; CI rerunning. Merge it once all green. #181 closed (replaced). Update this line when a PR opens or merges.
+None (23 Nov: #182, release 1.135.0 with the new base model, merged; #181 closed). Update this line when a PR opens or merges.
