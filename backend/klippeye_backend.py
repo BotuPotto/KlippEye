@@ -4374,9 +4374,7 @@ CAMERA_MESSAGES = (  # what camera_calibration.py and camera_model.py may answer
     btn("Klipper refused the command: {message}"),
     btn("homing could hit the markers on the bed"),
     btn("tap the nozzle by hand at one point first: KlippEye then finds it at the others"), btn("only the nozzle points can be found by themselves"),
-    btn("the method must be detail or markers"),
-    btn("tap the nozzle tip and the detail of the toolhead by hand at the first place: KlippEye then finds both at the others"),
-    btn("the detail of the toolhead must be clearly higher than the nozzle tip: choose one higher up"),
+    btn("the method must be markers"),
 )
 def _gcode_files():
     r = requests.get(f"{MOONRAKER_URL}/server/files/list?root=gcodes", timeout=10)
@@ -4453,8 +4451,8 @@ def api_camera_options():
 
 @app.route("/api/camera/calibration/template/<kind>", methods=["GET"])
 def api_camera_template(kind):
-    """1.128: the small picture of the nozzle tip or of the detail of the toolhead as tapped first (to tap the same again)."""
-    data = camera_cal.template_png("detail" if kind == "detail" else "nozzle")
+    """1.128: the small picture of the nozzle tip as tapped first (to tap the same again)."""
+    data = camera_cal.template_png() if kind == "nozzle" else None
     if not data:
         return jsonify({"ok": False}), 404
     response = Response(data, mimetype="image/png")

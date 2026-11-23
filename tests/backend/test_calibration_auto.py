@@ -183,94 +183,35 @@ STATE["still"] = False
 cal.reset()
 check("starting again forgets the template too", not cal.has_template())
 
-print("== 1.128: nothing printed: the nozzle tip and a detail of the toolhead")
-OFFSET = [14.0, -22.0, 32.0]
-STATE.update(detail=OFFSET, decoy=[-24.0, 6.0, 18.0])
+print("== 1.136.0: only the markers method")
+import json  # noqa: E402
 data3 = tempfile.mkdtemp()
 cal3 = cc.CameraCalibration(data3, query, gcode, render, cv2, np)
 cal3.set_options("bed")
-check("Z moves the bed: the detail of the toolhead is the method by default", cal3.method() == "detail" and cal3.summary()["method"] == "detail")
-pairs = cal3.target_list()
-check("six places, each with the nozzle tip and the detail, at the same safe height, nothing printed",
-      len(pairs) == 12 and [t["kind"] for t in pairs[:2]] == ["nozzle", "detail"] and all(t["z"] == cc.DETAIL_Z for t in pairs) and not cal3.draft.get("markers"),
-      [(t["id"], t["kind"]) for t in pairs])
-
-
-def tip_at(x, y):
-    uv, _ = cm.project(CAM, [[x, y, 0.0]])
-    return float(uv[0][0]), float(uv[0][1])
-
-
-def detail_at(x, y):
-    uv, _ = cm.project(CAM, [[x + OFFSET[0], y + OFFSET[1], OFFSET[2]]])
-    return float(uv[0][0]), float(uv[0][1])
-
-
-cal3.goto(pairs[0]["id"])
-cal3.add_point(pairs[0]["id"], *tip_at(*STATE["position"][:2]))
+check("1.136.0: Z moves the bed: the method is markers", cal3.method() == "markers" and cal3.summary()["method"] == "markers" and cc.METHODS == ("markers",))
+check("1.136.0: ... and nothing to take until the markers are known", cal3.target_list() == [])
 try:
-    cal3.find_all()
-    check("the tip alone tapped: find_all refused (the detail too, at the first place)", False)
-except ValueError as error:
-    check("the tip alone tapped: find_all refused (the detail too, at the first place)", "detail of the toolhead" in str(error), error)
-cal3.add_point(pairs[1]["id"], *detail_at(*STATE["position"][:2]))
-check("both tapped: the two pictures kept, can find by itself", cal3.can_find() and cal3.template_png("detail") and cal3.template_png("nozzle"))
-cal3.find_all()
-end = time.time() + 90
-while cal3.auto["state"] == "running" and time.time() < end:
-    time.sleep(0.05)
-check("find_all: the other 10 found (tip and detail together at each place)", cal3.auto["state"] == "done" and cal3.auto["found"] == 10 and cal3.auto["total"] == 10, cal3.auto)
-bad = []
-for t in pairs[2:]:
-    p = cal3.draft["proposals"][t["id"]]
-    want = (tip_at if t["kind"] == "nozzle" else detail_at)(*p["machine"][:2])
-    if not p["found"] or abs(p["u"] - want[0]) * W > 3 or abs(p["v"] - want[1]) * H > 3:
-        bad.append((t["id"], p["found"], round((p["u"] or 0) * W - want[0] * W, 1), round((p["v"] or 0) * H - want[1] * H, 1)))
-check("... each within 3 px of the real place: never the reflection that looks like the tip", not bad, bad)
-check("... from the third place on, the search was only where the others said", all(cal3.draft["proposals"][t["id"]]["expected"] for t in pairs[4:]))
-cal3.accept()
-fit = cal3.fit()
-check("the calibration from the tips and the detail: good", fit["quality"] == "good" and not fit["redo"], (fit["quality"], fit["rms_px"], fit["redo"]))
-check("... and the detail's height over the tip found by the camera (within 3 mm)", all(abs(a - b) < 3.0 for a, b in zip(fit["offset"], OFFSET)), fit["offset"])
-probe = [[60.0, 300.0, -20.0], [300.0, 60.0, -20.0], [175.0, 175.0, -20.0]]   # on the bed, 20 mm under the nozzle
-got, _ = cm.project(fit, probe)
-want, _ = cm.project(CAM, probe)
-err = float(np.max(np.linalg.norm((np.array(got) - np.array(want)) * [W, H], axis=1)))
-check("... and the bed lands where it is in the picture (within 8 px)", err < 8.0, err)
-cal3._picture = lambda: (cv2.imencode(".jpg", cv2.imdecode(np.frombuffer(render(), np.uint8), 1))[1].tobytes(), cv2.imdecode(np.frombuffer(render(), np.uint8), 1))
-saved = cal3.save()
-check("saved with the method and the offset", saved.get("method") == "detail" and saved.get("offset") and cal3.summary()["saved"]["offset"])
-ov = cal3.overlay()
-check("the live check draws the detail where it is", ov["detail"] and abs(ov["detail"][0] - detail_at(*STATE["position"][:2])[0]) * W < 6, (ov["detail"], detail_at(*STATE["position"][:2])))
-
-data4 = tempfile.mkdtemp()
-cal4 = cc.CameraCalibration(data4, query, gcode, render, cv2, np)
-cal4.set_options("bed")
-q = cal4.target_list()
-for t in q[:4]:   # two places by hand
-    cal4.goto(t["id"])
-    cal4.add_point(t["id"], *(tip_at if t["kind"] == "nozzle" else detail_at)(*STATE["position"][:2]))
-check("predict: two places only (or all in a row): no guess (the picture may be mirrored)", cal4.predict(q[4]) is None)
-real = STATE["detail"]
-STATE["detail"] = [OFFSET[0] + 60, OFFSET[1], OFFSET[2]]   # the detail gone; something alike far from where it should be
-p = cal4.find_tip(q[4]["id"])
-STATE["detail"] = real
-lost = cal4.draft["proposals"][q[5]["id"]]
-check("followed from the place known: the tip found, the detail lost on the way and the look-alike not taken",
-      p["found"] and not lost["found"] and lost["lost"], (p, lost))
-cal4.goto(q[6]["id"])
-cal4.add_point(q[6]["id"], *tip_at(*STATE["position"][:2]))
-e = cal4.predict(q[8])
-want = tip_at(q[8]["x"], q[8]["y"])
-check("predict: three places not in a row: a guess with a window", e and ((e["u"] - want[0]) ** 2 + ((e["v"] - want[1]) * H / W) ** 2) ** 0.5 < 0.15, (e, want))
-cal4.set_options(method="markers")
-check("switching to the markers: points forgotten, nothing to take until the markers are known", not cal4.draft.get("points") and cal4.method() == "markers" and cal4.target_list() == [])
+    cal3.set_options(method="detail")
+    check("1.136.0: method detail is refused", False)
+except ValueError:
+    check("1.136.0: method detail is refused", True)
 try:
-    cal4.set_options(method="paint")
+    cal3.set_options(method="paint")
     check("an unknown method: refused", False)
 except ValueError:
     check("an unknown method: refused", True)
-STATE.update(detail=None, decoy=None)
+check("1.136.0: no detail in the summary", "detail_template" not in cal3.summary())
+data4 = tempfile.mkdtemp()
+with open(os.path.join(data4, "camera_draft.json"), "w") as f:
+    json.dump({"z_moves": "bed", "method": "detail", "points": {"tip1": {"kind": "nozzle", "machine": [1, 2, 20], "frame": [1, 2, 0], "u": 0.5, "v": 0.5},
+                                                                 "feat1": {"kind": "detail", "machine": [1, 2, 20], "frame": [1, 2, 0], "u": 0.5, "v": 0.5}}}, f)
+with open(os.path.join(data4, "camera.json"), "w") as f:
+    json.dump({"version": 1, "z_moves": "bed", "method": "detail", "offset": [1, 2, 30], "quality": "good", "model": "fisheye", "params": CAM["params"],
+               "width": W, "height": H}, f)
+cal4 = cc.CameraCalibration(data4, query, gcode, render, cv2, np)
+check("1.136.0: an old draft with method detail is read as markers, points dropped",
+      cal4.method() == "markers" and not cal4.draft.get("points") and cal4.draft.get("method") == "markers", cal4.draft)
+check("1.136.0: a saved calibration with method detail is not usable", not cal4.usable())
 
 print("== the dots of the sizes")
 calib = dict(CAM, z_moves="bed")
