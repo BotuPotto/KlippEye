@@ -1,5 +1,15 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.136.0
+
+- The camera calibration no longer has the «detail of the toolhead» way, the one that printed nothing. It was not
+  reliable: a screw head or a reflection could look like the tip from another place, and the result depended on
+  which detail you picked. When Z moves the bed there is now one way: six markers on the bed, as six drops of
+  filament («Make the 6 blobs») or the printed pyramids. The page no longer asks how to calibrate.
+- A calibration made with a detail of the toolhead is no longer used, and a calibration started that way is dropped.
+  If you made one, calibrate again with the markers: the camera is then treated as not calibrated until you do.
+- The guide (English and Italian) describes only the markers.
+
 ## 1.135.1
 
 - The settings and the guide no longer say «the usual values». They say «recommended» or «default», which is what they

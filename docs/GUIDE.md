@@ -278,26 +278,18 @@ calibration: keep your hands away.
 2. **How does the Z axis move?** The bed (most CoreXY printers) or the toolhead. KlippEye proposes the answer from your
    configuration. Printers whose bed moves forward and back (bed slingers) are not supported yet.
 3. **Home** the printer.
-4. **How to calibrate** (only when Z moves the bed). With the bed moving, the nozzle tip is always at the same height, so
-   KlippEye needs a second height. The recommended way prints nothing: **a detail of the toolhead**. Look at the toolhead
-   in the camera picture and pick one small, sharp detail clearly higher than the nozzle tip (1 cm or more): the head of a
-   screw, a corner of the cover, the tip of a clip. The camera must see it from every place on the bed. Avoid reflections,
-   lights, cables that move and smooth surfaces without corners. A piece of tape with a dot drawn on it works too.
-   KlippEye works out by itself how much higher it is.
-   The other way, **Markers on the bed**: **Download the markers (STL)**, six small pyramids already placed for your bed,
-   print them with your usual settings and leave them on the bed; then choose the G-code you printed and **Read the
-   markers from this file**. The quick way: **Make the 6 blobs**, six drops of filament. Use it when the toolhead has no
-   detail the camera always sees.
+4. **The markers** (only when Z moves the bed). With the bed moving, the nozzle tip is always at the same height, so
+   KlippEye needs points at a second height: six markers on the bed. The quick way is **Make the 6 blobs**: the printer
+   puts down six drops of filament (you can choose the temperatures). The other way is **Download the markers (STL)**,
+   six small pyramids already placed for your bed: print them with your usual settings and leave them on the bed, then
+   choose the G-code you printed and **Read the markers from this file**. Leave the markers where they are until the
+   calibration is saved.
 5. The 12 points. For each one press **Go to point**, tap the picture where the point is, tap it again exactly in the
-   magnified view, and press **Keep this point**. The page shows a small drawing of what to tap. With a detail of the
-   toolhead, each of the six places has two points: the very tip of the nozzle, then the detail you chose (always the
-   same one: from the third point on, the page shows it as you tapped it). With markers: the tip of the nozzle, or the top
-   of a marker.
-   **Finding the points by itself:** with a detail of the toolhead, tap the tip and the detail by hand at the first place,
-   then press **Find the other 10 points by themselves**. From a place already known the printer moves a few mm at a time
-   and follows the tip and the detail in the picture, looking only next to where they should be, so a reflection or the
-   background further away is not taken. A point it loses on the way is left for you to tap. With markers, **Find the
-   nozzle by itself** does the other nozzle points after the first. Blue numbers are found but not checked yet.
+   magnified view, and press **Keep this point**. The page shows a small drawing of what to tap: the very tip of the
+   nozzle, or the top of a marker (for a blob, its centre).
+   **Finding the points by itself:** tap the nozzle by hand at one point, then press **Find the nozzle by itself at the
+   other points**. The printer goes to each point and moves the toolhead aside for a moment. A point it does not find is
+   left for you to tap. Blue numbers are found but not checked yet.
 6. **Calculate the calibration.** A good result has an error of a few pixels; points shown in red were tapped in the wrong
    place: redo just those. Then **Save the calibration** (and take the markers off the bed, if you used them).
 7. Toolhead and gantry: the live picture shows them outlined in purple and orange. Drag the dots (or use − and +) so

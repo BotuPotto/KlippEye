@@ -40,7 +40,7 @@ def look_at(cam, target):
 ROT, T = look_at(np.array([175.0, -70.0, 110.0]), [175.0, 210.0, -60.0])
 CAM = {"model": "fisheye", "width": W, "height": H, "params": [W / 3.0, W / 2 + 12, H / 2 - 8, 0.02, -0.01] + list(cm.rotation_to_vector(ROT)) + list(T)}
 BACK = cv2.GaussianBlur((np.random.default_rng(5).random((H, W)) * 120 + 40).astype(np.uint8), (7, 7), 0)
-STATE = {"position": [175.0, 175.0, 20.0], "homed": "xyz", "still": False, "markers": [], "detail": None, "decoy": None}
+STATE = {"position": [175.0, 175.0, 20.0], "homed": "xyz", "still": False, "markers": []}
 MIN, MAX = [0.0, 0.0, 0.0], [350.0, 350.0, 300.0]
 
 
@@ -69,19 +69,6 @@ def render():
     p, f = px([[x, y, 0.0]])
     if f[0]:
         cv2.circle(img, tuple(int(c) for c in p[0]), 4, (40, 40, 255), -1)
-    if STATE["detail"]:   # 1.128: a screw head on the toolhead, higher than the tip
-        dx, dy, dz = STATE["detail"]
-        p, f = px([[x + dx, y + dy, dz]])
-        if f[0]:
-            c = tuple(int(v) for v in p[0])
-            cv2.circle(img, c, 7, (235, 235, 235), -1)
-            cv2.line(img, (c[0] - 5, c[1]), (c[0] + 5, c[1]), (20, 20, 20), 2)
-            cv2.line(img, (c[0], c[1] - 5), (c[0], c[1] + 5), (20, 20, 20), 2)
-    if STATE["decoy"]:   # a reflection on the toolhead that looks like the tip
-        dx, dy, dz = STATE["decoy"]
-        p, f = px([[x + dx, y + dy, dz]])
-        if f[0]:
-            cv2.circle(img, tuple(int(v) for v in p[0]), 4, (40, 40, 250), -1)
     return cv2.imencode(".jpg", img)[1].tobytes()
 
 

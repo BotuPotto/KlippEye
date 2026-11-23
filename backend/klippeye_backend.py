@@ -4375,6 +4375,7 @@ CAMERA_MESSAGES = (  # what camera_calibration.py and camera_model.py may answer
     btn("homing could hit the markers on the bed"),
     btn("tap the nozzle by hand at one point first: KlippEye then finds it at the others"), btn("only the nozzle points can be found by themselves"),
     btn("the method must be markers"),
+    btn("the nozzle tip does not move in the picture when Y moves: the bed moves forward and back (a bed slinger) and the camera is on the frame. These printers are not supported yet"),
 )
 def _gcode_files():
     r = requests.get(f"{MOONRAKER_URL}/server/files/list?root=gcodes", timeout=10)

@@ -261,6 +261,8 @@ class CameraCalibration:
 
     def set_options(self, z_moves=None, toolhead=None, method=None):
         with self.lock:
+            if method is not None and method not in METHODS:   # before anything changes
+                raise ValueError("the method must be markers")
             if z_moves is not None:
                 if z_moves not in Z_MOVES:
                     raise ValueError("z_moves must be bed or toolhead")
@@ -275,8 +277,6 @@ class CameraCalibration:
                         raise ValueError("the toolhead size must be 10 to 300 mm")
                     clean[key] = float(value)
                 self.draft["toolhead"] = clean
-            if method is not None and method not in METHODS:
-                raise ValueError("the method must be markers")
             self.draft.setdefault("points", {})
             self._save_draft()
             return self.draft
@@ -485,7 +485,7 @@ class CameraCalibration:
         known = self._known()
         same = [k for pid, k in known.items() if pid != t["id"] and k.get("kind") == t["kind"] and abs(float(k["machine"][2]) - float(t["z"])) < 0.6]
         guess = None
-        if len(same) >= 3:   # two, or all in a row: the picture may be mirrored, nothing sure 
+        if len(same) >= 3:   # three or more at this height: a map can be fitted (two would fit a mirrored picture too)
             src = self.np.array([[k["machine"][0], k["machine"][1]] for k in same], float)
             dst = self.np.array([[k["u"], k["v"]] for k in same], float)
             spread = self.np.linalg.svd(src - src.mean(axis=0), compute_uv=False)
