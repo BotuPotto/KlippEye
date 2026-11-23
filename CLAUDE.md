@@ -350,6 +350,17 @@ keeps it readable).
   on a real printer. Next try: paste only the spaghetti's own pixels (a mask from the colour/edges inside the box, or
   skip boxes whose patch does not look like strands), check the sheet **before** training, then train on Kaggle again.
   Colab's own rule: no second account to get round its limits (FAQ), Kaggle is a separate service and is fine.
+- **18–23 Nov: model 20261118-2036, on trial on the owner's printer only** (not in `models/base`). The owner allowed
+  his prints in training (18 Nov): 10 of his 19 judged recordings (+ their answers, cut to the bed box
+  `0,0.368,1,0.632`) went in through the Kaggle notebook's input `klippeye-train`; the other 9 (4 failed, 5 fine)
+  were kept out for measuring. Also: the failed Bambu timelapses' last pictures as failures, no `--paste`
+  (branch `paste-failures`, commits 0179bf9, ffb7c9a: `evaluate.py` «+ motion» row). On the 9 kept out:
+  current base «+ motion» 4.8 false asks/h, 2 of 4 caught; new 0/h, 2 of 4 (different ones; slower, ~60 s). Fine prints
+  now score 0.04–0.49 instead of 0.89–0.94 (one orange-lit print still 0.94). Trial: the owner copies `model.onnx` +
+  `model.json` to `~/printer_data/klippeye/model/` (the «own» model, used before `models/base`; a model that does not
+  load falls back to base) and the dashboard reloads (`POST /api/local_model {"reload": true}`). Undo: delete that
+  folder and reload. After about a week, measure on the new judged recordings; if confirmed, ship it in
+  `models/base` and rewrite the Universality rule (section 3) and `CREDITS.md` to say the owner's prints are in it.
 - **Next**: train (section 7) → measure against `models/base` on the owner's recordings → look at the contact sheet
   (pasted pieces must not look fake) → ship only if better (new `models/base/*`, `CREDITS.md`, measurements in
   `models/base/README.md`, CHANGELOG). Few pasted pictures → raise `--paste`. Distillation only if not enough.
