@@ -116,7 +116,7 @@ function Loupe({ src, camera, tap, onTap, aspect }) {
 }
 
 /** Live picture with the toolhead outline, the nozzle and the bed drawn from the calibration (saved, or the one just calculated). */
-function LiveCheck({ camera, draft, editShape }) {
+function LiveCheck({ camera, draft, editShape, onBedChange = noop }) {
   const [stamp, setStamp] = useState(() => Date.now());
   const [overlay, setOverlay] = useState(null);
   const [problem, setProblem] = useState("");
@@ -162,7 +162,14 @@ function LiveCheck({ camera, draft, editShape }) {
         camera,
         frameRef,
         label: tx("Live picture with the calibration drawn over it"),
-        layer: editShape && overlay && overlay.shape && Array.isArray(overlay.handles) ? h(ShapeHandles, { overlay, camera, frameRef, onDrag: setDragging, onSaved: () => readRef.current() }) : null,
+        layer: editShape && overlay
+          ? h(
+              React.Fragment,
+              null,
+              overlay.shape && Array.isArray(overlay.handles) && h(ShapeHandles, { overlay, camera, frameRef, onDrag: setDragging, onSaved: () => readRef.current() }),
+              overlay.bed_corners && h(BedCorners, { corners: overlay.bed_corners, camera, frameRef, onSaved: () => Promise.all([readRef.current(), onBedChange()]) }),
+            )
+          : null,
       },
       overlay && overlay.bed.length > 2 && h("polygon", { className: "cal-bed", points: pointsAttr(overlay.bed) }),
       overlay && overlay.zone && overlay.zone.expected.map((piece, index) => h("polygon", { key: "z" + index, className: "cal-zone", points: pointsAttr(piece) })),
@@ -256,6 +263,63 @@ function ShapeHandles({ overlay, camera, frameRef, onDrag, onSaved }) {
         title: handleLabel(handle.key),
         "data-handle": handle.key,
         onPointerDown: (event) => down(event, handle),
+        onPointerMove: move,
+        onPointerUp: up,
+      });
+    }),
+  );
+}
+
+/**
+ * 1.136.0: the four corners of the watched bed (the dashed outline) as dots on the live picture. A dot follows the finger;
+ * the point under it, in the camera's own fractions, goes to the backend while dragging and on release, which reads it on
+ * the bed and moves that corner's two edges. The dot then stays where the backend's new outline puts it.
+ */
+function BedCorners({ corners, camera, frameRef, onSaved }) {
+  const [held, setHeld] = useState(null); // { corner, start: [u, v], at: [u, v], startX, startY, done }
+  const lastSent = useRef(0);
+  const send = async (corner, [u, v]) => {
+    lastSent.current = Date.now();
+    const reply = await camcalPost("bed_corner", { corner, u, v });
+    if (reply.ok) await onSaved();
+  };
+  const down = (event, corner) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (event.currentTarget.setPointerCapture) event.currentTarget.setPointerCapture(event.pointerId);
+    setHeld({ corner, start: corners[corner], at: corners[corner], startX: event.clientX, startY: event.clientY });
+  };
+  const move = (event) => {
+    if (!held || held.done || !frameRef.current) return;
+    const box = frameRef.current.getBoundingClientRect();
+    // the movement in the camera's own fractions (the frame may be shown flipped)
+    const du = ((event.clientX - held.startX) / box.width) * (camera.flipH ? -1 : 1);
+    const dv = ((event.clientY - held.startY) / box.height) * (camera.flipV ? -1 : 1);
+    const at = [held.start[0] + du, held.start[1] + dv];
+    setHeld({ ...held, at });
+    if (Date.now() - lastSent.current > SHAPE_SEND_EVERY_MS) send(held.corner, at);
+  };
+  const up = async () => {
+    if (!held || held.done) return;
+    setHeld({ ...held, done: true });
+    if (held.at !== held.start) await send(held.corner, held.at);
+    setHeld(null);
+  };
+  return h(
+    "div",
+    { className: "cal-handles", onPointerMove: move, onPointerUp: up, onPointerCancel: up },
+    Object.keys(corners).map((corner) => {
+      const [u, v] = held && held.corner === corner ? held.at : corners[corner];
+      if (u < -0.02 || u > 1.02 || v < -0.02 || v > 1.02) return null; // outside the picture: the − and + below stay
+      return h("button", {
+        key: corner,
+        type: "button",
+        className: cx("cal-handle", "cal-handle--bed", held && held.corner === corner && "is-held"),
+        style: { left: u * 100 + "%", top: v * 100 + "%" },
+        "aria-label": tx("Bed corner"),
+        title: tx("Bed corner"),
+        "data-bed-corner": corner,
+        onPointerDown: (event) => down(event, corner),
         onPointerMove: move,
         onPointerUp: up,
       });
@@ -838,7 +902,7 @@ function CameraCalibrationPage({ active }) {
             h(
               SettingsGroup,
               { title: tx("Toolhead and gantry on the live picture"), note: tx("What is inside the outlines is left out of the AI monitor's checks (Settings → Monitor thresholds → False alarms). Adjust the sizes until the outlines cover the toolhead and the gantry wherever they are.") },
-              h(LiveCheck, { camera, draft: false, editShape: true }),
+              h(LiveCheck, { camera, draft: false, editShape: true, onBedChange: reload }),
             ),
           saved && h(BedArea, { state, reload }),
           saved && h(MaskSwitches, { active }),

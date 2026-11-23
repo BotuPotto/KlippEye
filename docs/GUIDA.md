@@ -303,6 +303,7 @@ muove da sola: tieni le mani lontane.
 8. **Area del piatto**: il contorno tratteggiato è il piatto che il monitor sorveglia. KlippEye lo ricava dalla mesh del
    piatto (un po' più largo), oppure usa la corsa della testina se la mesh non c'è. Se comprende qualcosa che non è il
    piatto (cestino dello spurgo, spazzolino, telaio), sposta i bordi con − e +: i cambiamenti lì non sono problemi.
+   Puoi anche trascinare i pallini ai suoi angoli sull'immagine dal vivo.
 
 Ogni dieci minuti KlippEye controlla che la telecamera non si sia spostata, guardando solo ciò che resta fermo
 nell'immagine (telaio, bordi del piatto) e mai l'ugello. Uno spostamento piccolo (fino a circa il 5% dell'immagine) viene

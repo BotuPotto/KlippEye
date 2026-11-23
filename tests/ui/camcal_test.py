@@ -321,6 +321,26 @@ with sync_playwright() as p:
        and abs(b.camera_cal.bed_area()[0][1][0] - (x1 - 5)) < 0.01 and pg.locator('[data-bed-source="person"]').count() == 1), b.camera_cal.bed_area())
     pg.click("[data-bed-auto]")
     ok("... «Work it out again by itself»: back to the travel", wait(pg, lambda: b.camera_cal.bed_area()[1] == "travel" and pg.locator('[data-bed-source="travel"]').count() == 1), b.camera_cal.bed_area())
+    # 1.136.0: the corners of the dashed bed outline can be dragged on the picture
+    ok("1.136.0: four bed corner dots on the live picture of the saved calibration", wait(pg, lambda: pg.locator("[data-bed-corner]").count() == 4)
+       and pg.locator('[data-bed-corner="x1y1"]').get_attribute("aria-label") == "Angolo del piatto", pg.locator("[data-bed-corner]").count())
+    dot = pg.locator('[data-bed-corner="x1y1"]')
+    dot.scroll_into_view_if_needed()
+    pg.wait_for_timeout(400)
+    db = dot.bounding_box()
+    cx_, cy_ = db["x"] + db["width"] / 2, db["y"] + db["height"] / 2
+    with pg.expect_request(lambda r: r.url.endswith("/api/camera/bed_corner") and r.method == "POST") as corner_post:
+        pg.mouse.move(cx_, cy_)
+        pg.mouse.down()
+        for k in range(1, 6):
+            pg.mouse.move(cx_ - 4 * k, cy_ - 4 * k)   # 20 px towards the middle of the bed
+            pg.wait_for_timeout(60)
+        pg.mouse.up()
+    sent = corner_post.value.post_data_json
+    ok("... dragging it 20 px posts the corner and the picture point; the bed is then set by the person", sent.get("corner") == "x1y1" and 0 <= sent.get("u") <= 1
+       and wait(pg, lambda: b.camera_cal.bed_area()[1] == "person" and pg.locator('[data-bed-source="person"]').count() == 1), (sent, b.camera_cal.bed_area()))
+    pg.click("[data-bed-auto]")
+    wait(pg, lambda: b.camera_cal.bed_area()[1] == "travel")
     pg.click('[data-size="toolhead.below.minus"]')
     ok("'below the nozzle tip' goes down to 0 (not refused) and stops there", wait(pg, lambda: pg.locator('[data-value="toolhead.below"]').inner_text().startswith("0")
        and b.camera_cal.get_shape()["toolhead"]["below"] == 0.0) and pg.locator('[data-size="toolhead.below.minus"]').is_disabled(), b.camera_cal.get_shape()["toolhead"])

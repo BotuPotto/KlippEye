@@ -33,6 +33,7 @@ import nozzle_finder
 import print_zone
 
 Z_MOVES = ("bed", "toolhead")
+BED_CORNERS = ("x0y0", "x1y0", "x1y1", "x0y1")   # 1.136.0: the corners of the watched bed that can be dragged
 GRID_X = (0.15, 0.5, 0.85)
 GRID_Y = (0.2, 0.8)
 LOW_Z_TOOLHEAD = 5.0
@@ -949,15 +950,18 @@ class CameraCalibration:
         shape = self.get_shape()
         parts = machine_masks.polygons(dict(calibration, z_moves=z_moves), shape, [x, y, z], [printer["minimum"][0], printer["maximum"][0]])
         bed_z = -z if z_moves == "bed" else 0.0
-        area = self.bed_area()[0] if not use_draft else None   # 1.127: the bed the monitor watches
-        (bx0, by0), (bx1, by1) = area if area else (printer["minimum"][:2], printer["maximum"][:2])
+        # 1.127: the bed the monitor watches
+        (bx0, by0), (bx1, by1) = self._bed_rect(printer) if not use_draft else (printer["minimum"][:2], printer["maximum"][:2])
         bed = []
         for (ax, ay), (cx, cy) in (((bx0, by0), (bx1, by0)), ((bx1, by0), (bx1, by1)), ((bx1, by1), (bx0, by1)), ((bx0, by1), (bx0, by0))):
             for s in [i / 12.0 for i in range(12)]:
                 bed.append([ax + (cx - ax) * s, ay + (cy - ay) * s, bed_z])
         bed_uv, bed_front = camera_model.project(calibration, bed)
         nozzle_uv, nozzle_front = camera_model.project(calibration, [tip])
-        return {"position": printer["position"], "z_moves": z_moves,
+        corner_uv, corner_front = camera_model.project(calibration, [[bx0, by0, bed_z], [bx1, by0, bed_z], [bx1, by1, bed_z], [bx0, by1, bed_z]])
+        corners = {name: [round(float(c), 4) for c in uv] for name, uv, f in zip(BED_CORNERS, corner_uv, corner_front) if f and not use_draft}
+        return {"bed_corners": corners,   # 1.136.0: the dots that can be dragged (only for the saved calibration)
+                "position": printer["position"], "z_moves": z_moves,
                 "nozzle": [round(float(c), 4) for c in nozzle_uv[0]] if nozzle_front[0] else None,
                 "toolhead": [[round(a, 4), round(b, 4)] for a, b in (parts["toolhead"][0] if parts["toolhead"] else [])],
                 "gantry": [[[round(a, 4), round(b, 4)] for a, b in piece] for piece in parts["gantry"]],
@@ -1000,6 +1004,35 @@ class CameraCalibration:
             self.shape = shape
             _write_json(self.shape_path, shape)
         return shape
+
+    def _bed_rect(self, printer):
+        """The bed area the overlay draws: the watched one, else the printer's travel."""
+        area = self.bed_area()[0]
+        return area if area else (printer["minimum"][:2], printer["maximum"][:2])
+
+    def set_bed_corner(self, corner, u, v):
+        """1.136.0: a corner of the watched bed dragged on the picture: (u, v) fractions of the camera's own picture, read on
+        the bed at the height the overlay draws it. Moves that corner's X and Y edges, keeps the other two -> the new area."""
+        if corner not in BED_CORNERS:
+            raise ValueError("unknown point")
+        u, v = float(u), float(v)
+        if not (-0.5 <= u <= 1.5 and -0.5 <= v <= 1.5):
+            raise ValueError("u and v must be fractions of the picture (0..1)")
+        calibration = self.calibration()
+        if not calibration:
+            raise ValueError("the camera is not calibrated")
+        printer = self.printer()
+        z_moves = calibration.get("z_moves") or self.z_moves() or "toolhead"
+        z = float(printer["position"][2])
+        hit = camera_model.unproject_to_plane(calibration, u, v, -z if z_moves == "bed" else 0.0)
+        if hit is None:
+            raise ValueError("that point of the picture is not on the bed")
+        (x0, y0), (x1, y1) = [[float(c) for c in p] for p in self._bed_rect(printer)]
+        x0, x1 = (hit[0], x1) if corner[1] == "0" else (x0, hit[0])
+        y0, y1 = (hit[1], y1) if corner[3] == "0" else (y0, hit[1])
+        area = [[round(x0, 1), round(y0, 1)], [round(x1, 1), round(y1, 1)]]
+        self.set_shape({"bed": area})   # refuses one too small or crossed (ShapeError)
+        return area
 
     def limits(self):
         """The travel of the printer, ([x min, y min], [x max, y max]): read from Klipper at most every ten minutes and kept in

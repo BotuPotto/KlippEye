@@ -215,6 +215,51 @@ def project(calibration, points):
     return uv, z > 0
 
 
+def unproject_to_plane(calibration, u, v, z):
+    """1.136.0: the inverse of `project` on a horizontal plane: the picture point (u, v) (fractions, the same frame as
+    `project` answers in, correction included) -> the machine (X, Y) at height `z` mm where that ray meets it, or None when
+    the ray does not reach the plane in front of the camera (above the horizon, parallel to it)."""
+    uv = np.array([float(u), float(v)])
+    correction = calibration.get("correction")
+    if isinstance(correction, (list, tuple)) and len(correction) == 2:
+        m = np.asarray(correction, float)
+        uv = np.linalg.solve(m[:, :2], uv - m[:, 2])
+    p = np.asarray(calibration["params"], float)
+    f, cx, cy, k1, k2 = p[:5]
+    d = (uv * [calibration["width"], calibration["height"]] - [cx, cy]) / f
+    rd = float(np.hypot(*d))
+    # undo the radial bending: Newton on x (1 + k1 x^2 + k2 x^4) = rd, x = theta (fisheye) or r = tan(theta) (pinhole)
+    x = rd
+    for _ in range(50):
+        g = x * (1 + k1 * x * x + k2 * x ** 4) - rd
+        dg = 1 + 3 * k1 * x * x + 5 * k2 * x ** 4
+        if abs(dg) < 1e-12:
+            return None
+        step = g / dg
+        x -= step
+        if abs(step) < 1e-12:
+            break
+    if x < 0 or abs(x * (1 + k1 * x * x + k2 * x ** 4) - rd) > 1e-6:
+        return None
+    direction = d / rd if rd > 1e-12 else np.zeros(2)
+    if calibration["model"] == "fisheye":
+        if x >= math.pi:
+            return None
+        ray = np.r_[direction * math.sin(x), math.cos(x)]
+    else:
+        ray = np.r_[direction * x, 1.0]
+    rot = rodrigues(p[5:8])
+    origin = -rot.T @ p[8:11]
+    ray = rot.T @ ray   # camera -> machine coordinates
+    if abs(ray[2]) < 1e-9:
+        return None
+    s = (float(z) - origin[2]) / ray[2]
+    if s <= 0:
+        return None
+    hit = origin + s * ray
+    return float(hit[0]), float(hit[1])
+
+
 def box_corners(x0, x1, y0, y1, z0, z1):
     return np.array([[x, y, z] for x in (x0, x1) for y in (y0, y1) for z in (z0, z1)], float)
 

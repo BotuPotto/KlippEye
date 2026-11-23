@@ -9,6 +9,8 @@
 - A calibration made with a detail of the toolhead is no longer used, and a calibration started that way is dropped.
   If you made one, calibrate again with the markers: the camera is then treated as not calibrated until you do.
 - The guide describes only the markers.
+- On the calibration page you can drag the corners of the bed area (the dashed outline) on the live picture. The − and +
+  buttons are still there.
 
 ## 1.135.1
 
