@@ -817,7 +817,9 @@ function CameraCalibrationPage({ active }) {
       "div",
       { className: cx("set-status", saved && state.usable ? "set-status--ok" : "set-status--warn") },
       h("span", { className: "set-status__dot" }),
-      saved
+      saved && saved.method && saved.method !== "markers"
+        ? tx("Made with a method KlippEye no longer has: calibrate again with the markers.")
+        : saved
         ? tx("Calibrated on {when} with {points} points: average error {px} px ({quality}).", { when: formatWhen(saved.saved), points: saved.points, px: formatNumber(Math.round(saved.rms_px * 10) / 10), quality: QUALITY_TEXT[saved.quality] })
         : tx("The camera is not calibrated: the monitor cannot tell the toolhead from a problem yet."),
     ),

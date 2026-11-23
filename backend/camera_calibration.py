@@ -932,10 +932,9 @@ class CameraCalibration:
 
     def usable(self):
         """True when the saved calibration can be trusted: masks and zones use it only then (never half masks)."""
-        # 1.136.0: a calibration made with the removed "detail" method has to be made again
+        # 1.136.0: a calibration made with the removed "detail" method has to be made again; 1.127: "corrected" (moved a little, corrected by itself) is usable
         return (bool(self.saved) and self.saved.get("quality") in ("good", "fair") and self.watch.get("state") != "moved"
                 and self.saved.get("method", "markers") in METHODS)
-        # 1.127: "corrected" (moved a little, corrected by itself) is usable
 
     # ---------------------------------------------------------------- what the page draws over the picture
     def overlay(self, use_draft=False):
@@ -1069,7 +1068,7 @@ class CameraCalibration:
         saved = self.saved
         brief = None
         if saved:
-            brief = {k: saved.get(k) for k in ("saved", "z_moves", "model", "rms_px", "rms", "quality", "toolhead", "camera_position", "width", "height", "shift_fix")}
+            brief = {k: saved.get(k) for k in ("saved", "method", "z_moves", "model", "rms_px", "rms", "quality", "toolhead", "camera_position", "width", "height", "shift_fix")}
             brief["points"] = len(saved.get("points") or {})
         area, source = self.bed_area() if saved else (None, None)
         travel = self.limits() if saved else None

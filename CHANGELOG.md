@@ -8,7 +8,7 @@
   filament («Make the 6 blobs») or the printed pyramids. The page no longer asks how to calibrate.
 - A calibration made with a detail of the toolhead is no longer used, and a calibration started that way is dropped.
   If you made one, calibrate again with the markers: the camera is then treated as not calibrated until you do.
-- The guide (English and Italian) describes only the markers.
+- The guide describes only the markers.
 
 ## 1.135.1
 

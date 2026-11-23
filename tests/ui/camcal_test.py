@@ -159,6 +159,11 @@ with sync_playwright() as p:
     entry.click()
     pg.wait_for_timeout(1200)
     ok("not calibrated: the page says so and offers to calibrate", wait(pg, lambda: "La telecamera non è calibrata" in body(pg)) and pg.locator('[data-start="1"]').count() == 1, body(pg)[:300])
+    old = b.camera_cal.saved
+    b.camera_cal.saved = {"saved": 1, "method": "detail", "quality": "good", "points": {}, "rms_px": 1.0}
+    ok("1.136.0: an old detail calibration says to calibrate again", wait(pg, lambda: "calibra di nuovo con i segni" in body(pg).lower(), 8), body(pg)[:400])
+    b.camera_cal.saved = old
+    wait(pg, lambda: "La telecamera non è calibrata" in body(pg), 8)
     pg.click('[data-start="1"]')
     pg.wait_for_timeout(800)
     ok("step 1: how Z moves, guessed from Klipper (Z moves the bed)", "come si muove l'asse z?" in body(pg).lower() and "Dalla configurazione di Klipper sembra: Z muove il piatto." in body(pg), body(pg)[:600])
