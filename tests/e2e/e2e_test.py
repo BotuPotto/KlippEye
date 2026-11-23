@@ -471,9 +471,12 @@ if scenario("install") or scenario("update") or scenario("undo"):
         ok("[undo] it installs again without problems", rr.returncode == 0 and wait(lambda: backend_release() == expected, 30), rr.stdout + rr.stderr)
 
         # 1.137.0: klippeye uninstall, run from inside the program folder it deletes
+        installed_commit = w.git("rev-parse", "HEAD", cwd=w.repo).strip()
         def reinstall():
+            # the same commit as before: after the update scenario origin's newest commit is the broken release
             if not os.path.isdir(w.repo):
                 w.run(["git", "clone", "-q", w.origin, w.repo])
+                w.run(["git", "-C", w.repo, "checkout", "-q", installed_commit])
             r = w.install()
             return r.returncode == 0 and wait(lambda: backend_release() == expected, 30)
 
@@ -507,6 +510,7 @@ if scenario("install") or scenario("update") or scenario("undo"):
         open(pcfg, "w").write(open(real_pcfg).read())
         ok("... the temporary copy of the installer is gone", not [n for n in os.listdir(w.tmp) if n.startswith("klippeye-uninstall.")], os.listdir(w.tmp))
         installed = reinstall()
+        ok("... it installs again after the uninstall", installed and os.path.exists(os.path.join(w.bin, "klippeye")))
         other = os.path.join(w.pd, "config", "extras.cfg")
         open(other, "w").write("[include klippeye_macros.cfg]\n")
         open(mcfg, "w").write("[gcode_macro KLIPPEYE_PARK]\ngcode:\n  G28\n")
