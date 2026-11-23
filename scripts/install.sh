@@ -358,6 +358,12 @@ os.replace(tmp, p)
 PY
       then good "Line [include klippeye_macros.cfg] removed from printer.cfg"; else warn "Cannot change $printer_cfg"; removed=0; fi
     fi
+    # an include left in another file (not printer.cfg) would stop Klipper at its next start if the file went
+    if [ "$removed" = 1 ] && grep -rElq --include='*.cfg' "$include_re" "$cfg_dir" 2>/dev/null; then
+      warn "Another file of the configuration still includes klippeye_macros.cfg: the file stays."
+      note "Remove that [include klippeye_macros.cfg] line, then delete klippeye_macros.cfg and restart Klipper."
+      removed=0
+    fi
     if [ "$removed" = 1 ] && [ -f "$macros_cfg" ]; then
       backup_file "$macros_cfg" klippeye_macros.cfg
       rm -f "$macros_cfg" && good "klippeye_macros.cfg deleted"

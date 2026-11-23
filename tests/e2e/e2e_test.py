@@ -498,7 +498,13 @@ if scenario("install") or scenario("update") or scenario("undo"):
            and len(kept_bk) == 1 and any(f.startswith("printer.cfg") for _, _, fs in os.walk(os.path.join(w.pd, kept_bk[0])) for f in fs), (pcfg_after, kept_bk, ru.stdout[-1500:]))
         ok("... the temporary copy of the installer is gone", not [n for n in os.listdir(w.tmp) if n.startswith("klippeye-uninstall.")], os.listdir(w.tmp))
         installed = reinstall()
+        other = os.path.join(w.pd, "config", "extras.cfg")
+        open(other, "w").write("[include klippeye_macros.cfg]\n")
+        open(mcfg, "w").write("[gcode_macro KLIPPEYE_PARK]\ngcode:\n  G28\n")
         rk = w.run([os.path.join(w.bin, "klippeye"), "uninstall", "--yes", "--keep-data"], timeout=300)
+        ok("... an include in another file keeps klippeye_macros.cfg (Klipper would not start without it), and it says so",
+           os.path.isfile(mcfg) and "Another file of the configuration still includes" in rk.stdout, rk.stdout[-1500:])
+        os.remove(other)
         ok("... --keep-data keeps the data folder", installed and rk.returncode == 0 and gone_but_folders() and not os.path.exists(w.repo) and os.path.isdir(w.data), rk.stdout + rk.stderr)
         installed = reinstall()
         rt = w.install("--uninstall")
