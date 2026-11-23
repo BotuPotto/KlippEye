@@ -39,6 +39,7 @@ function useAiKey(active) {
 function lookingText(calibration, values) {
   const saved = calibration && calibration.phase === "ok" ? calibration.data : null;
   if (!saved || !saved.saved) return { ok: false, text: tx("Only the outer band of a rectangle of the picture: the middle, where the part is, is not watched. Calibrate the camera so that it watches the whole bed.") };
+  if (saved.method && saved.method !== "markers") return { ok: false, text: tx("Made with a method KlippEye no longer has: calibrate again with the markers.") };
   if (!saved.usable) return { ok: false, text: tx("The camera has moved since its calibration: until it is calibrated again only the outer band of the rectangle is watched.") };
   const zone = values.expected_zone !== false;
   const masks = values.machine_masks !== false;

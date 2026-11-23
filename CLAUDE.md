@@ -114,9 +114,8 @@ warm-up seconds, minimum progress, hotend at temperature), one check every `chec
    off (`_put_off_when_hidden`, the rest starts when it goes). Results → `record_alert` (alert history with pictures,
    the person marks right/false) and `last_analysis` (read by the notifier and the dashboard).
 7. **Camera calibration** (`camera_calibration.py` flow, `camera_model.py` maths): pairs (machine point → pixel),
-   fisheye or pinhole with radial distortion, DLT start + Levenberg–Marquardt. Methods: «detail» (1.128, Z moves the
-   bed: nozzle tip + a detail of the toolhead found by itself, offset solved with the camera, nothing printed) and
-   «markers». The camera's moves are watched and corrected (`camera_watch`). **Bed slingers with the camera on the frame
+   fisheye or pinhole with radial distortion, DLT start + Levenberg–Marquardt. Method: only «markers» (the 6 blobs of
+   filament or the printed pyramids; the «detail» method was removed in 1.136.0). The camera's moves are watched and corrected (`camera_watch`). **Bed slingers with the camera on the frame
    are refused** (`bed_moves_in_y`, 1.132.3).
 8. **Recordings** (`recorder.py`): small pictures + score of every check, for measuring (`scripts/replay.py`,
    `ml/evaluate.py`); size limit `record_max_mb`, oldest deleted first.
@@ -385,7 +384,7 @@ keeps it readable).
 ### Camera calibration: bed slingers (remind the owner now and then)
 - 1.132.3 refuses bed slingers with the camera on the frame (`bed_moves_in_y`); a camera on the bed works.
 - **Plan**: (1) option «the bed moves in Y»; (2) second set of points = a fixed detail **on the bed** (clip, corner,
-  screw) tapped with the bed at several Y: `camera_model.fit_offset` with base `(0, -y, 0)` (the unknown offset is where
+  screw) tapped with the bed at several Y: `camera_model.fit_offset` (removed in 1.136.0 with the «detail» method; it is in git history, the commit before 7070fda: bring it back if this plan starts) with base `(0, -y, 0)` (the unknown offset is where
   the detail is on the bed), nozzle points at `(x, 0, z)`; (3) after calibration shift everything on the bed by the
   current Y (`frame_point`, `print_zone` outlines, bed box, part, the local model's bed view); toolhead masks at Y = 0;
   (4) a calibration page step + 9 translations; (5) tests with simulated cameras like `test_calibration_auto.py`
@@ -444,6 +443,9 @@ keeps it readable).
 2. Calibration: take out the automatic «detail» method (the owner uses the 6 blobs); bed corners as dots to drag by
    hand; check how an adaptive mesh sizes the watched area; whether the monitor should watch the whole rectangle
    when there is no calibration (measure before changing).
+   Status: detail removed and bed corners draggable in 1.136.0. Adaptive per-print view: the motion monitor already
+   follows the objects, and the model crop was measured worse on 18 Nov; re-measure with the new camera. The
+   no-calibration rectangle is still to measure.
 3. Install and uninstall: ask at install whether KlippEye is the main interface (port 80) or the secondary one (8085);
    a real `uninstall` command (instead of «undo install») that removes everything without manual steps.
 4. Later: how the learning on the Pi can give per-printer gains like the owner's prints gave the base model; other
@@ -452,4 +454,4 @@ keeps it readable).
    writing rules.
 
 ### Open PRs
-#184 (release 1.135.1: guide and texts cleanup, `klippeye benchmark --models` removed), open 23 Nov. Update this line when a PR opens or merges.
+#186 (release 1.136.0: markers-only calibration, draggable bed corners, branch `calibration-markers-only`), open 23 Nov. Update this line when a PR opens or merges.

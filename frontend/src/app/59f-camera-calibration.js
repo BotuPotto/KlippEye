@@ -1006,6 +1006,7 @@ function MaskSwitches({ active }) {
 function cameraCalibrationSummary(calibration) {
   if (!calibration || calibration.phase !== "ok") return tx("So that the monitor knows the toolhead");
   if (!calibration.data.saved) return tx("Not calibrated");
+  if (calibration.data.saved.method && calibration.data.saved.method !== "markers") return tx("Old method: calibrate again");
   if (calibration.data.watch && calibration.data.watch.state === "moved") return tx("Camera moved: calibrate again");
   return tx("Calibrated • error {px} px", { px: formatNumber(Math.round(calibration.data.saved.rms_px * 10) / 10) });
 }

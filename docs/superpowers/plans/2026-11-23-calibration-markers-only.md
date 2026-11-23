@@ -8,7 +8,7 @@
 
 **Tech Stack:** Python (Flask backend, plain-script tests with `check(name, condition, details)`), React without JSX (`h()`), `python3 frontend/build.py`, Playwright UI tests.
 
-**Spec:** `CLAUDE.md` section 8, «Owner's notes of 23 Nov», group 2 (on branch `notes-camera-and-ci`, PR #185). Repo root: `/home/claude/klippeye-cal` (branch `calibration-markers-only`, from `guide-cleanup-1-135-1`).
+**Spec:** `CLAUDE.md` section 8, «Owner's notes of 23 Nov», group 2 (on branch `notes-camera-and-ci`, PR #185). Repo root: the repository checkout (branch `calibration-markers-only`, from `guide-cleanup-1-135-1`).
 
 ## Global Constraints
 

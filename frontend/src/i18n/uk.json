@@ -2980,5 +2980,7 @@
  "— choose —": "— виберіть —",
  "…and in printer.cfg:": "…і в printer.cfg:",
  "…and {count} more: type more letters": "…і ще {count}: введіть більше літер",
- "◀ Alarm": "◀ Тривога"
+ "◀ Alarm": "◀ Тривога",
+ "Old method: calibrate again": "Старий метод: відкалібруйте знову",
+ "You can also drag the corners of the dashed bed outline on the picture, so it matches the plate without counting millimetres.": "Також можна перетягнути кути пунктирного контуру столу на зображенні, щоб він збігся з пластиною без підрахунку міліметрів."
 }

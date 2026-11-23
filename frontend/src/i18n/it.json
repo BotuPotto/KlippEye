@@ -2980,5 +2980,7 @@
  "— choose —": "— scegli —",
  "…and in printer.cfg:": "…e in printer.cfg:",
  "…and {count} more: type more letters": "…e altri {count}: scrivi qualche lettera in più",
- "◀ Alarm": "◀ Allarme"
+ "◀ Alarm": "◀ Allarme",
+ "Old method: calibrate again": "Metodo vecchio: calibra di nuovo",
+ "You can also drag the corners of the dashed bed outline on the picture, so it matches the plate without counting millimetres.": "Puoi anche trascinare gli angoli del contorno tratteggiato del piatto sull'immagine, così combacia con il piatto senza contare i millimetri."
 }

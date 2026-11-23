@@ -286,7 +286,8 @@ class CameraCalibration:
         self.restore_idle()
         with self.lock:
             self.draft = {}
-            for path in (self.draft_path, self.template_path):
+            # 1.136.0: camera_detail.png is a leftover of the removed "detail" method
+            for path in (self.draft_path, self.template_path, os.path.join(os.path.dirname(self.draft_path), "camera_detail.png")):
                 try:
                     os.remove(path)
                 except OSError:

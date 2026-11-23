@@ -164,6 +164,11 @@ cc._write_json(cal.path, cal.saved)
 masks = replay.load_masks(data)
 check("1.127: the replay watches the same bed and uses the correction", masks["limits"] == [[10.0, 15.0], [340.0, 335.0]] and masks["calibration"].get("correction") == cal.saved["shift_fix"]["matrix"],
       (masks["limits"], masks["calibration"].get("correction")))
+import json as _json  # noqa: E402
+_good = _json.load(open(os.path.join(data, "camera.json")))
+_json.dump(dict(_good, method="detail"), open(os.path.join(data, "camera.json"), "w"))
+check("1.136.0: the replay ignores a calibration made with the removed detail method", replay.load_masks(data) is None)
+_json.dump(_good, open(os.path.join(data, "camera.json"), "w"))
 check("camera_watch: small and agree", cw.small({"state": "moved", "matrix": [[1, 0, 0], [0, 1, 0]], "shift_px": 10, "rotation_deg": 1}) and not cw.small({"state": "moved", "matrix": [[1, 0, 0], [0, 1, 0]], "shift_px": 90, "rotation_deg": 1}))
 
 # ---- 1.136.0: the corners of the watched bed dragged on the picture

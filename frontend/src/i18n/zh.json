@@ -2980,5 +2980,7 @@
  "— choose —": "— 请选择 —",
  "…and in printer.cfg:": "…以及在 printer.cfg 中：",
  "…and {count} more: type more letters": "…还有 {count} 个：请输入更多字母",
- "◀ Alarm": "◀ 警报"
+ "◀ Alarm": "◀ 警报",
+ "Old method: calibrate again": "旧方法：请重新校准",
+ "You can also drag the corners of the dashed bed outline on the picture, so it matches the plate without counting millimetres.": "你也可以在画面上拖动虚线热床轮廓的四个角，让它与打印板吻合，无需计算毫米。"
 }

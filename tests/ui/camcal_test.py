@@ -156,13 +156,17 @@ with sync_playwright() as p:
     ok("Monitor IA says what it looks at: only the outer band until the camera is calibrated", "Solo la fascia esterna" in body(pg), body(pg)[:400])
     entry = pg.locator('.set-entry[data-page="camcal"]')
     ok("'Monitor IA' has 'Calibrazione della telecamera', 'Non calibrata'", entry.count() == 1 and wait(pg, lambda: "Non calibrata" in entry.inner_text()), entry.inner_text() if entry.count() else "")
+    old = b.camera_cal.saved
     entry.click()
     pg.wait_for_timeout(1200)
     ok("not calibrated: the page says so and offers to calibrate", wait(pg, lambda: "La telecamera non è calibrata" in body(pg)) and pg.locator('[data-start="1"]').count() == 1, body(pg)[:300])
-    old = b.camera_cal.saved
     b.camera_cal.saved = {"saved": 1, "method": "detail", "quality": "good", "points": {}, "rms_px": 1.0}
     ok("1.136.0: an old detail calibration says to calibrate again", wait(pg, lambda: "calibra di nuovo con i segni" in body(pg).lower(), 8), body(pg)[:400])
+    pg.click('button[aria-label="Indietro"]')
+    ok("1.136.0: the Settings menu line of an old detail calibration says to calibrate again", wait(pg, lambda: "Metodo vecchio: calibra di nuovo" in entry.inner_text(), 12), entry.inner_text() if entry.count() else "")
     b.camera_cal.saved = old
+    wait(pg, lambda: "Non calibrata" in entry.inner_text(), 12)
+    entry.click()
     wait(pg, lambda: "La telecamera non è calibrata" in body(pg), 8)
     pg.click('[data-start="1"]')
     pg.wait_for_timeout(800)
