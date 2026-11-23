@@ -485,7 +485,12 @@ if scenario("install") or scenario("update") or scenario("undo"):
         pcfg = os.path.join(w.pd, "config", "printer.cfg")
         mcfg = os.path.join(w.pd, "config", "klippeye_macros.cfg")
         pcfg_text = "[printer]\nkinematics: corexy\n\n# KlippEye (Settings -> Printer functions)\n[include klippeye_macros.cfg]\n\n#*# <---------------------- SAVE_CONFIG ---------------------->\n#*# [probe]\n"
-        open(pcfg, "w").write(pcfg_text)
+        real_pcfg = os.path.join(w.pd, "config", "gitcfg", "printer.cfg")   # printer.cfg linked into a git folder
+        os.makedirs(os.path.dirname(real_pcfg), exist_ok=True)
+        open(real_pcfg, "w").write(pcfg_text)
+        if os.path.lexists(pcfg):
+            os.remove(pcfg)
+        os.symlink(real_pcfg, pcfg)
         open(mcfg, "w").write("[gcode_macro KLIPPEYE_PARK]\ngcode:\n  G28\n")
         ru = w.run([os.path.join(w.bin, "klippeye"), "uninstall", "--yes"], cwd=w.repo, timeout=300)
         kept_bk = [n for n in os.listdir(w.pd) if n.startswith("klippeye-backup-")]
@@ -496,6 +501,10 @@ if scenario("install") or scenario("update") or scenario("undo"):
            "klippeye_macros" not in pcfg_after and "kinematics: corexy" in pcfg_after and "#*# [probe]" in pcfg_after and "# KlippEye" not in pcfg_after
            and not os.path.exists(mcfg) and "Klipper is not restarted" in ru.stdout and not any(c.split()[:2] in (["restart", "klipper"], ["stop", "klipper"]) for c in w.calls())
            and len(kept_bk) == 1 and any(f.startswith("printer.cfg") for _, _, fs in os.walk(os.path.join(w.pd, kept_bk[0])) for f in fs), (pcfg_after, kept_bk, ru.stdout[-1500:]))
+        ok("... a printer.cfg linked into another folder stays a link, and the real file loses the include",
+           os.path.islink(pcfg) and "klippeye_macros" not in open(real_pcfg).read(), (os.path.islink(pcfg), open(real_pcfg).read()))
+        os.remove(pcfg)
+        open(pcfg, "w").write(open(real_pcfg).read())
         ok("... the temporary copy of the installer is gone", not [n for n in os.listdir(w.tmp) if n.startswith("klippeye-uninstall.")], os.listdir(w.tmp))
         installed = reinstall()
         other = os.path.join(w.pd, "config", "extras.cfg")

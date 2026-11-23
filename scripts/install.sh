@@ -347,19 +347,21 @@ PY
       backup_file "$printer_cfg" printer.cfg
       if "$PYTHON" - "$printer_cfg" <<'PY'
 import os, re, sys
-p = sys.argv[1]
+p = os.path.realpath(sys.argv[1])   # a printer.cfg linked into a git folder: change the real file, keep the link
+mode = os.stat(p).st_mode & 0o777
 text = open(p, encoding="utf-8").read()
 text = re.sub(r"\n?# KlippEye \(Settings -> Printer functions\)\n(?=[ \t]*\[include\s+klippeye_macros\.cfg\s*\])", "\n", text)
 text = re.sub(r"(?m)^[ \t]*\[include\s+klippeye_macros\.cfg\s*\][ \t]*\n?", "", text)
 tmp = p + ".klippeye-tmp"
 with open(tmp, "w", encoding="utf-8") as f:
     f.write(text)
+os.chmod(tmp, mode)
 os.replace(tmp, p)
 PY
       then good "Line [include klippeye_macros.cfg] removed from printer.cfg"; else warn "Cannot change $printer_cfg"; removed=0; fi
     fi
     # an include left in another file (not printer.cfg) would stop Klipper at its next start if the file went
-    if [ "$removed" = 1 ] && grep -rElq --include='*.cfg' "$include_re" "$cfg_dir" 2>/dev/null; then
+    if [ "$removed" = 1 ] && grep -RElq --include='*.cfg' "$include_re" "$cfg_dir" 2>/dev/null; then
       warn "Another file of the configuration still includes klippeye_macros.cfg: the file stays."
       note "Remove that [include klippeye_macros.cfg] line, then delete klippeye_macros.cfg and restart Klipper."
       removed=0
@@ -387,7 +389,7 @@ PY
     if [ -L "$1" ]; then note "$1 is a link to $(readlink -f "$1"): kept. Delete what it points to by hand if you want."; return 1; fi
     [ -d "$1" ] || { note "No folder at $1"; return 1; }
     r="$(real "$1")"
-    if [ -z "$r" ] || [ "$r" = / ] || [ "$r" = "$(real "$HOME")" ]; then warn "$1 is not a folder to delete: kept."; return 1; fi
+    if [ -z "$r" ] || [ "$r" = / ] || [ "$r" = "$(real "$HOME")" ] || inside "$(real "$HOME")" "$r"; then warn "$1 is not a folder to delete: kept."; return 1; fi
     if [ "$2" = program ]; then [ -f "$r/backend/klippeye_backend.py" ] && return 0
     else case "$(basename "$r")" in klippeye|klippeye_data) return 0 ;; esac; fi
     warn "$1 does not look like KlippEye's $2 folder: kept."; return 1
