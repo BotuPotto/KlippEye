@@ -1,5 +1,21 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.149.0
+
+The online AI chain no longer loses an answer.
+
+- A service that answered with something that was not JSON (a web page from a gateway, say) ended the whole analysis. Nothing
+  was recorded, even when the first look had already proposed a pause. Any failure of one question now counts as that service
+  not answering: the next one is asked, and a pause whose second look fails stays standing.
+- An answer that could not be read stopped the chain at the first service. The backup service is now asked as well. The
+  history only says «answer not readable» when none of them gave a verdict.
+- The AI's advice is read from its first word. A model that echoed the template (`CONTINUE|PAUSE|CANCEL`) was taken as a
+  cancel, and «Continue, no need to pause» as a pause.
+- Two alarms close together could start two analyses at once: double paid questions, two alerts and a verdict that went
+  back in time. An alarm that comes while one analysis is running now waits for its verdict.
+- Two devices saving AI keys at the same moment could lose most of them while both were told «saved». The keys are now
+  saved one request at a time.
+
 ## 1.148.0
 
 The AI monitor no longer stops without saying so.

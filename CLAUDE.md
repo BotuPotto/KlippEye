@@ -115,7 +115,10 @@ warm-up seconds, minimum progress, hotend at temperature), one check every `chec
    OpenRouter, Meta, Together, Fireworks, any OpenAI-compatible «custom»; backups, per-service quotas/429), prompt `build_ai_prompt` (neutral, says what is and is not a problem, «when in
    doubt CONTINUE», never an empty bed from one picture, JSON only), with the picture of a minute before when allowed.
    A PAUSE/CANCEL is looked at **again** 15 s later on a new picture, by another service when there is one
-   (`confirm_stop`; the local model sure on the new picture can hold it). An unreadable answer is never a stop.
+   (`confirm_stop`; the local model sure on the new picture can hold it). An unreadable answer is never a stop, and
+   it does not end the chain (1.149.0): any failure of one question (`_ask_ai` catches everything) or a reply with no
+   verdict (`parsed` None) moves on to the next service; «answer not readable» is written only when none gave one. The
+   action is read from the first word (`normalize_action`). One analysis at a time (`_ai_busy`: an alarm during one is dropped).
    `apply_min_confidence` and `distrust_empty_bed` can downgrade. A question while the toolhead hides the part is put
    off (`_put_off_when_hidden`, the rest starts when it goes). Results → `record_alert` (alert history with pictures,
    the person marks right/false) and `last_analysis` (read by the notifier and the dashboard).
