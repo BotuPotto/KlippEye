@@ -375,9 +375,9 @@ a name, and one tap brings it back.
 The phone gets *Filament run out* when:
 
 - a filament sensor says the filament is gone during a print;
-- one of the macros you choose runs (`M600`, your runout macro…). KlippEye adds to `klippeye_macros.cfg` a small
-  wrapper with the same name that writes a line in the console and then runs your macro exactly as before;
-- a line of the console you choose appears (*Printer paused due to filament runout!* is always recognised).
+- a line of the console you choose appears (*Printer paused due to filament runout!* is always recognised). For a
+  macro of yours (`M600`, your runout macro…), add a line such as `RESPOND MSG="Filament change"` to it and write the
+  same words here. KlippEye cannot wrap a macro of yours: Klipper would not start.
 
 ### Macros
 

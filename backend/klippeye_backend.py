@@ -4614,6 +4614,7 @@ MACRO_MESSAGES = (  # what printer_macros.py may answer, for the dictionaries (b
     btn("{name} is announced as a filament change: it cannot also be created here"), btn("too many macros"),
     btn("{name} already exists in your configuration: choose another name"),
     btn("{name} is not a command of your printer: Klipper would not start with it"),
+    btn("{name} is a macro of yours: Klipper would not start with it. Add a RESPOND line to it and use «A line in the console»"),
     btn("Klipper does not answer: it must be running to check the macros"),
     btn("the configuration folder was not found: {folder}"), btn("printer.cfg was not found in {folder}"), btn("unknown function"),
 )

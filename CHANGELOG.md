@@ -1,5 +1,19 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.143.0
+
+Klipper always starts after KlippEye writes its macros file.
+
+- Choosing a macro of your own (`M600`, your runout macro) as a filament change announcer left Klipper unable to start:
+  Klipper merges two sections with the same name, and KlippEye's wrapper clashed with your macro. KlippEye now refuses
+  such a name and says what to do instead: add a line such as `RESPOND MSG="Filament change"` to your macro and write
+  the same words under «A line in the console». The settings page no longer lists your macros for this.
+- If an announcer you chose earlier already stops Klipper from starting, open Settings, Printer functions, take it away
+  and press Apply. This now works even while Klipper is down.
+- When `printer.cfg` is a link into a folder you keep in git (or any other link), KlippEye used to replace the link with
+  a plain file when it added its include, so your repository never got the line. It now writes through the link. The
+  same holds for every file KlippEye saves.
+
 ## 1.142.0
 
 The install and repair scripts no longer empty files, use the wrong folder, or restart Moonraker in the middle of a print.
