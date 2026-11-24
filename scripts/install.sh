@@ -232,15 +232,17 @@ while True:
     time.sleep(1)
 PY
 }
-is_printing() {  # 0 when Moonraker says it is printing (or paused)
+is_printing() {  # 0 when Moonraker says it is printing (or paused), or when it does not answer in time
   "$PYTHON" - "$MOONRAKER_URL/printer/objects/query?print_stats=state" <<'PY'
-import json, sys, urllib.request
+import json, sys, urllib.error, urllib.request
 try:
     d = json.loads(urllib.request.urlopen(sys.argv[1], timeout=4).read().decode("utf-8", "replace"))
     state = d["result"]["status"]["print_stats"]["state"]
     sys.exit(0 if state in ("printing", "paused") else 1)
-except Exception:
-    sys.exit(1)
+except Exception as e:
+    # 1.142.0: Moonraker down or Klipper not ready (an error answer): nothing prints. A slow or unreadable answer is
+    # unknown, and unknown counts as printing: a busy Pi must not get Moonraker restarted in the middle of a print.
+    sys.exit(1 if isinstance(e, urllib.error.HTTPError) or isinstance(getattr(e, "reason", e), ConnectionError) else 0)
 PY
 }
 unit_active() { sudo_run "$SYSTEMCTL" is-active "$1" >/dev/null 2>&1; }
@@ -272,7 +274,8 @@ stop_new_units() {
 
 install_command() {  # name: writes /usr/local/bin/<name>, which runs the script inside the program folder
   local name="$1" tmp="$WORK/cmd-$1"
-  printf '#!/bin/sh\n# written by %s/scripts/install.sh\nexec bash "%s/scripts/%s" "$@"\n' "$REPO" "$REPO" "$name" > "$tmp"
+  # 1.142.0: the data folder of the services (the unit's KLIPPEYE_DATA) goes with the command: it cannot guess another one
+  printf '#!/bin/sh\n# written by %s/scripts/install.sh\nKLIPPEYE_DATA="%s" exec bash "%s/scripts/%s" "$@"\n' "$REPO" "$DATA" "$REPO" "$name" > "$tmp"
   if [ -f "$BIN_DIR/$name" ] && cmp -s "$tmp" "$BIN_DIR/$name"; then return 0; fi
   sudo_run install -m 755 "$tmp" "$BIN_DIR/$name" || { warn "Cannot write $BIN_DIR/$name"; return 1; }
 }
@@ -296,9 +299,9 @@ if [ "$MODE" = "undo" ] || [ "$MODE" = "uninstall" ]; then
     conf="$PRINTER_DATA/config/moonraker.conf"; asvc="$PRINTER_DATA/moonraker.asvc"
     if [ -f "$conf" ] && grep -Eq '^\[update_manager[[:space:]]+klippeye\]' "$conf"; then
       backup_file "$conf" moonraker.conf
-      "$PYTHON" - "$conf" <<'PY'
-import re, sys
-p = sys.argv[1]
+      if "$PYTHON" - "$conf" <<'PY'
+import os, re, shutil, sys
+p = os.path.realpath(sys.argv[1])
 lines = open(p, encoding="utf-8").read().split("\n")
 out, skip = [], False
 for line in lines:
@@ -308,14 +311,30 @@ for line in lines:
         out.append(line)
 text = "\n".join(out).rstrip("\n") + "\n"
 text = re.sub(r"\n\n+# KlippEye: (updates from the dashboard|aggiornamenti dalla dashboard)[^\n]*\n*$", "\n", text)
-open(p, "w", encoding="utf-8").write(text)
+# 1.142.0: a new file next to it, then replace: a full card leaves the old file whole, never an empty one
+tmp = p + ".klippeye-tmp"
+try:
+    with open(tmp, "w", encoding="utf-8") as f:
+        f.write(text)
+    shutil.copymode(p, tmp)
+    os.replace(tmp, p)
+except OSError:
+    if os.path.exists(tmp):
+        os.remove(tmp)
+    sys.exit(1)
 PY
-      good "Entry [update_manager klippeye] removed from moonraker.conf"
+      then good "Entry [update_manager klippeye] removed from moonraker.conf"
+      else warn "Cannot write $conf (disk full?): it stays as it was, with the entry."; fi
     fi
     if [ -f "$asvc" ]; then
       backup_file "$asvc" moonraker.asvc
-      grep -vx -e klippeye -e klippeye-notifier "$asvc" > "$WORK/asvc" ; cat "$WORK/asvc" > "$asvc"
-      good "klippeye and klippeye-notifier removed from moonraker.asvc"
+      real_asvc="$(readlink -f "$asvc")"; tmp_asvc="$real_asvc.klippeye-tmp"
+      # grep exits 1 when no line is left (fine), 2 or more when it failed; a new file next to it, then replace (1.142.0)
+      if cp -p "$real_asvc" "$tmp_asvc" && { grep -vx -e klippeye -e klippeye-notifier "$real_asvc" > "$tmp_asvc"; [ $? -le 1 ]; } && mv -f "$tmp_asvc" "$real_asvc"; then
+        good "klippeye and klippeye-notifier removed from moonraker.asvc"
+      else
+        rm -f "$tmp_asvc"; warn "Cannot write $asvc (disk full?): it stays as it was, with the two names."
+      fi
     fi
     if is_printing; then
       warn "Printing: Moonraker is not restarted. Restart it when the print ends (Restart menu of the dashboard) to make the entry disappear."
@@ -556,9 +575,9 @@ else
         good "moonraker.conf already has the entry [update_manager klippeye]"
         if [ "$CHANNEL_GIVEN" = 1 ]; then
           backup_file "$CONF" moonraker.conf
-          if "$PYTHON" - "$CONF" "$CHANNEL" <<'PY'
-import re, sys
-path, channel = sys.argv[1], sys.argv[2]
+          "$PYTHON" - "$CONF" "$CHANNEL" <<'PY'
+import os, re, shutil, sys
+path, channel = os.path.realpath(sys.argv[1]), sys.argv[2]
 lines = open(path, encoding="utf-8").read().split("\n")
 start = next(i for i, l in enumerate(lines) if re.match(r"^\[update_manager\s+klippeye\]\s*$", l))
 end = next((i for i in range(start + 1, len(lines)) if re.match(r"^\s*\[", lines[i])), len(lines))
@@ -571,11 +590,24 @@ else:
     at = next((i + 1 for i in range(start + 1, end) if re.match(r"^\s*type\s*[:=]", lines[i])), start + 1)
     lines.insert(at, "channel: " + channel)
     changed = True
-open(path, "w", encoding="utf-8").write("\n".join(lines))
+if changed:   # 1.142.0: a new file next to it, then replace: a full card leaves the old file whole
+    tmp = path + ".klippeye-tmp"
+    try:
+        with open(tmp, "w", encoding="utf-8") as f:
+            f.write("\n".join(lines))
+        shutil.copymode(path, tmp)
+        os.replace(tmp, path)
+    except OSError:
+        if os.path.exists(tmp):
+            os.remove(tmp)
+        sys.exit(1)
 sys.exit(0 if changed else 3)
 PY
-          then good "Update channel set to '$CHANNEL'"; MR_RESTART=1
-          else good "Update channel already '$CHANNEL'"; fi
+          case $? in
+            0) good "Update channel set to '$CHANNEL'"; MR_RESTART=1 ;;
+            3) good "Update channel already '$CHANNEL'" ;;
+            *) warn "Cannot write $CONF (disk full?): the update channel stays as it was." ;;
+          esac
         fi
       else
         backup_file "$CONF" moonraker.conf

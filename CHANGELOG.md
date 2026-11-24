@@ -1,5 +1,24 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.142.0
+
+The install and repair scripts no longer empty files, use the wrong folder, or restart Moonraker in the middle of a print.
+
+- On a full SD card, `klippeye uninstall`, the undo and a channel change could leave `moonraker.conf` and
+  `moonraker.asvc` at 0 bytes, say they had removed the entry, and restart Moonraker anyway. Now each file is written
+  next to the old one and swapped in only when the write worked. If it did not, the old file stays whole and the script
+  says so.
+- The `klippeye` command now uses the same data folder as the services. On a Pi whose printer folder is not
+  `~/printer_data` (for example `printer_1_data`), `klippeye password` and `klippeye status` used another folder, so a
+  password set from the command protected nothing. Run the installer once more to get the new command.
+- When Moonraker is printing but slow to answer on a busy Pi, the installer, the undo and the update channel switch no
+  longer take it for «not printing» and restart Moonraker. A refused connection or an error answer from Moonraker
+  still counts as «not printing».
+- After a power cut, a Pi whose clock is still behind no longer takes the git lock left by the cut for a running
+  update. The self-repair removes it and restores the half-written dashboard instead of saying «try again in a moment».
+- When git's own copy is damaged, the self-repair says so and points to Recover. Before, it listed no files and
+  reported «All program files are intact».
+
 ## 1.141.0
 
 Prints from the job queue, automatic pauses that are always announced, and the local model alone stops a print only when it must.

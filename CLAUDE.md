@@ -482,4 +482,4 @@ keeps it readable).
    writing rules.
 
 ### Open PRs
-#189 (PR 1 of the audit fixes, release 1.138.0, branch `fix-dashboard-actions`), open 24 Nov. #190 (PR 2, 1.139.0, branch `fix-calibration-print-moves`), built on #189, open 24 Nov. #191 (PR 3, 1.140.0, branch `fix-scheduled-late`), built on #190, open 24 Nov. #192 (PR 4, 1.141.0, branch `fix-notifier-queue`), built on #191, open 24 Nov. #188 (the audit report) merged 24 Nov. Update this line when a PR opens or merges.
+#189 (PR 1 of the audit fixes, release 1.138.0, branch `fix-dashboard-actions`), open 24 Nov. #190 (PR 2, 1.139.0, branch `fix-calibration-print-moves`), built on #189, open 24 Nov. #191 (PR 3, 1.140.0, branch `fix-scheduled-late`), built on #190, open 24 Nov. #192 (PR 4, 1.141.0, branch `fix-notifier-queue`), built on #191, open 24 Nov. #193 (PR 5, 1.142.0, branch `fix-install-scripts`), built on #192, open 24 Nov. #188 (the audit report) merged 24 Nov. Update this line when a PR opens or merges.
