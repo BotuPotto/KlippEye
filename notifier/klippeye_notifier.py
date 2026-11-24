@@ -449,6 +449,7 @@ class AiVerdict:
     key: str  # changes with every new analysis
     action: str  # "CONTINUE" | "PAUSE" | "CANCEL" | "" (or CONTINUA / PAUSA / CANCELLA from an older backend)
     defects: Optional[Dict[str, Tuple[bool, float]]] = None  # {"spaghetti": (detected, confidence %), ...}; None: the verdict has no details
+    local: Optional[str] = None  # 1.141.0: None for an online AI's verdict; for the local model's alone, why no online AI judged ("off", "unavailable", "" if not said)
 
 
 @dataclass
@@ -470,6 +471,7 @@ class Snapshot:
 
 
 KLIPPY_ERRORS = ("shutdown", "error")
+LOCAL_MAY_ACT = ("off", "unavailable")  # why the backend had no online AI for a verdict of the local model alone (1.141.0)
 RUNOUT_LINE = re.compile(r"paused due to filament runout", re.IGNORECASE)
 FILAMENT_TAG = "KlippEye: filament change"  # written by the wrappers of backend/printer_macros.py
 
@@ -577,7 +579,9 @@ class Watcher:
         self.last_line_time: Optional[float] = None
         self.ai_key: Optional[str] = None
         self.ai_ready = False
-        self.ai_levels: List[int] = []  # what the last verdicts of this print recommended (0 none, 1 pause, 2 cancel)
+        self.ai_levels: List[Tuple[int, bool]] = []  # what the last verdicts of this print recommended (0 none, 1 pause, 2 cancel), and whether each may act by itself
+        self.print_file = ""  # the file of the print now, to see the job queue go on to the next one
+        self.last_info: Dict[str, Any] = {}  # the reading before this one (the text of a print that has just ended)
         self.auto_done = {"pause": False, "cancel": False}  # each automatic action happens at most once per print
         self.auto_at: Dict[str, float] = {}  # when the service paused / cancelled by itself
         self.last_action: Optional[Dict[str, Any]] = None  # for the dashboard: {"kind", "ok", "at"}
@@ -618,12 +622,12 @@ class Watcher:
         values.update(extra or {})
         return values
 
-    def _emit(self, kind: str, now: float, out: List[Notice], text_key: Optional[str] = None, extra: Optional[Dict[str, Any]] = None) -> bool:
-        """Adds the notice unless it is switched off or the same kind went out a moment ago."""
+    def _emit(self, kind: str, now: float, out: List[Notice], text_key: Optional[str] = None, extra: Optional[Dict[str, Any]] = None, repeat: bool = False) -> bool:
+        """Adds the notice unless it is switched off or the same kind went out a moment ago (repeat: the result of an automatic action is always told)."""
         if not self._enabled(kind):
             return False
         cooldown = float(self.config["cooldown_seconds"].get(kind, 0))
-        if now - self.sent_at.get(kind, float("-inf")) < cooldown:
+        if not repeat and now - self.sent_at.get(kind, float("-inf")) < cooldown:
             LOG.info("Notice '%s' not repeated (the same one just went out)", kind)
             return False
         self.sent_at[kind] = now
@@ -666,7 +670,7 @@ class Watcher:
     def step(self, snap: Snapshot, now: float) -> List[Notice]:
         out: List[Notice] = []
         if snap.info:
-            self.info = dict(snap.info)
+            self.last_info, self.info = self.info, dict(snap.info)
         self._settings(snap)
         self._results_of_actions(now, out)
         self._klippy(snap, now, out)
@@ -699,11 +703,11 @@ class Watcher:
                 ok = True
             self.last_action = {"kind": kind, "ok": ok, "at": int(time.time())}
             if ok:
-                self._emit("ai_cancel" if kind == "cancel" else "ai_pause", now, out, "ai_cancel_auto" if kind == "cancel" else "ai_pause_auto")
+                self._emit("ai_cancel" if kind == "cancel" else "ai_pause", now, out, "ai_cancel_auto" if kind == "cancel" else "ai_pause_auto", repeat=True)
             else:
                 LOG.error("The automatic action '%s' failed: over to you", kind)
                 self.auto_done[kind] = False  # a later verdict may try again
-                self._emit("ai_cancel" if kind == "cancel" else "ai_pause", now, out)  # the ordinary notice: "verify and ..."
+                self._emit("ai_cancel" if kind == "cancel" else "ai_pause", now, out, repeat=True)  # the ordinary notice: "verify and ..."
 
     def _klippy(self, snap: Snapshot, now: float, out: List[Notice]) -> None:
         if snap.klippy is None:
@@ -764,10 +768,7 @@ class Watcher:
             if state != "paused":
                 self.pending_pause = None  # it went on printing (or stopped) before the pause notice was due
             if state == "printing" and previous not in ("paused", "printing"):
-                self.ai_levels = []  # a new print: the verdicts of the last one do not count, and the automatic actions are available again
-                self.auto_done = {"pause": False, "cancel": False}
-                self.fired = set()  # and the rules may go out again
-                self._rule_event("started", now, out)
+                self._new_print(now, out)
             if state == "complete":
                 self._emit("complete", now, out)
             elif state == "cancelled" or (state == "standby" and previous in ("printing", "paused")):
@@ -778,7 +779,20 @@ class Watcher:
             elif state == "paused" and previous == "printing":
                 if not self._recent_auto("pause", now):
                     self.pending_pause = now
+        elif state == "printing" and previous == "printing" and self.print_file and self.info.get("file") not in (None, "", self.print_file):
+            # 1.141.0: the job queue went on to the next file between two polls: the first one is done, the next is a new print
+            now_info, self.info = self.info, self.last_info  # the notice speaks of the print that ended
+            self._emit("complete", now, out)
+            self.info = now_info
+            self._new_print(now, out)
+        self.print_file = self.info.get("file") or self.print_file
         self.print_state = state
+
+    def _new_print(self, now: float, out: List[Notice]) -> None:
+        self.ai_levels = []  # a new print: the verdicts of the last one do not count, and the automatic actions are available again
+        self.auto_done = {"pause": False, "cancel": False}
+        self.fired = set()  # and the rules may go out again
+        self._rule_event("started", now, out)
 
     def _pause(self, snap: Snapshot, now: float, out: List[Notice]) -> None:
         """A pause is announced a few seconds late: if a filament runout caused it, that is the notice that goes out."""
@@ -872,12 +886,13 @@ class Watcher:
         if self.print_state not in (None, "printing", "paused"):
             self.ai_levels = []
             return  # a verdict that arrives when no print is running is of no use
-        self.ai_levels = (self.ai_levels + [self._level(verdict)])[-3:]
+        # 1.141.0: the local model alone may stop the print only when no online AI could judge (switched off, or no service can answer)
+        self.ai_levels = (self.ai_levels + [(self._level(verdict), verdict.local is None or verdict.local in LOCAL_MAY_ACT)])[-3:]
         need = self.dash["ai"]["confirmations"]
         recent = self.ai_levels[-need:]
-        if len(recent) < need or min(recent) == 0:
+        if len(recent) < need or min(level for level, _ in recent) == 0:
             return  # not enough verdicts in a row yet
-        level = min(recent)
+        level = min(level for level, _ in recent)
         kind = "ai_cancel" if level == 2 else "ai_pause"
         ai = self.dash["ai"]
         act: Optional[str] = None
@@ -885,8 +900,8 @@ class Watcher:
             act = "cancel"
         elif ai["auto_pause"] and not self.auto_done["pause"] and self.print_state == "printing" and not (level == 2 and ai["auto_cancel"]):
             act = "pause"  # also for a CANCEL verdict while the automatic cancel is off: pausing is the careful half
-        if act is None:
-            self._emit(kind, now, out)
+        if act is None or not all(may for _, may in recent):
+            self._emit(kind, now, out)  # told, not done: the person decides
             return
         LOG.info("AI verdict '%s' confirmed (%d in a row): doing '%s' by myself", "CANCEL" if level == 2 else "PAUSE", need, act)
         self.auto_done[act] = True
@@ -942,6 +957,15 @@ def ai_action(response: Dict[str, Any]) -> str:
         if isinstance(candidate, str) and candidate.strip():
             return candidate.strip().upper()
     return ""
+
+
+def ai_local(response: Dict[str, Any]) -> Optional[str]:
+    """1.141.0: None for an online AI's verdict; for the local model's alone, the backend's reason for having no online AI ("" when it does not say)."""
+    analysis = response.get("analysis")
+    if isinstance(analysis, dict) and analysis.get("local_only") is True:
+        reason = analysis.get("local_reason")
+        return reason if isinstance(reason, str) else ""
+    return None
 
 
 def action_in_text(text: str) -> str:
@@ -1147,7 +1171,7 @@ class PrinterReader:
         if not (response.get("ok", True) and response.get("has_analysis")):
             return AiVerdict(key="none", action="")
         key = str(response.get("timestamp")) + "|" + json.dumps(response.get("analysis"), sort_keys=True, ensure_ascii=False)
-        return AiVerdict(key=key, action=ai_action(response), defects=ai_defects(response))
+        return AiVerdict(key=key, action=ai_action(response), defects=ai_defects(response), local=ai_local(response))
 
 
 # ---------------------------------------------------------------------------------------------------------------------
@@ -1434,7 +1458,7 @@ class Outbox:
         self.retry_first = 5.0
         self.give_up = give_up_seconds
         self.dry_run = dry_run
-        self.queue: "queue.Queue[Tuple[Notice, float]]" = queue.Queue()
+        self.queue: "queue.Queue[Tuple[Notice, float, float, float]]" = queue.Queue()  # (notice, created, retry not before, next delay)
         self.stop = threading.Event()
         self.thread = threading.Thread(target=self._run, name="outbox", daemon=True)
 
@@ -1443,37 +1467,37 @@ class Outbox:
 
     def put(self, notice: Notice) -> None:
         LOG.info("Notification: [%s] %s", notice.kind, notice.text)
-        self.queue.put((notice, time.time()))
+        self.queue.put((notice, time.time(), 0.0, self.retry_first))
 
     def _run(self) -> None:
         while not self.stop.is_set():
             try:
-                notice, created = self.queue.get(timeout=0.5)
+                notice, created, ready_at, delay = self.queue.get(timeout=0.5)
             except queue.Empty:
                 continue
-            self._deliver(notice, created)
+            wait = ready_at - time.time()
+            if wait > 0:  # 1.141.0: a notice that waits for its retry steps aside, so the next one is not held by a channel that is down
+                self.queue.put((notice, created, ready_at, delay))
+                self.stop.wait(min(wait, 0.2))
+                continue
+            self._deliver(notice, created, delay)
 
-    def _deliver(self, notice: Notice, created: float) -> None:
-        """One notice: sent, or retried (5 s, 10 s ... up to 60 s) until it goes or it is too old."""
-        delay = self.retry_first
-        while not self.stop.is_set():
-            try:
-                if self.dry_run:
-                    LOG.info("(dry run, not sent) %s", notice.text)
-                else:
-                    self._send(notice)
-                    LOG.info("Sent: %s", notice.text)
+    def _deliver(self, notice: Notice, created: float, delay: float) -> None:
+        """One try: sent, or put back at the end of the queue to be tried again (5 s, 10 s ... up to 60 s) until it goes or it is too old."""
+        try:
+            if self.dry_run:
+                LOG.info("(dry run, not sent) %s", notice.text)
+            else:
+                self._send(notice)
+                LOG.info("Sent: %s", notice.text)
+        except SendError as error:
+            if not error.retry or time.time() - created > self.give_up:
+                LOG.error("Notification NOT sent (%s): %s", notice.text, error)
                 return
-            except SendError as error:
-                if not error.retry or time.time() - created > self.give_up:
-                    LOG.error("Notification NOT sent (%s): %s", notice.text, error)
-                    return
-                LOG.warning("Sending failed (%s): retrying in %d s", error, delay)
-                self.stop.wait(delay)
-                delay = min(delay * 2, 60.0)
-            except Exception as error:  # a bug must not kill the sender
-                LOG.exception("Unexpected error while sending: %s", error)
-                return
+            LOG.warning("Sending failed (%s): retrying in %d s", error, delay)
+            self.queue.put((notice, created, time.time() + delay, min(delay * 2, 60.0)))
+        except Exception as error:  # a bug must not kill the sender
+            LOG.exception("Unexpected error while sending: %s", error)
 
 
 # ---------------------------------------------------------------------------------------------------------------------

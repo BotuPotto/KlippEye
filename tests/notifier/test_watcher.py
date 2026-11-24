@@ -556,5 +556,55 @@ ok("your own notifications: channel 'avvisi', the important ones 'allarmi'; ntfy
 ok("printer_info reads Moonraker's objects", vn.printer_info({"print_stats": {"filename": "a.gcode", "print_duration": 10.5, "info": {"current_layer": 4, "total_layer": 9}, "message": "x"}, "virtual_sdcard": {"progress": 0.25}, "extruder": {"temperature": 200.1, "target": 210}, "heater_bed": {"temperature": 60, "target": 60}})
    == {"file": "a.gcode", "print_duration": 10.5, "progress": 0.25, "layer": 4, "total_layers": 9, "print_message": "x", "heaters": {"extruder": (200.1, 210.0), "heater_bed": (60.0, 60.0)}})
 
+# ---- 1.141.0: queue prints, announced automatic pauses, the local model's verdict alone
+def step_file(s, file, ai=None, state="printing", dt=2.0):
+    s.t += dt; s.state = state
+    out = s.w.step(vn.Snapshot(klippy="ready", print_state=state, ai=ai, settings=s.settings, info={"file": file}), s.t)
+    s.log += [(s.t, n.kind, n.text) for n in out]
+    s.actions += [a.kind for a in s.w.take_actions()]
+    return [n.kind for n in out]
+s = Sim2(); s.settings = doc(autoPause=True, confirmations=1)
+step_file(s, "a.gcode", state="standby"); step_file(s, "a.gcode", ai=verdict("k0", "CONTINUE"))
+step_file(s, "a.gcode", ai=verdict("k1", "PAUSE")); s.w.report_action("pause", True)
+step_file(s, "a.gcode", ai=verdict("k1", "PAUSE"), state="paused"); step_file(s, "a.gcode", ai=verdict("k1", "PAUSE"), dt=60)
+s.actions.clear()
+_out = step_file(s, "b.gcode", ai=verdict("k1", "PAUSE"))
+ok("1.141.0: the queue starts the next file between two polls: 'Print completed' for the first", _out == ["complete"], (_out, s.log[-1:]))
+step_file(s, "b.gcode", ai=verdict("k2", "PAUSE"), dt=200)
+ok("... and the next print's first PAUSE verdict gets its automatic pause", s.actions == ["pause"], s.actions)
+s = Sim2(); s.settings = doc(autoPause=True, confirmations=2)
+step_file(s, "a.gcode", state="standby"); step_file(s, "a.gcode", ai=verdict("k0", "CONTINUE"))
+step_file(s, "a.gcode", ai=verdict("k1", "PAUSE")); step_file(s, "b.gcode", ai=verdict("k1", "PAUSE")); step_file(s, "b.gcode", ai=verdict("k2", "PAUSE"))
+ok("... one verdict of the first file and one of the next are not two in a row", s.actions == [], s.actions)
+
+s = Sim2(); s.settings = doc(autoPause=True, confirmations=1); s.printing()
+s.step(ai=verdict("p1", "PAUSE")); s.w.report_action("pause", False); s.step(ai=verdict("p1", "PAUSE"))
+s.step(dt=100, ai=verdict("p2", "PAUSE")); s.w.report_action("pause", True)
+s.step(state="paused", ai=verdict("p2", "PAUSE"))
+ok("1.141.0: a pause that failed and then worked inside the quiet time is announced", [x[2] for x in s.log if x[1] == "ai_pause"][-1:] == [USER_TEXTS["ai_pause_auto"]], s.log)
+
+def local(key, reason=None):
+    return vn.AiVerdict(key=key, action="PAUSE", local=reason or "")
+for _why, _acts in (("off", ["pause"]), ("unavailable", ["pause"]), (None, []), ("something else", [])):
+    s = printing2(); s.settings = doc(autoPause=True, confirmations=1); s.step(ai=local("l1", _why))
+    ok("1.141.0: the local model alone (online AI reason: %s): automatic pause %s" % (_why, "yes" if _acts else "no"), s.actions == _acts, s.actions)
+s = printing2(); s.settings = doc(autoPause=True, confirmations=1); s.step(ai=local("l1", None))
+ok("... a pause by the local model alone that may not act still sends the notice", [x[1] for x in s.log] == ["ai_pause"], s.log)
+s = printing2(); s.settings = doc(autoPause=True, confirmations=2); s.step(ai=local("l1", None)); s.step(ai=verdict("o1", "PAUSE"))
+ok("... and it does not count as a confirmation next to an online verdict", s.actions == [], s.actions)
+s = printing2(); s.settings = doc(autoPause=True, confirmations=1); s.step(ai=verdict("o1", "PAUSE"))
+ok("... an online verdict acts as before", s.actions == ["pause"], s.actions)
+ok("... the notifier reads it from last_analysis: the reason, '' when it is missing, None for an online verdict",
+   (vn.ai_local({"analysis": {"action": "PAUSE", "local_only": True, "local_reason": "off"}}), vn.ai_local({"analysis": {"action": "PAUSE"}}), vn.ai_local({"analysis": {"local_only": True}})) == ("off", None, ""))
+
+import time as _time
+_got = []
+def _send(n):
+    if "ntfy" not in n.sent_to: n.sent_to.add("ntfy"); _got.append(n.kind)
+    if "fcm" not in n.sent_to: raise vn.SendError("down", retry=True)
+_ob = vn.Outbox(_send, give_up_seconds=60.0); _ob.retry_first = 0.6; _ob.start()
+_ob.put(vn.Notice("ai_pause", "first")); _time.sleep(0.2); _ob.put(vn.Notice("error", "second")); _time.sleep(0.4); _ob.stop.set()
+ok("1.141.0: a notice that is being retried does not hold the next one back", _got[:2] == ["ai_pause", "error"], _got)
+
 print("\nFAILED: %d %s" % (len(FAILS), FAILS) if FAILS else "\nALL PASS")
 sys.exit(1 if FAILS else 0)

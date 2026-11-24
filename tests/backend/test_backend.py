@@ -2978,6 +2978,13 @@ _det.last_analysis = None
 _with_scores([0.95, 0.95, 0.95])
 [_det._local_look(_frame, 7000.0 + 15 * k, False) for k in range(3)]
 check("... switched off: without the online AI nothing is proposed", _det.last_analysis is None)
+check("1.141.0: the proposal says why no online AI judged: «unavailable» (a service that cannot answer)", (_la.get("analysis") or {}).get("local_reason") == "unavailable", _la)
+_det.ai_online = False
+_with_scores([0.95, 0.95, 0.95])
+[_det._local_look(_frame, 9000.0 + 15 * k, False) for k in range(3)]
+check("... and «off» (the online AI switched off)", ((_det.last_analysis or {}).get("analysis") or {}).get("local_reason") == "off", _det.last_analysis)
+_det.ai_online = True
+_det.last_analysis = None
 _det.local_enabled = False
 _with_scores([0.95])
 check("1.106: «Use the local model» off: as without a model", _det._local_look(_frame, 8000.0, True) is True and _det.local_state.get("checks") is None)
