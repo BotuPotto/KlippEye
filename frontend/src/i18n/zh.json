@@ -974,6 +974,7 @@
  "Klipper returned no results.": "Klipper 没有返回结果。",
  "Klipper shut down": "Klipper 已关机（shutdown）",
  "Klipper was not ready": "Klipper 未就绪",
+ "it was too late to start": "已错过开始时间",
  "Klipper's backup (SAVE_CONFIG)": "Klipper 的备份（SAVE_CONFIG）",
  "Klipper's exclude_object": "Klipper 的 exclude_object",
  "Klipper's macros": "Klipper 的宏",

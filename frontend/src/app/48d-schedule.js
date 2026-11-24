@@ -81,6 +81,7 @@ const scheduleFileName = (entry) => String(entry.filename || "").split("/").pop(
 function scheduleReason(entry) {
   if (entry.reason === "busy") return tx("the printer was busy with another print");
   if (entry.reason === "not_ready") return tx("Klipper was not ready");
+  if (entry.reason === "late") return tx("it was too late to start");
   return entry.detail || tx("Moonraker refused it");
 }
 

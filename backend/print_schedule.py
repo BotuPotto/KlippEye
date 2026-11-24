@@ -7,7 +7,7 @@ print that kept the printer busy): it is marked «missed», with the reason, and
   waiting   not yet its time
   started   started at its time (`started` = when)
   missed    not started: `reason` busy (another print was on), not_ready (Klipper off, shut down, in error, for
-            longer than the grace time), error (Moonraker refused: the file is gone, say; `detail` has its words)
+            longer than the grace time), late (the first look came after the grace time, e.g. the Pi was off), error (Moonraker refused: the file is gone, say; `detail` has its words)
   cancelled removed by the person before its time (kept only in the answer of that removal)
 
 Finished entries (started, missed) are kept for a day after their time, so every device sees what happened.
@@ -51,8 +51,11 @@ def decide(entry, now, state):
     state}. Answers "wait", "start" or ("missed", reason)."""
     if entry.get("status") != "waiting" or now < entry.get("at", 0):
         return "wait"
+    late = now - entry["at"] > NOT_READY_GRACE_S
     if (state or {}).get("klippy") != "ready":
-        return ("missed", "not_ready") if now - entry["at"] > NOT_READY_GRACE_S else "wait"
+        return ("missed", "not_ready") if late else "wait"
+    if late:  # 1.140.0: the Pi was off at its time; nobody expects a print hours later
+        return ("missed", "late")
     if (state or {}).get("print") in BUSY_STATES:
         return ("missed", "busy")
     return "start"

@@ -259,8 +259,9 @@ move them, remove them, **Start the queue**, **Pause the queue**, **Empty**.
 ### Scheduled prints
 
 **Schedule the print** (in a file's menu) starts a print by itself on the day and at the time you choose. The Raspberry
-keeps the list, so nothing needs to stay open. If at that time the printer is busy or Klipper is not ready, the print is
-not started later on its own (the bed might not be clear): the card says it was missed and why.
+keeps the list, so nothing needs to stay open. If at that time the printer is busy, Klipper is not ready, or KlippEye
+only comes back more than 10 minutes late (the Pi was off), the print is not started later on its own (the bed might
+not be clear): the card says it was missed and why.
 
 ### History
 

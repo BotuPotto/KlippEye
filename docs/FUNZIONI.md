@@ -263,8 +263,8 @@ loro tempi: spostali, toglili, **Avvia la coda**, **Metti in pausa la coda**, **
 ### Stampe programmate
 
 **Programma la stampa** (nel menu di un file) fa partire una stampa da sola nel giorno e all'ora che scegli. L'elenco lo tiene
-il Raspberry, quindi non serve lasciare aperto niente. Se a quell'ora la stampante è occupata o Klipper non è pronto, la
-stampa non parte più tardi da sola (il piatto potrebbe non essere libero): la card dice che è saltata e perché.
+il Raspberry, quindi non serve lasciare aperto niente. Se a quell'ora la stampante è occupata, Klipper non è pronto o KlippEye torna
+disponibile con più di 10 minuti di ritardo (il Pi era spento), la stampa non parte più tardi da sola (il piatto potrebbe non essere libero): la card dice che è saltata e perché.
 
 ### Cronologia
 
