@@ -45,7 +45,6 @@
   width: 46px;
   height: 46px;
   padding: 0;
-  overflow: hidden;
   border: 1px solid var(--oui-stroke);
   border-radius: 50%;
   background: var(--oui-surface-2);
@@ -64,11 +63,11 @@
 
 /* phones: brand, AI badge and three round buttons must all fit side by side (down to 360 px wide) */
 @media (max-width: 420px) {
-  .app-header__bar { padding: 0 12px; }
+  .app-header__bar { padding: 0 12px; gap: 6px; } /* 1.154.0: 12 px more for the brand name, which was cut at 360 and 375 px */
   .app-header__brand { gap: 8px; }
   .app-header__logo { width: 32px; height: 32px; }
   .app-header__name { font-size: 17px; }
-  .app-header__actions { flex-shrink: 0; gap: 8px; }
+  .app-header__actions { flex-shrink: 0; gap: 6px; }
   .header-btn { width: 40px; height: 40px; }
 }
 

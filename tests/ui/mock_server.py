@@ -92,6 +92,7 @@ def default_state():
         "twist_kind": "cartographer",   # 1.33.1: "klipper": Klipper's own AXIS_TWIST_COMPENSATION_CALIBRATE (paper test), no Cartographer
         "twist_y": False,               # [axis_twist_compensation] has the Y options (calibrate_start_y...)
         "mp": {"is_active": False, "z_position": 0.0, "z_position_lower": None, "z_position_upper": None}, "mp_points": 0, "mp_axis": "X",
+        "odd_pins": False,              # 1.153.0: pins that are not lights (a relay, "psu_enabled") and a pca9632 light
         "extra_lights": False,          # 1.37: also a white+RGB neopixel STRIP and a PWM output_pin caselight
         "strip": [0.0, 0.0, 0.0, 0.0], "caselight": 0.0,
         "z_kind": "bed",            # 1.31: "bed" (z_tilt) or "toolhead" (quad_gantry_level) in Klipper's settings
@@ -532,7 +533,7 @@ def notify_test():
     return jsonify(ok=True, results=results)
 @app.route("/printer/objects/list")
 def obj_list():
-    return jsonify(result={"objects": OBJECTS + (["neopixel STRIP", "output_pin caselight", "output_pin beeper"] if S.get("extra_lights") else []) + (EXTRA_TEMPS if S.get("extra_temps") else [])
+    return jsonify(result={"objects": OBJECTS + (["neopixel STRIP", "output_pin caselight", "output_pin beeper"] if S.get("extra_lights") else []) + (["output_pin chamber_heater_relay", "output_pin psu_enabled", "pca9632 status"] if S.get("odd_pins") else []) + (EXTRA_TEMPS if S.get("extra_temps") else [])
                            + (["output_pin relay", "output_pin _secret", "filament_switch_sensor runout", "filament_motion_sensor encoder"] if S.get("extra_devices") else [])
                            + (["gcode_macro TIMELAPSE_TAKE_FRAME"] if S.get("timelapse_on") and S.get("timelapse_macro") else [])
                            + (["AFC", "AFC_BoxTurtle Turtle_1", "AFC_hub Turtle_1"] + [("AFC_lane " if n == "lane4" else "AFC_stepper ") + n for n in (S.get("afc_lanes") or {})] if S.get("afc") else [])})
@@ -1322,7 +1323,7 @@ def api_app_version():
         return Response("<!doctype html><title>404 Not Found</title>", status=404, mimetype="text/html")
     if S["app_apk_status"] != 200:
         return jsonify(error="mock failure"), S["app_apk_status"]
-    offer = S["app_apk"] or {"available": False, "reason": "nessuna app pubblicata"}
+    offer = S["app_apk"] or {"available": False, "none": True, "reason": "nessuna app pubblicata"}
     return jsonify(dict(offer, ok=True))
 
 # ---- recordings (backend/recorder.py, scripts/replay.py): the same answers as the real backend

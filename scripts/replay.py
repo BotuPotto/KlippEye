@@ -138,6 +138,8 @@ def replay_session(folder, session, settings, masks=None):
     except OSError:
         pass
     frames.sort(key=lambda row: row.get("n", 0))
+    purge_file = os.path.join(folder, "purge.png")
+    purge = cv2.imread(purge_file, cv2.IMREAD_GRAYSCALE) if os.path.exists(purge_file) else None   # 1.148.0: the live monitor leaves the purge's marks out
     alarms, judged, spent, masked, zoned, unreadable = [], 0, 0.0, 0, 0, 0
     for row in frames:
         t = row.get("t")
@@ -158,6 +160,8 @@ def replay_session(folder, session, settings, masks=None):
             ignore = machine_masks.mask(cv2, np, masks["calibration"], masks["shape"], [row.get("live"), row.get("live2")],
                                         monitor_core.OPENCV_WIDTH // 2, monitor_core.OPENCV_HEIGHT // 2, masks["x_range"])
             masked += ignore is not None
+        if purge is not None:
+            ignore = purge if ignore is None else cv2.bitwise_or(ignore, cv2.resize(purge, (ignore.shape[1], ignore.shape[0]), interpolation=cv2.INTER_NEAREST))
         zone = None
         where = row.get("live") or row.get("pos")
         if use_zone and where:

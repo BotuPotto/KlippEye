@@ -14,7 +14,8 @@ Only Python's standard library: tests/backend/test_backend.py checks it against 
 import re
 
 LIGHT_KINDS = ("output_pin", "led", "neopixel", "dotstar", "pca9533", "pca9632")
-LIGHT_WORDS = re.compile(r"light|luci|luce|lamp|case|chamber|led", re.IGNORECASE)
+# 1.153.0: whole words (not "enabled", "chamber_heater_relay"); "light" also inside a name ("caselight")
+LIGHT_WORDS = re.compile(r"(?<![a-z])(?:led|luci|luce|lamp)s?(?![a-z])|light", re.IGNORECASE)
 ID_RE = re.compile(r"^[a-z0-9-]{1,40}$")
 MACRO_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,63}$")
 

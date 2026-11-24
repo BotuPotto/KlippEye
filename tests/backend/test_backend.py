@@ -894,6 +894,16 @@ def _chain_post(plan):
             r = _Quota()
             r.status_code = int(answer)
             return r
+        if answer == "html":   # 1.149.0: a 200 that is a web page, not JSON at all
+
+            class H:
+                ok = True
+                status_code = 200
+                text = "<html>gateway</html>"
+
+                def json(self_inner):
+                    raise ValueError("Expecting value: line 1 column 1 (char 0)")
+            return H()
         if answer == "junk":   # 1.124: an answer that is not the JSON asked for
 
             class J:
@@ -988,6 +998,77 @@ b_ai.detector.call_ai_analysis(cur, prev, 60)
 h0 = b_ai.read_alert_history()[0]
 check("1.124: the print ended while waiting for the second look: no second question, no alarm, written as such",
       calls == ["groq"] and b_ai.detector.last_analysis is None and h0.get("outcome") == "print ended before the second look", (calls, h0))
+
+# 1.149.0: the online AI chain
+post, calls = _chain_post({"groq": ["html"], "gemini": ["CONTINUE"]})
+b_ai, cur, prev = _two_services(post)
+b_ai.detector.call_ai_analysis(cur, prev, 60)
+h0 = (b_ai.read_alert_history() or [{}])[0]
+check("1.149.0: a 200 answer that is not JSON no longer ends the analysis: the backup answers and it is recorded",
+      calls == ["groq", "gemini"] and h0.get("outcome") == "analysed" and h0.get("service") == "Google Gemini", (calls, h0))
+post, calls = _chain_post({"groq": ["PAUSE", "html"], "gemini": ["html"]})
+b_ai, cur, prev = _two_services(post)
+b_ai.detector.call_ai_analysis(cur, prev, 60)
+h0 = (b_ai.read_alert_history() or [{}])[0]
+check("1.149.0: a first PAUSE whose second look only gets web pages is kept (not confirmed), not thrown away",
+      h0.get("action") == "PAUSE" and h0.get("confirmed") is None and (b_ai.detector.last_analysis or {}).get("analysis", {}).get("action") == "PAUSE", (calls, h0))
+post, calls = _chain_post({"groq": ["junk"], "gemini": ["PAUSE"]})
+b_ai, cur, prev = _two_services(post)
+b_ai.detector.call_ai_analysis(cur, prev, 60)
+h0 = (b_ai.read_alert_history() or [{}])[0]
+check("1.149.0: an answer that cannot be read does not end the chain: the backup is asked and its verdict counts",
+      calls[:2] == ["groq", "gemini"] and h0.get("outcome") == "analysed" and h0.get("service") == "Google Gemini" and h0.get("backup") is True, (calls, h0))
+post, calls = _chain_post({"groq": ["junk"], "gemini": ["junk"]})
+b_ai, cur, prev = _two_services(post)
+b_ai.detector.call_ai_analysis(cur, prev, 60)
+check("... every service unreadable: one «not readable» entry and no verdict",
+      calls == ["groq", "gemini"] and [x.get("outcome") for x in b_ai.read_alert_history()] == ["AI answer not readable"] and b_ai.detector.last_analysis is None, (calls, b_ai.read_alert_history()))
+check("1.149.0: normalize_action reads the first action word only (a copied template, a negation)",
+      [mm.normalize_action(v) for v in ("CONTINUE|PAUSE|CANCEL", "PAUSE (do not cancel)", "Continue, no need to pause", "\"Cancella\"", " pausa")] == ["CONTINUE", "PAUSE", "CONTINUE", "CANCEL", "PAUSE"])
+post, calls = _chain_post({"groq": ["CONTINUE"], "gemini": ["CONTINUE"]})
+_gate, _inside = threading.Event(), threading.Event()
+
+
+def _slow_post(url, **kw):
+    _inside.set()
+    _gate.wait(3)
+    return post(url, **kw)
+
+
+b_ai, cur, prev = _two_services(_slow_post)
+_first = threading.Thread(target=b_ai.detector.call_ai_analysis, args=(cur, prev, 60), daemon=True)
+_first.start()
+_inside.wait(3)
+b_ai.detector.last_ai_call = 0   # the cooldown has run out while the first analysis is still on its way
+_t0 = time.time()
+b_ai.detector.call_ai_analysis(cur, prev, 60)
+_second_took = time.time() - _t0
+_gate.set()
+_first.join(5)
+check("1.149.0: a second analysis does not start while one is running (one question, one alert)",
+      calls == ["groq"] and _second_took < 1 and len(b_ai.read_alert_history()) == 1, (calls, _second_took, b_ai.read_alert_history()))
+b_ai, cur, prev = _two_services(post)
+b_ai.detector.call_ai_analysis(cur, prev, 60)
+check("... and the next one is asked normally once it ended", len(b_ai.read_alert_history()) == 1 and b_ai.detector._ai_busy.acquire(blocking=False))
+b_ai.detector._ai_busy.release()
+_providers = ["groq", "gemini", "openai", "anthropic", "mistral", "openrouter", "meta", "together", "fireworks"]
+_real_apply = b_ai.ai_services.apply
+def _slow_apply(cfg, body):
+    time.sleep(0.05)   # every client has read the file before any of them writes: the race, made certain
+    return _real_apply(cfg, body)
+b_ai.ai_services.apply = _slow_apply
+_barrier = threading.Barrier(len(_providers))
+def _save_key(provider):
+    _barrier.wait()
+    b_ai.app.test_client().post("/api/ai/config", json={"key": {"provider": provider, "api_key": provider + "-key-" + "x" * 20}})
+_savers = [threading.Thread(target=_save_key, args=(pid,)) for pid in _providers]
+for _t in _savers:
+    _t.start()
+for _t in _savers:
+    _t.join(20)
+b_ai.ai_services.apply = _real_apply
+_kept = sorted(json.load(open(b_ai.AI_CONFIG_PATH))["keys"])
+check("1.149.0: nine clients saving nine keys at the same moment: all nine are on disk", _kept == sorted(_providers), _kept)
 
 b_ai, cur, prev = fresh_ai(ai_reply())
 for i in range(45):
@@ -2766,6 +2847,9 @@ check("1.100: the outputs that may be lights, with the effects drawn on them", [
 _found = _pl.resolve({"configured": False}, _outs, _pl.macros_from(_cf), {"STOP_LED_EFFECTS": ""})
 check("1.100: as the dashboard: the LUCI macros (read on the LED of the same name), the pin named as a light; not the buzzer",
       [(l["id"], l["on"], l["object"]["object"] if l["object"] else None) for l in _found] == [("m-luci-on", "LUCI_ON", "neopixel LUCI"), ("o-output-pin-case-light", "SET_PIN PIN=case_light VALUE=1", "output_pin case_light")], _found)
+_odd = _pl.outputs_from(["output_pin chamber_heater_relay", "output_pin psu_enabled", "output_pin caselight", "pca9632 status", "output_pin case_fan"], {})
+check("1.153.0: pins that are not lights (a relay, «psu_enabled», a case fan) are not lights; «caselight» and a pca9632 are",
+      [l["object"]["object"] for l in _pl.resolve({"configured": False}, _odd, [], {})] == ["output_pin caselight", "pca9632 status"], _pl.detect(_odd, []))
 _mine = _pl.resolve({"configured": True, "items": [{"id": "x", "name": "Strip", "mode": "object", "object": "neopixel LUCI"}, {"id": "y", "mode": "gcode", "onGcode": "", "offGcode": "M5"}]}, _outs, [], {"STOP_LED_EFFECTS": ""})
 check("1.100: the person's list: a LED switched with SET_LED (its effects stopped first); a light without both commands left out",
       len(_mine) == 1 and _mine[0]["off"].startswith('STOP_LED_EFFECTS LEDS="neopixel:LUCI"') and "SET_LED LED=LUCI RED=0" in _mine[0]["off"], _mine)
@@ -3364,6 +3448,46 @@ check("1.144.0: deleting a recording under the recorder's lock only renames it (
 time.sleep(0.9)
 _rec.shutil.rmtree = _real_rmtree
 check("... and nothing is left behind", os.listdir(_rr.root) == [], os.listdir(_rr.root))
+
+print("== 1.152.0: MQTT and the monitor's settings")
+_sent2, _answers = [], [{"print_stats": {"state": "printing", "print_duration": 600}, "display_status": {"progress": 0.4}, "webhooks": {"state": "ready"}}, None, None]
+
+
+class _Rec:
+    connected = True
+
+    def publish(self, topic, payload, retain=False):
+        _sent2.append((topic, payload))
+        return True
+
+
+_b2 = _mb.Bridge(_mb.clean({"enabled": True, "host": "broker.local", "discovery": False}), lambda objects: _answers.pop(0), lambda: {}, lambda: [], None, None, lambda: {}, node="raspberrypi")
+_b2.client, _b2.lights_at = _Rec(), 1e18
+_b2.tick()
+_n = len(_sent2)
+_b2.tick()
+_b2.tick()
+_off = [(t, p) for t, p in _sent2[_n:]]
+check("1.152.0: Klipper down (Moonraker answers nothing): the retained state says offline, once", ("klippeye/raspberrypi/status/state", "offline") in _off
+      and len([1 for t, p in _off if t.endswith("/status/state")]) == 1 and json.loads(dict(_off)["klippeye/raspberrypi/state"])["state"] == "offline", _off)
+_answers.append({"print_stats": {"state": "standby"}, "webhooks": {"state": "ready"}})
+_b2.tick()
+check("1.152.0: Klipper back: the real state is published again", _sent2[-1][0].endswith("/state") or ("klippeye/raspberrypi/status/state", "standby") in _sent2[_n:], _sent2[-3:])
+_ids = []
+for _mid in ("aaaaaaaa11111111\n", "bbbbbbbb22222222\n"):
+    _mf = os.path.join(tmp(), "machine-id")
+    open(_mf, "w").write(_mid)
+    _mb.MACHINE_ID_FILE = _mf
+    _ids.append(_mb.Bridge(_mb.clean({"host": "broker.local"}), None, None, None, None, None, None, node="raspberrypi").client.client_id)
+check("1.152.0: two Pis with the same host name get two MQTT client ids; one Pi keeps its own", _ids[0] != _ids[1] and all(i.startswith("klippeye-raspberrypi-") for i in _ids), _ids)
+
+_mp = os.path.join(tmp(), "monitor.json")
+json.dump({"values": {"local_doubt": 90, "local_sure": 50}}, open(_mp, "w"))
+_mcfg = _lb.MonitorConfig(_mp)
+check("1.152.0: a monitor.json with «Sure from» below «In doubt from»: both go back to the defaults",
+      (_mcfg.values["local_doubt"], _mcfg.values["local_sure"]) == (35, 80), _mcfg.values)
+json.dump({"values": {"local_doubt": 40, "local_sure": 90}}, open(_mp, "w"))
+check("... a good pair in the file is kept", (_lb.MonitorConfig(_mp).values["local_doubt"], _lb.MonitorConfig(_mp).values["local_sure"]) == (40, 90))
 
 stop_all()
 fake.close()

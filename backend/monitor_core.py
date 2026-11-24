@@ -13,6 +13,7 @@ where the toolhead and the gantry are at that moment. They are left out of every
 (each background picture keeps its own mask and the background is the median of the pictures that saw that point free) and
 of the "the whole picture changed" check.
 """
+import math
 import os
 import time
 from collections import deque
@@ -148,6 +149,10 @@ class FrameJudge:
         self.local_every = get("local_every", self.local_every)
         self.local_doubt = get("local_doubt", self.local_doubt)
         self.local_sure = get("local_sure", self.local_sure)
+        # 1.148.0: a light that stays on is a «global» change until the background has followed it: 4 of the 7 background
+        # pictures, one every few checks (10 checks gave up before: a false alarm at every light change)
+        spacing = math.ceil(max(self.check_interval, self.reference_seconds / REFERENCE_SAMPLES) / max(self.check_interval, 0.1))
+        self.global_streak_max = max(GLOBAL_STREAK_MAX, (REFERENCE_SAMPLES // 2 + 1) * spacing + 1)
         if "roi" in values:
             x, y, w, h = values["roi"]  # in % of the picture -> pixels of the resized picture (1080x720)
             self.roi = (int(OPENCV_WIDTH * x / 100), int(OPENCV_HEIGHT * y / 100), int(OPENCV_WIDTH * w / 100), int(OPENCV_HEIGHT * h / 100))
@@ -282,7 +287,7 @@ class FrameJudge:
              for a moment (print head, hand, reflection) is not part of it;
           2. the average brightness is aligned to the background's (the camera adjusting its exposure is not movement);
           3. if more than `global_change`% of the whole picture changes at once (light, camera moved) the check is ignored, but
-             if it lasts more than GLOBAL_STREAK_MAX checks in a row it is a real change;
+             if it lasts as long as the background needs to follow it (`global_streak_max` checks, see apply_config) it is a real change;
           4. only what changed against the background, in the outer band of the area, in ALL the last `persist_checks` checks counts;
           5. the machine masks (`ignore`) are left out of all of it;
           6. with an expected zone (`zone` = (watched, expected) pictures, print_zone.py) the whole watched area counts except

@@ -2,6 +2,7 @@
 source gives with their labels, the split by group, the alarms counted by ml/evaluate.py, backend/local_model.py with a
 missing or broken model."""
 import csv
+import json
 import os
 import sys
 import tempfile
@@ -154,9 +155,67 @@ check("1.130: «Successful Print», «Normal print», «No defect» are fine; «
       [datasets.kind_of(n) for n in ("Successful Print", "Normal print", "good_print", "No Defect", "Print Failure")])
 check("pictures nobody labelled («Unlabeled», «background») are left out, not counted as failures",
       [datasets.kind_of(n) for n in ("Unlabeled", "background", "None")] == [None] * 3)
-check("licences: CC BY 4.0, MIT, public domain shareable; ShareAlike, NonCommercial, private not; not written: neither",
+check("licences: CC BY 4.0, MIT, public domain shareable; ShareAlike, NonCommercial, private not",
       [download.licence_is_open(t) for t in ("CC BY 4.0", "MIT", "Public Domain")] == [True] * 3
-      and [download.licence_is_closed(t) for t in ("CC BY-SA 4.0", "CC BY-NC 4.0", "Private", "CC BY 4.0", "see the dataset's page")] == [True, True, True, False, False])
+      and not any(download.licence_is_open(t) for t in ("CC BY-SA 4.0", "CC BY-NC 4.0", "Private", "see the dataset's page", "")))
+check("1.150.0: ... written with spaces, or with a remark, or ODbL, GPL, not found: not shareable either (an allow-list)",
+      not any(download.licence_is_open(t) for t in ("CC BY NC 4.0", "CC BY SA 4.0", "CC BY ND 4.0", "CC BY 4.0 (non-commercial use only)", "ODbL v1.0", "GPL-3.0")))
+
+# 1.150.0: download.py with a Roboflow that writes small folders: a licence that does not let the model be shared leaves
+# the dataset out, a folder cut short is downloaded again
+import types  # noqa: E402
+
+
+def fake_roboflow(licences, made):
+    class Version:
+        def __init__(self, slug):
+            self.slug = slug
+
+        def download(self, fmt, location, overwrite):
+            os.makedirs(location, exist_ok=True)
+            made.append(self.slug)
+            open(os.path.join(location, "README.roboflow.txt"), "w").write("License: %s\n" % licences[self.slug])
+
+    class Project:
+        type = "classification"
+
+        def __init__(self, slug):
+            self.slug = slug
+
+        def versions(self):
+            return [types.SimpleNamespace(version="proj/1")]
+
+        def version(self, number):
+            return Version(self.slug)
+
+    class Workspace:
+        def __init__(self, name):
+            self.name = name
+
+        def project(self, name):
+            return Project(self.name + "/" + name)
+
+    module = types.ModuleType("roboflow")
+    module.Roboflow = lambda api_key: types.SimpleNamespace(workspace=Workspace)
+    return module
+
+
+licences = {"w/open": "CC BY 4.0", "w/spaced": "CC BY NC 4.0", "w/unknown": "", "w/cut": "CC BY 4.0"}
+sources = os.path.join(root, "sources.json")
+json.dump({"roboflow": sorted(licences)}, open(sources, "w"))
+dl_out, made = os.path.join(root, "dl"), []
+os.makedirs(os.path.join(dl_out, "w__cut"))
+open(os.path.join(dl_out, "w__cut", "half.jpg"), "w").write("x")   # a download killed in the middle: no klippeye-source.json
+sys.modules["roboflow"] = fake_roboflow(licences, made)
+download.main(["--key", "k", "--sources", sources, "--out", dl_out])
+check("1.150.0: download.py: a dataset with a licence that does not let the model be shared, or none found, is left out",
+      sorted(d for d in os.listdir(dl_out) if os.path.isdir(os.path.join(dl_out, d))) == ["w__cut", "w__open"], sorted(os.listdir(dl_out)))
+check("... a folder with no klippeye-source.json (a download cut short) is downloaded again, a finished one is not",
+      "w/cut" in made and os.path.isfile(os.path.join(dl_out, "w__cut", "klippeye-source.json")), made)
+made.clear()
+download.main(["--key", "k", "--sources", sources, "--out", dl_out])
+check("... and the second run downloads only what was left out", "w/open" not in made and "w/cut" not in made, made)
+del sys.modules["roboflow"]
 
 multi = os.path.join(root, "multi", "train")
 os.makedirs(multi)
@@ -228,6 +287,50 @@ code = datasets.main(["--folders", paths["sorted"], "--hard-cases", "0.3", "--mi
 manifest = list(csv.DictReader(open(os.path.join(out, "manifest.csv"))))
 check("datasets.py --hard-cases --mine: look-alikes in the list, a weight per picture (fine pictures the model doubts weigh more)",
       code == 0 and any(r["source"].startswith("hard-") for r in manifest) and all(r["weight"] in ("1", "2", "3") for r in manifest), (code, manifest[:2]))
+
+# 1.150.0: the prints kept for measuring never reach the training list
+def judged(folder, kind, sid, started, outcome="ok"):
+    where = os.path.join(folder, "recordings" if kind == "recording" else "reviews", sid)
+    os.makedirs(where, exist_ok=True)
+    frames = [{"n": k, "t": started + k * 60} for k in range(1, 9)]
+    for f in frames:
+        cv2.imwrite(os.path.join(where, ("%06d.jpg" if kind == "recording" else "%04d.jpg") % f["n"]), np.zeros((20, 20, 3), np.uint8))
+    label = {"outcome": outcome, "failed_at": started + 120 if outcome == "failed" else None}
+    if kind == "recording":
+        open(os.path.join(where, "frames.jsonl"), "w").write("\n".join(json.dumps(f) for f in frames))
+        json.dump({"id": sid, "started": started, "label": label}, open(os.path.join(where, "session.json"), "w"))
+    else:
+        json.dump({"id": sid, "started": started, "thumbs": frames, "answer": label}, open(os.path.join(where, "review.json"), "w"))
+
+
+listed = datasets.kept_out_prefixes()
+check("1.150.0: models/base/kept-out.txt lists the 9 prints kept for measuring", len(listed) == 9 and "20261113-164121" in listed and "20261118-160816" in listed, listed)
+mixed = os.path.join(root, "mixed")
+judged(mixed, "recording", "20261113-164121-benchy", 1793500000)
+judged(mixed, "review", "20261113-164124-benchy", 1793500003)       # the answer about the same print, a few seconds later
+judged(mixed, "review", "20261120-100000-cube", 1793900000, "failed")
+judged(mixed, "recording", "20261121-100000-vase", 1794000000)
+judged(mixed, "review", "20261121-100002-vase", 1794000002)         # a print recorded and answered, not kept out
+groups = {r[2] for r in datasets.from_klippeye(mixed)}
+check("1.150.0: --klippeye leaves out a listed print and the answer about it; a print recorded and answered is one group",
+      groups == {"rev:20261120-100000-cube", "rec:20261121-100000-vase"}, groups)
+out = os.path.join(root, "work-kept")
+code = datasets.main(["--klippeye", mixed, "--out", out])
+manifest = list(csv.DictReader(open(os.path.join(out, "manifest.csv"))))
+check("... the manifest of datasets.py holds nothing of a listed print", code == 0 and manifest and not any("164121" in r["path"] or "164124" in r["path"] for r in manifest), len(manifest))
+only = os.path.join(root, "only-kept")
+judged(only, "recording", "20261113-164121-benchy", 1793500000)
+check("... nothing left: said, not an empty list", datasets.main(["--klippeye", only, "--out", os.path.join(root, "work-none")]) != 0)
+
+import contextlib  # noqa: E402
+import io  # noqa: E402
+
+for trained in (False, True):
+    report, buffer = os.path.join(root, "report-%s.json" % trained), io.StringIO()
+    with contextlib.redirect_stdout(buffer):
+        evaluate.main(["--model", os.path.join(HERE, "..", "..", "models", "base"), "--data", paths["klippeye"], "--every", "20", "--json", report] + (["--trained"] if trained else []))
+    check("1.150.0: evaluate.py%s: %s" % (" --trained" if trained else "", "a warning that the numbers are not independent, said in the report too" if trained else "no warning"),
+          ("WARNING" in buffer.getvalue()) == trained and json.load(open(report))["independent"] == (not trained))
 
 print("%d FAIL" % len(FAILS))
 sys.exit(1 if FAILS else 0)

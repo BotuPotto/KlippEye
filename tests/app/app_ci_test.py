@@ -305,5 +305,16 @@ code, printed = run_main("--root", root, "decide")
 check("cli decide: lower version -> code 1 and a red annotation", code == 1 and "::error title=Android app::" in printed, printed)
 os.environ.pop("GITHUB_OUTPUT")
 
+# ---- the workflow (1.151.0) ----
+workflow = read(os.path.join(ROOT, ".github", "workflows", "app.yml"))
+import re
+job_env = re.search(r"^    env:\n((?:      .*\n|\n)*)", workflow, re.M)
+check("1.151.0: workflow: no secret in the job's env (every step and action would see it)", job_env is None or "secrets." not in job_env.group(1), job_env and job_env.group(1))
+check("1.151.0: workflow: the signing password is given only to the steps that need it",
+      len(re.findall(r"secrets\.KLIPPEYE_CHIAVE_PASSWORD", workflow)) == 3 and "VZBOT" not in workflow)
+unpinned = [u for u in re.findall(r"^\s*(?:- )?uses: (\S+)", workflow, re.M) if not re.search(r"@[0-9a-f]{40}$", u)]
+check("1.151.0: workflow: actions are pinned to a commit", not unpinned, unpinned)
+check("1.151.0: the old app's key is gone from the repository", not os.path.exists(os.path.join(ROOT, "android", "chiave", "vzbot.p12")))
+
 print("ALL PASS" if failures == 0 else "FAILS: %d" % failures)
 sys.exit(1 if failures else 0)

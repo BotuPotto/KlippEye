@@ -260,14 +260,17 @@ function FilesSectionSwitch({ section }) {
   return h("div", { className: "oui-segmented files-section-switch has-three", role: "group", "aria-label": tx("Files") }, option("files", tx("Print files")), option("history", tx("History")), option("timelapse", "Timelapse"));
 }
 
-/** Whether Moonraker has the timelapse component (moonraker-timelapse), asked once: null until known. */
+/** Whether Moonraker has the timelapse component (moonraker-timelapse), asked again when Klipper is back: null until known. */
 function useHasTimelapse() {
   const [has, setHas] = useState(null);
   useEffect(() => {
     let cancelled = false;
-    moonrakerComponents().then((components) => !cancelled && setHas(components.has("timelapse")));
+    const ask = () => moonrakerComponents().then((components) => !cancelled && setHas(components.has("timelapse")));
+    ask();
+    const off = onKlipperReady(ask); // 1.153.0: Klipper back after a restart: the add-on may be there now
     return () => {
       cancelled = true;
+      off();
     };
   }, []);
   return has;

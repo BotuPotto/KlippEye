@@ -34,11 +34,26 @@ object Addresses {
     enum class Check { OK, LOCAL_INVALID, LOCAL_NOT_PRIVATE, EXTERNAL_INVALID, EXTERNAL_NOT_PRIVATE }
 
     /**
-     * Where KlippEye may answer on a Raspberry, best first (app 1.7.0): https without a port when the app knows its
-     * certificate, then http without a port (KlippEye 1.94), then the service's port, which is always there.
+     * Where KlippEye may answer on a Raspberry, best first. When the app knows the Raspberry's certificate (`pinned`) only
+     * https without a port is tried: an http answer at that address is not the Raspberry (app 1.9.0), so the pinning cannot be
+     * got round by blocking port 443. Otherwise http without a port (KlippEye 1.94), then the service's port, which is always there.
      */
-    fun variants(host: String, withCertificate: Boolean): List<String> =
-        (if (withCertificate) listOf("https://$host/") else emptyList()) + listOf("http://$host/", "http://$host:$PORT/")
+    fun variants(host: String, pinned: Boolean): List<String> =
+        if (pinned) listOf("https://$host/") else listOf("http://$host/", "http://$host:$PORT/")
+
+    /** "scheme://host:port" of an http(s) address, port written out; null for anything else. */
+    fun origin(url: String?): String? = try {
+        val uri = java.net.URI(url ?: "")
+        val scheme = (uri.scheme ?: "").lowercase()
+        val host = (uri.host ?: "").lowercase()
+        val port = if (uri.port >= 0) uri.port else if (scheme == "https") 443 else 80
+        if ((scheme == "http" || scheme == "https") && host.isNotEmpty()) "$scheme://$host:$port" else null
+    } catch (e: Exception) {
+        null
+    }
+
+    /** Whether two addresses are the same page origin (scheme, host and port): what the bridge trusts (app 1.9.0). */
+    fun sameOrigin(a: String?, b: String?): Boolean = origin(a).let { it != null && it == origin(b) }
 
     /** The answer of [PROBE_PATH] is KlippEye's: a JSON with "enabled" (the password on or off). */
     fun isKlippEye(contentType: String?, body: String?): Boolean =

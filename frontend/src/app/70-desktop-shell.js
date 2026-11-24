@@ -44,7 +44,7 @@ const DESKTOP_TABS = [
   { id: "home", label: tx("Device") },
   { id: "controllo", label: tx("Calibration") },
   { id: "files", label: tx("Files") },
-  { id: "config", label: "Config" },
+  { id: "config", label: tx("Config") },
   { id: "sistema", label: tx("System") },
 ];
 
