@@ -96,6 +96,11 @@ warm-up seconds, minimum progress, hotend at temperature), one check every `chec
    a new change. Rules: a motion trigger goes online only if the model is at least «in doubt» (`local_filter`); by
    itself two «sure» in a row, or three «in doubt», ask the online AI; **first 5 minutes of a print** (`LOCAL_WARMUP_S`):
    three «sure», «in doubt» alone does not ask. Online AI off: three «sure» propose a pause (`_local_verdict`).
+   **Owner's rule (24 Nov, 1.141.0)**: the automatic pause / cancel acts on the local model's verdict alone only when the
+   online AI is switched off or no service in the chain can answer (quota used, no key). `_local_verdict` writes
+   `local_only` and `local_reason` («off» / «unavailable») in `last_analysis`; the notifier (`AiVerdict.local`,
+   `LOCAL_MAY_ACT`) acts on those two reasons only; otherwise it sends the notice and leaves the print alone. A
+   local-only verdict never counts towards the confirmations of an online one.
    Levels: `local_doubt` / `local_sure` follow the model's own levels (`model.json` "levels") while the settings are
    at the defaults 35/80 (`effective_config`).
 4. **Personal layer** (`personal_layer.py`, optional `personal_learning`): logistic layer on the embeddings, trained on
@@ -453,6 +458,8 @@ keeps it readable).
   branch `fix-calibration-print-moves`, built on #189 (merge it first).
   PR 3 (scheduled prints: a late print is missed, 1.140.0, test in `tests/backend/test_print_schedule.py`) open as #191,
   branch `fix-scheduled-late`, built on #190 (merge #189, #190, then it).
+  PR 4 (notifier: queue prints, announced automatic pauses, local-only pauses by the owner's rule, 1.141.0, tests in
+  `tests/notifier/test_watcher.py`) open as #PRNUM, branch `fix-notifier-queue`, built on #191 (merge #189, #190, #191, then it).
 
 ### Owner's notes of 23 Nov (to do, in this order)
 1. Release 1.135.1 (#184): plainer texts, guide, no benchmark of other models. Done when merged.
@@ -475,4 +482,4 @@ keeps it readable).
    writing rules.
 
 ### Open PRs
-#189 (PR 1 of the audit fixes, release 1.138.0, branch `fix-dashboard-actions`), open 24 Nov. #190 (PR 2, 1.139.0, branch `fix-calibration-print-moves`), built on #189, open 24 Nov. #191 (PR 3, 1.140.0, branch `fix-scheduled-late`), built on #190, open 24 Nov. #188 (the audit report) merged 24 Nov. Update this line when a PR opens or merges.
+#189 (PR 1 of the audit fixes, release 1.138.0, branch `fix-dashboard-actions`), open 24 Nov. #190 (PR 2, 1.139.0, branch `fix-calibration-print-moves`), built on #189, open 24 Nov. #191 (PR 3, 1.140.0, branch `fix-scheduled-late`), built on #190, open 24 Nov. #PRNUM (PR 4, 1.141.0, branch `fix-notifier-queue`), built on #191, open 24 Nov. #188 (the audit report) merged 24 Nov. Update this line when a PR opens or merges.

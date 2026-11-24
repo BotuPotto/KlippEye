@@ -1,5 +1,20 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.141.0
+
+Prints from the job queue, automatic pauses that are always announced, and the local model alone stops a print only when it must.
+
+- When Moonraker's job queue goes from one file to the next between two checks, the notifier took both for one print. The
+  first one never got «Print completed», and the next one could get no automatic pause on its first real alarm, or one
+  too early because it counted a verdict of the first file. Now a new file is a new print.
+- If the automatic pause failed once (Moonraker busy) and worked on the retry within three minutes, the message that
+  says so was held back as a repeat. It now always goes out.
+- A channel that cannot be reached no longer holds back the others. Before, a notice waiting to retry on one channel
+  kept the next notice from reaching ntfy for up to three hours. Now it steps aside and tries again later.
+- The automatic pause and cancel act on the local model's verdict alone only when the online AI is switched off or no
+  service can answer (no key, limits used up). In every other case they need a verdict from the online AI, and a local
+  one does not count as a confirmation next to it. The notice still goes out so you can decide.
+
 ## 1.140.0
 
 A scheduled print that comes hours late is now missed, not started.

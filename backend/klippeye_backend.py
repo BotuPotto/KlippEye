@@ -2706,6 +2706,7 @@ class LightDetector(FrameJudge):
         except Exception:
             path = None
         verdict = {"action": "PAUSE", "summary": summary, "observation": summary, "local_only": True,
+                   "local_reason": "unavailable" if self.ai_online else "off",  # 1.141.0: the notifier acts on it only for these two reasons
                    "spaghetti": {"detected": True, "confidence": int(score)}}
         self.last_analysis = {"timestamp": time.strftime("%Y-%m-%d %H:%M:%S"), "model": "local:" + ((local_ai.model and local_ai.model.version) or ""),
                               "progress": (self.meta or {}).get("progress"), "analysis": verdict, "raw": ""}
