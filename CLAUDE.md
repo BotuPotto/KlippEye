@@ -460,6 +460,9 @@ keeps it readable).
   branch `fix-scheduled-late`, built on #190 (merge #189, #190, then it).
   PR 4 (notifier: queue prints, announced automatic pauses, local-only pauses by the owner's rule, 1.141.0, tests in
   `tests/notifier/test_watcher.py`) open as #192, branch `fix-notifier-queue`, built on #191 (merge #189, #190, #191, then it).
+  PR 5 (install and repair scripts, 1.142.0) open as #193, branch `fix-install-scripts`, built on #192.
+  PR 6 (printer macros file: a macro of the person's own is never wrapped, a linked printer.cfg stays a link, 1.143.0, tests
+  in `tests/backend/test_backend.py`) open as #194, branch `fix-macros-file`, built on #193 (merge #189 to #193 first, in order).
 
 ### Owner's notes of 23 Nov (to do, in this order)
 1. Release 1.135.1 (#184): plainer texts, guide, no benchmark of other models. Done when merged.
@@ -482,4 +485,4 @@ keeps it readable).
    writing rules.
 
 ### Open PRs
-#189 (PR 1 of the audit fixes, release 1.138.0, branch `fix-dashboard-actions`), open 24 Nov. #190 (PR 2, 1.139.0, branch `fix-calibration-print-moves`), built on #189, open 24 Nov. #191 (PR 3, 1.140.0, branch `fix-scheduled-late`), built on #190, open 24 Nov. #192 (PR 4, 1.141.0, branch `fix-notifier-queue`), built on #191, open 24 Nov. #193 (PR 5, 1.142.0, branch `fix-install-scripts`), built on #192, open 24 Nov. #188 (the audit report) merged 24 Nov. Update this line when a PR opens or merges.
+#189 (PR 1 of the audit fixes, release 1.138.0, branch `fix-dashboard-actions`), open 24 Nov. #190 (PR 2, 1.139.0, branch `fix-calibration-print-moves`), built on #189, open 24 Nov. #191 (PR 3, 1.140.0, branch `fix-scheduled-late`), built on #190, open 24 Nov. #192 (PR 4, 1.141.0, branch `fix-notifier-queue`), built on #191, open 24 Nov. #193 (PR 5, 1.142.0, branch `fix-install-scripts`), built on #192, open 24 Nov. #194 (PR 6, 1.143.0, branch `fix-macros-file`), built on #193, open 24 Nov. #188 (the audit report) merged 24 Nov. Update this line when a PR opens or merges.
