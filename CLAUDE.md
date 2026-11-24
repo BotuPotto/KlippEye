@@ -474,6 +474,11 @@ keeps it readable).
   quoted file names, throttle, HTTPS relay one request per connection, slicer test, logout race, 1.147.0, tests in
   `tests/backend/test_access_network.py`) open as #198, branch `fix-access-network`, built on #197 (merge #189 to #197 first, in order).
   After it merges, people on port 80 run `klippeye web main` to get the new nginx file (findings 9 and 43 need it).
+  PR 11 (monitor loop: no crash without a model, photos read with a size and time limit, the status says «no picture from the
+  camera» / «Moonraker does not answer», the global-change streak follows the background, the replay leaves the purge out,
+  1.148.0, tests in `tests/backend/test_monitor_loop.py`) open as #199, branch `fix-monitor-loop`, built on #198 (merge #196 to #198
+  first, in order). Not done: a push message when the monitor is blind (the notifier does not read the status), structure
+  proposals 1 (shared `prepare_check` and `ask_rule`) and 6 (dead code).
 
 ### Owner's notes of 23 Nov (to do, in this order)
 1. Release 1.135.1 (#184): plainer texts, guide, no benchmark of other models. Done when merged.
@@ -496,4 +501,4 @@ keeps it readable).
    writing rules.
 
 ### Open PRs
-#194 (PR 6, 1.143.0, branch `fix-macros-file`), open 24 Nov. #195 (PR 7, 1.144.0, branch `fix-personal-files`), built on #194, open 24 Nov. #196 (PR 8, 1.145.0, branch `fix-settings-sync`), built on #195, open 24 Nov. #197 (PR 9, 1.146.0, branch `fix-config-editor`: the config editor never overwrites newer text), built on #196, open 24 Nov. #189 to #193 (PRs 1 to 5 of the audit fixes, 1.138.0 to 1.142.0) and #188 (the audit report) merged 24 Nov. #198 (PR 10, 1.147.0, branch `fix-access-network`), built on #197, open 24 Nov. Update this line when a PR opens or merges.
+#194 (PR 6, 1.143.0, branch `fix-macros-file`), open 24 Nov. #195 (PR 7, 1.144.0, branch `fix-personal-files`), built on #194, open 24 Nov. #196 (PR 8, 1.145.0, branch `fix-settings-sync`), built on #195, open 24 Nov. #197 (PR 9, 1.146.0, branch `fix-config-editor`: the config editor never overwrites newer text), built on #196, open 24 Nov. #189 to #193 (PRs 1 to 5 of the audit fixes, 1.138.0 to 1.142.0) and #188 (the audit report) merged 24 Nov. #198 (PR 10, 1.147.0, branch `fix-access-network`), built on #197, open 24 Nov. #199 (PR 11, 1.148.0, branch `fix-monitor-loop`), built on #198, open 24 Nov. Update this line when a PR opens or merges.
