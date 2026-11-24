@@ -3447,7 +3447,7 @@ _rec.shutil.rmtree = _real_rmtree
 check("... and nothing is left behind", os.listdir(_rr.root) == [], os.listdir(_rr.root))
 
 print("== 1.152.0: MQTT and the monitor's settings")
-_sent2, _answers = [], [{"print_stats": {"state": "printing", "print_duration": 600}, "display_status": {"progress": 0.4}, "webhooks": {"state": "ready"}}, None]
+_sent2, _answers = [], [{"print_stats": {"state": "printing", "print_duration": 600}, "display_status": {"progress": 0.4}, "webhooks": {"state": "ready"}}, None, None]
 
 
 class _Rec:
