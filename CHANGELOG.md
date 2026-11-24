@@ -1,5 +1,15 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.145.0
+
+Two dashboards open at the same time no longer undo each other's settings.
+
+- All dashboard settings are saved as one document on the Raspberry, and a page sent its whole copy at every change. A page
+  left open on the computer could then bring back an old printer name, or switch "Cancel by itself" on again after you had
+  switched it off on the phone. The notifier acts on that switch, so a print could be cancelled by an old page.
+- Before saving, the page now reads the Raspberry's copy and puts only its own changes on top. A list such as the
+  materials is still saved as a whole, so two devices changing the materials in the same moment keep the later change.
+
 ## 1.144.0
 
 A damaged file no longer stops KlippEye, and what you taught it is not lost.
