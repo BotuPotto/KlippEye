@@ -8,6 +8,7 @@ import tempfile
 
 def write_text(path, text, private=False):
     """`text` into `path`; mode 600 when `private` (keys, passwords), else 644. The folder is made when missing."""
+    path = os.path.realpath(path)  # 1.143.0: a link (printer.cfg kept in a config repository) stays a link: its target is written
     folder = os.path.dirname(path) or "."
     os.makedirs(folder, exist_ok=True)
     fd, tmp = tempfile.mkstemp(prefix=".tmp-", dir=folder)  # a name of its own: two writers never share it

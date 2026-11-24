@@ -141,7 +141,7 @@ const HELP = {
           tx("The round button on the camera switches together the lights marked «Switched by the round button». The arrow next to it opens every light: a switch each, the brightness (LEDs, PWM pins) and the colour (RGB LEDs), and the scenes: save how the lights are now with a name and call it back with a tap."),
         ],
       },
-      { id: "filament", title: tx("Filament change notification"), text: [tx("The phone is told «Filament run out» by a filament sensor, by a macro you choose (M600, your runout macro: KlippEye adds a small wrapper that announces it and then runs it exactly as before) or by a line of the console.")] },
+      { id: "filament", title: tx("Filament change notification"), text: [tx("The phone is told «Filament run out» by a filament sensor or by a line of the console. To use a macro of yours (M600, your runout macro), add a line such as RESPOND MSG=\"Filament change\" to it and write the same words as the console line.")] },
       { id: "check", title: tx("«All right»"), text: [tx("The entry is marked «To check» until you look at it once and press «All right».")] },
     ],
   },

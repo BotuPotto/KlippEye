@@ -73,11 +73,6 @@ body:has(.modal, .confirm-overlay, .sheet-overlay, .screen, .drawer) .nt-invite 
 .fn-fold__body { display: flex; flex-direction: column; gap: 10px; padding: 4px 14px 16px; }
 .fn-light-tools { display: flex; align-items: center; gap: 8px; }
 .fn-light-remove { margin-left: auto; }
-.fn-wraps-fold { border-radius: var(--oui-r-field); background: var(--oui-surface-2); }
-.fn-wraps-fold > summary { min-height: 48px; padding: 6px 12px; }
-.fn-wraps-fold__text { display: flex; flex: 1; flex-direction: column; gap: 2px; min-width: 0; font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
-.fn-wraps-fold__more { color: var(--oui-text-3); font-size: 12px; font-weight: 400; }
-.fn-wraps-fold > .fn-wraps { padding: 4px 12px 12px; }
 
 /* 1.58: notifications already on: pairing, other choices and the done steps folded */
 .nt-fold { border-radius: var(--oui-r-field); background: var(--oui-surface-2); }

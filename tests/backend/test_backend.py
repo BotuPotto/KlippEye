@@ -2195,12 +2195,33 @@ _file = open(os.path.join(_cfgdir, "klippeye_macros.cfg")).read()
 check("announcers: a wrapper per macro, with rename_existing, the KlippEye line, then the original with its parameters", r.status_code == 200 and r.get_json()["wraps"] == ["M600", "FILAMENT_CHANGE_STATE1"]
       and "[gcode_macro M600]\nrename_existing: KLIPPEYE_ORIGINAL_M600" in _file and 'RESPOND MSG="KlippEye: filament change (M600)"' in _file and "KLIPPEYE_ORIGINAL_M600 {rawparams}" in _file, _file[-500:])
 fake.state["commands"] = "down"
-r = _mc.post("/api/printer-macros/wraps", json={"names": ["M600"]})
-check("Klipper not answering: announcers are not changed (they could not be checked)", r.status_code == 400 and "Klipper" in r.get_json()["error"])
+r = _mc.post("/api/printer-macros/wraps", json={"names": ["M600", "PARK"]})
+check("Klipper not answering: announcers are not added (they could not be checked)", r.status_code == 400 and "Klipper" in r.get_json()["error"])
 fake.state["commands"] = ["G28", "M600"]
 check("after a restart of the backend the macros are still known", load_brain(NEW_BRAIN, _dm, fake, brain_json={"values": {"enabled": False}}).printer_macros_store.summary()["wraps"] == ["M600", "FILAMENT_CHANGE_STATE1"])
+# 1.143.0: a macro of the person's own cannot be wrapped (Klipper merges two sections of one name and refuses to start)
+open(os.path.join(_cfgdir, "macros.cfg"), "w").write("[gcode_macro M600]\ngcode:\n  PAUSE\n")
+_mc.set_cookie("klippeye_lang", "it")
+r = _mc.post("/api/printer-macros/wraps", json={"names": ["M600", "FILAMENT_CHANGE_STATE1"]})
+check("1.143.0: a macro of the person's own (M600 in macros.cfg) is refused as an announcer, in Italian", r.status_code == 400 and "M600" in r.get_json()["error"] and "RESPOND" in r.get_json()["error"], r.get_json())
+_mc.delete_cookie("klippeye_lang")
+fake.state["commands"] = "down"
+r = _mc.post("/api/printer-macros/wraps", json={"names": ["FILAMENT_CHANGE_STATE1"]})
+_file = open(os.path.join(_cfgdir, "klippeye_macros.cfg")).read()
+check("1.143.0: taking an announcer away works even when Klipper does not start, and heals a file that stopped it", r.status_code == 200 and "[gcode_macro M600]" not in _file and "[gcode_macro FILAMENT_CHANGE_STATE1]" in _file, (r.get_json(), _file[-300:]))
+fake.state["commands"] = ["G28", "M600"]
+os.remove(os.path.join(_cfgdir, "macros.cfg"))
+_mc.post("/api/printer-macros/wraps", json={"names": ["m600", "FILAMENT_CHANGE_STATE1"]})
 r = _mc.post("/api/printer-macros/wraps", json={"names": []})
 check("announcers removed: the wrappers leave the file, the created macro stays", "rename_existing" not in open(os.path.join(_cfgdir, "klippeye_macros.cfg")).read() and "KLIPPEYE_PARK" in open(os.path.join(_cfgdir, "klippeye_macros.cfg")).read())
+_lk = tmp()
+os.makedirs(os.path.join(_lk, "repo"))
+os.makedirs(os.path.join(_lk, "config"))
+open(os.path.join(_lk, "repo", "printer.cfg"), "w").write("[printer]\nkinematics: corexy\n")
+os.symlink(os.path.join(_lk, "repo", "printer.cfg"), os.path.join(_lk, "config", "printer.cfg"))
+_mb.printer_macros.PrinterMacros(tmp(), lambda: os.path.join(_lk, "config"), lambda: []).set_macro("KLIPPEYE_PARK", t["text"])
+check("1.143.0: printer.cfg kept as a link into a config repository stays a link and the repository's file gets the include",
+      os.path.islink(os.path.join(_lk, "config", "printer.cfg")) and "klippeye_macros" in open(os.path.join(_lk, "repo", "printer.cfg")).read())
 _pp.forget()
 fake.state["roots"] = None
 fake.state["commands"] = None

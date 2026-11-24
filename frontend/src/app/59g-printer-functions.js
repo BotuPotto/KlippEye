@@ -368,12 +368,11 @@ function FilamentFunction({ settings, capabilities, update, wraps, onWraps, busy
   const filament = settings.functions.filament;
   const set = (changes) => update((draft) => Object.assign(draft.functions.filament, changes));
   const sensors = capabilities.sensors || [];
-  const macros = (capabilities.macros || []).filter((name) => !name.startsWith(KLIPPEYE_ORIGINAL));
   const [chosen, setChosen] = useState(wraps);
   useEffect(() => setChosen(wraps), [wraps.join(",")]);
   const [phrases, setPhrases] = useState(filament.phrases.join("\n"));
   const changed = chosen.join(",") !== wraps.join(",");
-  const toggle = (name) => setChosen(chosen.includes(name) ? chosen.filter((n) => n !== name) : [...chosen, name]);
+  const drop = (name) => setChosen(chosen.filter((n) => n !== name));
   const summary = [filament.sensor && sensors.length > 0 && tx("sensor"), wraps.length && (wraps.length === 1 ? tx("1 macro") : tx("{count} macros", { count: wraps.length })), filament.phrases.length && (filament.phrases.length === 1 ? tx("1 console line") : tx("{count} console lines", { count: filament.phrases.length }))].filter(Boolean).join(" · ");
   return h(
     FnFold,
@@ -390,21 +389,14 @@ function FilamentFunction({ settings, capabilities, update, wraps, onWraps, busy
         onChange: (sensor) => set({ sensor }),
       }),
     ),
-    h("div", { className: "set-field__label fn-subtitle" }, tx("A macro of yours runs (M600, your runout macro...)")),
-    // 1.56: the printer's macros are many: folded under a line that says which are chosen
-    macros.length
-      ? h(
-          "details",
-          { className: "fn-wraps-fold" },
-          h("summary", null, h("span", { className: "fn-wraps-fold__text" }, chosen.length ? tx("Chosen: {names}", { names: chosen.join(", ") }) : tx("None chosen"), h("span", { className: "fn-wraps-fold__more" }, tx("Choose among {count} macros", { count: macros.length })))),
-          h(
-            "div",
-            { className: "set-chips fn-wraps", role: "group", "aria-label": tx("Macros that announce a filament change") },
-            [...new Set([...macros, ...chosen])].map((name) => h("button", { key: name, type: "button", "data-wrap": name, className: cx("oui-chip", chosen.includes(name) && "is-selected"), "aria-pressed": chosen.includes(name), onClick: () => toggle(name) }, name)),
-          ),
-        )
-      : h("p", { className: "set-group__note" }, tx("Klipper has not said its macros yet.")),
-    h("p", { className: "set-group__note" }, tx("KlippEye adds to klippeye_macros.cfg a small wrapper with the same name: it writes «KlippEye: filament change» in the console and then runs your macro exactly as before. Your macro is not changed. Klipper must restart to read it.")),
+    // 1.143.0: a macro of the person's own cannot be wrapped (Klipper would not start): only what is chosen already is shown, to take it away
+    chosen.length > 0 &&
+      h(
+        "div",
+        { className: "set-chips fn-wraps", role: "group", "aria-label": tx("Macros that announce a filament change") },
+        chosen.map((name) => h("button", { key: name, type: "button", "data-wrap": name, className: cx("oui-chip", "is-selected"), "aria-pressed": true, onClick: () => drop(name) }, name)),
+      ),
+    h("p", { className: "set-group__note" }, tx("A macro of yours cannot be announced from here: Klipper would not start. Add a line such as RESPOND MSG=\"Filament change\" to your macro and write the same words in the console line below.")),
     changed && h("button", { type: "button", className: "oui-btn oui-btn--primary oui-btn--block", "data-apply-wraps": "1", disabled: busy, onClick: () => onWraps(chosen) }, tx("Apply ({count} macros)", { count: chosen.length })),
     h(
       "label",
@@ -423,8 +415,6 @@ function FilamentFunction({ settings, capabilities, update, wraps, onWraps, busy
     ),
   );
 }
-
-const KLIPPEYE_ORIGINAL = "KLIPPEYE_ORIGINAL_";
 
 function PrinterFunctionsPage({ printing }) {
   const { settings, update } = useSettings();

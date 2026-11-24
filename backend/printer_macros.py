@@ -5,9 +5,10 @@ klippeye_macros.cfg, next to printer.cfg, included at the end of printer.cfg. No
 Two things go in it:
   * the macros the person CREATED from the dashboard (a template proposed by KlippEye, e.g. KLIPPEYE_PARK, edited in the
     dashboard's editor before saving): their text is kept as written;
-  * the ANNOUNCERS of the filament change: for each macro chosen (M600, a runout macro...) a wrapper with the same name that
-    first writes "KlippEye: filament change" in the console (the notification service sees it) and then runs the original,
-    which Klipper keeps under another name (rename_existing). The macro itself is not touched.
+  * the ANNOUNCERS of the filament change: for each command chosen a wrapper with the same name that first writes
+    "KlippEye: filament change" in the console (the notification service sees it) and then runs the original, which Klipper
+    keeps under another name (rename_existing). Not for a [gcode_macro] of the person's own (1.143.0): Klipper merges two
+    sections of one name and does not start.
 
 The state is kept in the data folder (printer_macros.json) and the file is written again from it each time: the file says on
 top that it is KlippEye's and is changed from the dashboard (Settings -> Printer functions).
@@ -20,6 +21,7 @@ import shutil
 import time
 
 import atomic
+import macro_catalog
 
 FILE_NAME = "klippeye_macros.cfg"
 INCLUDE_LINE = "[include %s]" % FILE_NAME
@@ -125,14 +127,30 @@ class PrinterMacros:
                 raise MacroError("{name} is announced as a filament change: it cannot also be created here", name=name)
             if name not in clean:
                 clean.append(name)
-        known = self._known()
-        missing = [n for n in clean if n not in known]
+        # 1.143.0: Klipper merges two sections of one name, so a macro of the person's own cannot be wrapped: it would not start
+        own = self._own_macros()
+        taken = [n for n in clean if n in own]
+        if taken:
+            raise MacroError("{name} is a macro of yours: Klipper would not start with it. Add a RESPOND line to it and use «A line in the console»", name=taken[0])
+        new = [n for n in clean if n not in self.wraps]  # taking one away needs no answer from Klipper (it may not start)
+        known = self._known() if new else set()
+        missing = [n for n in new if n not in known]
         if missing:
             raise MacroError("{name} is not a command of your printer: Klipper would not start with it", name=missing[0])
         if len(clean) > MAX_WRAPS:
             raise MacroError("too many macros")
         self.wraps = clean
         return self.write()
+
+    def _own_macros(self):
+        """The [gcode_macro] names in the person's configuration files (KlippEye's own file left out), upper case."""
+        folder = self.config_dir()
+        found = set()
+        for path in macro_catalog._walk(folder, macro_catalog.CONFIG_EXTENSIONS):
+            name = os.path.basename(path)
+            if name != FILE_NAME and not macro_catalog._dated_copy(name):
+                found.update(n.upper() for n in SECTION.findall(macro_catalog._read(path)))
+        return found
 
     def _known(self):
         """The commands Klipper knows (a wrong announcer would stop Klipper from starting: it must be checked)."""

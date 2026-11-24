@@ -380,9 +380,9 @@ come sono le luci adesso, e un tocco le rimette così.
 Il telefono riceve *Filamento esaurito* quando:
 
 - un sensore del filamento dice che il filamento è finito durante una stampa;
-- parte una delle macro che scegli (`M600`, la tua macro di fine filamento…). KlippEye aggiunge a `klippeye_macros.cfg` un
-  piccolo involucro con lo stesso nome, che scrive una riga nella console e poi esegue la tua macro esattamente come prima;
-- compare una riga della console che scegli (*Printer paused due to filament runout!* viene sempre riconosciuta).
+- compare una riga della console che scegli (*Printer paused due to filament runout!* viene sempre riconosciuta). Per una
+  macro tua (`M600`, la tua macro di fine filamento…), aggiungile una riga come `RESPOND MSG="Cambio filamento"` e scrivi
+  qui le stesse parole. KlippEye non può avvolgere una macro tua: Klipper non partirebbe.
 
 ### Macro
 
