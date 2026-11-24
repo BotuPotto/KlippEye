@@ -459,7 +459,7 @@ keeps it readable).
   PR 3 (scheduled prints: a late print is missed, 1.140.0, test in `tests/backend/test_print_schedule.py`) open as #191,
   branch `fix-scheduled-late`, built on #190 (merge #189, #190, then it).
   PR 4 (notifier: queue prints, announced automatic pauses, local-only pauses by the owner's rule, 1.141.0, tests in
-  `tests/notifier/test_watcher.py`) open as #PRNUM, branch `fix-notifier-queue`, built on #191 (merge #189, #190, #191, then it).
+  `tests/notifier/test_watcher.py`) open as #192, branch `fix-notifier-queue`, built on #191 (merge #189, #190, #191, then it).
 
 ### Owner's notes of 23 Nov (to do, in this order)
 1. Release 1.135.1 (#184): plainer texts, guide, no benchmark of other models. Done when merged.
@@ -482,4 +482,4 @@ keeps it readable).
    writing rules.
 
 ### Open PRs
-#189 (PR 1 of the audit fixes, release 1.138.0, branch `fix-dashboard-actions`), open 24 Nov. #190 (PR 2, 1.139.0, branch `fix-calibration-print-moves`), built on #189, open 24 Nov. #191 (PR 3, 1.140.0, branch `fix-scheduled-late`), built on #190, open 24 Nov. #PRNUM (PR 4, 1.141.0, branch `fix-notifier-queue`), built on #191, open 24 Nov. #188 (the audit report) merged 24 Nov. Update this line when a PR opens or merges.
+#189 (PR 1 of the audit fixes, release 1.138.0, branch `fix-dashboard-actions`), open 24 Nov. #190 (PR 2, 1.139.0, branch `fix-calibration-print-moves`), built on #189, open 24 Nov. #191 (PR 3, 1.140.0, branch `fix-scheduled-late`), built on #190, open 24 Nov. #192 (PR 4, 1.141.0, branch `fix-notifier-queue`), built on #191, open 24 Nov. #188 (the audit report) merged 24 Nov. Update this line when a PR opens or merges.
