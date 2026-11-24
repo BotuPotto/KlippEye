@@ -545,7 +545,10 @@ function MeshProfiles({ mesh, locked, run }) {
       onConfirm: (name) => {
         const old = renaming;
         setRenaming(null);
-        if (name !== old) run(["BED_MESH_PROFILE LOAD=" + old, "BED_MESH_PROFILE SAVE=" + name, "BED_MESH_PROFILE REMOVE=" + old].join("\n"), tx("Profile renamed: save the configuration to keep it"));
+        if (locked) return toast.notice(locked); // 1.138.0: a print may have started since the dialog opened
+        // LOAD makes the old profile the mesh in use: put the one that was in use back (shortcut: a mesh in use that was never saved has no name to load)
+        const back = active && active !== old ? ["BED_MESH_PROFILE LOAD=" + active] : [];
+        if (name !== old) run(["BED_MESH_PROFILE LOAD=" + old, "BED_MESH_PROFILE SAVE=" + name, "BED_MESH_PROFILE REMOVE=" + old, ...back].join("\n"), tx("Profile renamed: save the configuration to keep it"));
       },
       extra: h("span", { className: "oui-caption" }, tx("Klipper has no renaming: the profile is loaded, saved with the new name and the old one removed.")),
     }),
@@ -623,6 +626,7 @@ function BedMeshCard({ onGcode, lockReason, homedAxes }) {
       onCancel: () => setCalibrating(false),
       onConfirm: (name) => {
         setCalibrating(false);
+        if (lockReason) return toast.notice(lockReason); // 1.138.0: a print may have started since the dialog opened
         run("BED_MESH_CALIBRATE PROFILE=" + name + (adaptive ? " ADAPTIVE=1" : ""), tx("Mesh calibration started ({name})", { name }));
       },
       extra: h(

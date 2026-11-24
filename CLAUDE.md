@@ -446,6 +446,8 @@ keeps it readable).
   the owner to choose which groups and in what order. Mark each PR here when it merges.
 - Two questions for the owner in the report: whether the automatic pause should wait for the online second look, and
   whether the old app's key `android/chiave/vzbot.p12` can go (and its GitHub secret).
+- Fixes: plan `docs/superpowers/plans/2026-11-24-audit-fixes.md`, one PR per task. PR 1 (dashboard actions, 1.138.0, test
+  `tests/ui/dashboard_actions_test.py`) open as #189, branch `fix-dashboard-actions`.
 
 ### Owner's notes of 23 Nov (to do, in this order)
 1. Release 1.135.1 (#184): plainer texts, guide, no benchmark of other models. Done when merged.
@@ -468,4 +470,4 @@ keeps it readable).
    writing rules.
 
 ### Open PRs
-#188 (the full audit's report, branch `audit-2026-11-23`), open 24 Nov. Update this line when a PR opens or merges.
+#189 (PR 1 of the audit fixes, release 1.138.0, branch `fix-dashboard-actions`), open 24 Nov. #188 (the audit report) merged 24 Nov. Update this line when a PR opens or merges.

@@ -280,9 +280,7 @@ function usePrintControls(state) {
   const togglePause = async () => {
     if (pauseLocked.current) return;
     pauseLocked.current = true;
-    try {
-      await sendGcode(state === "paused" ? "RESUME" : "PAUSE");
-    } catch (e) {}
+    await sendOrTell(() => sendGcode(state === "paused" ? "RESUME" : "PAUSE"));
     lockFor(pauseLocked);
   };
 
@@ -290,10 +288,7 @@ function usePrintControls(state) {
     setConfirmingCancel(false);
     if (cancelLocked.current) return;
     cancelLocked.current = true;
-    try {
-      await sendGcode("CANCEL_PRINT");
-      toast.notice(tx("CANCEL_PRINT sent"), CANCEL_TOAST_MS);
-    } catch (e) {}
+    if (await sendOrTell(() => sendGcode("CANCEL_PRINT"))) toast.notice(tx("CANCEL_PRINT sent"), CANCEL_TOAST_MS);
     lockFor(cancelLocked);
   };
 
@@ -392,7 +387,8 @@ function ExcludeObjectDialog({ status, onClose }) {
   const exclude = async () => {
     setBusy(true);
     try {
-      await sendGcode("EXCLUDE_OBJECT NAME=" + chosen);
+      const response = await sendGcode("EXCLUDE_OBJECT NAME=" + chosen);
+      if (!response.ok) throw new Error(await errorMessageOf(response));
       toast.notice(tx("«{name}» excluded: it is not printed any more", { name: chosen }), CANCEL_TOAST_MS);
       setChosen(null);
       onClose();

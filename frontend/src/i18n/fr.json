@@ -2982,5 +2982,8 @@
  "…and {count} more: type more letters": "…et {count} de plus : tapez plus de lettres",
  "◀ Alarm": "◀ Alarme",
  "Old method: calibrate again": "Ancienne méthode : calibrez de nouveau",
- "You can also drag the corners of the dashed bed outline on the picture, so it matches the plate without counting millimetres.": "Vous pouvez aussi faire glisser les coins du contour pointillé du plateau sur l'image, pour qu'il épouse le plateau sans compter les millimètres."
+ "You can also drag the corners of the dashed bed outline on the picture, so it matches the plate without counting millimetres.": "Vous pouvez aussi faire glisser les coins du contour pointillé du plateau sur l'image, pour qu'il épouse le plateau sans compter les millimètres.",
+ "The emergency stop did not go through. If the printer is still moving, cut its power.": "L'arrêt d'urgence n'est pas passé. Si l'imprimante bouge encore, coupez son alimentation.",
+ "Cannot tell if a print is running.": "Impossible de savoir si une impression est en cours.",
+ "The macro can move the toolhead or change the print. Send it anyway?": "La macro peut déplacer la tête ou modifier l'impression. L'envoyer quand même ?"
 }

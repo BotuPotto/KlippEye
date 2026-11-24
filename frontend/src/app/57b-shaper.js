@@ -497,6 +497,7 @@ function ShaperCard({ capabilities, lockReason, homedAxes, onGcode }) {
   const measure = (which) => {
     setConfirm(null);
     setOpenParams(null);
+    if (lockReason) return toast.notice(lockReason); // 1.138.0: a print may have started since the dialog opened
     onGcode((homed ? "" : "G28\n") + shaperMeasureCommand(which, params[which], defaults));
     toast.notice(tx("Measuring the {axis} axis: the printer shakes for a minute or two, then the graph appears here.", { axis: which.toUpperCase() }), 8000);
     window.setTimeout(reload, 60000);
@@ -504,6 +505,7 @@ function ShaperCard({ capabilities, lockReason, homedAxes, onGcode }) {
   const save = async () => {
     setAsking(false);
     if (!chosen || !shownAxis) return;
+    if (lockReason) return toast.notice(lockReason);
     setSaving(true);
     try {
       const path = await saveShaperSetting(shownAxis, chosen.name, chosen.freq);
