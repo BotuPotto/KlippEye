@@ -3446,6 +3446,46 @@ time.sleep(0.9)
 _rec.shutil.rmtree = _real_rmtree
 check("... and nothing is left behind", os.listdir(_rr.root) == [], os.listdir(_rr.root))
 
+print("== 1.152.0: MQTT and the monitor's settings")
+_sent2, _answers = [], [{"print_stats": {"state": "printing", "print_duration": 600}, "display_status": {"progress": 0.4}, "webhooks": {"state": "ready"}}, None]
+
+
+class _Rec:
+    connected = True
+
+    def publish(self, topic, payload, retain=False):
+        _sent2.append((topic, payload))
+        return True
+
+
+_b2 = _mb.Bridge(_mb.clean({"enabled": True, "host": "broker.local", "discovery": False}), lambda objects: _answers.pop(0), lambda: {}, lambda: [], None, None, lambda: {}, node="raspberrypi")
+_b2.client, _b2.lights_at = _Rec(), 1e18
+_b2.tick()
+_n = len(_sent2)
+_b2.tick()
+_b2.tick()
+_off = [(t, p) for t, p in _sent2[_n:]]
+check("1.152.0: Klipper down (Moonraker answers nothing): the retained state says offline, once", ("klippeye/raspberrypi/status/state", "offline") in _off
+      and len([1 for t, p in _off if t.endswith("/status/state")]) == 1 and json.loads(dict(_off)["klippeye/raspberrypi/state"])["state"] == "offline", _off)
+_answers.append({"print_stats": {"state": "standby"}, "webhooks": {"state": "ready"}})
+_b2.tick()
+check("1.152.0: Klipper back: the real state is published again", _sent2[-1][0].endswith("/state") or ("klippeye/raspberrypi/status/state", "standby") in _sent2[_n:], _sent2[-3:])
+_ids = []
+for _mid in ("aaaaaaaa11111111\n", "bbbbbbbb22222222\n"):
+    _mf = os.path.join(tmp(), "machine-id")
+    open(_mf, "w").write(_mid)
+    _mb.MACHINE_ID_FILE = _mf
+    _ids.append(_mb.Bridge(_mb.clean({"host": "broker.local"}), None, None, None, None, None, None, node="raspberrypi").client.client_id)
+check("1.152.0: two Pis with the same host name get two MQTT client ids; one Pi keeps its own", _ids[0] != _ids[1] and all(i.startswith("klippeye-raspberrypi-") for i in _ids), _ids)
+
+_mp = os.path.join(tmp(), "monitor.json")
+json.dump({"values": {"local_doubt": 90, "local_sure": 50}}, open(_mp, "w"))
+_mcfg = _lb.MonitorConfig(_mp)
+check("1.152.0: a monitor.json with «Sure from» below «In doubt from»: both go back to the defaults",
+      (_mcfg.values["local_doubt"], _mcfg.values["local_sure"]) == (35, 80), _mcfg.values)
+json.dump({"values": {"local_doubt": 40, "local_sure": 90}}, open(_mp, "w"))
+check("... a good pair in the file is kept", (_lb.MonitorConfig(_mp).values["local_doubt"], _lb.MonitorConfig(_mp).values["local_sure"]) == (40, 90))
+
 stop_all()
 fake.close()
 print("\n%d PASS, %d FAIL" % (passed, failed))

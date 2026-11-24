@@ -44,6 +44,19 @@ PRINT_OBJECTS = {"print_stats": None, "display_status": None, "virtual_sdcard": 
                  "heater_bed": ["temperature", "target"], "webhooks": None}
 
 
+MACHINE_ID_FILE = "/etc/machine-id"
+
+
+def client_suffix():
+    """1.152.0: part of this machine's own id, so two Pis with the default host name never share an MQTT client id (the
+    broker would drop the older connection and they would reconnect in turn)."""
+    try:
+        with open(MACHINE_ID_FILE, encoding="ascii") as f:
+            return re.sub(r"[^a-f0-9]", "", f.read().strip().lower())[:8]
+    except OSError:
+        return ""
+
+
 def node_id(hostname=None):
     name = re.sub(r"[^a-z0-9]+", "_", (hostname or socket.gethostname() or "printer").lower()).strip("_")
     return name[:40] or "printer"
@@ -204,7 +217,7 @@ class Bridge:
         self._fresh = threading.Event()
         self._busy = threading.Lock()  # held while publishing: stop() waits for it, so nothing is published after the removal
         self.client = mqtt_client.MqttClient(
-            settings["host"], settings["port"], "klippeye-" + self.node, settings.get("username", ""), settings.get("password", ""),
+            settings["host"], settings["port"], "-".join(filter(None, ("klippeye", self.node, client_suffix()))), settings.get("username", ""), settings.get("password", ""),
             settings.get("tls"), will=(self.base + "/availability", "offline", True),
             subscriptions=[self.base + "/command", self.base + "/light/+/set"] if settings.get("commands") else [],
             on_message=self.on_message, on_connect=self.on_connect)
@@ -283,6 +296,11 @@ class Bridge:
             objects[name] = None
         status = self.read_status(objects)
         if status is None:
+            # 1.152.0: Klipper is down or Moonraker does not answer: say so once, or the retained «printing» stays for ever
+            if self.last.get("state") not in (None, "offline"):
+                self.client.publish(self.base + "/status/state", "offline", retain=True)
+                self.client.publish(self.base + "/state", json.dumps({"state": "offline"}), retain=True)
+                self.last["state"] = "offline"
             return
         state = build_state(status, self.read_ai())
         changed = False

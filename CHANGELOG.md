@@ -1,5 +1,20 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.152.0
+
+Home Assistant / MQTT and the local model's levels.
+
+- When Klipper is down but Moonraker still answers, KlippEye now publishes the state «offline» to MQTT, once. Before,
+  nothing was sent and the last retained state, often «printing», stayed on the broker, so an automation waiting for the
+  end or the failure of a print never ran after a Klipper crash.
+- The MQTT client id now ends with a short part of the machine's own id (`/etc/machine-id`). Two Raspberries with the
+  default host name used the same id, the broker dropped the older connection each time, and both reconnected every few
+  seconds. Topics and Home Assistant's entities keep their names. The id changes once, so an old session on the broker
+  is dropped on the next connection.
+- A `monitor.json` edited by hand with «Sure from» at or below «In doubt from» is no longer loaded as it is. Both go back to
+  the defaults, as the settings page already refused such a pair. Two settings saved at the same moment also can no longer
+  slip a wrong pair past the check.
+
 ## 1.151.0
 
 Android app 1.9.0. Update it from Settings → Updates → Android app once KlippEye is updated. The printer's program is unchanged.

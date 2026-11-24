@@ -895,6 +895,10 @@ class MonitorConfig:
                 self.values[spec["key"]] = coerce_config_value(spec, stored[spec["key"]])
             except ValueError as error:
                 print("[CONFIG] %s: '%s' ignored (%s), using %r" % (self.path, spec["key"], error, self.values[spec["key"]]))
+        # 1.152.0: the page refuses «sure» at or below «in doubt»; a hand-edited file gets the same rule
+        if self.values["local_sure"] <= self.values["local_doubt"]:
+            print("[CONFIG] %s: «Sure from» is not above «In doubt from», using the defaults for both" % self.path)
+            self.values["local_doubt"], self.values["local_sure"] = LOCAL_DOUBT_DEFAULT, LOCAL_SURE_DEFAULT
         self.saved = True
 
     def _set_aside(self, why):
@@ -924,13 +928,12 @@ class MonitorConfig:
                 errors[key] = str(error)
         if errors:
             return errors, []
-        with self.lock:
+        with self.lock:  # 1.152.0: one lock from the check to the save, so two requests cannot make a wrong pair together
             merged = dict(self.values, **clean)
-        # 1.124: «sure» must stay above «in doubt», or the local model would be sure before it has a doubt
-        if merged.get("local_sure", 80) <= merged.get("local_doubt", 35):
-            key = "local_sure" if "local_sure" in clean else "local_doubt"
-            return {key: "«Sure from» must be higher than «In doubt from»"}, []
-        with self.lock:
+            # 1.124: «sure» must stay above «in doubt», or the local model would be sure before it has a doubt
+            if merged.get("local_sure", 80) <= merged.get("local_doubt", 35):
+                key = "local_sure" if "local_sure" in clean else "local_doubt"
+                return {key: "«Sure from» must be higher than «In doubt from»"}, []
             changed = [key for key, value in clean.items() if self.values.get(key) != value]
             for key in changed:
                 self.values[key] = clean[key]
