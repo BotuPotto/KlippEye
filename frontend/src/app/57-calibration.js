@@ -159,6 +159,9 @@ function MacroButton({ macro, onRun, onEditParams }) {
   );
 }
 
+/** 1.146.0: Klipper splits a command at spaces, so a value with a space or a quote goes in double quotes (a backslash before a quote or a backslash). */
+const quoteParam = (value) => (/[\s"']/.test(value) ? '"' + value.replace(/(["\\])/g, "\\$1") + '"' : value);
+
 /** Form for the parameters of one macro; "ESEGUI" sends `NAME KEY=value ...` for the filled-in fields. */
 function ParamDialog({ macro, onRun, onClose }) {
   const params = macro.params || [];
@@ -183,7 +186,7 @@ function ParamDialog({ macro, onRun, onClose }) {
 
   const run = () => {
     const filled = params.filter((param) => values[param.name].trim());
-    onRun([macro.name, ...filled.map((param) => param.name + "=" + values[param.name].trim())].join(" "));
+    onRun([macro.name, ...filled.map((param) => param.name + "=" + quoteParam(values[param.name].trim()))].join(" "));
     onClose();
   };
 

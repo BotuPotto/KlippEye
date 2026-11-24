@@ -172,7 +172,6 @@ function useConfigFileManager(folder, openItem) {
     setNameDialog(null);
     if (mode === "file" && !isImagePath(name)) {
       const path = joinPath(folder.currentPath, name);
-      configFileCache.set(path, ""); // the file is empty: no need to ask the server, and the editor is the next thing wanted
       openItem({ type: "file", name, path });
     }
   };

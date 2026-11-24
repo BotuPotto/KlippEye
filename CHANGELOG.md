@@ -1,5 +1,18 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.146.0
+
+The config editor no longer writes over a newer file.
+
+- The editor opened a copy of the file it had read earlier, and Save never checked the file again. After a calibration
+  ended with SAVE_CONFIG, or after a change saved from another browser, Save wrote the old text back over it. Klipper's
+  SAVE_CONFIG block at the end of `printer.cfg` was lost, and the earlier version kept for you was the old text too.
+- The editor now reads the file from the Raspberry every time it opens. Before saving it reads it once more. If it
+  changed since you opened it, it asks. «Save anyway» keeps the other text in the earlier versions and keeps Klipper's
+  newer SAVE_CONFIG block in the file.
+- A system log opened from System is now read-only. Save used to put a copy of it into the config folder.
+- A macro value with a space, such as `MSG=hello world`, is now sent in double quotes. Klipper refused it as a malformed command.
+
 ## 1.145.0
 
 Two dashboards open at the same time no longer undo each other's settings.

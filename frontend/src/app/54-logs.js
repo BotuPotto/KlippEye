@@ -230,7 +230,7 @@ function LogsCard({ onEditFile }) {
 
   const openLog = async (name) => {
     try {
-      onEditFile(name, await logsApi.content(name));
+      onEditFile(name, await logsApi.content(name), { readOnly: true }); // 1.146.0: a log is read, never saved into the config folder
     } catch (error) {
       window.alert(tx("Error opening: ") + error.message);
     }

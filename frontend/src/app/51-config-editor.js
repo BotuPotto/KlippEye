@@ -300,6 +300,21 @@ function commentLines(text, start, end, mode, mark) {
 /* ---------------------------------------------------------------------------
    Saving
    ------------------------------------------------------------------------- */
+/** 1.146.0: Klipper's own block at the end of printer.cfg (the text of the line is fixed by Klipper). */
+const SAVE_CONFIG_MARK = "#*# <---------------------- SAVE_CONFIG ---------------------->";
+const saveConfigBlock = (text) => (text.includes(SAVE_CONFIG_MARK) ? text.slice(text.indexOf(SAVE_CONFIG_MARK)) : "");
+
+/** The block the open text still carries unchanged is swapped for the Raspberry's newer one, so Klipper's values are never lost. */
+function putNewerSaveConfigBlock(view, opened, newer) {
+  const doc = view.state.doc.toString();
+  const theirs = saveConfigBlock(newer);
+  if (!theirs || saveConfigBlock(doc) !== saveConfigBlock(opened)) return doc;
+  const from = doc.length - saveConfigBlock(doc).length;
+  const lead = from === doc.length && !doc.endsWith("\n\n") ? (doc.endsWith("\n") ? "\n" : "\n\n") : "";
+  view.dispatch({ changes: { from, to: doc.length, insert: lead + theirs } });
+  return view.state.doc.toString();
+}
+
 const SAVE_STATUS = {
   saving: tx("Saving..."),
   saved: tx("Saved ✓"),
@@ -445,6 +460,7 @@ function EditorScreen({ session, onClose, inline, onDirtyChange }) {
   const [historyDepth, setHistoryDepth] = useState({ undo: 0, redo: 0 });
   const [caretLine, setCaretLine] = useState(1);
   const [confirmingDiscard, setConfirmingDiscard] = useState(false);
+  const [conflict, setConflict] = useState(null); // 1.146.0: the Raspberry's newer text, while Save waits for the answer
   const [versionsOpen, setVersionsOpen] = useState(false); // 1.81: the earlier versions of the file
   const hostRef = useRef(null);
   const toolsRef = useRef(null);
@@ -606,21 +622,34 @@ function EditorScreen({ session, onClose, inline, onDirtyChange }) {
    * Over the whole screen (phone) the editor closes when done, after a moment to read the status; inline (wide
    * screen) the file stays open for the next change and the status stays on view.
    */
-  const save = async (alsoSaveConfig) => {
+  const save = async (alsoSaveConfig, newer) => {
     const linger = (ms) => (inline ? Promise.resolve() : sleep(ms));
-    const content = viewRef.current ? viewRef.current.state.doc.toString() : text;
     setBusy(true);
     setStatus(SAVE_STATUS.saving);
     try {
+      // 1.146.0: the file may have changed since it was opened (SAVE_CONFIG, another browser): ask before replacing it
+      if (keepsVersions && newer === undefined) {
+        configFileCache.delete(path);
+        const now = await configFilesApi.read(path).catch(() => null);
+        if (now !== null && now !== saved) {
+          setConflict({ alsoSaveConfig, newer: now });
+          setBusy(false);
+          setStatus("");
+          return;
+        }
+      }
+      let content = viewRef.current ? viewRef.current.state.doc.toString() : text;
+      if (newer !== undefined && viewRef.current) content = putNewerSaveConfigBlock(viewRef.current, saved, newer);
       // 1.81: the text the file had is kept by the service first (the «Versions» of the tools bar)
-      if (keepsVersions && content !== saved) await configVersionsApi.keep(path, saved);
+      const before = newer === undefined ? saved : newer;
+      if (keepsVersions && content !== before) await configVersionsApi.keep(path, before);
       await (session.onSave ? session.onSave(content) : configFilesApi.save(path, content, root));
+      setSaved(content);
     } catch (error) {
       setStatus(tx("Error: ") + (error.message || error));
       setBusy(false);
       return;
     }
-    setSaved(content);
     setStatus(SAVE_STATUS.saved);
     await linger(EDITOR_SAVE_SETTLE_MS);
     if (alsoSaveConfig && restartTarget) {
@@ -703,6 +732,21 @@ function EditorScreen({ session, onClose, inline, onDirtyChange }) {
       confirmLabel: tx("Close"),
       onConfirm: onClose,
       onCancel: () => setConfirmingDiscard(false),
+    }),
+    h(ConfirmDialog, {
+      open: Boolean(conflict),
+      zIndex: 10002,
+      icon: h(Icons.CancelCircle),
+      title: tx("The file has changed"),
+      subtitle: path,
+      message: tx("Klipper or another browser changed this file after you opened it. Save anyway replaces it with your text. The other text goes into the earlier versions, and Klipper's SAVE_CONFIG block stays."),
+      confirmLabel: tx("Save anyway"),
+      onConfirm: () => {
+        const asked = conflict;
+        setConflict(null);
+        save(asked.alsoSaveConfig, asked.newer);
+      },
+      onCancel: () => setConflict(null),
     }),
   );
 }
