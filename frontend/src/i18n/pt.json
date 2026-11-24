@@ -974,6 +974,7 @@
  "Klipper returned no results.": "O Klipper não retornou resultados.",
  "Klipper shut down": "Klipper em shutdown",
  "Klipper was not ready": "O Klipper não estava pronto",
+ "it was too late to start": "era tarde demais para iniciar",
  "Klipper's backup (SAVE_CONFIG)": "Backup do Klipper (SAVE_CONFIG)",
  "Klipper's exclude_object": "exclude_object do Klipper",
  "Klipper's macros": "Macros do Klipper",

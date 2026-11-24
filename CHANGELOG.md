@@ -1,5 +1,15 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.140.0
+
+A scheduled print that comes hours late is now missed, not started.
+
+- If the Pi was off at the scheduled time and comes back hours later, the print used to start at once, with the printer
+  heating and moving by itself when nobody expected it, maybe with the old print still on the bed. Now a print whose
+  first look comes more than 10 minutes after its time is marked as missed, and the card says it was too late to start.
+  The same happens when the Pi's clock jumps forward at the first network sync.
+- A print that waits for Klipper to start still begins when Klipper is ready within those 10 minutes.
+
 ## 1.139.0
 
 The camera calibration no longer moves the printer during a print, and a CoreXZ gets the right Z arrows.

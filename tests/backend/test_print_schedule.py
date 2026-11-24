@@ -100,6 +100,18 @@ printer.klippy = "shutdown"
 changed = store.tick(printer.read, printer.start)
 check("Klipper still off after the grace time: missed (not_ready)", changed and changed[0]["reason"] == "not_ready", changed)
 
+# 1.140.0: the Pi was off at its time and comes back hours later with Klipper ready: missed, never started
+store.add("night.gcode", clock.t + 3600)
+n_started = len(printer.started)
+clock.t += 3600 + 6 * 3600
+printer.klippy, printer.state, printer.refuse = "ready", "standby", None
+changed = store.tick(printer.read, printer.start)
+check("1.140.0: a print 6 hours late with Klipper ready is missed (late), not started",
+      changed and changed[0]["reason"] == "late" and len(printer.started) == n_started, (changed, printer.started))
+store.add("close.gcode", clock.t + 10)
+clock.t += 10 + ps.NOT_READY_GRACE_S - 1
+check("... one second inside the grace time it still starts", [e["status"] for e in store.tick(printer.read, printer.start)] == ["started"])
+
 # Moonraker refuses
 printer = Printer(refuse="File gone.gcode does not exist")
 store.add("gone.gcode", clock.t + 10)
