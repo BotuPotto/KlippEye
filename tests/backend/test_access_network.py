@@ -5,6 +5,7 @@ import importlib.util
 import json
 import os
 import socket
+import re
 import ssl
 import sys
 import tempfile
@@ -129,6 +130,17 @@ blocks = [b for b in cams] + [site.split("# the camera, as the previous page had
 check("1.147.0: nginx asks KlippEye before every camera block (the one made here and the copied ones), with the real method and address",
       site2.count("auth_request /_klippeye_auth;") == 5 and "location /webcam2/ {\n        auth_request /_klippeye_auth;" in site2 and "auth_request /_klippeye_auth;" in blocks[-1]
       and "proxy_set_header X-Original-Method $request_method;" in site and "proxy_set_header X-Original-URI $request_uri;" in site, site2[:900])
+
+
+# a location with two auth_request lines is refused by nginx: the site made again from its own earlier text keeps one each
+def auth_counts(text):
+    return [block.count("auth_request") for block in re.findall(r"location [^{]*\{(.*?)\n    \}", text, re.S) if "proxy_pass" in block or "auth_request" in block]
+
+
+again = web_front.site_text(web_front.camera_locations(site2))
+again_https = web_front.site_text(web_front.camera_locations(web_front.site_text(cams, ("c.pem", "k.pem"))), ("c.pem", "k.pem"))
+check("1.147.0: the site made again from its own text (run again, port 80 and HTTPS): no location holds two auth_request lines",
+      max(auth_counts(again) + auth_counts(again_https)) == 1 and again.count("auth_request /_klippeye_auth;") == 5 and "listen 443 ssl" in again_https, auth_counts(again))
 
 # --- 10: an unknown /webcamN path on port 80 does not call itself ---------------------------------------------------------
 kb.ACCESS.save(access.clear_password(kb.ACCESS.load()))
