@@ -249,5 +249,106 @@ check("1.134.3: an online «fine» silences the same scene for 10 minutes, then 
       _mem.match(_v1, 80, "m", 1000.0 + 9 * 60) is not None and _mem.match(_v1, 80, "m", 1000.0 + 11 * 60) is None)
 check("... the person's marks stay", _mem.match(_v2, 80, "m", 1000.0 + 86400) is not None)
 
+# 1.144.0: a damaged file never stops the backend and never takes away what the person taught it
+_dir = tempfile.mkdtemp()
+_mem = false_alarms.FalseAlarms(_dir, np)
+for _i, _name in enumerate("abc"):
+    _mem.add(np.eye(64)[_i], 80, "person", _name, "m", now=1000.0)
+_mem.forget("a")   # a middle row goes: the rows and the items must stay together
+_again = false_alarms.FalseAlarms(_dir, np)
+check("1.144.0: false alarms read back from disk: the right rows with the right items",
+      [i["key"] for i in _again.items] == ["b", "c"] and _again.match(np.eye(64)[1], 80, "m", 1000.0)["key"] == "b"
+      and _again.match(np.eye(64)[2], 80, "m", 1000.0)["key"] == "c", [i["key"] for i in _again.items])
+_npz = os.path.join(_dir, "personal", "false_alarms.npz")
+for _damage in (b"", b"PK\x03\x04 half a file"):
+    with open(_npz, "wb") as _fh:
+        _fh.write(_damage)
+    try:
+        _broken = false_alarms.FalseAlarms(_dir, np)
+        _ok = _broken.items == [] and _broken.add(np.eye(64)[5], 80, "person", "d", "m", now=1.0)
+    except Exception as _error:  # the backend would not start
+        _ok = repr(_error)
+    check("1.144.0: a damaged false_alarms.npz (%d bytes): the backend starts with an empty memory" % len(_damage), _ok is True, _ok)
+_old = tempfile.mkdtemp()   # the two files of before 1.144.0, out of step: the first rows are kept
+os.makedirs(os.path.join(_old, "personal"))
+np.savez(os.path.join(_old, "personal", "false_alarms.npz"), vectors=np.eye(64)[:2].astype(np.float32))
+json.dump({"format": 1, "items": [{"key": k, "source": "person", "score": 80, "model": "m"} for k in "xyz"]},
+          open(os.path.join(_old, "personal", "false_alarms.json"), "w"))
+_kept = false_alarms.FalseAlarms(_old, np)
+check("1.144.0: the files of before, one item more than rows: what matches is kept, not everything lost", [i["key"] for i in _kept.items] == ["x", "y"], _kept.items)
+
+# a new base model: the person's alarms are described again without the lock held, so the monitor's looks do not wait
+import threading  # noqa: E402
+import time  # noqa: E402
+_slow = false_alarms.FalseAlarms(tempfile.mkdtemp(), np, cv2)
+for _i in range(3):
+    _slow.add(np.eye(64)[_i], 80, "person", "k%d" % _i, "old", now=1000.0, picture=np.zeros((20, 20, 3), np.uint8))
+_waited = []
+def _describe(_picture):
+    time.sleep(0.3)
+    return np.eye(64)[7]
+_job = threading.Thread(target=_slow.refresh, args=("new", _describe))
+_job.start()
+time.sleep(0.1)
+_t = time.time()
+_slow.match(np.eye(64)[0], 80, "old", 1000.0)
+_waited = time.time() - _t
+_job.join()
+check("1.144.0: describing again after a new model does not hold the lock (a look waits %.2f s)" % _waited, _waited < 0.15, _waited)
+check("... and every alarm was described again", _slow.info("new")["person"] == 3 and _slow.vectors.shape == (3, 64), _slow.info("new"))
+
+# a damaged cache.npz: the layer trains and writes it again
+_cdata = tempfile.mkdtemp()
+review(_cdata, "r1", "ok", None)
+review(_cdata, "r2", "failed", 1000 + 12 * 60)
+os.makedirs(os.path.join(_cdata, "personal"))
+for _damage in (b"", b"PK\x03\x04 half a file"):
+    open(os.path.join(_cdata, "personal", "cache.npz"), "wb").write(_damage)
+    _cinfo = pl.PersonalLayer(_cdata, np, cv2).train(FakeModel())
+    check("1.144.0: a damaged cache.npz (%d bytes) is made again, no error at every training" % len(_damage),
+          _cinfo.get("trained") and not _cinfo.get("error") and len(np.load(os.path.join(_cdata, "personal", "cache.npz")).files) > 1, _cinfo)
+
+# fine examples past the limit are not copied and evicted again at every call
+_churn = tempfile.mkdtemp()
+_rec = os.path.join(_churn, "recordings", "20261101-100000-big")
+os.makedirs(_rec)
+for _n in range(1, 101):
+    cv2.imwrite(os.path.join(_rec, "%06d.jpg" % _n), np.zeros((20, 20, 3), np.uint8))
+with open(os.path.join(_rec, "frames.jsonl"), "w") as _fh:
+    _fh.write("".join(json.dumps({"n": _n, "t": 1000 + 3 * _n}) + "\n" for _n in range(1, 101)))
+json.dump({"id": "20261101-100000-big", "started": 1000, "ended": 1400, "label": {"outcome": "ok", "failed_at": None}},
+          open(os.path.join(_rec, "session.json"), "w"))
+pl.KEPT_MAX = 10
+_writes = []
+_real_write = cv2.imwrite
+cv2.imwrite = lambda *a, **k: (_writes.append(1), _real_write(*a, **k))[1]
+for _run in (1, 2, 3):
+    del _writes[:]
+    _kept_n = pl.keep_examples(_churn, cv2, now=2000 + _run)
+    if _run > 1:
+        check("1.144.0: keeping examples again with nothing new writes no picture (run %d: %d written)" % (_run, len(_writes)), not _writes and _kept_n == 10, (len(_writes), _kept_n))
+cv2.imwrite = _real_write
+pl.KEPT_MAX = old_max
+
+# past the limit of examples in one training, the newest failed prints are learned as well as the oldest
+_many = tempfile.mkdtemp()
+def _print(sid, frames, outcome, failed_at):
+    folder = os.path.join(_many, "recordings", sid)
+    os.makedirs(folder)
+    for n in range(1, frames + 1):
+        picture(os.path.join(folder, "%06d.jpg" % n), 0.9 if outcome == "failed" and 3 * n >= failed_at + pl.FAILED_AFTER else 0.1, 40, 30)
+    with open(os.path.join(folder, "frames.jsonl"), "w") as fh:
+        fh.write("".join(json.dumps({"n": n, "t": 3 * n}) + "\n" for n in range(1, frames + 1)))
+    json.dump({"id": sid, "started": 0, "ended": 3 * frames, "label": {"outcome": outcome, "failed_at": failed_at}}, open(os.path.join(folder, "session.json"), "w"))
+_print("20261101-100000-fine", 400, "ok", None)
+for _k in range(4):
+    _print("2026110%d-120000-fail%d" % (_k + 2, _k), 300, "failed", 30)
+pl.MAX_EXAMPLES = 40
+pl.PersonalLayer(_many, np, cv2).train(FakeModel())
+_used = set(np.load(os.path.join(_many, "personal", "cache.npz")).files)
+_prints = {k.split("/")[1] for k, _, label in pl.examples_of(_many) if label == 1 and k.replace("/", "|") in _used}
+check("1.144.0: past the limit, the failed examples come from every failed print (%d of 4)" % len(_prints), len(_prints) == 4, sorted(_prints))
+pl.MAX_EXAMPLES = 3000
+
 print("\n%d failure(s)" % len(FAILS) + (": " + ", ".join(FAILS) if FAILS else ""))
 sys.exit(1 if FAILS else 0)

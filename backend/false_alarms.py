@@ -15,10 +15,12 @@ no pause, no online question). A worse picture of the same scene (higher score),
 Only for the model version the embeddings were made with.
 
 On disk, in <data>/personal/ (apart from the recordings and the alarm list: deleting those forgets nothing):
-false_alarms.npz (the embeddings), false_alarms.json (what each one is) and false_alarms/<key>.jpg, a small copy of each
+false_alarms.npz (the embeddings and what each one is, in one file: 1.144.0; before, a false_alarms.json next to it) and
+false_alarms/<key>.jpg, a small copy of each
 picture the person marked: with a new base model the embeddings are made again from them (refresh()), so what the
 person taught is not lost. Only numpy (and the OpenCV module the caller passes, for the small pictures).
 """
+import io
 import json
 import os
 import threading
@@ -48,14 +50,20 @@ class FalseAlarms:
         return os.path.join(self.folder, "false_alarms.npz"), os.path.join(self.folder, "false_alarms.json")
 
     def _load(self):
+        """1.144.0: a damaged or half-written file is an empty memory, never a backend that does not start. The rows and
+        their items are in one file; the two files of before are read once (the first rows that match are kept)."""
         vectors_path, items_path = self._paths()
         try:
-            with open(items_path, encoding="utf-8") as fh:
-                items = json.load(fh).get("items") or []
-            vectors = self.np.load(vectors_path)["vectors"]
-            if len(items) == len(vectors):
-                self.items, self.vectors = items, vectors.astype(self.np.float32)
-        except (OSError, ValueError, KeyError):
+            stored = self.np.load(vectors_path, allow_pickle=False)
+            vectors = stored["vectors"]
+            if "items" in stored.files:
+                items = json.loads(str(stored["items"]))
+            else:
+                with open(items_path, encoding="utf-8") as fh:
+                    items = json.load(fh).get("items") or []
+            n = min(len(items), len(vectors))
+            self.items, self.vectors = items[:n], (vectors[:n].astype(self.np.float32) if n else None)
+        except Exception:  # a damaged file: start empty (the pictures kept apart can describe the alarms again)
             self.items, self.vectors = [], None
 
     def _save(self):
@@ -68,10 +76,13 @@ class FalseAlarms:
                 except OSError:
                     pass
             return
-        with open(vectors_path + ".tmp", "wb") as fh:
-            self.np.savez(fh, vectors=self.vectors)
-        os.replace(vectors_path + ".tmp", vectors_path)
-        atomic.write_text(items_path, json.dumps({"format": 1, "items": self.items}))
+        buffer = io.BytesIO()
+        self.np.savez(buffer, vectors=self.vectors, items=self.np.array(json.dumps(self.items)))
+        atomic.write_bytes(vectors_path, buffer.getvalue())
+        try:
+            os.remove(items_path)   # the file of before 1.144.0: its content is in the .npz now
+        except OSError:
+            pass
 
     # ---------------------------------------------------------------- changes
     def _unit(self, vector):
@@ -152,33 +163,33 @@ class FalseAlarms:
 
     def refresh(self, model, describe):
         """A new base model (`model`: its version): the person's false alarms described again from their small pictures
-        (`describe(picture) -> embedding or None`); the online ones of the old model are dropped. -> how many were kept."""
+        (`describe(picture) -> embedding or None`); the online ones of the old model are dropped. -> how many were kept.
+        1.144.0: the model runs outside the lock (a look must not wait for it); only the swap is locked."""
         with self.lock:
-            stale = [i for i, item in enumerate(self.items) if item.get("model") != model]
-            if not stale:
+            stale = [(item.get("key"), item.get("source")) for item in self.items if item.get("model") != model]
+        if not stale:
+            with self.lock:
                 return len(self.items)
-            keep = [True] * len(self.items)
-            for index in stale:
-                item, vector = self.items[index], None
-                if item.get("source") == "person" and self.cv2 is not None:
-                    picture = self.cv2.imread(self._picture_path(item.get("key")))
-                    vector = describe(picture) if picture is not None else None
-                unit = self._unit(vector) if vector is not None else None
-                if unit is None or self.vectors.shape[1] != unit.shape[0]:
-                    if unit is not None:   # another embedding size: all rows are made again below
-                        item["_new"] = unit
-                    else:
-                        keep[index] = False
-                    continue
-                self.vectors[index] = unit
-                item["model"] = model
-            if any(item.get("_new") is not None for item in self.items):
-                rows = [item.pop("_new") if item.get("_new") is not None else None for item in self.items]
-                keep = [k and r is not None for k, r in zip(keep, rows)]
-                self.vectors = self.np.stack([r for r in rows if r is not None]) if any(r is not None for r in rows) else None
-                self.items = [dict(item, model=model) for item, k in zip(self.items, keep) if k]
-            else:
-                self._drop(keep)
+        described = {}
+        for key, source in stale:
+            vector = None
+            if source == "person" and self.cv2 is not None:
+                picture = self.cv2.imread(self._picture_path(key))
+                vector = describe(picture) if picture is not None else None
+            described[(key, source)] = self._unit(vector) if vector is not None else None
+        with self.lock:
+            rows = [vector if item.get("model") == model else described.get((item.get("key"), item.get("source")))
+                    for item, vector in zip(self.items, self.vectors if self.vectors is not None else [])]
+            size = next((r.shape[0] for r in rows if r is not None), None)
+            keep = [r is not None and r.shape[0] == size for r in rows]
+            for item, k in zip(self.items, keep):   # the small pictures of the dropped ones go
+                if not k and not any(o.get("key") == item.get("key") for o, kk in zip(self.items, keep) if kk):
+                    try:
+                        os.remove(self._picture_path(item.get("key")))
+                    except OSError:
+                        pass
+            self.items = [dict(item, model=model) for item, k in zip(self.items, keep) if k]
+            self.vectors = self.np.stack([r for r, k in zip(rows, keep) if k]).astype(self.np.float32) if self.items else None
             self._save()
             return len(self.items)
 

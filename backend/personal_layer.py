@@ -99,6 +99,8 @@ def keep_examples(data_dir, cv2, now=None):
                 entry["label"] = label
                 changed = True
             continue
+        if label == 0 and len(labels) >= KEPT_MAX:
+            continue   # 1.144.0: full: a fine one would only be copied now and evicted at the next call (shortcut: the newest fine ones wait for room)
         picture = cv2.imread(path)
         if picture is None:
             continue
@@ -267,7 +269,7 @@ class PersonalLayer:
             stored = np.load(path, allow_pickle=False)
             if str(stored["__version__"]) == signature:
                 cache = {k: stored[k] for k in stored.files if k != "__version__"}
-        except (OSError, KeyError, ValueError):
+        except Exception:   # 1.144.0: a damaged file (EOFError, BadZipFile...) is a cache to make again
             cache = {}
         out, fresh, used = [], 0, set()
         for key, picture, label in examples:
@@ -306,7 +308,8 @@ class PersonalLayer:
             try:
                 examples = examples_of(self.data_dir)
                 if len(examples) > MAX_EXAMPLES:
-                    failed_ones = [e for e in examples if e[2] == 1][:MAX_EXAMPLES // 2]
+                    failed_ones = [e for e in examples if e[2] == 1]
+                    failed_ones = failed_ones[:: max(1, -(-len(failed_ones) // (MAX_EXAMPLES // 2)))][:MAX_EXAMPLES // 2]   # 1.144.0: evenly, not the oldest
                     fine_ones = [e for e in examples if e[2] == 0]
                     room = MAX_EXAMPLES - len(failed_ones)
                     examples = failed_ones + fine_ones[:: max(1, -(-len(fine_ones) // room))][:room]

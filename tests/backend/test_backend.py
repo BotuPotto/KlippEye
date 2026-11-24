@@ -3322,6 +3322,51 @@ check("1.132.4: a stop the second look did not confirm is no «fine» to learn: 
       (b_ai.detector.last_analysis.get("analysis"), b_ai.false_memory.info()))
 _lb.local_ai.model = None
 
+print("== 1.144.0: false-alarm memory, recordings")
+class _VecModel:
+    version = "test-v"
+    def predict(self, f):
+        return 0.1, np.arange(4, dtype=np.float32) + float(f[0, 0, 0])
+_lb.local_ai.model, _lb.local_ai.source = _VecModel(), "base"
+_det.local_vec = "the monitor's"
+_got, _vec = _det.local_look(_frame, 100.0)
+check("1.144.0: the local look gives its vector back and leaves the monitor's own alone (a web request cannot change it)",
+      _got is not None and _vec is not None and len(_vec) == 4 and _det.local_vec == "the monitor's" and _det.local_judge(_frame, 100.0) == _got, (_got, _vec, _det.local_vec))
+_lb.local_ai.model = None
+
+_sb = load_brain(NEW_BRAIN, tmp(), fake=fake, brain_json={"formato": 1, "values": {"enabled": False}})
+_sc = _sb.app.test_client()
+_T = time.time() - 4 * 3600
+_sb.reviews.observe("printing", "long.gcode", _T)
+_sb.reviews.add_frame(fakes.frame(), _T + 10, {"progress": 1.0})
+_sb.reviews.observe("complete", "", _T + 10800)
+_rid = _sb.reviews.pending(_T + 10900)["id"] if _sb.reviews.pending(_T + 10900) else None
+for _name, _a, _b in (("A", _T, _T + 7200), ("B", _T + 7200, _T + 10800)):   # a restart 2 h into the print
+    _id = time.strftime("%Y%m%d-%H%M%S", time.localtime(_a)) + "-long_part"
+    os.makedirs(os.path.join(_sb.recorder.root, _id))
+    json.dump({"id": _id, "file": "long.gcode", "started": _a, "ended": _b, "end_state": "x", "frames": 1, "bytes": 1, "release": "1", "config": {},
+               "label": {"outcome": None, "failed_at": None}, "truncated": False, "live_triggers": [], "alerts": [], "cpu": {}},
+              open(os.path.join(_sb.recorder.root, _id, "session.json"), "w"))
+_ids = _sb.recorder.ids()
+_r = _sc.post("/api/print/review/" + _rid, json={"outcome": "failed", "failed_at": _T + 9000})
+_la = [_sb.recorder.load(i)["label"] for i in _ids]
+check("1.144.0: «failed at 2.5 h» on a print split by a restart: the part before is fine, the part with the moment is failed",
+      _r.status_code == 200 and len(_ids) == 2 and _la[0]["outcome"] == "ok" and _la[1]["outcome"] == "failed" and abs(_la[1]["failed_at"] - (_T + 9000)) < 1, (_r.status_code, _la))
+
+_rr = _rec.Recorder(os.path.join(tmp(), "recordings"), _core.cv2)
+os.makedirs(os.path.join(_rr.root, "20261101-100000-old"))
+json.dump({"id": "20261101-100000-old", "started": 1, "ended": 2}, open(os.path.join(_rr.root, "20261101-100000-old", "session.json"), "w"))
+_real_rmtree = _rec.shutil.rmtree
+_rec.shutil.rmtree = lambda *a, **k: (time.sleep(0.6), _real_rmtree(*a, **k))[1]
+_t = time.time()
+_rr.delete("20261101-100000-old")
+_took = time.time() - _t
+check("1.144.0: deleting a recording under the recorder's lock only renames it (took %.2f s); the files go in a thread" % _took,
+      _took < 0.3 and _rr.ids() == [], _took)
+time.sleep(0.9)
+_rec.shutil.rmtree = _real_rmtree
+check("... and nothing is left behind", os.listdir(_rr.root) == [], os.listdir(_rr.root))
+
 stop_all()
 fake.close()
 print("\n%d PASS, %d FAIL" % (passed, failed))
