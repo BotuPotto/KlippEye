@@ -466,6 +466,8 @@ keeps it readable).
   PR 7 (false-alarm memory and personal layer files: damaged npz never stops the backend, one atomic file, refresh outside the
   lock, recordings of a split print labelled, 1.144.0, tests in `tests/backend/test_personal_layer.py` and `test_backend.py`) open as
   #195, branch `fix-personal-files`, built on #194 (merge #189 to #194 first, in order).
+  PR 8 (dashboard settings sync: a save puts only its own changes on top of the Raspberry's copy, 1.145.0, test
+  `tests/ui/settings_sync_test.py`) open as #196, branch `fix-settings-sync`, built on #195 (merge #189 to #195 first, in order).
 
 ### Owner's notes of 23 Nov (to do, in this order)
 1. Release 1.135.1 (#184): plainer texts, guide, no benchmark of other models. Done when merged.
@@ -488,4 +490,4 @@ keeps it readable).
    writing rules.
 
 ### Open PRs
-#189 (PR 1 of the audit fixes, release 1.138.0, branch `fix-dashboard-actions`), open 24 Nov. #190 (PR 2, 1.139.0, branch `fix-calibration-print-moves`), built on #189, open 24 Nov. #191 (PR 3, 1.140.0, branch `fix-scheduled-late`), built on #190, open 24 Nov. #192 (PR 4, 1.141.0, branch `fix-notifier-queue`), built on #191, open 24 Nov. #193 (PR 5, 1.142.0, branch `fix-install-scripts`), built on #192, open 24 Nov. #194 (PR 6, 1.143.0, branch `fix-macros-file`), built on #193, open 24 Nov. #195 (PR 7, 1.144.0, branch `fix-personal-files`), built on #194, open 24 Nov. #188 (the audit report) merged 24 Nov. Update this line when a PR opens or merges.
+#189 (PR 1 of the audit fixes, release 1.138.0, branch `fix-dashboard-actions`), open 24 Nov. #190 (PR 2, 1.139.0, branch `fix-calibration-print-moves`), built on #189, open 24 Nov. #191 (PR 3, 1.140.0, branch `fix-scheduled-late`), built on #190, open 24 Nov. #192 (PR 4, 1.141.0, branch `fix-notifier-queue`), built on #191, open 24 Nov. #193 (PR 5, 1.142.0, branch `fix-install-scripts`), built on #192, open 24 Nov. #194 (PR 6, 1.143.0, branch `fix-macros-file`), built on #193, open 24 Nov. #195 (PR 7, 1.144.0, branch `fix-personal-files`), built on #194, open 24 Nov. #196 (PR 8, 1.145.0, branch `fix-settings-sync`), built on #195, open 24 Nov. #188 (the audit report) merged 24 Nov. Update this line when a PR opens or merges.
