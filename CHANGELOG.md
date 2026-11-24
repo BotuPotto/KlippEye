@@ -1,5 +1,22 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.148.0
+
+The AI monitor no longer stops without saying so.
+
+- With a calibrated camera and no working local model (OpenCV could not load it), every check failed with an error and no
+  alarm ever reached the online AI. The motion detection now asks the AI as it should.
+- A camera address that is really a video stream (the address most camera pages show) froze the monitor for good and filled
+  the Raspberry's memory. The photo is now read in pieces, with a size limit and a time limit, and a stream is refused. The
+  «Try» button in Settings, Camera says so.
+- When the camera sends no picture, or Moonraker does not answer, the dashboard now says it: the status reads «no picture
+  from the camera» or «Moonraker does not answer», and the AI badge turns amber. Before, it kept the last status and
+  looked like it was watching.
+- A light switched on and left on gave a false alarm half a minute later. The monitor now waits until its background has
+  taken the new light in before it treats a big change as real.
+- The replay of a recording now leaves out the purge marks, as the live monitor does. Alarm counts from replays are no
+  longer higher than what happens on the printer. Recordings made before this release have no purge file and replay as before.
+
 ## 1.147.0
 
 Access and network: the password stays on, and port 80 is as closed as port 8085.

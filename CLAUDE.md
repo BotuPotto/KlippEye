@@ -81,8 +81,8 @@ The loop is `LightDetector.loop` in `backend/klippeye_backend.py`: while a **rea
 warm-up seconds, minimum progress, hotend at temperature), one check every `check_interval` (3 s):
 
 1. **Motion detection** (`backend/monitor_core.py`, `FrameJudge.judge`): background = median of 7 pictures over
-   `reference_seconds` (60 s), brightness aligned, «the whole picture changed» (> `global_change`%) ignored up to 10
-   checks; only what changed in **all** the last `persist_checks` checks counts (`_persistent`, a point hidden by the
+   `reference_seconds` (60 s), brightness aligned, «the whole picture changed» (> `global_change`%) ignored until the
+   background has followed it (`global_streak_max`, 13 checks at the defaults, 1.148.0); only what changed in **all** the last `persist_checks` checks counts (`_persistent`, a point hidden by the
    toolhead does not break the chain). With a calibrated camera and known objects it watches the whole bed **outside**
    the expected zone of the part, and the part already printed (half weight) (`_zone_score`, `print_zone.py`);
    otherwise the outer band of the watched rectangle. `trigger_count` suspicious checks in a row → trigger, then rest
@@ -123,7 +123,8 @@ warm-up seconds, minimum progress, hotend at temperature), one check every `chec
    fisheye or pinhole with radial distortion, DLT start + Levenberg–Marquardt. Method: only «markers» (the 6 blobs of
    filament or the printed pyramids; the «detail» method was removed in 1.136.0). The camera's moves are watched and corrected (`camera_watch`). **Bed slingers with the camera on the frame
    are refused** (`bed_moves_in_y`, 1.132.3).
-8. **Recordings** (`recorder.py`): small pictures + score of every check, for measuring (`scripts/replay.py`,
+8. **Recordings** (`recorder.py`): small pictures + score of every check, and the purge marks once (`purge.png`, 1.148.0:
+   the replay leaves them out as the live monitor does), for measuring (`scripts/replay.py`,
    `ml/evaluate.py`); size limit `record_max_mb`, oldest deleted first.
 
 ## 3. Rules (always)

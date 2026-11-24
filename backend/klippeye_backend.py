@@ -37,6 +37,7 @@ import time
 import traceback
 import urllib.parse
 from html import escape
+from types import SimpleNamespace
 
 import requests
 from flask import Flask, Response, jsonify, redirect, request
@@ -2089,9 +2090,30 @@ def write_ai_picture(frame, path):
     return path
 
 
+PICTURE_MAX_BYTES = 6 * 1024 * 1024   # a camera's photo is 50 KB to a few MB
+
+
+def fetch_picture(url, timeout=4):
+    """1.148.0: one photo from a snapshot address, never a stream. `timeout` counts each read, not the whole answer, so an
+    MJPEG stream (the address most camera pages show) never returned and filled the RAM. A stream is refused by its type,
+    and any answer is read in pieces up to a size and a total time. -> (ok, status_code, headers, content) like requests;
+    raises requests.RequestException."""
+    deadline = time.time() + 2 * timeout
+    with requests.get(url, timeout=timeout, stream=True) as answer:
+        if answer.headers.get("Content-Type", "").lower().startswith("multipart/"):
+            raise requests.RequestException("this is a video stream, not a photo address")
+        pieces, size = [], 0
+        for piece in answer.iter_content(65536):
+            pieces.append(piece)
+            size += len(piece)
+            if size > PICTURE_MAX_BYTES or time.time() > deadline:
+                raise requests.RequestException("the answer does not end: this is not a photo address")
+        return SimpleNamespace(ok=answer.ok, status_code=answer.status_code, headers=answer.headers, content=b"".join(pieces))
+
+
 def camera_frame(timeout=5):
     """A picture from the camera, decoded (None when the camera does not answer with one)."""
-    answer = requests.get(snapshot_url(), timeout=timeout)
+    answer = fetch_picture(snapshot_url(), timeout)
     if not answer.ok or len(answer.content) < 1000:
         return None
     return cv2.imdecode(np.frombuffer(answer.content, np.uint8), cv2.IMREAD_COLOR)
@@ -2454,6 +2476,8 @@ class LightDetector(FrameJudge):
 
                 except Exception as e:
                     print(f"[DETECTOR] real_print check err: {e}")
+                    if isinstance(e, requests.RequestException):
+                        self.stats["status"] = "Moonraker does not answer"   # 1.148.0
                     self._nap(generation, 3)
                     continue
 
@@ -2462,10 +2486,11 @@ class LightDetector(FrameJudge):
                     calibrated = self._uses_calibration()
                     if calibrated:
                         self._position_now("live")  # where the toolhead is right before the picture...
-                    r = requests.get(snapshot_url(), timeout=4)
+                    r = fetch_picture(snapshot_url(), 4)
                     if calibrated:
                         self._position_now("live2")  # ...and right after it (it moves while the picture is taken)
                     if not r.ok or len(r.content) < 1000:
+                        self.stats["status"] = "no picture from the camera"   # 1.148.0: the monitor says it is blind
                         self._nap(generation, 2)
                         continue
                     decode_started = time.time()
@@ -2473,10 +2498,12 @@ class LightDetector(FrameJudge):
                     frame = cv2.imdecode(img_arr, cv2.IMREAD_COLOR)
                     decode_seconds = time.time() - decode_started
                     if frame is None:
+                        self.stats["status"] = "no picture from the camera"
                         self._nap(generation, 2)
                         continue
                 except Exception as e:
                     print(f"[OPENCV] snapshot fail: {e}")
+                    self.stats["status"] = "no picture from the camera"
                     self._nap(generation, 3)
                     continue
 
@@ -2580,7 +2607,7 @@ class LightDetector(FrameJudge):
 
     def local_judge(self, frame, now=None, cover=True):
         """The local model on local_views(): -> (score 0..100: the highest view, {view: score}, the view that gave it)
-        or None (no model, or it failed on the whole picture)."""
+        or None (no model, or it failed on every view)."""
         return self.local_look(frame, now, cover)[0]
 
     def local_look(self, frame, now=None, cover=True):
@@ -2592,11 +2619,11 @@ class LightDetector(FrameJudge):
         for name, picture in self.local_views(self._without_purge(frame) if cover else frame, now):
             result = local_ai.predict(picture)
             if result is None:
-                if name == "whole":
-                    return None, None
                 continue
             scores[name] = round(personal.blend(result[0], result[1], version) * 100, 1)
             vectors[name] = result[1]
+        if not scores:   # 1.148.0: no model, or it failed on every view (with a calibration the first view is not «whole»)
+            return None, None
         best = max(scores, key=scores.get)
         return (scores[best], scores, best), vectors.get(best)
 
@@ -2618,7 +2645,7 @@ class LightDetector(FrameJudge):
             return
         self.purge = {"done": False}
         try:
-            r = requests.get(snapshot_url(), timeout=4)
+            r = fetch_picture(snapshot_url(), 4)
             frame = cv2.imdecode(np.frombuffer(r.content, np.uint8), cv2.IMREAD_COLOR) if r.ok else None
         except Exception:
             frame = None
@@ -2646,6 +2673,7 @@ class LightDetector(FrameJudge):
         purge["marks"] = marks
         purge["share"] = round(purge_marks.share(np, marks, zone[0]) * 100, 2) if marks is not None else 0
         self.stats["purge"] = purge["share"] or None
+        recorder.note_purge(marks)   # 1.148.0: the replay leaves them out too
         if marks is not None:
             print("[OPENCV] purge marks found: %.1f%% of the bed, hidden from the local model and the motion detection" % purge["share"])
         else:
@@ -4384,7 +4412,7 @@ def api_camera_snapshot():
         return jsonify({"ok": False, "error": bt("not a camera address", _lang())}), 400
     url = camera_snapshot.absolute(camera_snapshot.clean(given), _camera_origin()) if given else snapshot_url(fresh=True)
     try:
-        r = requests.get(url, timeout=8)
+        r = fetch_picture(url, 8)
         content_type = r.headers.get("Content-Type", "")
         if not r.ok or len(r.content) < 500 or not content_type.startswith("image/"):
             detail = "HTTP %s, %s, %d bytes" % (r.status_code, content_type or "?", len(r.content))
@@ -4418,7 +4446,7 @@ def _klipper_gcode(script, timeout):
 
 
 def _camera_snapshot():
-    r = requests.get(snapshot_url(), timeout=5)
+    r = fetch_picture(snapshot_url(), 5)
     return r.content if r.ok and len(r.content) > 1000 else None
 
 
@@ -4827,7 +4855,7 @@ def api_print_snapshot():
 
 def _camera_jpeg():
     """The camera's picture for the AI: at the AI's size when OpenCV is there, else as the camera made it. None: no picture."""
-    answer = requests.get(snapshot_url(), timeout=6)
+    answer = fetch_picture(snapshot_url(), 6)
     if not answer.ok or len(answer.content) < 1000:
         return None
     frame = cv2.imdecode(np.frombuffer(answer.content, np.uint8), cv2.IMREAD_COLOR) if HAS_CV2 else None
