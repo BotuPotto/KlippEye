@@ -1080,8 +1080,12 @@ check("lo storico tiene gli ultimi 40 eventi e cancella le foto degli altri", le
 bad_dir = tmp()
 b_ai.ALERT_HISTORY_DIR = os.path.join(bad_dir, "file")
 open(b_ai.ALERT_HISTORY_DIR, "w").write("x")
-b_ai.record_alert({"outcome": "x"}, cur, prev)
-check("cartella dello storico non scrivibile: nessuna eccezione (il monitor non si ferma)", True)
+try:
+    b_ai.record_alert({"outcome": "x"}, cur, prev)
+    _alert_error = None
+except Exception as e:
+    _alert_error = e
+check("cartella dello storico non scrivibile: nessuna eccezione (il monitor non si ferma)", _alert_error is None, _alert_error)
 
 check("impostazioni nuove: valori di serie (filtro acceso, 3 controlli, 60 s, 30%, fiducia 70%, foto di prima accesa)",
       (lambda v: v["persistent_filter"] is True and v["persist_checks"] == 3 and v["reference_seconds"] == 60 and v["global_change"] == 30 and v["ai_min_confidence"] == 70 and v["ai_send_reference"] is True)(mm.backend_config.snapshot()))
@@ -2747,6 +2751,8 @@ open(_conf, "w").write("pid %s/nginx.pid;\nerror_log %s/error.log;\nevents {}\nh
 _root = "" if os.geteuid() == 0 else ("sudo -n " if subprocess.run(["sudo", "-n", "true"], capture_output=True).returncode == 0 else None)
 if _root is None:
     _nginx = None
+# 1.155.0: on GitHub a missing nginx or sudo is a failure: without them the generated site is never checked by a real nginx -t
+check("1.155.0: on GitHub, nginx and sudo without a password are there (the site is checked by a real nginx -t)", bool(_nginx) or not os.environ.get("GITHUB_ACTIONS"))
 _wenv = dict(os.environ, KLIPPEYE_NGINX_DIR=_ng, KLIPPEYE_NGINX_RELOAD="true",
              KLIPPEYE_NGINX_TEST=("%s%s -t -q -p %s -c %s -e %s/error.log" % (_root, _nginx, _ng, _conf, _ng)) if _nginx else "true")
 _wf = os.path.join(ROOT, "scripts", "web_front.py")

@@ -183,7 +183,7 @@ check("publish: afterwards, decide says 'already published'", ci.decide(p)["buil
 # the same version built again with the same signature: fine; with another one: an error (unless it is wanted)
 apk2 = make_apk(root + "/built2.apk")
 ci.publish(p, apk2, aapt2(), apksigner())
-check("publish: the same signature as before -> fine", True)
+check("publish: the same signature as before -> fine", json.loads(read(p["info"]))["signature"] == "ab" * 32)
 check("publish: another signature -> refused", raises(lambda: ci.publish(p, apk2, aapt2(), apksigner("cd" * 32)), "DIFFERENT key"))
 check("publish: another signature did not touch the published files", json.loads(read(p["info"]))["signature"] == "ab" * 32)
 new = ci.publish(p, apk2, aapt2(), apksigner("cd" * 32), allow_new_signature=True)

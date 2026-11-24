@@ -24,7 +24,7 @@ A dashboard and AI print monitor for **Klipper** printers, made to run on the pr
 | Android app | `android/` | A full-screen WebView on the dashboard with push notifications, downloads, addresses (home / VPN), HTTPS pinning, in-app updates. Own version in `android/VERSION`; GitHub builds and publishes the APK into `apk/` (never by hand). |
 | Install / update | `scripts/install.sh`, `scripts/repair.sh`, `scripts/klippeye`, `systemd/` | Install once as the normal user (never root); `repair.sh` runs at every start and fixes a damaged install; the `klippeye` command (diagnose, benchmark, web, …). Updates come through **Moonraker's update manager** (git): channel **stable** (tagged releases) or **dev** (every commit of `main`). The service must keep the name `klippeye`. |
 | Local model | `models/base/` (+ `ml/` to train it) | MobileNetV3-Small, ONNX, run by OpenCV DNN on the Pi. |
-| CI | `.github/workflows/` | `tests.yml` (Tests, ~1 h: backend/notifier/app CI/frontend build, local model training chain, Android compile, install & updates on a simulated Raspberry, dashboard in the browser), `release.yml` (tags `vX.Y.Z` after a merge whose tests pass on main), `app.yml` (APK), `e2e.yml`. |
+| CI | `.github/workflows/` | `tests.yml` (Tests, ~1 h: backend/notifier/app CI/frontend build, local model training chain, Android compile, install & updates on a simulated Raspberry, dashboard in the browser), `release.yml` (tags `vX.Y.Z` after a merge whose tests pass on main), `app.yml` (APK). The install and update test (`tests/e2e/`) is a job of `tests.yml`, so a release waits for it (1.155.0). |
 
 On a printer: program in `~/klippeye`, the person's data in `~/printer_data/klippeye/` (settings `monitor.json`,
 `ai.json` mode 600 with the AI keys, recordings, alerts, `personal/`, `camera.json`, …). Updates replace only the program.
@@ -507,6 +507,12 @@ keeps it readable).
   (merge #199 to #204 first, in order). Not checked: the real Pi's timing (finding 78 was PARTLY confirmed; the fix reacts to the backend's
   error answer and to a failed read, tested on the mock only), the header's «Ready» pill on the computer while the Pi is down, and the
   pictures on the owner's phone (the audit's list of 10). The hit areas are tested with elementFromPoint, not with a thumb.
+  PR 19 (tests and CI: the End-to-end workflow is a job of Tests so a release waits for it and `e2e.yml` is gone, `tests/ui/run_all.sh`
+  runs every `*_test.py` (five were left out, about 4 more minutes), seven checks that could not fail made real and three removed, a
+  skipped check is a failure when `GITHUB_ACTIONS` is set, 1.155.0, test in `tests/app/release_test.py`) open as #206, branch `fix-tests-ci`,
+  built on #205 (merge #199 to #205 first, in order). Not checked: the workflow change and the new skip guards on GitHub itself (read
+  against the last green runs: nginx, sudo, kotlinc and cryptography are there on `ubuntu-24.04`; the `e2e` job is the old file's steps
+  unchanged). The «Nice» test findings not looked at one by one: only the ones the audit named, plus the constant `True` checks found by grep.
 
 ### Owner's notes of 23 Nov (to do, in this order)
 1. Release 1.135.1 (#184): plainer texts, guide, no benchmark of other models. Done when merged.
@@ -529,4 +535,4 @@ keeps it readable).
    writing rules.
 
 ### Open PRs
-#189 to #196 (PRs 1 to 8 of the audit fixes, 1.138.0 to 1.145.0) and #188 (the audit report) merged 24 Nov. #197 (PR 9, 1.146.0, branch `fix-config-editor`: the config editor never overwrites newer text), open 24 Nov. #198 (PR 10, 1.147.0, branch `fix-access-network`), built on #197, open 24 Nov. #199 (PR 11, 1.148.0, branch `fix-monitor-loop`), built on #198, open 24 Nov. #200 (PR 12, 1.149.0, branch `fix-online-ai`), built on #199, open 24 Nov. #201 (PR 13, 1.150.0, branch `fix-training-chain`), built on #200, open 24 Nov. #202 (PR 15, 1.151.0, branch `fix-android`), built on #201, open 24 Nov. #203 (PR 16, 1.152.0, branch `fix-mqtt-settings`), built on #202, open 24 Nov. #204 (PR 17, 1.153.0, branch `fix-dashboard-small`), built on #203, open 24 Nov. #205 (PR 18, 1.154.0, branch `fix-look-small`), built on #204, open 24 Nov. Update this line when a PR opens or merges.
+#189 to #196 (PRs 1 to 8 of the audit fixes, 1.138.0 to 1.145.0) and #188 (the audit report) merged 24 Nov. #197 (PR 9, 1.146.0, branch `fix-config-editor`: the config editor never overwrites newer text), open 24 Nov. #198 (PR 10, 1.147.0, branch `fix-access-network`), built on #197, open 24 Nov. #199 (PR 11, 1.148.0, branch `fix-monitor-loop`), built on #198, open 24 Nov. #200 (PR 12, 1.149.0, branch `fix-online-ai`), built on #199, open 24 Nov. #201 (PR 13, 1.150.0, branch `fix-training-chain`), built on #200, open 24 Nov. #202 (PR 15, 1.151.0, branch `fix-android`), built on #201, open 24 Nov. #203 (PR 16, 1.152.0, branch `fix-mqtt-settings`), built on #202, open 24 Nov. #204 (PR 17, 1.153.0, branch `fix-dashboard-small`), built on #203, open 24 Nov. #205 (PR 18, 1.154.0, branch `fix-look-small`), built on #204, open 24 Nov. #206 (PR 19, 1.155.0, branch `fix-tests-ci`), built on #205, open 24 Nov. Update this line when a PR opens or merges.

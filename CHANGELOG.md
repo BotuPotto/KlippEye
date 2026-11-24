@@ -1,5 +1,18 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.155.0
+
+The tests and the release check more.
+
+- A release is tagged only when the install and update test passed too. That test ran as a separate workflow that the
+  release step never looked at; it is now a job of «Tests».
+- The browser tests now run every `*_test.py` of `tests/ui/`. A hand-written list had left out five of them: print review,
+  temperature presets, light and dark theme, tidy-up and the visual check. They add about 4 minutes.
+- Seven checks that could not fail now check something (the retry of the screws tilt, the closing of the menu, the old
+  app's badge and others), and three that proved nothing are gone.
+- On GitHub, a check that is skipped counts as a failure: no nginx or sudo, no Playwright or Kotlin for the install test,
+  no `cryptography` for the notifier. Before, they printed «skipped» and passed.
+
 ## 1.154.0
 
 Small fixes to the look of the dashboard.

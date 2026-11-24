@@ -96,5 +96,11 @@ ok("VERSION without a release number: no tag", not d["tag"] and "release number"
 release.main(["--tested-sha", x, "--repo", w])
 ok("main() with nothing to tag ends without error and without tags", sh(w, "git", "tag") == "")
 
+# --- 1.155.0: the release waits for "Tests" and the "Android app" workflow only, so every test must be a job of Tests
+workflows = os.path.join(ROOT, ".github", "workflows")
+tests_yml = open(os.path.join(workflows, "tests.yml")).read()
+ok("1.155.0: the end-to-end test is a job of Tests (a release waits for it), not a workflow of its own",
+   "\n  e2e:\n" in tests_yml and sorted(os.listdir(workflows)) == ["app.yml", "release.yml", "tests.yml"], sorted(os.listdir(workflows)))
+
 print("FAILS:", FAILS if FAILS else "none")
 sys.exit(1 if FAILS else 0)

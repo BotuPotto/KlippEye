@@ -93,7 +93,6 @@ mset(analysis_action="CANCELLA")
 ok("AI: CANCELLA verdict -> push with the asked text", wait_for(lambda: google.kinds()[n:] == ["ai_pause", "ai_cancel"]) and google.bodies()[-1] == "Serious print defects found, check and cancel the print" and google.messages[-1]["payload"]["message"]["android"]["notification"]["channel_id"] == "allarmi", google.bodies())
 mset(analysis_action="CONTINUA"); quiet(0.8)
 ok("AI: back to CONTINUA says nothing", google.kinds()[n:] == ["ai_pause", "ai_cancel"])
-ok("AI: the Brain's verdict was read from the real endpoint of the stand-in (no errors)", True)
 mset(print_state="standby"); quiet(0.5)
 
 # ---------------------------------------------------------------------------------------------- when sending goes wrong
