@@ -122,6 +122,31 @@ with sync_playwright() as p:
     ok("1.138.0: a pause Klipper refuses shows Klipper's words", wait_until(lambda: "Klipper says no (mock)" in toasts(P)), toasts(P))
     P.close()
 
+    # 1.155.1: Moonraker answers Pause and Cancel only when the macro is over; a wait that runs out is «still working», never a failure
+    RAW_TIMEOUT = json.dumps({"error": "HTTPConnectionPool(host='127.0.0.1', port=7125): Read timed out. (read timeout=10)"})
+    for label, body in (("the library's own text", RAW_TIMEOUT), ("the backend's plain text", json.dumps({"error": "Moonraker did not answer in time"}))):
+        P = fresh(b, printing=True)
+        pg = P.pg
+        pg.route("**/printer/gcode/script", (lambda text: lambda r: r.fulfill(status=502, body=text, content_type="application/json"))(body))
+        pg.get_by_role("button", name="Annulla stampa").first.click()
+        pg.wait_for_selector(".confirm-card")
+        pg.locator(".confirm-card").get_by_role("button", name="Annulla stampa").click()
+        ok("1.155.1: a cancel whose wait ran out (%s) says the printer is still working" % label, wait_until(lambda: "sta ancora lavorando" in toasts(P)), toasts(P))
+        ok("1.155.1: ... with no «Non riuscito» and no library text", "Non riuscito" not in toasts(P) and "HTTPConnectionPool" not in toasts(P) and "timed out" not in toasts(P), toasts(P))
+        P.close()
+    P = fresh(b, printing=True)
+    pg = P.pg
+    pg.route("**/printer/gcode/script", lambda r: r.fulfill(status=502, body=RAW_TIMEOUT, content_type="application/json"))
+    pg.get_by_role("button", name="Pausa", exact=True).first.click()
+    ok("1.155.1: a pause whose wait ran out says the printer is still working, not «Non riuscito»", wait_until(lambda: "sta ancora lavorando" in toasts(P)) and "Non riuscito" not in toasts(P), toasts(P))
+    P.close()
+    P = fresh(b, printing=True)
+    pg = P.pg
+    pg.route("**/printer/gcode/script", lambda r: r.fulfill(status=502, body=json.dumps({"error": "HTTPConnectionPool(host='127.0.0.1', port=7125): Max retries exceeded"}), content_type="application/json"))
+    pg.get_by_role("button", name="Pausa", exact=True).first.click()
+    ok("1.155.1: a connection error is «printer not reachable», not the library's text", wait_until(lambda: "non raggiungibile" in toasts(P)) and "HTTPConnectionPool" not in toasts(P), toasts(P))
+    P.close()
+
     P = fresh(b, printing=True, print_objects=[square("BENCHY_A", 100, 100), square("BENCHY_B", 220, 120)])
     pg = P.pg
     pg.route("**/printer/gcode/script", refuse)

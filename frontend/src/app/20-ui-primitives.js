@@ -357,6 +357,14 @@ function useBodyScrollLock(active) {
  */
 function ConfirmDialog({ open, tone = "neutral", icon, title, subtitle, message, confirmLabel, cancelLabel = tx("Cancel"), onConfirm, onCancel, zIndex }) {
   useBodyScrollLock(open);
+  // 1.153.0: the phone's back button and Escape cancel it, like the tap outside
+  useBackHandler(() => (onCancel(), true), open);
+  useEffect(() => {
+    if (!open) return undefined;
+    const onKey = (event) => event.key === "Escape" && (event.stopPropagation(), goBack());
+    document.addEventListener("keydown", onKey, true);
+    return () => document.removeEventListener("keydown", onKey, true);
+  }, [open]);
   return h(
     Presence,
     null,

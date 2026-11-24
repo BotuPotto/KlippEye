@@ -125,6 +125,7 @@ with sync_playwright() as p:
     # ====================================================================================== nothing offered
     for label, kwargs, expect in (
         ("nothing published yet", dict(app=None), "non c'è ancora nessuna app"),
+        ("1.153.0: nothing published, the reason in English", dict(app={"available": False, "none": True, "reason": "no app published"}), "non c'è ancora nessuna app"),
         ("the backend says the file is not whole", dict(app={"available": False, "reason": "l'APK non corrisponde a versione.json (impronta diversa)"}), "non è completa (l'APK non corrisponde a versione.json (impronta diversa))"),
         ("a backend that does not know apps (404)", dict(app_apk_status=404), "non conosce ancora l'app"),
         ("the backend fails (500)", dict(app_apk_status=500), "non risponde"),
@@ -232,7 +233,10 @@ with sync_playwright() as p:
     ok("old app (4): the note points at the Download folder and the conflict case", "cartella Download" in block_text(P) and "disinstalla prima" in block_text(P))
     block(P).locator("button", has_text="Scarica l'app").click(); P.settle(300)
     ok("old app (4): the button asks the app to save the file", P.pg.evaluate("() => window.__bridge.saves") == [["/app/KlippEye.apk", "KlippEye-1.0.1.apk"]], P.pg.evaluate("() => window.__bridge.saves"))
-    ok("old app (4): the menu list has no badge for it", True)
+    pg = P.pg
+    pg.click('.drawer button[aria-label="Indietro"]'); P.settle(500)
+    entry = pg.locator('.set-entry[data-page="software"]')
+    ok("old app (4): the menu list has no badge for it", entry.locator(".set-entry__badge").count() == 0, entry.inner_text())
     P.close()
 
     P = fresh(b, app=OFFER, script=bridge(level=2))

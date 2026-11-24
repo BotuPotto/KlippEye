@@ -1,5 +1,139 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.155.1
+
+Pause, Resume and Cancel no longer show a raw error when Klipper is slow.
+
+- Pressing Cancel could show «Non riuscito: HTTPConnectionPool(host='127.0.0.1', port=7125): Read timed out». KlippEye
+  waited only 10 seconds for Klipper to finish the cancel macro (parking moves, heaters off), and a slower printer ran out
+  the wait while the macro was still running. Pause, Resume and Cancel now get up to 5 minutes, whether they come from the
+  dashboard buttons, the notifier or a program using `/printer/print/*`. Other commands keep the 10 seconds.
+- If the wait still runs out, the dashboard says «The printer is still working on it. Look at the print card.» and not
+  «Failed». The action is not lost: Klipper carries on with it.
+- When Moonraker does not answer in time or cannot be reached, the service sends a short text («Moonraker did not answer in
+  time», «Moonraker is not reachable»). The library's error text no longer reaches the screen.
+
+## 1.155.0
+
+The tests and the release check more.
+
+- A release is tagged only when the install and update test passed too. That test ran as a separate workflow that the
+  release step never looked at; it is now a job of «Tests».
+- The browser tests now run every `*_test.py` of `tests/ui/`. A hand-written list had left out five of them: print review,
+  temperature presets, light and dark theme, tidy-up and the visual check. They add about 4 minutes.
+- Seven checks that could not fail now check something (the retry of the screws tilt, the closing of the menu, the old
+  app's badge and others), and three that proved nothing are gone.
+- On GitHub, a check that is skipped counts as a failure: no nginx or sudo, no Playwright or Kotlin for the install test,
+  no `cryptography` for the notifier. Before, they printed «skipped» and passed.
+
+## 1.154.0
+
+Small fixes to the look of the dashboard.
+
+- The phone's tab bar and the page titles are translated. «Files» and «Config» used to stay in English in every language;
+  now they read «Pliki» and «Konfig» in Polish, «Dateien» and «Konfig» in German, and so on. The computer's top tabs too.
+- Small buttons answer a tap in a 44 px square around them, with the same look: the fold arrow of a card, the fan − and +,
+  the round buttons in the top bar (emergency stop included), the AI badge, the «?» buttons and the menu of a file. Before,
+  they were 28 to 40 px, easy to miss with a thumb.
+- The name «KlippEye» in the top bar is no longer cut to «KlippE…» on phones 360 to 389 px wide. The bar uses 6 px gaps,
+  and phones under 390 px get the smaller logo.
+- A fan's name wraps to two lines instead of being cut. In German, Polish and Russian two fans both read «Wentylato…».
+- When the Raspberry or Moonraker does not answer, the strip «The printer does not answer: trying again…» shows after two
+  reads, about 3 seconds, and the heater tiles keep the last temperatures. Before, they turned to «0.0°» with no sign, and the
+  strip came after 15 seconds or never.
+
+## 1.153.0
+
+Small fixes in the dashboard.
+
+- The phone's back button and Escape now close a confirmation (save config, cancel print and the others). Before, back did
+  nothing visible and the box stayed open.
+- The list of Moonraker's add-ons is read again when Klipper is back after a restart. The Timelapse section updates by
+  itself; the queue, power devices and Spoolman look again the next time they open. Before, an add-on installed while the
+  page was open showed up only after a reload.
+- A pin called `chamber_heater_relay`, `psu_enabled` or a case fan is no longer offered as a light, here and in Home Assistant, so
+  a tap or an automation cannot switch a relay by mistake. Names are matched as whole words («led», «lamp», «luci») and
+  «light» anywhere, so `caselight` still works.
+- A `pca9533` or `pca9632` LED output is now found as a light. The settings used to drop it because its name has digits.
+- «Clear console» no longer depends on the phone's clock. With the clock a few minutes off, new lines stayed hidden after
+  the clear or cleared lines came back.
+- A file sliced again under the same name shows its new time, layers and picture when the next print starts. Before, the
+  old figures stayed until the page was reloaded.
+- When a camera photo never arrives (a connection that stalls), the camera asks for a new one after 8 seconds and says it is not
+  answering. Before, the picture froze and looked live.
+- An update that Moonraker answers late (more than 12 seconds) is no longer asked again and shown as «Failed» while it is
+  running. The dialog goes on to wait for it to finish.
+- The G-code viewer does not scan every segment again at each move of the finger, so panning a big file is smoother.
+- Settings → Updates → Android app: a Raspberry with no app published now says «There is no app on the Raspberry yet».
+  Outside Italian it showed «not complete» with an error.
+
+## 1.152.0
+
+Home Assistant / MQTT and the local model's levels.
+
+- When Klipper is down but Moonraker still answers, KlippEye now publishes the state «offline» to MQTT, once. Before,
+  nothing was sent and the last retained state, often «printing», stayed on the broker, so an automation waiting for the
+  end or the failure of a print never ran after a Klipper crash.
+- The MQTT client id now ends with a short part of the machine's own id (`/etc/machine-id`). Two Raspberries with the
+  default host name used the same id, the broker dropped the older connection each time, and both reconnected every few
+  seconds. Topics and Home Assistant's entities keep their names. The id changes once, so an old session on the broker
+  is dropped on the next connection.
+- A `monitor.json` edited by hand with «Sure from» at or below «In doubt from» is no longer loaded as it is. Both go back to
+  the defaults, as the settings page already refused such a pair. Two settings saved at the same moment also can no longer
+  slip a wrong pair past the check.
+
+## 1.151.0
+
+Android app 1.9.0. Update it from Settings → Updates → Android app once KlippEye is updated. The printer's program is unchanged.
+
+- The app's link with the dashboard answers only to the dashboard's own page. Before, any page the window ended up on after a
+  redirect or a link could change the addresses, the notification server or the saved certificate, start downloads and
+  start an app update. Now every call is refused unless the page has the same scheme, address and port the app connected to.
+  A web page shown in a frame inside the dashboard (the «Web page» camera) is still not told apart: Android does not say
+  which frame calls.
+- A Raspberry whose HTTPS certificate the app knows is now looked for over https only. Before, the app also tried http, so
+  someone on the network who blocked port 443 and answered on http was accepted, with the bridge. If you later switch HTTPS
+  off on the Raspberry, open the app's «Addresses» window and save: it forgets the certificate and finds the Raspberry over http.
+- The app's workflow gives the signing password only to the steps that need it, and its third-party actions are pinned to a
+  commit. Before, every step of the build, including those that run other people's code, could read it.
+- The signing password advice is now «a random password» (`openssl rand -base64 24`), not «a sentence». The key and the
+  way the app is signed are the same, so phones keep updating. `android/README.md` says what moving the key into a GitHub
+  secret would take; that is a choice for the owner.
+- The old app's key `android/chiave/vzbot.p12` is removed from the repository, with its secret name in the workflow.
+
+## 1.150.0
+
+The tools that train the local model no longer depend on someone remembering which prints are for measuring. The
+program on the printer is unchanged.
+
+- The nine prints kept for measuring are now listed in `models/base/kept-out.txt`. `ml/datasets.py --klippeye` skips them
+  and the answer given about the same print, and says how many. Before, nothing stopped the next retrain from learning
+  from them, which would have made the numbers in `models/base/README.md` meaningless.
+- A print that was recorded and also answered in «How did the print go?» was put in the list twice, under two groups,
+  so one copy could land in training and the other in the measuring set. It now counts once, as `ml/evaluate.py` already did.
+- `ml/download.py` kept collections whose licence was written «CC BY NC 4.0» or «CC BY SA 4.0» (with spaces), and ODbL,
+  GPL or no licence at all. It now keeps only licences known to be open and prints what it left out.
+- A download cut in the middle counted as «already here» and stayed partial. A collection is now finished only when its
+  `klippeye-source.json` exists.
+- The Colab notebook measured the model on the prints it had just trained on. `ml/evaluate.py --trained` warns that the
+  numbers are too good and marks the report, and the notebook uses it.
+
+## 1.149.0
+
+The online AI chain no longer loses an answer.
+
+- A service that answered with something that was not JSON (a web page from a gateway, say) ended the whole analysis. Nothing
+  was recorded, even when the first look had already proposed a pause. Any failure of one question now counts as that service
+  not answering: the next one is asked, and a pause whose second look fails stays standing.
+- An answer that could not be read stopped the chain at the first service. The backup service is now asked as well. The
+  history only says «answer not readable» when none of them gave a verdict.
+- The AI's advice is read from its first word. A model that echoed the template (`CONTINUE|PAUSE|CANCEL`) was taken as a
+  cancel, and «Continue, no need to pause» as a pause.
+- Two alarms close together could start two analyses at once: double paid questions, two alerts and a verdict that went
+  back in time. An alarm that comes while one analysis is running now waits for its verdict.
+- Two devices saving AI keys at the same moment could lose most of them while both were told «saved». The keys are now
+  saved one request at a time.
+
 ## 1.148.0
 
 The AI monitor no longer stops without saying so.

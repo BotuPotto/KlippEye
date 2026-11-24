@@ -64,3 +64,11 @@ def label_at(one, t):
     if moment is not None and t >= moment + FAILED_AFTER:
         return 1
     return None
+
+
+def same_print_once(prints, within=300):
+    """1.135: a print both recorded and answered in «How did the print go?» counted once, by its recording (the
+    monitor's own pictures; the answer's are small, one a minute): counted twice it weighed double, with worse pictures.
+    1.150.0: here, so that training and measuring count a print the same way."""
+    recorded = [p["started"] for p in prints if p["kind"] == "recording" and p["started"]]
+    return [p for p in prints if p["kind"] == "recording" or not any(abs((p["started"] or 0) - t) < within for t in recorded)]

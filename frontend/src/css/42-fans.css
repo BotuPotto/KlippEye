@@ -44,7 +44,8 @@
 .fan-row { padding: 14px 16px; }
 .fan-row__head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
 .fan-row--readout { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 16px; padding-bottom: 16px; }
-.fan-name { overflow: hidden; font-size: 15px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+/* 1.154.0: a long name (German, Polish, Russian) wraps to two lines instead of being cut to «Wentylato…» */
+.fan-name { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; min-width: 0; overflow: hidden; overflow-wrap: anywhere; font-size: 15px; font-weight: 600; }
 .fan-level { width: 84px; height: 8px; }
 .fan-pct { min-width: 46px; justify-content: center; font-variant-numeric: tabular-nums; }
 

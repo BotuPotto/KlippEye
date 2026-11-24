@@ -98,6 +98,19 @@ button.oui-tile:active { transform: scale(0.985); background: var(--oui-surface-
 .oui-card--foldable { position: relative; }
 .oui-card__tools { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .oui-card__fold { display: grid; flex-shrink: 0; place-items: center; width: 36px; height: 36px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--oui-text-3); cursor: pointer; transition: transform var(--oui-dur-fast) var(--oui-ease), background var(--oui-dur-fast) var(--oui-ease); }
+/* 1.154.0: the small round buttons keep their look but answer a tap anywhere in a 44 px square around them (the neighbours keep
+   their own space: the square is at most 4 px past a button, and the gaps between them are 6 px or more) */
+.oui-card__fold, .fan-step, .help-btn, .ai-header-badge { position: relative; }
+.oui-card__fold::after, .fan-step::after, .header-btn::after, .help-btn::after, .ai-header-badge::after, .file-card__more::after {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  top: 50%;
+  left: 50%;
+  width: max(100%, 44px);
+  height: max(100%, 44px);
+  transform: translate(-50%, -50%);
+}
 .oui-card__fold:hover { background: var(--oui-surface-3); color: var(--oui-text); }
 .oui-card__fold[aria-expanded="false"] { transform: rotate(-90deg); }
 .oui-card.is-collapsed:not(.is-folding) > :not(.oui-card__head) { display: none; } /* 1.134.1: still shown while the card folds (app/20-ui-primitives.js) */

@@ -895,6 +895,10 @@ class MonitorConfig:
                 self.values[spec["key"]] = coerce_config_value(spec, stored[spec["key"]])
             except ValueError as error:
                 print("[CONFIG] %s: '%s' ignored (%s), using %r" % (self.path, spec["key"], error, self.values[spec["key"]]))
+        # 1.152.0: the page refuses «sure» at or below «in doubt»; a hand-edited file gets the same rule
+        if self.values["local_sure"] <= self.values["local_doubt"]:
+            print("[CONFIG] %s: «Sure from» is not above «In doubt from», using the defaults for both" % self.path)
+            self.values["local_doubt"], self.values["local_sure"] = LOCAL_DOUBT_DEFAULT, LOCAL_SURE_DEFAULT
         self.saved = True
 
     def _set_aside(self, why):
@@ -924,13 +928,12 @@ class MonitorConfig:
                 errors[key] = str(error)
         if errors:
             return errors, []
-        with self.lock:
+        with self.lock:  # 1.152.0: one lock from the check to the save, so two requests cannot make a wrong pair together
             merged = dict(self.values, **clean)
-        # 1.124: «sure» must stay above «in doubt», or the local model would be sure before it has a doubt
-        if merged.get("local_sure", 80) <= merged.get("local_doubt", 35):
-            key = "local_sure" if "local_sure" in clean else "local_doubt"
-            return {key: "«Sure from» must be higher than «In doubt from»"}, []
-        with self.lock:
+            # 1.124: «sure» must stay above «in doubt», or the local model would be sure before it has a doubt
+            if merged.get("local_sure", 80) <= merged.get("local_doubt", 35):
+                key = "local_sure" if "local_sure" in clean else "local_doubt"
+                return {key: "«Sure from» must be higher than «In doubt from»"}, []
             changed = [key for key, value in clean.items() if self.values.get(key) != value]
             for key in changed:
                 self.values[key] = clean[key]
@@ -1137,6 +1140,13 @@ def moonraker_status(query, timeout=3):
 
 # The operations Moonraker answers only when the work is done (updates, service restarts): 10 seconds are not enough.
 LONG_MOONRAKER_PATHS = ("machine/update/", "machine/services/", "server/files/upload", "api/files")  # 1.133.1: big uploads
+# 1.155.1: Pause, Resume and Cancel are answered only when Klipper has run the macro (parking moves, heaters off, and a Resume
+# that heats up again), which takes longer than 10 s. The dashboard sends them as G-code scripts, other programs and the
+# notifier through /printer/print/*. Five minutes covers a slow reheat; the wait ends with a clear 502 and Klipper goes on anyway.
+PRINT_ACTION_PATHS = ("printer/print/pause", "printer/print/resume", "printer/print/cancel")
+PRINT_ACTION_SCRIPTS = ("PAUSE", "RESUME", "CANCEL_PRINT")
+PRINT_ACTION_WAIT = (5, 300)
+SMALL_SCRIPT = 65536  # a G-code script up to this size is read whole to see what it is; every other body goes on as a stream
 # Headers that describe one connection, not the content: never copied from one side of a proxy to the other (RFC 9110).
 HOP_BY_HOP = {"connection", "keep-alive", "proxy-authenticate", "proxy-authorization", "te", "trailer", "transfer-encoding", "upgrade"}
 PROXY_REQUEST_SKIP = HOP_BY_HOP | {"host", "content-length", "x-api-key", "cookie", access.HEADER_INTERNAL.lower()}
@@ -1168,21 +1178,39 @@ class SizedBody:
         return self.stream.read(size)
 
 
+def moonraker_wait(path, body):
+    """How long the proxy waits for Moonraker's answer: long for updates, uploads and the print actions, 10 s for the rest."""
+    if path.startswith(LONG_MOONRAKER_PATHS):
+        return (5, 600)
+    script = ""
+    if path == "printer/gcode/script" and isinstance(body, bytes):
+        try:
+            script = str(json.loads(body).get("script", ""))
+        except (ValueError, AttributeError):
+            script = ""
+    if path in PRINT_ACTION_PATHS or script.strip().upper() in PRINT_ACTION_SCRIPTS:
+        return PRINT_ACTION_WAIT
+    return 10
+
+
 def proxy_moonraker(path):
     """The request, as it is, to Moonraker. Our own session cookie and internal token are not passed on."""
     url = "%s/%s" % (MOONRAKER_URL, urllib.parse.quote(path, safe="/"))   # 1.147.0: a # or ? in a file name is part of the name
     if request.query_string:
         url += "?" + request.query_string.decode()
     headers = {name: value for name, value in request.headers if name.lower() not in PROXY_REQUEST_SKIP}
-    wait = (5, 600) if path.startswith(LONG_MOONRAKER_PATHS) else 10
-    if request.content_length:  # 1.133.1: a G-code of hundreds of MB goes on as it is read, never whole in memory
+    script = path == "printer/gcode/script" and (request.content_length or 0) <= SMALL_SCRIPT
+    if request.content_length and not script:  # 1.133.1: a G-code of hundreds of MB goes on as it is read, never whole in memory
         body = SizedBody(request.stream, request.content_length)
     else:
         body = request.get_data()  # no body, or one without a length (chunked): small
+    wait = moonraker_wait(path, body)
     try:
         return relay(requests.request(request.method, url, data=body, headers=headers, timeout=wait, stream=True))
-    except requests.RequestException as error:
-        return jsonify({"error": str(error)}), 502
+    except requests.Timeout:  # 1.155.1: plain words, never the library's "HTTPConnectionPool(...): Read timed out"; the dashboard looks for "in time"
+        return jsonify({"error": "Moonraker did not answer in time"}), 502
+    except requests.RequestException:
+        return jsonify({"error": "Moonraker is not reachable"}), 502
 
 
 _PAGE_CACHE = {"key": None}
@@ -1581,6 +1609,9 @@ def _read_ai_file():
         return {}
 
 
+_ai_file_lock = threading.Lock()   # 1.149.0: read, change and write of ai.json is one step (two devices saving keys at once)
+
+
 def load_ai_config():
     """The AI settings (ai_services, version 2: keys per service, a service and model for the logs and for the monitor),
     with the fields of before 1.27 for the logs' service ("provider", "api_key", "model"). None when no key was entered."""
@@ -1658,13 +1689,14 @@ def api_ai_config():
             out["message"] = bt(AI_SETUP_HINT, _lang())
         return _no_store(jsonify(out))
     body = request.get_json(force=True, silent=True) or {}
-    cfg, problem = ai_services.apply(_read_ai_file(), body if isinstance(body, dict) else {})
-    if problem:
-        return jsonify({"ok": False, "error": bt(AI_CONFIG_ERRORS.get(problem, AI_CONFIG_ERRORS["unknown"]), _lang())}), 400
-    try:
-        write_json_atomic(AI_CONFIG_PATH, cfg, private=True)   # readable only by the service user: it holds passwords
-    except OSError as e:
-        return jsonify({"ok": False, "error": bt("cannot save the key in {path}: {error}", _lang(), path=AI_CONFIG_PATH, error=e)}), 500
+    with _ai_file_lock:
+        cfg, problem = ai_services.apply(_read_ai_file(), body if isinstance(body, dict) else {})
+        if problem:
+            return jsonify({"ok": False, "error": bt(AI_CONFIG_ERRORS.get(problem, AI_CONFIG_ERRORS["unknown"]), _lang())}), 400
+        try:
+            write_json_atomic(AI_CONFIG_PATH, cfg, private=True)   # readable only by the service user: it holds passwords
+        except OSError as e:
+            return jsonify({"ok": False, "error": bt("cannot save the key in {path}: {error}", _lang(), path=AI_CONFIG_PATH, error=e)}), 500
     if isinstance(body.get("monitor"), dict) and detector.ai_model:
         set_backend_config({"ai_model": ""})   # the model of before 1.27 (Monitor thresholds) gives way to the one chosen here
     return jsonify(dict(ai_services.summary(cfg), ok=True, saved_to=[AI_CONFIG_PATH]))
@@ -2154,13 +2186,11 @@ def normalize_action(value):
     """The AI's advice as CONTINUE / PAUSE / CANCEL, also when written the Italian way (CONTINUA / PAUSA / CANCELLA,
     releases before 1.6.0 and answers in Italian); "" when there is none."""
     text = str(value or "").upper()
-    if "CANCEL" in text:
-        return "CANCEL"
-    if "PAUS" in text:
-        return "PAUSE"
-    if "CONTIN" in text or text.strip():
-        return "CONTINUE"
-    return ""
+    # 1.149.0: the first word only: a copied template («CONTINUE|PAUSE|CANCEL») or a negation («PAUSE (do not cancel)») is no stop
+    word = re.match(r"\W*(CANCEL|PAUS|CONTIN)", text)
+    if word:
+        return {"CANCEL": "CANCEL", "PAUS": "PAUSE"}.get(word.group(1), "CONTINUE")
+    return "CONTINUE" if text.strip() else ""
 
 
 def build_ai_prompt(score, state, filename, progress, hotend, ref_age=None, language="en", local=None, part=""):
@@ -2244,6 +2274,7 @@ class LightDetector(FrameJudge):
         self.thread = None
         self.generation = 0  # every start() opens a new one: an old loop still asleep understands by itself that it must end
         self.last_ai_call = 0
+        self._ai_busy = threading.Lock()   # 1.149.0: one AI analysis at a time (call_ai_analysis)
         self.print_real_at = None  # 1.132: when this print really started (the monitor's first check of it)
         self.local_state = {}  # 1.106: the local model's last look (score, when, runs of sure / doubtful looks, counts)
         self.local_vec = None  # 1.125: how the model described the picture of its last look (the view that counted)
@@ -2886,7 +2917,16 @@ class LightDetector(FrameJudge):
                 return float(value[2])
         return None
 
-    def _ask_ai(self, target, img_path, ref_path, ref_age, score, state, filename, progress, temp_h, language, local=None):
+    def _ask_ai(self, target, *args, **kwargs):
+        """One question to the AI (see _ask_ai_once). 1.149.0: whatever goes wrong inside (a 200 that is a web page, a
+        retry after a 429 that fails) is an answer of {"ok": False}: the chain goes on and the analysis is never lost."""
+        try:
+            return self._ask_ai_once(target, *args, **kwargs)
+        except Exception as error:
+            print(f"[OPENCV] {target['name']}: the question failed: {error}")
+            return {"ok": False, "status": 0, "error": "%s: %s" % (target["name"], str(error)[:200])}
+
+    def _ask_ai_once(self, target, img_path, ref_path, ref_age, score, state, filename, progress, temp_h, language, local=None):
         """One question to the AI about a picture (and the one before it, if any).
         -> {"ok": True, "parsed": dict | None, "answer": text, "with_reference": bool} or {"ok": False, "status", "error"}."""
         def read(path):
@@ -2992,17 +3032,34 @@ class LightDetector(FrameJudge):
         one). -> (result, target that answered or the last asked, [errors of those that did not])."""
         errors = []
         result, target = {"ok": False, "status": 0, "error": "no AI service"}, None
+        unreadable = None
         for target in chain:
             if self.ai_quota.get(target["provider"] + "/" + target["model"], 0) > time.time():
                 continue
             result = self._ask_ai(target, *args)
-            if result["ok"]:
+            if result["ok"] and result["parsed"] is not None:
                 return result, target, errors
+            if result["ok"]:   # 1.149.0: an answer that cannot be read is no answer: the next service is asked
+                unreadable = unreadable or (result, target)
+                result = dict(result, status=200, error="answer not readable")
             errors.append({"service": target["name"], "model": target["model"], "status": result["status"], "error": result["error"]})
             print(f"[OPENCV] {target['name']} / {target['model']} could not answer ({result['status']}): the next service")
+        if unreadable:   # none gave a verdict, and one of them did answer: the history says its answer was not readable
+            return unreadable[0], unreadable[1], errors
         return result, target, errors
 
-    def call_ai_analysis(self, img_path, ref_path=None, ref_age=None, local=None):
+    def call_ai_analysis(self, *args, **kwargs):
+        """One analysis at a time (1.149.0): an alarm that comes while one is running (a second look takes up to a minute,
+        `ai_cooldown` can be 30 s) is covered by it, instead of a second paid question and a verdict that goes back."""
+        if not self._ai_busy.acquire(blocking=False):
+            print("[OPENCV] an AI analysis is already running: this alarm waits for its verdict")
+            return
+        try:
+            self._analyse_with_ai(*args, **kwargs)
+        finally:
+            self._ai_busy.release()
+
+    def _analyse_with_ai(self, img_path, ref_path=None, ref_age=None, local=None):
         """Asks the AI to look at the picture (and, if there is one, at how it was before) when the monitor triggers, with
         nobody involved. 1.102: a stop it proposes is looked at again AI_CONFIRM_DELAY_S later on a new picture, and
         holds only if that look proposes a stop too. 1.104: the services of the chain (the monitor's, then its backups)
@@ -3517,7 +3574,7 @@ def read_apk_info():
     try:
         info_stat, apk_stat = os.stat(APK_INFO_PATH), os.stat(APK_PATH)
     except OSError:
-        return {"available": False, "reason": btn("no app published")}
+        return {"available": False, "none": True, "reason": btn("no app published")}
     key = (info_stat.st_mtime_ns, info_stat.st_size, apk_stat.st_mtime_ns, apk_stat.st_size)
     with _apk_lock:
         if _apk_cache["key"] == key:

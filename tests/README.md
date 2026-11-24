@@ -20,7 +20,7 @@ A few test names are still in Italian, from the project's first releases.
 results with the default values.
 
 The end-to-end test runs on its own (`python3 tests/e2e/setup.py` once, then `python3 tests/e2e/e2e_test.py`) and on GitHub
-with the "End-to-end" workflow (`.github/workflows/e2e.yml`).
+as the `e2e` job of the Tests workflow (`.github/workflows/tests.yml`), so a release waits for it too.
 
 ## Tools
 

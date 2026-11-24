@@ -29,6 +29,16 @@ function zOffsetFromSnapshot(snapshot, fallback) {
   return Array.isArray(origin) && typeof origin[2] === "number" ? origin[2] : fallback;
 }
 
+/** 1.154.0: two reads in a row that fail (the Raspberry is off, or Moonraker is: the backend then answers with an error) put up
+ * the strip of the watchdog (app/15-live.js) at once, not after its 15 s; a good read takes it down. */
+let printerReadFailures = 0;
+function printerRead(good) {
+  printerReadFailures = good ? 0 : printerReadFailures + 1;
+  const strip = document.getElementById("live-banner");
+  if (!good && printerReadFailures >= 2 && !strip) liveBanner("unreachable");
+  else if (good && strip && strip.dataset.state === "unreachable") liveBanner(null);
+}
+
 function usePrinterStatus() {
   const [status, setStatus] = useState({
     hotend: { cur: 0, target: 0 },
@@ -45,6 +55,7 @@ function usePrinterStatus() {
       try {
         const snapshot = await backendApi.printer();
         if (cancelled) return;
+        if (snapshot.error) throw new Error(snapshot.error); // the backend could not read Moonraker: not a reading, the last one stays
         const toolhead = (snapshot.raw && snapshot.raw.toolhead) || snapshot.toolhead || {};
         const position = positionFromSnapshot(snapshot);
         setStatus((previous) => ({
@@ -54,7 +65,10 @@ function usePrinterStatus() {
           homedAxes: typeof toolhead.homed_axes === "string" ? toolhead.homed_axes.toLowerCase() : previous.homedAxes,
           zOffset: zOffsetFromSnapshot(snapshot, previous.zOffset),
         }));
-      } catch (e) {}
+        printerRead(true);
+      } catch (e) {
+        if (!cancelled) printerRead(false);
+      }
     };
     pollRef.current = poll;
     const stopPolling = startPolling(poll, POLL_MS.printerStatus);

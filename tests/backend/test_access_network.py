@@ -183,6 +183,45 @@ c.get("/server/files/gcodes/plain.gcode?x=1", headers=H)
 check("1.147.0: a # or ? in a file name reaches Moonraker quoted (the delete hits that file, not another)",
       [u.rsplit("/", 1)[1] for _, u in urls] == ["part%20%232.gcode", "part%3Fv%3D2.gcode", "plain.gcode?x=1"], urls)
 
+# --- 1.155.1: Pause, Resume and Cancel wait for the macro; a wait that runs out says so in plain words --------------------------
+waits = []
+
+
+def fake_request(method, url, **kw):
+    waits.append(kw.get("timeout"))
+    return Answer()
+
+
+kb.requests.request = fake_request
+c = kb.app.test_client()
+for path, body in (("/printer/print/cancel", None), ("/printer/print/pause", None), ("/printer/print/resume", None),
+                   ("/printer/gcode/script", {"script": "CANCEL_PRINT"}), ("/printer/gcode/script", {"script": " pause "}),
+                   ("/printer/gcode/script", {"script": "RESUME"}), ("/printer/gcode/script", {"script": "G28"}),
+                   ("/printer/gcode/script", {"script": "G1 X1\nPAUSE"}), ("/printer/info", None)):
+    c.post(path, json=body, headers=H).close() if body is not None else c.post(path, headers=H).close()
+check("1.155.1: pause, resume and cancel (as /printer/print/* or as the PAUSE, RESUME, CANCEL_PRINT script) wait 5 minutes, any other script 10 s",
+      waits == [kb.PRINT_ACTION_WAIT] * 6 + [10, 10, 10] and kb.PRINT_ACTION_WAIT == (5, 300), waits)
+waits.clear()
+c.post("/printer/gcode/script", data=b"not json", headers=H).close()
+c.post("/printer/gcode/script", data=b"[1]", headers=H).close()
+check("1.155.1: ... a body that is not a script does not break the proxy and keeps the 10 s", waits == [10, 10], waits)
+
+
+def timed_out(method, url, **kw):
+    raise kb.requests.ReadTimeout("HTTPConnectionPool(host='127.0.0.1', port=7125): Read timed out. (read timeout=10)")
+
+
+def refused(method, url, **kw):
+    raise kb.requests.ConnectionError("HTTPConnectionPool(host='127.0.0.1', port=7125): Max retries exceeded")
+
+
+kb.requests.request = timed_out
+r = c.post("/printer/gcode/script", json={"script": "CANCEL_PRINT"}, headers=H)
+check("1.155.1: a wait that runs out is a 502 with a short text, no library text", r.status_code == 502 and r.get_json() == {"error": "Moonraker did not answer in time"}, r.get_data())
+kb.requests.request = refused
+r = c.get("/printer/info", headers=H)
+check("1.155.1: ... and a connection that fails says so in the same plain way", r.status_code == 502 and r.get_json() == {"error": "Moonraker is not reachable"}, r.get_data())
+
 # --- 42: passwords sent at the same moment ---------------------------------------------------------------------------------
 kb.ACCESS.save(access.set_password(kb.ACCESS.load(), "segreta123"))
 kb.ACCESS_THROTTLE.failures["127.0.0.1"] = (6, 0)   # the wait has just run out

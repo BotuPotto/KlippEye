@@ -38,8 +38,8 @@ const NAV_ICONS = {
 const NAV_TABS = [
   { id: "home", label: "Home" },
   { id: "controllo", label: tx("Control") },
-  { id: "files", label: "Files" },
-  { id: "config", label: "Config" },
+  { id: "files", label: tx("Files") },
+  { id: "config", label: tx("Config") },
   { id: "sistema", label: tx("System") },
 ];
 

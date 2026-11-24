@@ -38,52 +38,57 @@ jobs:
     name: Build and publish the APK
     runs-on: ubuntu-latest
     timeout-minutes: 40
-    env:
-      # The signing key is in android/chiave/klippeye.p12 (encrypted); its password is the secret created on GitHub.
-      # (The folder and the secrets keep their first names: renaming them would break the repositories that build the app.)
-      KLIPPEYE_KEYSTORE: ${{ github.workspace }}/android/chiave/klippeye.p12
-      KLIPPEYE_KEYSTORE_PASSWORD: ${{ secrets.KLIPPEYE_CHIAVE_PASSWORD || secrets.VZBOT_CHIAVE_PASSWORD }}
-      # Optional: Firebase's file for the notifications (without it the app is built anyway, without notifications)
-      GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
     steps:
       - name: Check out the repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: Is a new app needed?
         id: decide
         env:
           FORCE: ${{ inputs.force }}
           EVENT: ${{ github.event_name }}
+          KLIPPEYE_KEYSTORE_PASSWORD: ${{ secrets.KLIPPEYE_CHIAVE_PASSWORD }}
         run: python3 ci/app_ci.py decide --force "$FORCE" --event "$EVENT"
 
       - name: Set up Java
         if: steps.decide.outputs.build == 'true'
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
         with:
           distribution: temurin
           java-version: '17'
 
       - name: Set up the Android SDK
         if: steps.decide.outputs.build == 'true'
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3
         with:
           packages: 'platforms;android-34 build-tools;34.0.0'
 
       - name: Set up Gradle (with the cache of the earlier runs)
         if: steps.decide.outputs.build == 'true'
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a # v4
 
       - name: Signing key (made the first time)
         if: steps.decide.outputs.build == 'true'
+        env:
+          KLIPPEYE_KEYSTORE_PASSWORD: ${{ secrets.KLIPPEYE_CHIAVE_PASSWORD }}
         run: python3 ci/app_ci.py key
 
       - name: Notifications (google-services.json, if any)
         if: steps.decide.outputs.build == 'true'
+        env:
+          # Optional: Firebase's file for the notifications (without it the app is built anyway, without notifications)
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
         run: python3 ci/app_ci.py google
 
       - name: Build the APK
         if: steps.decide.outputs.build == 'true'
         working-directory: android
+        env:
+          # The signing key is in android/chiave/klippeye.p12 (encrypted); its password is the secret created on GitHub.
+          # (The folder and the secret keep their first names: renaming them would break the repositories that build the app.)
+          # The password is given only to the steps that use it: the steps that set up Java, Android and Gradle never see it.
+          KLIPPEYE_KEYSTORE: ${{ github.workspace }}/android/chiave/klippeye.p12
+          KLIPPEYE_KEYSTORE_PASSWORD: ${{ secrets.KLIPPEYE_CHIAVE_PASSWORD }}
         run: |
           chmod +x gradlew
           ./gradlew --no-daemon --stacktrace assembleRelease

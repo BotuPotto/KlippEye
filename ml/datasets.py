@@ -18,6 +18,8 @@ Sources, any number of each:
   --klippeye DIR   KlippEye's data folder copied from the Raspberry (the folder with recordings/ and reviews/): the
                    labelled recordings and the answers to «How did the print go?». Fine prints give «fine» pictures; a
                    failed print gives «failed» pictures from FAILED_AFTER seconds after its moment on, «fine» before it.
+                   1.150.0: the prints listed in models/base/kept-out.txt (and the answer about each) are left out: they
+                   are for measuring, never for training.
 
 1.130, for a model that works on every printer:
   --hard-cases 0.3   look-alikes of a failure that are not failures (a purge line, a purge blob, one loose strand, a
@@ -38,10 +40,12 @@ import os
 import random
 import re
 import sys
+import time
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "backend"))
 import labelled_prints  # noqa: E402  (the prints judged in the dashboard: one reader for KlippEye and these tools)
 
+KEPT_OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "models", "base", "kept-out.txt")
 IMAGE_EXT = (".jpg", ".jpeg", ".png", ".bmp", ".webp")
 # the classes of the datasets, by their names: a failure that ruins the print (what the monitor must catch), a defect of
 # quality (the print goes on: left out, neither failed nor fine), a normal print or a part of the printer (fine)
@@ -309,12 +313,38 @@ def from_auto(root, work, fail_classes, empty_is_ok, cv2, limit=MAX_PER_DATASET,
     return rows
 
 
-def from_klippeye(root):
+def kept_out_prefixes(path=KEPT_OUT):
+    """1.150.0: the start of the id (date and time) of each print kept for measuring, one per line, # for notes.
+    A missing file stops the tool: better than training on what was to measure."""
+    with open(path, encoding="utf-8") as handle:
+        return [line.split("#")[0].strip() for line in handle if line.split("#")[0].strip()]
+
+
+def _id_time(text):
+    try:
+        return time.mktime(time.strptime(str(text)[:15], "%Y%m%d-%H%M%S"))
+    except ValueError:
+        return None
+
+
+def is_kept_out(print_id, prefixes, within=300):
+    """True for a listed print and for the answer about it (its id is a few seconds later: the same print)."""
+    when = _id_time(print_id)
+    return any(str(print_id).startswith(p) or (when is not None and _id_time(p) is not None and abs(when - _id_time(p)) < within) for p in prefixes)
+
+
+def from_klippeye(root, kept_out=None):
     """The prints judged in the dashboard (labelled recordings, answers to «How did the print go?»): a fine picture in
     OK_EVERY of a recording, every failed one; a failed print without a moment gives nothing (which pictures show it
-    is not known)."""
+    is not known). The kept-out prints are skipped (`kept_out` = their prefixes, default: models/base/kept-out.txt);
+    a print recorded and answered counts once, by its recording (the same rule as ml/evaluate.py)."""
+    prefixes = kept_out_prefixes() if kept_out is None else kept_out
+    found = labelled_prints.prints_of(root)
+    prints = [one for one in found if not is_kept_out(one["id"], prefixes)]
+    if len(prints) < len(found):
+        print("    %d judged prints left out of training: they are for measuring (models/base/kept-out.txt)" % (len(found) - len(prints)))
     rows = []
-    for one in labelled_prints.prints_of(root):
+    for one in labelled_prints.same_print_once(prints):
         recording = one["kind"] == "recording"
         group = ("rec:" if recording else "rev:") + str(one["id"])
         for index, (_, t, path) in enumerate(one["pictures"]):

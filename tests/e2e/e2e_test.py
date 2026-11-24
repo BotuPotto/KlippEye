@@ -1194,6 +1194,8 @@ if scenario("safety"):
     ok("... the data folder equal to the program folder and --keep-data: kept", r.returncode == 0 and os.path.isfile(os.path.join(w.repo, "backend", "klippeye_backend.py")), r.stdout + r.stderr)
     w.teardown()
 
+if SKIPPED and os.environ.get("GITHUB_ACTIONS"):   # 1.155.0: on GitHub a check that did not run is a failure, not a pass
+    FAILS.append("checks skipped on GitHub: " + "; ".join(SKIPPED))
 print("\nRESULT: %d check(s) failed" % len(FAILS))
 for f in FAILS:
     print("   FAILED:", f)
