@@ -31,6 +31,7 @@ function headerBadgeFor(stats, action, answer) {
   const lower = (status || "").toLowerCase();
   const idle = includesAny(lower, ["idle", "complete", "cancelled", "error"]) || status === "" || (lower === "" && stats.frames_checked === 0);
   if (idle) return AI_BADGES.idle;
+  if (BLIND_STATUSES.includes(status)) return { ...AI_BADGES.pause, title: detectorStatusText(status) }; // 1.148.0: the monitor cannot see
   if (answer === "false" || answer === "ignore") return AI_BADGES.monitoring; // a false alarm, or one to ignore: green until the next one
   const printingNow = includesAny(lower, ["scanning", "triggered"]) || (stats.frames_checked > 0 && !lower.includes("idle"));
   const recommended = aiAction(action);
@@ -39,6 +40,9 @@ function headerBadgeFor(stats, action, answer) {
   if (recommended === "PAUSE") return AI_BADGES.pause;
   return AI_BADGES.ok;
 }
+
+/** The backend's status when it cannot look at the print (1.148.0): the camera or Moonraker does not answer. */
+const BLIND_STATUSES = ["no picture from the camera", "Moonraker does not answer"];
 
 const AI_BADGES = {
   idle: { rgb: "140,146,160", hex: "#8c92a0", glow: 0, title: tx("AI monitor: waiting for a print"), idle: true },
@@ -62,6 +66,8 @@ const DETECTOR_STATUS_TEXTS = [
   [/^scanning \(whole bed, outside the parts\)$/, () => tx("watching the bed")],
   [/^the toolhead hides the part: the AI is asked when it moves$/, () => tx("the head hides the part")],
   [/^cv2 not installed$/, () => tx("OpenCV not installed")],
+  [/^no picture from the camera$/, () => tx("no picture from the camera")],
+  [/^Moonraker does not answer$/, () => tx("Moonraker does not answer")],
 ];
 function detectorStatusText(status) {
   for (const [pattern, text] of DETECTOR_STATUS_TEXTS) {
@@ -82,10 +88,11 @@ function describeDetector(json) {
   let pill = { text: tx("Waiting for a print"), tone: "waiting" };
   if (realStarted === false && /heating|riscaldamento/i.test(status)) pill = { text: tx("Heating/mesh - waiting for the real print"), tone: "warming" };
   else if (printing) pill = { text: tx("Monitoring on • printing"), tone: "active" };
+  else if (BLIND_STATUSES.includes(status)) pill = { text: detectorStatusText(status), tone: "warming" };
 
   const local = stats.local || {};
   return {
-    state: detectorStatusText(status || "idle").slice(0, 30),
+    state: BLIND_STATUSES.includes(status) ? detectorStatusText(status) : detectorStatusText(status || "idle").slice(0, 30), // a blind monitor says it whole
     score: decimalText(stats.last_score || 0) + "%",
     peak: Number(stats.peak_score) || 0, // 1.124: the highest of this print (the last one goes back to 0 once a change stays)
     boost: stats.boost === true,

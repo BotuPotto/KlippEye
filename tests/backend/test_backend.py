@@ -894,6 +894,16 @@ def _chain_post(plan):
             r = _Quota()
             r.status_code = int(answer)
             return r
+        if answer == "html":   # 1.149.0: a 200 that is a web page, not JSON at all
+
+            class H:
+                ok = True
+                status_code = 200
+                text = "<html>gateway</html>"
+
+                def json(self_inner):
+                    raise ValueError("Expecting value: line 1 column 1 (char 0)")
+            return H()
         if answer == "junk":   # 1.124: an answer that is not the JSON asked for
 
             class J:
@@ -988,6 +998,77 @@ b_ai.detector.call_ai_analysis(cur, prev, 60)
 h0 = b_ai.read_alert_history()[0]
 check("1.124: the print ended while waiting for the second look: no second question, no alarm, written as such",
       calls == ["groq"] and b_ai.detector.last_analysis is None and h0.get("outcome") == "print ended before the second look", (calls, h0))
+
+# 1.149.0: the online AI chain
+post, calls = _chain_post({"groq": ["html"], "gemini": ["CONTINUE"]})
+b_ai, cur, prev = _two_services(post)
+b_ai.detector.call_ai_analysis(cur, prev, 60)
+h0 = (b_ai.read_alert_history() or [{}])[0]
+check("1.149.0: a 200 answer that is not JSON no longer ends the analysis: the backup answers and it is recorded",
+      calls == ["groq", "gemini"] and h0.get("outcome") == "analysed" and h0.get("service") == "Google Gemini", (calls, h0))
+post, calls = _chain_post({"groq": ["PAUSE", "html"], "gemini": ["html"]})
+b_ai, cur, prev = _two_services(post)
+b_ai.detector.call_ai_analysis(cur, prev, 60)
+h0 = (b_ai.read_alert_history() or [{}])[0]
+check("1.149.0: a first PAUSE whose second look only gets web pages is kept (not confirmed), not thrown away",
+      h0.get("action") == "PAUSE" and h0.get("confirmed") is None and (b_ai.detector.last_analysis or {}).get("analysis", {}).get("action") == "PAUSE", (calls, h0))
+post, calls = _chain_post({"groq": ["junk"], "gemini": ["PAUSE"]})
+b_ai, cur, prev = _two_services(post)
+b_ai.detector.call_ai_analysis(cur, prev, 60)
+h0 = (b_ai.read_alert_history() or [{}])[0]
+check("1.149.0: an answer that cannot be read does not end the chain: the backup is asked and its verdict counts",
+      calls[:2] == ["groq", "gemini"] and h0.get("outcome") == "analysed" and h0.get("service") == "Google Gemini" and h0.get("backup") is True, (calls, h0))
+post, calls = _chain_post({"groq": ["junk"], "gemini": ["junk"]})
+b_ai, cur, prev = _two_services(post)
+b_ai.detector.call_ai_analysis(cur, prev, 60)
+check("... every service unreadable: one «not readable» entry and no verdict",
+      calls == ["groq", "gemini"] and [x.get("outcome") for x in b_ai.read_alert_history()] == ["AI answer not readable"] and b_ai.detector.last_analysis is None, (calls, b_ai.read_alert_history()))
+check("1.149.0: normalize_action reads the first action word only (a copied template, a negation)",
+      [mm.normalize_action(v) for v in ("CONTINUE|PAUSE|CANCEL", "PAUSE (do not cancel)", "Continue, no need to pause", "\"Cancella\"", " pausa")] == ["CONTINUE", "PAUSE", "CONTINUE", "CANCEL", "PAUSE"])
+post, calls = _chain_post({"groq": ["CONTINUE"], "gemini": ["CONTINUE"]})
+_gate, _inside = threading.Event(), threading.Event()
+
+
+def _slow_post(url, **kw):
+    _inside.set()
+    _gate.wait(3)
+    return post(url, **kw)
+
+
+b_ai, cur, prev = _two_services(_slow_post)
+_first = threading.Thread(target=b_ai.detector.call_ai_analysis, args=(cur, prev, 60), daemon=True)
+_first.start()
+_inside.wait(3)
+b_ai.detector.last_ai_call = 0   # the cooldown has run out while the first analysis is still on its way
+_t0 = time.time()
+b_ai.detector.call_ai_analysis(cur, prev, 60)
+_second_took = time.time() - _t0
+_gate.set()
+_first.join(5)
+check("1.149.0: a second analysis does not start while one is running (one question, one alert)",
+      calls == ["groq"] and _second_took < 1 and len(b_ai.read_alert_history()) == 1, (calls, _second_took, b_ai.read_alert_history()))
+b_ai, cur, prev = _two_services(post)
+b_ai.detector.call_ai_analysis(cur, prev, 60)
+check("... and the next one is asked normally once it ended", len(b_ai.read_alert_history()) == 1 and b_ai.detector._ai_busy.acquire(blocking=False))
+b_ai.detector._ai_busy.release()
+_providers = ["groq", "gemini", "openai", "anthropic", "mistral", "openrouter", "meta", "together", "fireworks"]
+_real_apply = b_ai.ai_services.apply
+def _slow_apply(cfg, body):
+    time.sleep(0.05)   # every client has read the file before any of them writes: the race, made certain
+    return _real_apply(cfg, body)
+b_ai.ai_services.apply = _slow_apply
+_barrier = threading.Barrier(len(_providers))
+def _save_key(provider):
+    _barrier.wait()
+    b_ai.app.test_client().post("/api/ai/config", json={"key": {"provider": provider, "api_key": provider + "-key-" + "x" * 20}})
+_savers = [threading.Thread(target=_save_key, args=(pid,)) for pid in _providers]
+for _t in _savers:
+    _t.start()
+for _t in _savers:
+    _t.join(20)
+b_ai.ai_services.apply = _real_apply
+_kept = sorted(json.load(open(b_ai.AI_CONFIG_PATH))["keys"])
+check("1.149.0: nine clients saving nine keys at the same moment: all nine are on disk", _kept == sorted(_providers), _kept)
 
 b_ai, cur, prev = fresh_ai(ai_reply())
 for i in range(45):

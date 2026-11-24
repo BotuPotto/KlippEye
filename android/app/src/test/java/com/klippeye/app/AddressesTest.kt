@@ -69,13 +69,26 @@ class AddressesTest {
     @Test
     fun whereKlippEyeIsLookedFor() {
         assertEquals(listOf("http://192.168.1.17/", "http://192.168.1.17:8085/"), Addresses.variants("192.168.1.17", false))
-        assertEquals(listOf("https://pi.local/", "http://pi.local/", "http://pi.local:8085/"), Addresses.variants("pi.local", true))
+        assertEquals("a pinned Raspberry is looked for over https only", listOf("https://pi.local/"), Addresses.variants("pi.local", true))
         assertTrue(Addresses.isKlippEye("application/json", "{\"ok\": true, \"enabled\": false, \"logged_in\": true}"))
         assertTrue(Addresses.isKlippEye("application/json; charset=utf-8", "{\"enabled\":true}"))
         assertFalse("another page", Addresses.isKlippEye("text/html", "<html>enabled</html>"))
         assertFalse("another JSON", Addresses.isKlippEye("application/json", "{\"result\": {}}"))
         assertFalse(Addresses.isKlippEye(null, null))
         assertEquals("{\"local\":\"192.168.1.17\",\"external\":\"\"}", Addresses.toJson(Addresses.AddressPair("192.168.1.17", "")))
+    }
+
+    @Test
+    fun theBridgeTrustsOnlyTheDashboardsOrigin() {
+        assertTrue(Addresses.sameOrigin("http://192.168.1.17:8085/", "http://192.168.1.17:8085/#/files"))
+        assertTrue("default ports are the same as written ones", Addresses.sameOrigin("https://pi.local/x", "https://pi.local:443/"))
+        assertTrue(Addresses.sameOrigin("HTTP://PI.LOCAL/", "http://pi.local:80/"))
+        assertFalse("another site", Addresses.sameOrigin("http://attacker.example.com/", "http://192.168.1.17:8085/"))
+        assertFalse("another port of the same host", Addresses.sameOrigin("http://192.168.1.17:8080/", "http://192.168.1.17:8085/"))
+        assertFalse("http page at a pinned https address", Addresses.sameOrigin("http://pi.local/", "https://pi.local/"))
+        assertFalse("nothing loaded yet", Addresses.sameOrigin(null, "http://pi.local/"))
+        assertFalse("not an http address", Addresses.sameOrigin("about:blank", "about:blank"))
+        assertFalse("a name that only starts like the host", Addresses.sameOrigin("http://pi.local.evil.com/", "http://pi.local/"))
     }
 
     @Test

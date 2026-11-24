@@ -8,6 +8,7 @@ On disk, in <data folder>/recordings/<id>/ (one folder per print, <id> = start t
                  the person's label ("it went fine" / "it failed from here") and the measured CPU
   frames.jsonl   one line per picture: number, time, score, alarm, layer, position, progress
   000001.jpg ... the pictures
+  purge.png      (when found) the marks of the purge, which the live monitor leaves out and the replay too
 The recordings take at most the space chosen in the menu (record_max_mb): the oldest prints are deleted first. Recording
 also stops while the disk has less than MIN_FREE_BYTES free. Nothing here may make the monitor fail: every error is logged
 and the print goes on.
@@ -209,6 +210,20 @@ class Recorder:
             if self.session and isinstance(zone, dict):
                 self.session["zone"] = {"source": zone.get("source"), "objects": zone.get("objects") or []}
                 self._save()
+
+    def note_purge(self, marks):
+        """1.148.0: the marks of the purge (a mask at the monitor's half size), once per recording: the live monitor leaves
+        them out of its comparison, so the replay must too (scripts/replay.py reads purge.png)."""
+        with self.lock:
+            if not (self.session and self.cv2 is not None and marks is not None):
+                return
+            try:
+                ok, data = self.cv2.imencode(".png", marks)
+                if ok:
+                    with open(os.path.join(self.root, self.session["id"], "purge.png"), "wb") as f:
+                        f.write(data.tobytes())
+            except Exception as error:  # a help only
+                print("[RECORDER] purge marks not kept: %s" % error)
 
     def note_cpu(self, check_ms, cpu_percent):
         with self.lock:
