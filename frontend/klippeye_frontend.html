@@ -8591,6 +8591,11 @@ async function fetchJson(url, options) {
 const MOONRAKER_INFO_RETRY_MS = 30000;
 let moonrakerInfoAsk = null;
 let moonrakerInfoFailedAt = 0;
+/** Klipper came back: the config may have changed and Moonraker may have restarted with other components (1.153.0). */
+function forgetMoonrakerComponents() {
+  moonrakerInfoAsk = null;
+  moonrakerInfoFailedAt = 0;
+}
 function moonrakerComponents() {
   if (!moonrakerInfoAsk && Date.now() - moonrakerInfoFailedAt > MOONRAKER_INFO_RETRY_MS) {
     moonrakerInfoAsk = fetchJson("/server/info")
@@ -9577,7 +9582,7 @@ function cleanPrinterName(value) {
 const pickOne = (value, allowed, fallback) => (allowed.includes(value) ? value : fallback);
 const cleanMacroName = (value) => (typeof value === "string" && MACRO_NAME.test(value.trim()) ? value.trim().toUpperCase() : "");
 const cleanGcode = (value) => (typeof value === "string" ? value.replace(/\r\n?/g, "\n").slice(0, FUNCTION_GCODE_MAX) : "");
-const cleanObjectName = (value) => (typeof value === "string" && /^[A-Za-z_]+ [^\n]{1,80}$/.test(value.trim()) ? value.trim() : "");
+const cleanObjectName = (value) => (typeof value === "string" && /^[A-Za-z_][A-Za-z0-9_]* [^\n]{1,80}$/.test(value.trim()) ? value.trim() : "");
 
 /** The "functions" part of the settings, cleaned. */
 /** Macro names, upper case, once each (Klipper does not tell "park" from "PARK"). */
@@ -10188,7 +10193,8 @@ const FUNCTION_CANDIDATES = {
   load: ["KLIPPEYE_LOAD_FILAMENT", "LOAD_FILAMENT", "FILAMENT_LOAD", "M701"],
   unload: ["KLIPPEYE_UNLOAD_FILAMENT", "UNLOAD_FILAMENT", "FILAMENT_UNLOAD", "M702"],
 };
-const LIGHT_WORDS = /light|luci|luce|lamp|case|chamber|led/i;
+// 1.153.0: whole words (not "enabled", "chamber_heater_relay"); "light" also inside a name ("caselight")
+const LIGHT_WORDS = /(?<![a-z])(?:led|luci|luce|lamp)s?(?![a-z])|light/i;
 
 /** The first of `names` that Klipper knows as a command. */
 const firstRegistered = (names, commands) => names.find((name) => name in (commands || {})) || "";
@@ -10386,7 +10392,7 @@ function usePrinterFunctions() {
    ========================================================================== */
 
 /** Written by build.py from the VERSION file of the release; stays as it is when the page is built by hand. */
-const DASHBOARD_RELEASE = "1.152.0";
+const DASHBOARD_RELEASE = "1.153.0";
 const dashboardRelease = () => (DASHBOARD_RELEASE.startsWith("__") ? "sviluppo" : DASHBOARD_RELEASE);
 
 /** The interface level this page needs from the backend (the backend says its own in /api/version). */
@@ -11450,6 +11456,14 @@ function useBodyScrollLock(active) {
  */
 function ConfirmDialog({ open, tone = "neutral", icon, title, subtitle, message, confirmLabel, cancelLabel = tx("Cancel"), onConfirm, onCancel, zIndex }) {
   useBodyScrollLock(open);
+  // 1.153.0: the phone's back button and Escape cancel it, like the tap outside
+  useBackHandler(() => (onCancel(), true), open);
+  useEffect(() => {
+    if (!open) return undefined;
+    const onKey = (event) => event.key === "Escape" && (event.stopPropagation(), goBack());
+    document.addEventListener("keydown", onKey, true);
+    return () => document.removeEventListener("keydown", onKey, true);
+  }, [open]);
   return h(
     Presence,
     null,
@@ -11829,6 +11843,7 @@ function onKlipperReady(listener) {
   klipperReadyListeners.add(listener);
   return () => klipperReadyListeners.delete(listener);
 }
+onKlipperReady(forgetMoonrakerComponents); // 1.153.0: the first listener, so the others read the list afresh
 
 /**
  * One look at Klipper: { phase, message }. phase is Klipper's state ("ready", "startup", "shutdown", "error"),
@@ -13662,6 +13677,8 @@ function requestCameraReload() {
    `className` is the class of the box the picture fills (css/41-camera.css or css/70-desktop.css).
    ------------------------------------------------------------------------- */
 const CAMERA_RETRY_MS = 3000;
+/** A photo that has neither arrived nor failed after this long is given up: a half-open connection fires nothing (1.153.0). */
+const CAMERA_STALL_MS = 8000;
 const withCacheBuster = (url) => url + (url.indexOf("?") >= 0 ? "&" : "?") + "_=" + Date.now();
 /** Mirror, flip and (1.59, a webcam of Moonraker) rotation of the picture. */
 const flipStyle = (camera) => {
@@ -13705,6 +13722,7 @@ function CameraSnapshots({ className, url, fps, style }) {
   useEffect(() => {
     let stopped = false;
     let timer = 0;
+    let stall = 0;
     let shown = 0;
     const next = (startedAt, wait) => {
       if (stopped) return;
@@ -13717,7 +13735,17 @@ function CameraSnapshots({ className, url, fps, style }) {
       const back = 1 - shown;
       const image = images[back].current;
       if (!image) return;
+      clearTimeout(stall);
+      stall = setTimeout(() => {
+        if (stopped) return;
+        image.onload = null;
+        image.onerror = null;
+        image.removeAttribute("src"); // the photo that never came is given up, and the picture says so
+        setFailed(true);
+        next(startedAt, CAMERA_RETRY_MS);
+      }, Math.max(CAMERA_STALL_MS, 3000 / fps));
       image.onload = () => {
+        clearTimeout(stall);
         if (stopped) return;
         shown = back;
         setFront(back);
@@ -13725,6 +13753,7 @@ function CameraSnapshots({ className, url, fps, style }) {
         next(startedAt);
       };
       image.onerror = () => {
+        clearTimeout(stall);
         if (stopped) return;
         setFailed(true);
         next(startedAt, CAMERA_RETRY_MS);
@@ -13735,6 +13764,7 @@ function CameraSnapshots({ className, url, fps, style }) {
     return () => {
       stopped = true;
       clearTimeout(timer);
+      clearTimeout(stall);
       images.forEach((ref) => {
         if (ref.current) {
           ref.current.onload = null;
@@ -16851,8 +16881,11 @@ function largestThumbnailUrl(meta) {
   return best.absolute_path || null;
 }
 
-/** The metadata of a file does not change while it is the current one: the last answer is kept until the name changes. */
-const printMetadataCache = { filename: "", meta: null };
+/**
+ * The metadata of a file does not change while it is the current one: the last answer is kept until the name changes or a
+ * print starts (1.153.0: a file sliced again under the same name has other times, layers and thumbnail).
+ */
+const printMetadataCache = { filename: "", meta: null, running: false };
 
 async function fetchFileMetadata(filename) {
   if (!filename) return null;
@@ -16887,6 +16920,9 @@ async function fetchPrintObjects() {
     }
     const status = ((await response.json()).result || {}).status || {};
     const stats = status.print_stats || {};
+    const running = stats.state === "printing" || stats.state === "paused";
+    if (running && !printMetadataCache.running) printMetadataCache.meta = null;
+    printMetadataCache.running = running;
     return {
       stats,
       sdcard: status.virtual_sdcard || {},
@@ -17542,7 +17578,9 @@ function toConsoleEntry(item) {
   const record = typeof item === "string" ? { message: item, type: "response", time: Date.now() / 1000 } : item;
   const message = record.message || "";
   const isCommand = record.type === "command";
-  return { t: formatUnixTime(record.time), msg: message, color: consoleColor(message, isCommand), isCommand, time: record.time || 0 };
+  // 1.153.0: a live line (a plain string) has only the phone's clock, which says nothing about the Raspberry's: it is told apart by a number
+  const live = typeof item === "string";
+  return { t: formatUnixTime(record.time), msg: message, color: consoleColor(message, isCommand), isCommand, time: live ? 0 : record.time || 0, seq: live ? ++consoleEchoSeq : undefined };
 }
 
 /** Temperature reports ("ok B:60 /60 T0:200 /200", M105 answers...) are noise. */
@@ -17714,6 +17752,16 @@ const consoleViewStore = (() => {
       const newest = entries.reduce((max, entry) => Math.max(max, entry.time || 0), view.clearedAt);
       view = { ...view, clearedAt: newest, clearedSeq: consoleEchoSeq };
       emit();
+      // 1.153.0: the live lines have no time of the Raspberry's: its newest line is what «cleared» means for the next read
+      fetchJson("/server/gcode_store?count=1")
+        .then((json) => {
+          const last = (((json && json.result) || {}).gcode_store || []).slice(-1)[0];
+          if (last && last.time > view.clearedAt) {
+            view = { ...view, clearedAt: last.time };
+            emit();
+          }
+        })
+        .catch(() => {});
     },
   };
 })();
@@ -19065,14 +19113,17 @@ function FilesSectionSwitch({ section }) {
   return h("div", { className: "oui-segmented files-section-switch has-three", role: "group", "aria-label": tx("Files") }, option("files", tx("Print files")), option("history", tx("History")), option("timelapse", "Timelapse"));
 }
 
-/** Whether Moonraker has the timelapse component (moonraker-timelapse), asked once: null until known. */
+/** Whether Moonraker has the timelapse component (moonraker-timelapse), asked again when Klipper is back: null until known. */
 function useHasTimelapse() {
   const [has, setHas] = useState(null);
   useEffect(() => {
     let cancelled = false;
-    moonrakerComponents().then((components) => !cancelled && setHas(components.has("timelapse")));
+    const ask = () => moonrakerComponents().then((components) => !cancelled && setHas(components.has("timelapse")));
+    ask();
+    const off = onKlipperReady(ask); // 1.153.0: Klipper back after a restart: the add-on may be there now
     return () => {
       cancelled = true;
+      off();
     };
   }, []);
   return has;
@@ -22559,7 +22610,7 @@ function GcodeViewer({ path, onClose }) {
 
   const layerInfo = model && model.layers[current];
   const toggleKind = (id) => setHidden((list) => (list.includes(id) ? list.filter((one) => one !== id) : list.concat(id)));
-  const present = model ? GCODE_KINDS.filter((kind, index) => model.segments.kinds.some((value) => value === index)) : [];
+  const present = useMemo(() => (model ? GCODE_KINDS.filter((kind, index) => model.segments.kinds.some((value) => value === index)) : []), [model]); // 1.153.0: not on every pan
   return h(
     "div",
     { className: "screen screen--viewer gcode-viewer", role: "dialog", "aria-label": tx("Layers of {name}", { name }) },
@@ -26280,7 +26331,7 @@ const updateSocket = {
       socket.send(JSON.stringify({ jsonrpc: "2.0", method, params, id }));
       setTimeout(() => {
         socket.removeEventListener("message", onMessage);
-        reject(new Error("WS timeout"));
+        reject(new Error("WS call timeout"));
       }, WS_CALL_TIMEOUT_MS);
     });
   },
@@ -26312,7 +26363,10 @@ const isBusyError = (error) => error.message.toLowerCase().includes("busy") || e
 async function startUpgrade(name) {
   try {
     return await updateSocket.call("machine.update.upgrade", name ? { name } : {});
-  } catch (error) {}
+  } catch (error) {
+    // 1.153.0: Moonraker answers the call only when it has finished: no answer in time is an update still running, not a refusal
+    if (error.message === "WS call timeout") return { timedOut: true };
+  }
   const attempts = [{ url: "/machine/update/upgrade", body: name ? { name } : {} }];
   if (!name) attempts.push({ url: "/machine/update/full", body: null });
   let lastError = null;
@@ -31257,7 +31311,7 @@ function AppBlock({ app, installed }) {
   if (app.state === "down") return h(AppStatus, { tone: "warn" }, tx("The KlippEye service does not answer: cannot know whether there is an app."));
   const info = app.info;
   if (!info.available) {
-    const none = /nessuna app/i.test(String(info.reason));
+    const none = info.none === true; // 1.153.0: a flag, not the words of the reason (the backend translates them)
     return h(
       React.Fragment,
       null,

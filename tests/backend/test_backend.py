@@ -2847,6 +2847,9 @@ check("1.100: the outputs that may be lights, with the effects drawn on them", [
 _found = _pl.resolve({"configured": False}, _outs, _pl.macros_from(_cf), {"STOP_LED_EFFECTS": ""})
 check("1.100: as the dashboard: the LUCI macros (read on the LED of the same name), the pin named as a light; not the buzzer",
       [(l["id"], l["on"], l["object"]["object"] if l["object"] else None) for l in _found] == [("m-luci-on", "LUCI_ON", "neopixel LUCI"), ("o-output-pin-case-light", "SET_PIN PIN=case_light VALUE=1", "output_pin case_light")], _found)
+_odd = _pl.outputs_from(["output_pin chamber_heater_relay", "output_pin psu_enabled", "output_pin caselight", "pca9632 status", "output_pin case_fan"], {})
+check("1.153.0: pins that are not lights (a relay, «psu_enabled», a case fan) are not lights; «caselight» and a pca9632 are",
+      [l["object"]["object"] for l in _pl.resolve({"configured": False}, _odd, [], {})] == ["output_pin caselight", "pca9632 status"], _pl.detect(_odd, []))
 _mine = _pl.resolve({"configured": True, "items": [{"id": "x", "name": "Strip", "mode": "object", "object": "neopixel LUCI"}, {"id": "y", "mode": "gcode", "onGcode": "", "offGcode": "M5"}]}, _outs, [], {"STOP_LED_EFFECTS": ""})
 check("1.100: the person's list: a LED switched with SET_LED (its effects stopped first); a light without both commands left out",
       len(_mine) == 1 and _mine[0]["off"].startswith('STOP_LED_EFFECTS LEDS="neopixel:LUCI"') and "SET_LED LED=LUCI RED=0" in _mine[0]["off"], _mine)

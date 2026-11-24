@@ -3549,7 +3549,7 @@ def read_apk_info():
     try:
         info_stat, apk_stat = os.stat(APK_INFO_PATH), os.stat(APK_PATH)
     except OSError:
-        return {"available": False, "reason": btn("no app published")}
+        return {"available": False, "none": True, "reason": btn("no app published")}
     key = (info_stat.st_mtime_ns, info_stat.st_size, apk_stat.st_mtime_ns, apk_stat.st_size)
     with _apk_lock:
         if _apk_cache["key"] == key:

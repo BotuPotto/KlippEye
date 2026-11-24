@@ -1,5 +1,30 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.153.0
+
+Small fixes in the dashboard.
+
+- The phone's back button and Escape now close a confirmation (save config, cancel print and the others). Before, back did
+  nothing visible and the box stayed open.
+- The list of Moonraker's add-ons is read again when Klipper is back after a restart. The Timelapse section updates by
+  itself; the queue, power devices and Spoolman look again the next time they open. Before, an add-on installed while the
+  page was open showed up only after a reload.
+- A pin called `chamber_heater_relay`, `psu_enabled` or a case fan is no longer offered as a light, here and in Home Assistant, so
+  a tap or an automation cannot switch a relay by mistake. Names are matched as whole words («led», «lamp», «luci») and
+  «light» anywhere, so `caselight` still works.
+- A `pca9533` or `pca9632` LED output is now found as a light. The settings used to drop it because its name has digits.
+- «Clear console» no longer depends on the phone's clock. With the clock a few minutes off, new lines stayed hidden after
+  the clear or cleared lines came back.
+- A file sliced again under the same name shows its new time, layers and picture when the next print starts. Before, the
+  old figures stayed until the page was reloaded.
+- When a camera photo never arrives (a connection that stalls), the camera asks for a new one after 8 seconds and says it is not
+  answering. Before, the picture froze and looked live.
+- An update that Moonraker answers late (more than 12 seconds) is no longer asked again and shown as «Failed» while it is
+  running. The dialog goes on to wait for it to finish.
+- The G-code viewer does not scan every segment again at each move of the finger, so panning a big file is smoother.
+- Settings → Updates → Android app: a Raspberry with no app published now says «There is no app on the Raspberry yet».
+  Outside Italian it showed «not complete» with an error.
+
 ## 1.152.0
 
 Home Assistant / MQTT and the local model's levels.
