@@ -445,6 +445,9 @@ Network checks, always on: KlippEye answers only when called by an IP address, t
 name (`.local`, `.lan`…), and refuses commands that come from pages of other websites. To use a name of your own, for
 example with your own domain: `klippeye access host-add printer.example.com`.
 
+With a password on, a slicer cannot send files to KlippEye: its connection test fails too, so you see it at once. Upload
+from the dashboard, or leave the password off on a network you trust.
+
 The password protects KlippEye only. Moonraker (port 7125) and the other interfaces of the printer have their own
 settings, and the traffic on your home network is not encrypted, which is one more reason to use a VPN from outside.
 

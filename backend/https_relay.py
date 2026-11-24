@@ -3,8 +3,8 @@
 The KlippEye service answers on http://<raspberry>:8085. When HTTPS is switched on, this file also listens on
 https://<raspberry>:8443: each connection is decrypted here and handed to the service on 8085, with two headers that
 say who is on the other side (X-Forwarded-For) and that the connection was encrypted (X-Forwarded-Proto: https);
-the service trusts them only from this relay (waitress' trusted_proxy, 127.0.0.1). WebSocket upgrades and long
-answers (the camera's stream) pass through as they are.
+the service trusts them only from this relay (waitress' trusted_proxy, 127.0.0.1). Long answers (the camera's
+stream) pass through as they are.
 
 The certificate is made on the Raspberry (openssl, an EC P-256 key, ten years) for its names and addresses: no
 authority signed it, so a browser warns the first time and has to be told to trust it. Its SHA-256 fingerprint is
@@ -79,22 +79,14 @@ def ensure_certificate(folder, names=None, addresses=None):
 
 
 def forward_head(head, client_ip):
-    """The request head as it goes to the service: the client's X-Forwarded-* removed and ours added; one request per
-    connection (Connection: close) unless it is a WebSocket upgrade."""
+    """The request head as it goes to the service: the client's X-Forwarded-* removed and ours added; always one request
+    per connection (Connection: close). 1.147.0: only the first head of a connection is rewritten, so a later request
+    must never share the connection (the service has no WebSocket, so no upgrade is needed either)."""
     lines = head.split(b"\r\n")
     request_line, headers = lines[0], [line for line in lines[1:] if line]
-    upgrade = any(line.lower().startswith(b"upgrade:") for line in headers)
-    kept = []
-    for line in headers:
-        name = line.split(b":", 1)[0].strip().lower()
-        if name in (b"x-forwarded-for", b"x-forwarded-proto", b"x-forwarded-host", b"forwarded"):
-            continue
-        if name in (b"connection", b"keep-alive") and not upgrade:
-            continue
-        kept.append(line)
-    if not upgrade:
-        kept.append(b"Connection: close")
-    kept += [b"X-Forwarded-For: " + client_ip.encode(), b"X-Forwarded-Proto: https"]
+    kept = [line for line in headers if line.split(b":", 1)[0].strip().lower()
+            not in (b"x-forwarded-for", b"x-forwarded-proto", b"x-forwarded-host", b"forwarded", b"connection", b"keep-alive")]
+    kept += [b"Connection: close", b"X-Forwarded-For: " + client_ip.encode(), b"X-Forwarded-Proto: https"]
     return b"\r\n".join([request_line] + kept) + b"\r\n\r\n"
 
 

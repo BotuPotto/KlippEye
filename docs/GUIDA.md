@@ -453,6 +453,9 @@ I controlli di rete sono sempre attivi: KlippEye risponde solo se chiamata con u
 nome della rete di casa (`.local`, `.lan`…), e rifiuta i comandi che arrivano da pagine di altri siti. Per usare un nome tuo,
 per esempio con un tuo dominio: `klippeye access host-add stampante.esempio.it`.
 
+Con la password attiva uno slicer non può mandare file a KlippEye: anche la prova di connessione fallisce, così te ne
+accorgi subito. Carica i file dalla dashboard, oppure lascia la password spenta in una rete di cui ti fidi.
+
 La password protegge solo KlippEye. Moonraker (porta 7125) e le altre interfacce della stampante hanno le loro impostazioni,
 e il traffico nella rete di casa non è cifrato: un motivo in più per usare una VPN da fuori.
 
