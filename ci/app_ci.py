@@ -144,12 +144,12 @@ def keytool(arguments, password):
 def check_password(password):
     if not password:
         raise CiError("The secret %s is missing: on GitHub go to Settings → Secrets and variables → Actions → New repository secret, "
-                      "call it %s and write a long sentence as its value (see %s)." % (PASSWORD_SECRET, PASSWORD_SECRET, GUIDE))
+                      "call it %s and write a long random password as its value, for example the output of: openssl rand -base64 24 (see %s)." % (PASSWORD_SECRET, PASSWORD_SECRET, GUIDE))
     if "\n" in password or "\r" in password:
         raise CiError("The password in the secret %s has a line break: write it again on one line." % PASSWORD_SECRET)
     if len(password) < MIN_PASSWORD:
         raise CiError("The password in the secret %s is too short (%d characters): at least %d are needed, because the key is in the repository "
-                      "and only the password protects it. A sentence of four or five words is fine." % (PASSWORD_SECRET, len(password), MIN_PASSWORD))
+                      "and only the password protects it. Use a random one, for example the output of: openssl rand -base64 24" % (PASSWORD_SECRET, len(password), MIN_PASSWORD))
 
 
 def key(p, password):

@@ -64,7 +64,7 @@ To build your own app from a fork (GitHub builds it for free in a public reposit
 1. Fork the repository on GitHub and install KlippEye from your fork (`git clone https://github.com/<you>/KlippEye.git ~/klippeye`).
 2. Signing key password. Android updates an app only if it is signed with the same key. GitHub creates the key the first time and
    encrypts it with a password you choose: in your repository go to **Settings → Secrets and variables → Actions → New repository
-   secret**, name **`KLIPPEYE_CHIAVE_PASSWORD`**, value a long sentence (at least 16 characters, on one line). Keep it somewhere safe.
+   secret**, name **`KLIPPEYE_CHIAVE_PASSWORD`**, value a long random password (at least 16 characters, on one line; for example the output of `openssl rand -base64 24`). Keep it somewhere safe.
 3. **Settings → Actions → General → Workflow permissions → Read and write permissions**, so that the workflow can save the app in `apk/`.
 4. **Actions → Android app → Run workflow.** After 5 to 10 minutes the app is in `apk/`. Update KlippEye from the dashboard and install
    the app from *Settings → Updates → Android app* (uninstall first an app signed with a different key).
@@ -82,8 +82,27 @@ it must not be committed (it is in `.gitignore`): GitHub's APK uses the secret `
 Android installs an update only when it is signed with the **same key** as the app it replaces. The key of GitHub's app is
 `chiave/klippeye.p12` (PKCS12, alias `klippeye`, RSA 4096, valid 100 years): the workflow makes it the first time and **encrypts it with the
 password** in the secret `KLIPPEYE_CHIAVE_PASSWORD` (at least 16 characters). The file is in the (public) repository because every build
-needs it: the password is what protects it, so it must be a long sentence and must never be written in the repository. The folder and the
-secret keep their first names: renaming them would break the repositories that already build the app.
+needs it: the password is what protects it, so it must be long and random and must never be written in the repository. The folder and the
+secret keep their first names: renaming them would break the repositories that already build the app. The workflow gives the password only
+to the steps that use it (the one that checks the key and the one that builds), and its third-party actions are pinned to a commit.
+
+**The limit of this setup.** Anyone can download the encrypted file, from the repository or from its history, and try passwords on it at
+home. A random password of 24 characters or more makes that hopeless; a sentence a person can remember does not. A password found
+would let its owner sign an update that phones accept, though the APK still has to reach the phone through the Raspberry.
+
+**Moving the key into a GitHub secret** is the owner's decision. It is not done in the code, and it needs secrets only he has. Two ways:
+
+1. *Keep the key, change its password.* On a trusted computer, copy `android/chiave/klippeye.p12` and run
+   `keytool -importkeystore -srckeystore klippeye.p12 -destkeystore new.p12 -srcstoretype PKCS12 -deststoretype PKCS12 -srcalias klippeye -destalias klippeye`
+   (the old password, then a new random one, the same for the store and the key). Put `new.p12` in `android/chiave/klippeye.p12` and
+   write the new password in the secret `KLIPPEYE_CHIAVE_PASSWORD`. Phones keep updating. It does not help against someone who already
+   has the old file: it stays in the history with its old password.
+2. *A new key that is never in the repository.* Make it with
+   `keytool -genkeypair -keystore klippeye.p12 -storetype PKCS12 -alias klippeye -keyalg RSA -keysize 4096 -validity 36500`
+   (a random password, the same for the store and the key). Keep the file and the password in a password manager, delete
+   `android/chiave/klippeye.p12` from the repository, and change `.github/workflows/app.yml` and `ci/app_ci.py` to write the file from a
+   secret (`base64 -w0 klippeye.p12` pasted into it) instead of making and committing it. Every installed app must then be uninstalled and
+   installed again, once, and the first run needs «new_key».
 
 * The workflow refuses to publish an APK signed with a key **different** from the published app's (the phones could not update): to
   really change key, delete `chiave/klippeye.p12` and start the workflow by hand with «new_key». The installed apps must then be
@@ -103,6 +122,11 @@ The bridge the app gives the page (`window.KlippEyeApp`):
 | `window.klippeyeAppUpdate({stato, ...})` | the answer, called by the app: `scarico` (downloading, `fatto` and `totale` in bytes), `permesso` (waiting for the permission), `installazione` (installer open), `errore` (`messaggio`, in the phone's language) |
 
 The names of the bridge (calls, fields, values) are shared with every dashboard version, old and new: they never change.
+
+From app 1.9.0 every call is refused (it answers `refused` or `{}`) unless the window's page has the origin of the address the app
+connected to: same scheme, host and port. A redirect or a link that leaves the dashboard no longer keeps the bridge working. Android gives the
+bridge to every frame and does not say which one calls, so a page in a frame inside the dashboard (the «Web page» camera) is not told apart;
+that needs `addWebMessageListener` from `androidx.webkit` and a new bridge protocol, and is not done.
 
 What the app checks **before** installing (`AppUpdate.kt`, tested by `AppUpdateTest`):
 
@@ -129,8 +153,11 @@ dashboard's Settings menu, which passes them to the app with `setAddresses`. `se
 172.16-31.x, 192.168.x, 100.64-127.x, `.local`/`.lan` names...): a page shown in a frame of the dashboard (the «Web page» camera) must
 not be able to send the app to an outside site.
 
-For each address the app looks for KlippEye in this order: `https://address/` (only when it knows the Raspberry's certificate),
-`http://address/` (without a port: KlippEye 1.94 with nginx) and `http://address:8085/`, which is always there. An address counts only
+For each address the app looks for KlippEye in this order: `https://address/` and nothing else when it knows the Raspberry's certificate
+(app 1.9.0: an http answer at a pinned address is not the Raspberry); otherwise `http://address/` (without a port: KlippEye 1.94 with nginx)
+and `http://address:8085/`, which is always there. If HTTPS is switched off on the Raspberry while the app has its certificate, the app does not
+fall back to http by itself: saving the addresses in the app's «Addresses» window forgets the certificates, and the dashboard gives it again
+over http if HTTPS is still on. An address counts only
 when `api/auth/status` answers as KlippEye (a JSON with `enabled`): another page may be at the address without a port. The other
 printers without a written port are looked for the same way.
 
@@ -139,7 +166,7 @@ printers without a written port are looked for the same way.
 KlippEye's HTTPS certificate (1.93) is made by the Raspberry and no authority signs it. The dashboard, as soon as it opens in the app,
 passes the certificate's SHA-256 fingerprint with `setCertificate` ("" when HTTPS is off); the app remembers it for that address and from
 then on opens the dashboard over https accepting **only** that certificate: in the WebView (`onReceivedSslError`), for downloaded files and
-for the app's update. Another certificate is refused and the app falls back to http.
+for the app's update. Another certificate is refused.
 
 ## Links and the back key
 

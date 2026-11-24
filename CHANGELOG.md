@@ -1,5 +1,24 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.151.0
+
+Android app 1.9.0. Update it from Settings → Updates → Android app once KlippEye is updated. The printer's program is unchanged.
+
+- The app's link with the dashboard answers only to the dashboard's own page. Before, any page the window ended up on after a
+  redirect or a link could change the addresses, the notification server or the saved certificate, start downloads and
+  start an app update. Now every call is refused unless the page has the same scheme, address and port the app connected to.
+  A web page shown in a frame inside the dashboard (the «Web page» camera) is still not told apart: Android does not say
+  which frame calls.
+- A Raspberry whose HTTPS certificate the app knows is now looked for over https only. Before, the app also tried http, so
+  someone on the network who blocked port 443 and answered on http was accepted, with the bridge. If you later switch HTTPS
+  off on the Raspberry, open the app's «Addresses» window and save: it forgets the certificate and finds the Raspberry over http.
+- The app's workflow gives the signing password only to the steps that need it, and its third-party actions are pinned to a
+  commit. Before, every step of the build, including those that run other people's code, could read it.
+- The signing password advice is now «a random password» (`openssl rand -base64 24`), not «a sentence». The key and the
+  way the app is signed are the same, so phones keep updating. `android/README.md` says what moving the key into a GitHub
+  secret would take; that is a choice for the owner.
+- The old app's key `android/chiave/vzbot.p12` is removed from the repository, with its secret name in the workflow.
+
 ## 1.150.0
 
 The tools that train the local model no longer depend on someone remembering which prints are for measuring. The
