@@ -34,6 +34,7 @@ step "no fixed home folders" python3 "$HERE/test_no_fixed_paths.py"
 step "backend" python3 "$HERE/backend/test_backend.py" $QUICK
 step "backend: AI services" python3 "$HERE/backend/test_ai_services.py"
 step "backend: more printers" python3 "$HERE/backend/test_printers_peek.py"
+step "backend: access and network" python3 "$HERE/backend/test_access_network.py"
 step "backend: scheduled prints" python3 "$HERE/backend/test_print_schedule.py"
 step "backend: the local model's personal layer" python3 "$HERE/backend/test_personal_layer.py"
 step "backend: the macro catalogue" python3 "$HERE/backend/test_macro_catalog.py"

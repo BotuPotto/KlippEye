@@ -2610,8 +2610,6 @@ _ctx = _ssl.create_default_context(cafile=_cert)
 _ans = json.loads(_ur.urlopen(_ur.Request("https://127.0.0.1:%d/a?b=1" % _hport, headers={"X-Forwarded-For": "6.6.6.6", "X-Forwarded-Proto": "http"}), context=_ctx).read())
 check("1.93: through the relay: the request as it was, the client's X-Forwarded-* replaced by the relay's, one request per connection",
       _ans == {"path": "/a?b=1", "xff": ["127.0.0.1"], "proto": "https", "connection": "close"}, _ans)
-check("1.93: an upgrade keeps its Connection header", b"Connection: Upgrade" in _hr.forward_head(b"GET /websocket HTTP/1.1\r\nHost: x\r\nUpgrade: websocket\r\nConnection: Upgrade", "1.2.3.4")
-      and b"Connection: close" not in _hr.forward_head(b"GET /websocket HTTP/1.1\r\nUpgrade: websocket\r\nConnection: Upgrade", "1.2.3.4"))
 _relay.stop()
 _closed = False
 try:
@@ -2683,8 +2681,8 @@ check("1.94: «main»: the page on port 80 moved to the next free port (81 is ta
 check("1.94: KlippEye's site: the camera as the previous page had it, Moonraker's WebSocket and uploads straight to Moonraker, the rest to the service",
       "proxy_pass http://mjpgstreamer1/;" in _ks and "location /websocket" in _ks and "location = /server/files/upload" in _ks and "location /api/files/" in _ks
       and "proxy_pass http://127.0.0.1:8085;" in _ks and "X-Forwarded-Proto $scheme" in _ks and "listen 443" not in _ks)
-check("1.133.1: ... nginx asks KlippEye before the WebSocket and the two upload paths (password, guests)",
-      _ks.count("auth_request /_klippeye_auth;") == 3 and "location = /_klippeye_auth" in _ks and "proxy_pass http://127.0.0.1:8085/api/auth/check;" in _ks, _ks[:600])
+check("1.133.1: ... nginx asks KlippEye before the WebSocket, the two upload paths and (1.147.0) the camera (password, guests)",
+      _ks.count("auth_request /_klippeye_auth;") == 4 and "location = /_klippeye_auth" in _ks and "proxy_pass http://127.0.0.1:8085/api/auth/check;" in _ks, _ks[:600])
 _r2 = _web("main", "--https", os.path.join(_ng, "c.pem"), os.path.join(_ng, "k.pem")) if not _nginx else None
 if _nginx:  # the real nginx checks the certificate files: a real one
     _hc_cert, _hc_key = _hr.ensure_certificate(os.path.join(_ng, "cert"), names=["printer"], addresses=[])

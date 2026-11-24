@@ -1,5 +1,26 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.147.0
+
+Access and network: the password stays on, and port 80 is as closed as port 8085.
+
+- A failed read of the access file (a tired SD card, a permission glitch) used to switch the password off and save that.
+  It now keeps the password and refuses requests until the file can be read.
+- With KlippEye on port 80, a page on another website could post a G-code file to the printer when no password was set.
+  nginx now tells KlippEye the real method and address of each request, and KlippEye checks those.
+- With a password on, the camera on port 80 was open to everyone. It now asks like the rest. Guests can still watch it.
+- An unknown camera address on port 80 (`/webcam9/`) made KlippEye call itself over and over and froze the dashboard for
+  seconds. It now answers at once with an error.
+- File names with `#` or `?` now open, print and delete the right file. A delete could hit a different file before.
+- Wrong passwords sent at the same moment were checked together. Each try is now counted before it is checked.
+- Through the HTTPS entrance, a client could set its own address for the second request on a connection, and so guess
+  passwords without the wait. Each connection now carries one request.
+- With a password on, a slicer's connection test used to pass and every upload then failed. The test now fails too.
+- «Log out all the other devices» could send the device that asked to the login page: its requests already on their way
+  were refused. That device now keeps working for 15 seconds with its old cookie. The others are out at once.
+
+If KlippEye is on port 80, run `klippeye web main` again so the new nginx file is written.
+
 ## 1.146.0
 
 The config editor no longer writes over a newer file.

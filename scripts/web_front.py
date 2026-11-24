@@ -98,7 +98,10 @@ def site_text(cameras, https=None):
         tls = ("    listen 443 ssl default_server;\n    listen [::]:443 ssl default_server;\n"
                "    ssl_certificate %s;\n    ssl_certificate_key %s;\n    ssl_protocols TLSv1.2 TLSv1.3;\n"
                "    ssl_session_cache shared:klippeye:1m;\n    ssl_session_timeout 1d;\n") % https
-    camera = "\n\n".join(cameras) if cameras else "    location /webcam/ {\n        proxy_pass http://127.0.0.1:8080/;\n    }"
+    # 1.147.0: the camera is behind the password too (a copied block had no check of its own; one copied from an earlier
+    # KlippEye site already has it and keeps its one)
+    cameras = cameras or ["    location /webcam/ {\n        proxy_pass http://127.0.0.1:8080/;\n    }"]
+    camera = "\n\n".join(block if "auth_request" in block else re.sub(r"\{", "{\n        auth_request /_klippeye_auth;", block, count=1) for block in cameras)
     # 1.133.1: these go past the KlippEye service, so nginx asks it first (password, guests look only, other sites)
     to_moonraker = ("        auth_request /_klippeye_auth;\n"
                     "        proxy_pass http://%s;\n        proxy_http_version 1.1;\n        proxy_set_header Host $http_host;\n"
@@ -124,6 +127,8 @@ server {
         proxy_set_header Content-Length "";
         proxy_set_header Host $http_host;
         proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Original-Method $request_method;
+        proxy_set_header X-Original-URI $request_uri;
     }
 
     # Moonraker's WebSocket (the console and the notifications, live)

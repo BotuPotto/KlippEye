@@ -427,7 +427,9 @@ def _access_settings():
         return ACCESS.load()
     except Exception as e:
         print("[ACCESS] cannot read %s: %s" % (ACCESS.path, e))
-        return access.default_settings()
+        # 1.147.0: a failed read says nothing about the password, so nobody gets in (the services on the Raspberry still do)
+        # until the file can be read again; the defaults (no password) would open the dashboard
+        return dict(access.default_settings(), enabled=True)
 
 
 def _is_internal():
@@ -440,11 +442,36 @@ def _is_internal():
         return False
 
 
+LOGOUT_GRACE_S = 15
+_LOGOUT_GRACE = {}   # sha256 of the cookie of the device that logged the others out -> until when it still counts
+
+
+def _cookie_role(settings):
+    """The role of the session cookie. 1.147.0: the device that asked «log out the others» keeps its old cookie for a few
+    seconds, so its requests already on their way (with the old cookie) are not sent to the login page."""
+    cookie = request.cookies.get(access.COOKIE_NAME)
+    role = access.token_role(settings, cookie)
+    if role is None and cookie and _LOGOUT_GRACE.get(hashlib.sha256(cookie.encode()).hexdigest(), 0) > time.time():
+        return "admin"
+    return role
+
+
 def _role(settings):
     """Who is asking: "admin" (no password, the services on the Raspberry, the main password), "guest" (1.82) or None."""
     if not settings.get("enabled") or _is_internal():
         return "admin"
-    return access.token_role(settings, request.cookies.get(access.COOKIE_NAME))
+    return _cookie_role(settings)
+
+
+def _asked():
+    """(method, path, query) of the request. Behind nginx's auth_request (scripts/web_front.py) the request is always a GET
+    of /api/auth/check; the real method and address are in X-Original-Method and X-Original-URI, which nginx sets itself
+    (1.147.0). A client that sends them to port 8085 only gets a 204 that nobody uses."""
+    original = request.headers.get("X-Original-URI")
+    if request.path == "/api/auth/check" and original:
+        parts = urllib.parse.urlsplit(original)
+        return request.headers.get("X-Original-Method", "GET").upper(), urllib.parse.unquote(parts.path), dict(urllib.parse.parse_qsl(parts.query))
+    return request.method, request.path, request.args
 
 
 def _logged_in(settings):
@@ -464,23 +491,24 @@ def _refuse(status, code, message):
 def _access_guard():
     settings = _access_settings()
     internal = _is_internal()
+    method, path, args = _asked()
     if settings.get("network_checks", True) and not internal:
         if not access.host_allowed(request.host, settings.get("allowed_hosts")):
             return _refuse(403, "host", _text("host", host=access.split_host(request.host)))
         origin = request.headers.get("Origin")
-        if request.method not in ("GET", "HEAD", "OPTIONS") and origin and origin not in _CORS_ORIGINS and not access.origin_matches(origin, request.host):
+        if method not in ("GET", "HEAD", "OPTIONS") and origin and origin not in _CORS_ORIGINS and not access.origin_matches(origin, request.host):
             return _refuse(403, "origin", _text("origin_cmd", origin=origin[:80]))
-        if request.headers.get("Sec-Fetch-Site") == "cross-site" and not request.path.startswith(ACCESS_CROSS_SITE_OK):
-            navigation = request.method == "GET" and request.headers.get("Sec-Fetch-Mode") == "navigate"
+        if request.headers.get("Sec-Fetch-Site") == "cross-site" and not path.startswith(ACCESS_CROSS_SITE_OK):
+            navigation = method == "GET" and request.headers.get("Sec-Fetch-Mode") == "navigate"
             if not navigation:
                 return _refuse(403, "origin", _text("origin_read"))
-    if not settings.get("enabled") or internal or request.path in ACCESS_PUBLIC or (request.path == "/api/version" and request.method == "GET" and slicer_client()):
+    if not settings.get("enabled") or internal or request.path in ACCESS_PUBLIC:
         return None
-    role = access.token_role(settings, request.cookies.get(access.COOKIE_NAME))
+    role = _cookie_role(settings)
     if role == "admin":
         return None
     if role == "guest":  # 1.82: look, never command
-        return None if access.guest_may(request.method, request.path, request.args) else _refuse(403, "guest", _text("guest"))
+        return None if access.guest_may(method, path, args) else _refuse(403, "guest", _text("guest"))
     if request.method == "GET" and request.path == "/":
         return redirect("/login", code=303)
     return _refuse(401, "login", _text("login"))
@@ -496,7 +524,7 @@ def _check_password_or_wait(settings, password, allow_guest=False):
     """(ok, error response or None); with `allow_guest` (logging in) ok is the role: "admin" or "guest" (1.82).
     Slows down whoever tries passwords in a row."""
     ip = request.remote_addr or "?"  # the browser's own address also behind the HTTPS entrance or nginx (serve_forever)
-    wait = ACCESS_THROTTLE.wait_seconds(ip)
+    wait = ACCESS_THROTTLE.begin(ip)   # 1.147.0: the try is counted before it is checked
     if wait > 0:
         return False, _refuse(429, "wait", _text("wait", seconds=wait))
     if access.verify_password(settings, password):
@@ -505,7 +533,6 @@ def _check_password_or_wait(settings, password, allow_guest=False):
     if allow_guest and access.verify_guest_password(settings, password):
         ACCESS_THROTTLE.ok(ip)
         return "guest", None
-    ACCESS_THROTTLE.failed(ip)
     return False, _refuse(401, "password", _text("password"))
 
 
@@ -659,6 +686,12 @@ def access_check():
 @app.route("/api/auth/logout_all", methods=["POST"])
 def access_logout_all():
     settings = _access_settings()
+    cookie = request.cookies.get(access.COOKIE_NAME)
+    if cookie and LOGOUT_GRACE_S > 0 and _cookie_role(settings) == "admin":   # 1.147.0: see _cookie_role
+        now = time.time()
+        for known in [k for k, until in _LOGOUT_GRACE.items() if until < now]:
+            del _LOGOUT_GRACE[known]
+        _LOGOUT_GRACE[hashlib.sha256(cookie.encode()).hexdigest()] = now + LOGOUT_GRACE_S
     settings["generation"] = int(settings.get("generation") or 1) + 1
     ACCESS.save(settings)
     response = jsonify({"ok": True})
@@ -1136,7 +1169,7 @@ class SizedBody:
 
 def proxy_moonraker(path):
     """The request, as it is, to Moonraker. Our own session cookie and internal token are not passed on."""
-    url = "%s/%s" % (MOONRAKER_URL, path)
+    url = "%s/%s" % (MOONRAKER_URL, urllib.parse.quote(path, safe="/"))   # 1.147.0: a # or ? in a file name is part of the name
     if request.query_string:
         url += "?" + request.query_string.decode()
     headers = {name: value for name, value in request.headers if name.lower() not in PROXY_REQUEST_SKIP}
@@ -1295,19 +1328,25 @@ def moonraker_proxy(path=""):
 # The camera, through KlippEye too: /webcam/, /webcam and /webcam/<path> (the stream is sent on as it arrives).
 # 1.134.1: also /webcam2, /webcam3… (the printer's other cameras), and POST: a camera's WebRTC page, shown from the
 # dashboard's own address, starts its stream with POST requests to the same address.
+CAMERA_HOP = "X-KlippEye-Hop"
+
+
 @app.route("/webcam/", methods=["GET", "POST"])
 @app.route("/webcam", methods=["GET", "POST"])
 @app.route("/webcam/<path:path>", methods=["GET", "POST"])
 @app.route("/webcam<int:number>/", methods=["GET", "POST"])
 @app.route("/webcam<int:number>/<path:path>", methods=["GET", "POST"])
 def webcam_proxy(path="", number=None):
+    # 1.147.0: on port 80 an address nginx has no camera for comes back to KlippEye: the mark says it came from here
+    if request.headers.get(CAMERA_HOP):
+        return jsonify({"error": "no camera at this address"}), 502
     url = "%s%s/%s" % (CAMERA_NGINX_URL, "" if number is None else number, path)
     if request.query_string:
         url += "?" + request.query_string.decode()
     try:
         if request.method == "POST":
-            return relay(requests.post(url, data=request.get_data(), headers={"Content-Type": request.content_type or "application/json"}, timeout=15, stream=True))
-        return relay(requests.get(url, timeout=15, stream=True))
+            return relay(requests.post(url, data=request.get_data(), headers={"Content-Type": request.content_type or "application/json", CAMERA_HOP: "1"}, timeout=15, stream=True))
+        return relay(requests.get(url, headers={CAMERA_HOP: "1"}, timeout=15, stream=True))
     except requests.RequestException as error:
         return jsonify({"error": str(error)}), 502
 

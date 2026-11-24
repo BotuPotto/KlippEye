@@ -78,34 +78,45 @@ class Store:
         try:
             st = os.stat(self.path)
             return (st.st_mtime_ns, st.st_size, st.st_ino)
-        except OSError:
-            return None
+        except FileNotFoundError:
+            return None   # no file yet: a first start. Any other error is a failed read, not a missing file (it raises)
 
     def load(self):
+        """The settings. A read that fails (OSError: a tired SD card, a permission glitch) never turns the password off:
+        the copy in memory is kept, or the error is raised when there is none. Only a file that is really broken (not
+        JSON) or missing starts again from the defaults."""
         with self.lock:
-            stamp = self._signature()
-            if self._cache is not None and stamp == self._stamp:
+            try:
+                return self._load()
+            except OSError:
+                if self._cache is None:
+                    raise
                 return dict(self._cache)
-            data = default_settings()
-            fresh = stamp is None
-            if not fresh:
-                try:
-                    with open(self.path, encoding="utf-8") as f:
-                        saved = json.load(f)
-                    if isinstance(saved, dict):
-                        data.update({k: v for k, v in saved.items() if k in data})
-                except (OSError, ValueError):
-                    fresh = True   # damaged (e.g. power loss): start again without a password rather than locking the owner out
-            if not isinstance(data.get("allowed_hosts"), list):
-                data["allowed_hosts"] = []
-            if not data.get("secret"):
-                data["secret"] = secrets.token_hex(32)
-                fresh = True
-            if fresh:
-                self._save(data)
-                stamp = self._signature()
-            self._cache, self._stamp = dict(data), stamp
-            return dict(data)
+
+    def _load(self):
+        stamp = self._signature()
+        if self._cache is not None and stamp == self._stamp:
+            return dict(self._cache)
+        data = default_settings()
+        fresh = stamp is None
+        if not fresh:
+            try:
+                with open(self.path, encoding="utf-8") as f:
+                    saved = json.load(f)
+                if isinstance(saved, dict):
+                    data.update({k: v for k, v in saved.items() if k in data})
+            except ValueError:
+                fresh = True   # damaged (e.g. power loss): start again without a password rather than locking the owner out
+        if not isinstance(data.get("allowed_hosts"), list):
+            data["allowed_hosts"] = []
+        if not data.get("secret"):
+            data["secret"] = secrets.token_hex(32)
+            fresh = True
+        if fresh:
+            self._save(data)
+            stamp = self._signature()
+        self._cache, self._stamp = dict(data), stamp
+        return dict(data)
 
     def _save(self, data):
         atomic.write_text(self.path, json.dumps(data, indent=2, sort_keys=True) + "\n", private=True)
@@ -205,7 +216,8 @@ def _unb64(text):
 
 def make_token(settings, now=None, role="admin"):
     now = int(now or time.time())
-    data = {"v": 1, "exp": now + TOKEN_DAYS * 86400, "gen": int(settings.get("generation") or 1)}
+    # "n": two logins in the same second are two different tokens (1.147.0: «log out the others» spares only the asking device's)
+    data = {"v": 1, "exp": now + TOKEN_DAYS * 86400, "gen": int(settings.get("generation") or 1), "n": secrets.token_hex(4)}
     if role == "guest":
         data.update({"role": "guest", "ggen": int(settings.get("guest_generation") or 1)})
     body = _b64(json.dumps(data, separators=(",", ":")).encode())
@@ -286,21 +298,20 @@ class Throttle:
         self.lock = threading.Lock()
         self.failures = {}   # ip -> (count, wait until)
 
-    def wait_seconds(self, ip, now=None):
+    def begin(self, ip, now=None):
+        """Seconds this address must wait; 0 when it may try, and the try is counted right now (as a failure, `ok` clears
+        it), so tries made at the same moment cannot all be checked before the wait is set."""
         now = now or time.time()
         with self.lock:
-            until = self.failures.get(ip, (0, 0))[1]
-            return max(0, int(until - now + 0.999))
-
-    def failed(self, ip, now=None):
-        now = now or time.time()
-        with self.lock:
-            count, _ = self.failures.get(ip, (0, 0))
+            count, until = self.failures.get(ip, (0, 0))
+            if until > now:
+                return int(until - now + 0.999)
             count += 1
             wait = 0 if count < 5 else min(300, 2 ** (count - 4))
             self.failures[ip] = (count, now + wait)
             if len(self.failures) > 1000:   # bounded memory
                 self.failures.pop(next(iter(self.failures)))
+            return 0
 
     def ok(self, ip):
         with self.lock:
