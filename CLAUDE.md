@@ -81,8 +81,8 @@ The loop is `LightDetector.loop` in `backend/klippeye_backend.py`: while a **rea
 warm-up seconds, minimum progress, hotend at temperature), one check every `check_interval` (3 s):
 
 1. **Motion detection** (`backend/monitor_core.py`, `FrameJudge.judge`): background = median of 7 pictures over
-   `reference_seconds` (60 s), brightness aligned, «the whole picture changed» (> `global_change`%) ignored up to 10
-   checks; only what changed in **all** the last `persist_checks` checks counts (`_persistent`, a point hidden by the
+   `reference_seconds` (60 s), brightness aligned, «the whole picture changed» (> `global_change`%) ignored until the
+   background has followed it (`global_streak_max`, 13 checks at the defaults, 1.148.0); only what changed in **all** the last `persist_checks` checks counts (`_persistent`, a point hidden by the
    toolhead does not break the chain). With a calibrated camera and known objects it watches the whole bed **outside**
    the expected zone of the part, and the part already printed (half weight) (`_zone_score`, `print_zone.py`);
    otherwise the outer band of the watched rectangle. `trigger_count` suspicious checks in a row → trigger, then rest
@@ -115,7 +115,10 @@ warm-up seconds, minimum progress, hotend at temperature), one check every `chec
    OpenRouter, Meta, Together, Fireworks, any OpenAI-compatible «custom»; backups, per-service quotas/429), prompt `build_ai_prompt` (neutral, says what is and is not a problem, «when in
    doubt CONTINUE», never an empty bed from one picture, JSON only), with the picture of a minute before when allowed.
    A PAUSE/CANCEL is looked at **again** 15 s later on a new picture, by another service when there is one
-   (`confirm_stop`; the local model sure on the new picture can hold it). An unreadable answer is never a stop.
+   (`confirm_stop`; the local model sure on the new picture can hold it). An unreadable answer is never a stop, and
+   it does not end the chain (1.149.0): any failure of one question (`_ask_ai` catches everything) or a reply with no
+   verdict (`parsed` None) moves on to the next service; «answer not readable» is written only when none gave one. The
+   action is read from the first word (`normalize_action`). One analysis at a time (`_ai_busy`: an alarm during one is dropped).
    `apply_min_confidence` and `distrust_empty_bed` can downgrade. A question while the toolhead hides the part is put
    off (`_put_off_when_hidden`, the rest starts when it goes). Results → `record_alert` (alert history with pictures,
    the person marks right/false) and `last_analysis` (read by the notifier and the dashboard).
@@ -123,7 +126,8 @@ warm-up seconds, minimum progress, hotend at temperature), one check every `chec
    fisheye or pinhole with radial distortion, DLT start + Levenberg–Marquardt. Method: only «markers» (the 6 blobs of
    filament or the printed pyramids; the «detail» method was removed in 1.136.0). The camera's moves are watched and corrected (`camera_watch`). **Bed slingers with the camera on the frame
    are refused** (`bed_moves_in_y`, 1.132.3).
-8. **Recordings** (`recorder.py`): small pictures + score of every check, for measuring (`scripts/replay.py`,
+8. **Recordings** (`recorder.py`): small pictures + score of every check, and the purge marks once (`purge.png`, 1.148.0:
+   the replay leaves them out as the live monitor does), for measuring (`scripts/replay.py`,
    `ml/evaluate.py`); size limit `record_max_mb`, oldest deleted first.
 
 ## 3. Rules (always)
@@ -295,8 +299,9 @@ keeps it readable).
   `GET /api/local_model` (about `0.15,0.36,0.70,0.61` on 16 Nov). Current base model **20261118-2036** (1.135.0, threshold 0.90,
   temperature 2.965, levels 80/90; the previous one, 20261116-1408, is in git history). Box `0,0.368,1,0.632`, 9 kept-out
   prints (4 failed, 2.5 h): «monitor» 0 false/h, 1 of 4 (before 10.5/h, 3 of 4); «+ motion» 0/h, 2 of 4 (before
-  4.8/h, 2 of 4). Kept-out recording prefixes, never to train on: 20261113-164121, 20261115-011215, 20261116-160817,
-  20261116-175000, 20261113-144408, 20261114-001218, 20261114-151534, 20261114-232613, 20261118-160816.
+  4.8/h, 2 of 4). Kept-out recording prefixes, never to train on: the list is the file `models/base/kept-out.txt` (1.150.0; `ml/datasets.py
+  --klippeye` skips them): 20261113-164121, 20261115-011215, 20261116-160817, 20261116-175000, 20261113-144408,
+  20261114-001218, 20261114-151534, 20261114-232613, 20261118-160816.
 
 ## 7. Colab (training the base model)
 
@@ -450,8 +455,9 @@ keeps it readable).
   Every Must and Should was reproduced or confirmed by a verifier who did not write it; none dropped.
 - Section 8 of the report: 19 fix PRs in order (dashboard actions that move or restart the printer first). Waiting for
   the owner to choose which groups and in what order. Mark each PR here when it merges.
-- Two questions for the owner in the report: whether the automatic pause should wait for the online second look, and
-  whether the old app's key `android/chiave/vzbot.p12` can go (and its GitHub secret).
+- Two questions for the owner in the report: whether the automatic pause should wait for the online second look (answered
+  24 Nov: only the local model's own verdict is limited, see section 2) and whether the old app's key `android/chiave/vzbot.p12`
+  can go (answered 24 Nov: yes; the file and its references are removed in PR 15, the old GitHub secret is deleted on GitHub).
 - Fixes: plan `docs/superpowers/plans/2026-11-24-audit-fixes.md`, one PR per task. PR 1 (dashboard actions, 1.138.0, test
   `tests/ui/dashboard_actions_test.py`) open as #189, branch `fix-dashboard-actions`.
   PR 2 (calibration: no moves during a print, right Z guess, 1.139.0, test in `tests/backend/test_calibration_auto.py`) open as #190,
@@ -473,6 +479,24 @@ keeps it readable).
   quoted file names, throttle, HTTPS relay one request per connection, slicer test, logout race, 1.147.0, tests in
   `tests/backend/test_access_network.py`) open as #198, branch `fix-access-network`, built on #197 (merge #189 to #197 first, in order).
   After it merges, people on port 80 run `klippeye web main` to get the new nginx file (findings 9 and 43 need it).
+  PR 11 (monitor loop: no crash without a model, photos read with a size and time limit, the status says «no picture from the
+  camera» / «Moonraker does not answer», the global-change streak follows the background, the replay leaves the purge out,
+  1.148.0, tests in `tests/backend/test_monitor_loop.py`) open as #199, branch `fix-monitor-loop`, built on #198 (merge #196 to #198
+  first, in order). Not done: a push message when the monitor is blind (the notifier does not read the status), structure
+  proposals 1 (shared `prepare_check` and `ask_rule`) and 6 (dead code).
+  PR 12 (online AI chain: any failure of one question is a service that did not answer, an unreadable answer tries the backup,
+  the action is read from the first word, one analysis at a time, AI keys saved under one lock, 1.149.0, tests «1.149.0: …» in
+  `tests/backend/test_backend.py`) open as #200, branch `fix-online-ai`, built on #199 (merge #197 to #199 first, in order).
+  PR 13 (training chain: kept-out prints skipped by `ml/datasets.py` from `models/base/kept-out.txt`, a print recorded and answered
+  counts once, licence allow-list, a cut download fetched again, `evaluate.py --trained`, 1.150.0, tests «1.150.0: …» in
+  `ml/tests/test_tools.py`) open as #201, branch `fix-training-chain`, built on #200 (merge #198 to #200 first, in order).
+  PR 15 (Android app 1.9.0: the bridge answers only the dashboard's origin, a pinned certificate means https only, the signing
+  password only on its workflow steps, actions pinned, `vzbot.p12` removed, 1.151.0, tests «1.151.0: …» in `tests/app/app_ci_test.py`
+  and `AddressesTest`) open as #202, branch `fix-android`, built on #201 (merge #198 to #201 first, in order). Not done: a hostile
+  frame inside the dashboard's page (needs `addWebMessageListener`); the signing key is still public, encrypted, and moving it into
+  a secret waits for the owner (`android/README.md`, «Signing»).
+  PR 16 (MQTT says offline when Klipper is down, one MQTT client id per machine, a wrong sure / doubt pair in `monitor.json`
+  put right, 1.152.0, tests in `tests/backend/test_backend.py`) open as #203, branch `fix-mqtt-settings`, built on #202 (merge #198 to #202 first, in order).
 
 ### Owner's notes of 23 Nov (to do, in this order)
 1. Release 1.135.1 (#184): plainer texts, guide, no benchmark of other models. Done when merged.
@@ -495,4 +519,4 @@ keeps it readable).
    writing rules.
 
 ### Open PRs
-#194 (PR 6, 1.143.0, branch `fix-macros-file`), open 24 Nov. #195 (PR 7, 1.144.0, branch `fix-personal-files`), built on #194, open 24 Nov. #196 (PR 8, 1.145.0, branch `fix-settings-sync`), built on #195, open 24 Nov. #197 (PR 9, 1.146.0, branch `fix-config-editor`: the config editor never overwrites newer text), built on #196, open 24 Nov. #189 to #193 (PRs 1 to 5 of the audit fixes, 1.138.0 to 1.142.0) and #188 (the audit report) merged 24 Nov. #198 (PR 10, 1.147.0, branch `fix-access-network`), built on #197, open 24 Nov. Update this line when a PR opens or merges.
+#189 to #196 (PRs 1 to 8 of the audit fixes, 1.138.0 to 1.145.0) and #188 (the audit report) merged 24 Nov. #197 (PR 9, 1.146.0, branch `fix-config-editor`: the config editor never overwrites newer text), open 24 Nov. #198 (PR 10, 1.147.0, branch `fix-access-network`), built on #197, open 24 Nov. #199 (PR 11, 1.148.0, branch `fix-monitor-loop`), built on #198, open 24 Nov. #200 (PR 12, 1.149.0, branch `fix-online-ai`), built on #199, open 24 Nov. #201 (PR 13, 1.150.0, branch `fix-training-chain`), built on #200, open 24 Nov. #202 (PR 15, 1.151.0, branch `fix-android`), built on #201, open 24 Nov. #203 (PR 16, 1.152.0, branch `fix-mqtt-settings`), built on #202, open 24 Nov. Update this line when a PR opens or merges.

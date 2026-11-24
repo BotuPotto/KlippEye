@@ -1165,6 +1165,7 @@
  "Moonraker cannot connect to Klipper! Check that the Klipper service is running and that klippy_uds_address is set correctly in moonraker.conf.": "Moonraker не может подключиться к Klipper! Проверьте, что служба Klipper запущена и klippy_uds_address правильно задан в moonraker.conf.",
  "Moonraker cannot reach Spoolman: check that it is running and the address in [spoolman].": "Moonraker не может достучаться до Spoolman: проверьте, что он запущен, и адрес в [spoolman].",
  "Moonraker did not come back: try again in a moment.": "Moonraker не вернулся: попробуйте ещё раз чуть позже.",
+ "Moonraker does not answer": "Moonraker не отвечает",
  "Moonraker does not answer: cannot know whether there are updates.": "Moonraker не отвечает: невозможно узнать, есть ли обновления.",
  "Moonraker does not answer: try again shortly.": "Moonraker не отвечает: попробуйте ещё раз в ближайшее время.",
  "Moonraker does not know KlippEye among the programs it updates yet. On the Raspberry run ": "Moonraker пока не знает KlippEye среди обновляемых программ. На Raspberry выполните ",
