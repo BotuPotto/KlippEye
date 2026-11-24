@@ -90,7 +90,7 @@ function deriveParts(configfile, commands, objects) {
 function guessZMoves(settings) {
   if ("quad_gantry_level" in settings) return "toolhead";
   const kinematics = String((settings.printer || {}).kinematics || "").toLowerCase();
-  if ("z_tilt" in settings || "z_tilt_ng" in settings || ["corexy", "hybrid_corexy", "corexz"].includes(kinematics)) return "bed";
+  if ("z_tilt" in settings || "z_tilt_ng" in settings || ["corexy", "hybrid_corexy"].includes(kinematics)) return "bed";
   return "toolhead";
 }
 

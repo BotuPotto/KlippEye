@@ -41,6 +41,7 @@
   font-variant-numeric: tabular-nums;
   transition: background var(--oui-dur-fast) var(--oui-ease), transform var(--oui-dur-press) var(--oui-ease);
 }
+.z-btn:disabled { opacity: 0.4; pointer-events: none; }
 .z-btn:hover { background: rgba(var(--oui-ink-rgb), 0.17); }
 .z-btn:active { transform: scale(0.94); background: var(--oui-accent-soft); color: var(--oui-accent-text); }
 .z-btn--big { background: var(--oui-surface-2); color: var(--oui-text-2); }

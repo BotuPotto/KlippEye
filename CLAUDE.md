@@ -72,6 +72,7 @@ Home Assistant / MQTT, updates, guided set-up. A help button (`HelpButton`) next
 - `backend/printer_lights.py` ↔ `frontend/src/app/13-capabilities.js` (`deriveParts`);
 - `backend/camera_snapshot.py` ↔ `frontend/src/app/16-settings.js` (the default snapshot);
 - `--oui-dur-exit` in `00-tokens.css` ↔ `LAYER_EXIT_MS` in `app/22-motion.js`;
+- `guess_z_moves` in `backend/camera_calibration.py` ↔ `guessZMoves` in `frontend/src/app/13-capabilities.js`;
 - `CONFIG_SPEC` (backend) ↔ its translations and the settings page (`59a-detector-settings.js`).
 
 ## 2. The AI monitor (the core; read the code before changing it)
@@ -448,6 +449,8 @@ keeps it readable).
   whether the old app's key `android/chiave/vzbot.p12` can go (and its GitHub secret).
 - Fixes: plan `docs/superpowers/plans/2026-11-24-audit-fixes.md`, one PR per task. PR 1 (dashboard actions, 1.138.0, test
   `tests/ui/dashboard_actions_test.py`) open as #189, branch `fix-dashboard-actions`.
+  PR 2 (calibration: no moves during a print, right Z guess, 1.139.0, test in `tests/backend/test_calibration_auto.py`) open,
+  branch `fix-calibration-print-moves`, built on #189 (merge it first).
 
 ### Owner's notes of 23 Nov (to do, in this order)
 1. Release 1.135.1 (#184): plainer texts, guide, no benchmark of other models. Done when merged.
@@ -470,4 +473,4 @@ keeps it readable).
    writing rules.
 
 ### Open PRs
-#189 (PR 1 of the audit fixes, release 1.138.0, branch `fix-dashboard-actions`), open 24 Nov. #188 (the audit report) merged 24 Nov. Update this line when a PR opens or merges.
+#189 (PR 1 of the audit fixes, release 1.138.0, branch `fix-dashboard-actions`), open 24 Nov. PR 2 (1.139.0, branch `fix-calibration-print-moves`), built on #189, open 24 Nov. #188 (the audit report) merged 24 Nov. Update this line when a PR opens or merges.

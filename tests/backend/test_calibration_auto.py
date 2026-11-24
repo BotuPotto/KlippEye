@@ -102,7 +102,7 @@ def query(objects):
     if objects.startswith("configfile"):
         return {"configfile": {"settings": SETTINGS}}
     return {"toolhead": {"position": STATE["position"] + [0], "homed_axes": STATE["homed"], "axis_minimum": MIN + [0], "axis_maximum": MAX + [0]},
-            "print_stats": {"state": "standby"}, "webhooks": {"state": "ready"}}
+            "print_stats": {"state": STATE.get("print_state", "standby")}, "webhooks": {"state": "ready"}}
 
 
 def truth(x, y):
@@ -285,6 +285,27 @@ _slingers = [cc.bed_moves_in_y(_taps(True, n, False), H / W) for n in range(8)]
 _others = [cc.bed_moves_in_y(_taps(False, n, False), H / W) for n in range(8)] + [cc.bed_moves_in_y(_taps(False, 0, True), H / W)]
 check("1.132.3: a bed slinger with the camera on the frame is recognised (the tip does not move with Y)", all(_slingers), _slingers)
 check("... a gantry moving in Z (or a camera on the bed) is not, even with the camera low in front", not any(_others), _others)
+
+print("== 1.139.0: nothing moves during a print; what Z moves on a CoreXZ")
+cal2 = cc.CameraCalibration(tempfile.mkdtemp(), query, gcode, render, cv2, np)
+cal2.set_options("bed", method="markers")
+cal2._set_markers({"source": "file", "points": markers})
+t2 = cal2.target_list()
+cal2.goto(t2[0]["id"])
+cal2.add_point(t2[0]["id"], *truth(*STATE["position"][:2]))
+STATE["print_state"] = "printing"
+sent = len(SCRIPTS)
+try:
+    cal2.find_tip(t2[1]["id"])
+    refused = False
+except cc.NotReady:
+    refused = True
+check("1.139.0: find the nozzle during a print is refused", refused)
+check("... and no G-code reached the printer", len(SCRIPTS) == sent, SCRIPTS[sent:])
+STATE["print_state"] = "standby"
+check("1.139.0: a CoreXZ moves Z with the toolhead", cc.guess_z_moves({"printer": {"kinematics": "corexz"}}) == "toolhead")
+_js = open(os.path.join(ROOT, "frontend", "src", "app", "13-capabilities.js"), encoding="utf-8").read()
+check("... the dashboard's copy agrees (rules written twice)", '"corexz"' not in _js.split("function guessZMoves")[1].split("\n}")[0])
 
 print("\n%d FAIL" % len(FAILS) if FAILS else "\nall passed")
 sys.exit(1 if FAILS else 0)

@@ -29,7 +29,7 @@ const goToGcode = (axis, target) => `G90\nG1 ${axis}${target} F${feedrateFor(axi
 function useMotion(echo, capabilities) {
   const limits = (capabilities && capabilities.axisLimits) || DEFAULT_AXIS_LIMITS;
   const { settings } = useSettings();
-  const zMoves = settings.motion.zMoves === "auto" ? (capabilities && capabilities.zMoves) || "bed" : settings.motion.zMoves;
+  const zMoves = settings.motion.zMoves === "auto" ? (capabilities && capabilities.zMoves) || null : settings.motion.zMoves; // 1.139.0: null until Klipper's answer is read: the Z arrows stay off, a guess could invert them
   const xySteps = MOTION_BASE_STEPS.concat(settings.motion.xyExtra);
   const zSteps = MOTION_BASE_STEPS.concat(settings.motion.zExtra);
   const parkCommand = usePrinterFunctions().park.command; // Settings → Printer functions ("" = no park)
@@ -285,15 +285,15 @@ function zButtons(steps, zMoves) {
   return { up, down };
 }
 
-function ZControls({ onJog, steps = MOTION_BASE_STEPS, zMoves = "bed" }) {
+function ZControls({ onJog, steps = MOTION_BASE_STEPS, zMoves = null }) {
   const { up, down } = zButtons(steps, zMoves);
   const compact = steps.length > 2;
   const button = (spec) =>
-    h("button", { key: spec.label, onClick: () => onJog("Z", spec.delta), title: "Z" + signed(spec.delta), "data-z": signed(spec.delta), className: cx("z-btn", spec.big && "z-btn--big", compact && "z-btn--compact") }, spec.label);
+    h("button", { key: spec.label, disabled: !zMoves, onClick: () => onJog("Z", spec.delta), title: "Z" + signed(spec.delta), "data-z": signed(spec.delta), className: cx("z-btn", spec.big && "z-btn--big", compact && "z-btn--compact") }, spec.label);
   return h(
     "div",
-    { className: "flex flex-col items-center gap-2 z-controls", "data-z-moves": zMoves },
-    h("div", { className: "oui-label mb-1 z-controls__title" }, "Z", h("span", { className: "z-controls__part" }, zMoves === "toolhead" ? tx("toolhead") : tx("bed"))),
+    { className: "flex flex-col items-center gap-2 z-controls", "data-z-moves": zMoves || "" },
+    h("div", { className: "oui-label mb-1 z-controls__title" }, "Z", h("span", { className: "z-controls__part" }, zMoves === "toolhead" ? tx("toolhead") : zMoves === "bed" ? tx("bed") : "")),
     up.map(button),
     h("div", { className: "z-divider" }),
     down.map(button),
