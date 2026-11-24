@@ -2,7 +2,7 @@
 [tool.ruff]
 target-version = "py37"  # the oldest Python install.sh accepts
 line-length = 320
-extend-exclude = ["tests/backend/fixtures", "tests/e2e/.work", "tests/e2e/shims", "*.ipynb"]
+extend-exclude = ["docs/audits/*-proofs", "tests/backend/fixtures", "tests/e2e/.work", "tests/e2e/shims", "*.ipynb"]
 
 [tool.ruff.lint]
 select = ["E9", "F", "B"]
