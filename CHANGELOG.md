@@ -1,5 +1,21 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.154.0
+
+Small fixes to the look of the dashboard.
+
+- The phone's tab bar and the page titles are translated. «Files» and «Config» used to stay in English in every language;
+  now they read «Pliki» and «Konfig» in Polish, «Dateien» and «Konfig» in German, and so on. The computer's top tabs too.
+- Small buttons answer a tap in a 44 px square around them, with the same look: the fold arrow of a card, the fan − and +,
+  the round buttons in the top bar (emergency stop included), the AI badge, the «?» buttons and the menu of a file. Before,
+  they were 28 to 40 px, easy to miss with a thumb.
+- The name «KlippEye» in the top bar is no longer cut to «KlippE…» on phones 360 to 389 px wide. The bar uses 6 px gaps,
+  and phones under 390 px get the smaller logo.
+- A fan's name wraps to two lines instead of being cut. In German, Polish and Russian two fans both read «Wentylato…».
+- When the Raspberry or Moonraker does not answer, the strip «The printer does not answer: trying again…» shows after two
+  reads, about 3 seconds, and the heater tiles keep the last temperatures. Before, they turned to «0.0°» with no sign, and the
+  strip came after 15 seconds or never.
+
 ## 1.153.0
 
 Small fixes in the dashboard.

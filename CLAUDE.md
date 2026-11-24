@@ -428,8 +428,7 @@ keeps it readable).
 - CI's headless Chromium has no hyphenation dictionaries: text that fits only by hyphenating (`hyphens: auto`) passes
   locally and fails there. Check narrow tables with DejaVu Sans and `hyphens: none` (the shaper table, 1.133.1).
 - Proposed, not done (waits for the owner): AI state and score strip under the camera on Home, the print card's two
-  big figures (ends at, remaining), temperatures folded during a print, 44 px hit areas (fold chevrons 36, fan −/+ 36,
-  file actions 28, AI badge 48×28), uppercase labels, the remaining hand-written colours (293 outside the tokens).
+  big figures (ends at, remaining), temperatures folded during a print, uppercase labels, the remaining hand-written colours (293 outside the tokens).
 
 ### Home by moment and motion (17 Nov, 1.134.0)
 - The owner keeps the current look; wanted Home to change with the moment (shown only when useful) and macOS-like
@@ -502,6 +501,12 @@ keeps it readable).
   watchdog, a late update answer not shown as failed, G-code viewer memo, «no app published» by a flag, 1.153.0, test
   `tests/ui/small_fixes_test.py`) open as #204, branch `fix-dashboard-small`, built on #203 (merge #199 to #203 first, in order).
   Not done from its list: the hand-made dialogs without a back handler (finding 54, second half).
+  PR 18 (look: the tab bar and page titles translated, a 44 px touch area for the fold arrow, fan − / +, header buttons, AI badge, «?»
+  buttons and file menu, the brand name whole at 360 to 389 px, fan names on two lines, the strip and the last temperatures when the
+  Raspberry or Moonraker does not answer, 1.154.0, test `tests/ui/look_small_test.py`) open as #205, branch `fix-look-small`, built on #204
+  (merge #199 to #204 first, in order). Not checked: the real Pi's timing (finding 78 was PARTLY confirmed; the fix reacts to the backend's
+  error answer and to a failed read, tested on the mock only), the header's «Ready» pill on the computer while the Pi is down, and the
+  pictures on the owner's phone (the audit's list of 10). The hit areas are tested with elementFromPoint, not with a thumb.
 
 ### Owner's notes of 23 Nov (to do, in this order)
 1. Release 1.135.1 (#184): plainer texts, guide, no benchmark of other models. Done when merged.
@@ -524,4 +529,4 @@ keeps it readable).
    writing rules.
 
 ### Open PRs
-#189 to #196 (PRs 1 to 8 of the audit fixes, 1.138.0 to 1.145.0) and #188 (the audit report) merged 24 Nov. #197 (PR 9, 1.146.0, branch `fix-config-editor`: the config editor never overwrites newer text), open 24 Nov. #198 (PR 10, 1.147.0, branch `fix-access-network`), built on #197, open 24 Nov. #199 (PR 11, 1.148.0, branch `fix-monitor-loop`), built on #198, open 24 Nov. #200 (PR 12, 1.149.0, branch `fix-online-ai`), built on #199, open 24 Nov. #201 (PR 13, 1.150.0, branch `fix-training-chain`), built on #200, open 24 Nov. #202 (PR 15, 1.151.0, branch `fix-android`), built on #201, open 24 Nov. #203 (PR 16, 1.152.0, branch `fix-mqtt-settings`), built on #202, open 24 Nov. #204 (PR 17, 1.153.0, branch `fix-dashboard-small`), built on #203, open 24 Nov. Update this line when a PR opens or merges.
+#189 to #196 (PRs 1 to 8 of the audit fixes, 1.138.0 to 1.145.0) and #188 (the audit report) merged 24 Nov. #197 (PR 9, 1.146.0, branch `fix-config-editor`: the config editor never overwrites newer text), open 24 Nov. #198 (PR 10, 1.147.0, branch `fix-access-network`), built on #197, open 24 Nov. #199 (PR 11, 1.148.0, branch `fix-monitor-loop`), built on #198, open 24 Nov. #200 (PR 12, 1.149.0, branch `fix-online-ai`), built on #199, open 24 Nov. #201 (PR 13, 1.150.0, branch `fix-training-chain`), built on #200, open 24 Nov. #202 (PR 15, 1.151.0, branch `fix-android`), built on #201, open 24 Nov. #203 (PR 16, 1.152.0, branch `fix-mqtt-settings`), built on #202, open 24 Nov. #204 (PR 17, 1.153.0, branch `fix-dashboard-small`), built on #203, open 24 Nov. #205 (PR 18, 1.154.0, branch `fix-look-small`), built on #204, open 24 Nov. Update this line when a PR opens or merges.

@@ -12,7 +12,7 @@
   .app-header__brand { gap: 6px; }
   .app-header__logo { width: 28px; height: 28px; }
 }
-@media (max-width: 374px) {
+@media (max-width: 389px) { /* 1.154.0: was 374, the name was cut at 375 px */
   .app-header__brand { gap: 5px; }
   .app-header__logo { width: 24px; height: 24px; } /* 360 px phones: logo, name and the AI badge still fit side by side */
 }
