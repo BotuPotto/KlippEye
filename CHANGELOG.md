@@ -1,5 +1,18 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.155.1
+
+Pause, Resume and Cancel no longer show a raw error when Klipper is slow.
+
+- Pressing Cancel could show «Non riuscito: HTTPConnectionPool(host='127.0.0.1', port=7125): Read timed out». KlippEye
+  waited only 10 seconds for Klipper to finish the cancel macro (parking moves, heaters off), and a slower printer ran out
+  the wait while the macro was still running. Pause, Resume and Cancel now get up to 5 minutes, whether they come from the
+  dashboard buttons, the notifier or a program using `/printer/print/*`. Other commands keep the 10 seconds.
+- If the wait still runs out, the dashboard says «The printer is still working on it. Look at the print card.» and not
+  «Failed». The action is not lost: Klipper carries on with it.
+- When Moonraker does not answer in time or cannot be reached, the service sends a short text («Moonraker did not answer in
+  time», «Moonraker is not reachable»). The library's error text no longer reaches the screen.
+
 ## 1.155.0
 
 The tests and the release check more.

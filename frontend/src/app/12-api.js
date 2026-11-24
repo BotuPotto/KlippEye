@@ -94,17 +94,27 @@ async function sendLongGcode(script) {
   }
 }
 
+/** True when Klipper or the proxy gave up waiting for a slow answer (the backend's «in time», or the library's own words). */
+const isTimeoutText = (text) => /timed? ?out|in time/i.test(text);
+
 /**
  * Runs `request()` (resolves a Response) and, when Klipper refuses it or it does not arrive, shows Klipper's own words in a
  * toast. Resolves true when it went through. For the actions that move or stop the printer (1.138.0).
+ * 1.155.1: Pause, Resume and Cancel are answered only when the macro is over. When the wait runs out the action is not
+ * lost: the toast says the printer is still working (never «Failed»), and no raw library text (HTTPConnectionPool…) is shown.
  */
 async function sendOrTell(request) {
+  const tell = (message) => {
+    if (isTimeoutText(message)) toast.notice(tx("The printer is still working on it. Look at the print card."), 5000);
+    else if (/HTTPConnectionPool|Max retries|ConnectionError|Connection refused|not reachable/i.test(message)) toast.notice(tx("Failed: ") + tx("printer not reachable"), 5000);
+    else toast.notice(tx("Failed: ") + message, 5000);
+  };
   try {
     const response = await request();
     if (response.ok) return true;
-    toast.notice(tx("Failed: ") + (await errorMessageOf(response)), 5000);
+    tell(await errorMessageOf(response));
   } catch (error) {
-    toast.notice(tx("Failed: ") + (error.message || tx("printer not reachable")), 5000);
+    tell(error.message || tx("printer not reachable"));
   }
   return false;
 }

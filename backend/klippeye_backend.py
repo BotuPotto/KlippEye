@@ -1140,6 +1140,13 @@ def moonraker_status(query, timeout=3):
 
 # The operations Moonraker answers only when the work is done (updates, service restarts): 10 seconds are not enough.
 LONG_MOONRAKER_PATHS = ("machine/update/", "machine/services/", "server/files/upload", "api/files")  # 1.133.1: big uploads
+# 1.155.1: Pause, Resume and Cancel are answered only when Klipper has run the macro (parking moves, heaters off, and a Resume
+# that heats up again), which takes longer than 10 s. The dashboard sends them as G-code scripts, other programs and the
+# notifier through /printer/print/*. Five minutes covers a slow reheat; the wait ends with a clear 502 and Klipper goes on anyway.
+PRINT_ACTION_PATHS = ("printer/print/pause", "printer/print/resume", "printer/print/cancel")
+PRINT_ACTION_SCRIPTS = ("PAUSE", "RESUME", "CANCEL_PRINT")
+PRINT_ACTION_WAIT = (5, 300)
+SMALL_SCRIPT = 65536  # a G-code script up to this size is read whole to see what it is; every other body goes on as a stream
 # Headers that describe one connection, not the content: never copied from one side of a proxy to the other (RFC 9110).
 HOP_BY_HOP = {"connection", "keep-alive", "proxy-authenticate", "proxy-authorization", "te", "trailer", "transfer-encoding", "upgrade"}
 PROXY_REQUEST_SKIP = HOP_BY_HOP | {"host", "content-length", "x-api-key", "cookie", access.HEADER_INTERNAL.lower()}
@@ -1171,21 +1178,39 @@ class SizedBody:
         return self.stream.read(size)
 
 
+def moonraker_wait(path, body):
+    """How long the proxy waits for Moonraker's answer: long for updates, uploads and the print actions, 10 s for the rest."""
+    if path.startswith(LONG_MOONRAKER_PATHS):
+        return (5, 600)
+    script = ""
+    if path == "printer/gcode/script" and isinstance(body, bytes):
+        try:
+            script = str(json.loads(body).get("script", ""))
+        except (ValueError, AttributeError):
+            script = ""
+    if path in PRINT_ACTION_PATHS or script.strip().upper() in PRINT_ACTION_SCRIPTS:
+        return PRINT_ACTION_WAIT
+    return 10
+
+
 def proxy_moonraker(path):
     """The request, as it is, to Moonraker. Our own session cookie and internal token are not passed on."""
     url = "%s/%s" % (MOONRAKER_URL, urllib.parse.quote(path, safe="/"))   # 1.147.0: a # or ? in a file name is part of the name
     if request.query_string:
         url += "?" + request.query_string.decode()
     headers = {name: value for name, value in request.headers if name.lower() not in PROXY_REQUEST_SKIP}
-    wait = (5, 600) if path.startswith(LONG_MOONRAKER_PATHS) else 10
-    if request.content_length:  # 1.133.1: a G-code of hundreds of MB goes on as it is read, never whole in memory
+    script = path == "printer/gcode/script" and (request.content_length or 0) <= SMALL_SCRIPT
+    if request.content_length and not script:  # 1.133.1: a G-code of hundreds of MB goes on as it is read, never whole in memory
         body = SizedBody(request.stream, request.content_length)
     else:
         body = request.get_data()  # no body, or one without a length (chunked): small
+    wait = moonraker_wait(path, body)
     try:
         return relay(requests.request(request.method, url, data=body, headers=headers, timeout=wait, stream=True))
-    except requests.RequestException as error:
-        return jsonify({"error": str(error)}), 502
+    except requests.Timeout:  # 1.155.1: plain words, never the library's "HTTPConnectionPool(...): Read timed out"; the dashboard looks for "in time"
+        return jsonify({"error": "Moonraker did not answer in time"}), 502
+    except requests.RequestException:
+        return jsonify({"error": "Moonraker is not reachable"}), 502
 
 
 _PAGE_CACHE = {"key": None}
