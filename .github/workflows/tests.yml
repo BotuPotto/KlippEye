@@ -110,3 +110,35 @@ jobs:
         run: |
           chmod +x gradlew
           ./gradlew --no-daemon --stacktrace assembleDebug testDebugUnitTest
+
+  e2e:
+    name: Install and updates on a simulated Raspberry
+    # tests/e2e/README.md: the real install script, backend, notifier and a real Moonraker. It is a job of Tests (and not a
+    # workflow of its own) so that a release is only tagged when it passed too (release.yml waits for Tests).
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install the system and Python packages
+        run: |
+          dpkg -s libsodium23 >/dev/null 2>&1 || sudo apt-get install -y --no-install-recommends libsodium23
+          pip install flask waitress requests werkzeug numpy opencv-python-headless cryptography pillow playwright==1.56.0
+          python -m playwright install --with-deps chromium || { echo "::warning::Ubuntu's archive not reachable: Chromium without --with-deps"; python -m playwright install chromium; }
+      - name: Prepare Moonraker
+        run: python tests/e2e/setup.py
+      - name: Run the end-to-end test
+        run: python tests/e2e/e2e_test.py
+      - name: Keep the logs when something fails
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-worlds
+          path: |
+            tests/e2e/.work/worlds/*/*.out
+            tests/e2e/.work/worlds/*/state/*.log
+            tests/e2e/.work/worlds/*/home/printer_data/logs/
+            tests/e2e/.work/worlds/*/home/printer_data/config/moonraker.conf
+          retention-days: 7

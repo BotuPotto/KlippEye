@@ -134,7 +134,7 @@ const updateSocket = {
       socket.send(JSON.stringify({ jsonrpc: "2.0", method, params, id }));
       setTimeout(() => {
         socket.removeEventListener("message", onMessage);
-        reject(new Error("WS timeout"));
+        reject(new Error("WS call timeout"));
       }, WS_CALL_TIMEOUT_MS);
     });
   },
@@ -166,7 +166,10 @@ const isBusyError = (error) => error.message.toLowerCase().includes("busy") || e
 async function startUpgrade(name) {
   try {
     return await updateSocket.call("machine.update.upgrade", name ? { name } : {});
-  } catch (error) {}
+  } catch (error) {
+    // 1.153.0: Moonraker answers the call only when it has finished: no answer in time is an update still running, not a refusal
+    if (error.message === "WS call timeout") return { timedOut: true };
+  }
   const attempts = [{ url: "/machine/update/upgrade", body: name ? { name } : {} }];
   if (!name) attempts.push({ url: "/machine/update/full", body: null });
   let lastError = null;

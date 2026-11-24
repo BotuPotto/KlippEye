@@ -499,6 +499,8 @@ function requestCameraReload() {
    `className` is the class of the box the picture fills (css/41-camera.css or css/70-desktop.css).
    ------------------------------------------------------------------------- */
 const CAMERA_RETRY_MS = 3000;
+/** A photo that has neither arrived nor failed after this long is given up: a half-open connection fires nothing (1.153.0). */
+const CAMERA_STALL_MS = 8000;
 const withCacheBuster = (url) => url + (url.indexOf("?") >= 0 ? "&" : "?") + "_=" + Date.now();
 /** Mirror, flip and (1.59, a webcam of Moonraker) rotation of the picture. */
 const flipStyle = (camera) => {
@@ -542,6 +544,7 @@ function CameraSnapshots({ className, url, fps, style }) {
   useEffect(() => {
     let stopped = false;
     let timer = 0;
+    let stall = 0;
     let shown = 0;
     const next = (startedAt, wait) => {
       if (stopped) return;
@@ -554,7 +557,17 @@ function CameraSnapshots({ className, url, fps, style }) {
       const back = 1 - shown;
       const image = images[back].current;
       if (!image) return;
+      clearTimeout(stall);
+      stall = setTimeout(() => {
+        if (stopped) return;
+        image.onload = null;
+        image.onerror = null;
+        image.removeAttribute("src"); // the photo that never came is given up, and the picture says so
+        setFailed(true);
+        next(startedAt, CAMERA_RETRY_MS);
+      }, Math.max(CAMERA_STALL_MS, 3000 / fps));
       image.onload = () => {
+        clearTimeout(stall);
         if (stopped) return;
         shown = back;
         setFront(back);
@@ -562,6 +575,7 @@ function CameraSnapshots({ className, url, fps, style }) {
         next(startedAt);
       };
       image.onerror = () => {
+        clearTimeout(stall);
         if (stopped) return;
         setFailed(true);
         next(startedAt, CAMERA_RETRY_MS);
@@ -572,6 +586,7 @@ function CameraSnapshots({ className, url, fps, style }) {
     return () => {
       stopped = true;
       clearTimeout(timer);
+      clearTimeout(stall);
       images.forEach((ref) => {
         if (ref.current) {
           ref.current.onload = null;

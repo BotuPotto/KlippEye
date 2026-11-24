@@ -19,7 +19,8 @@ const FUNCTION_CANDIDATES = {
   load: ["KLIPPEYE_LOAD_FILAMENT", "LOAD_FILAMENT", "FILAMENT_LOAD", "M701"],
   unload: ["KLIPPEYE_UNLOAD_FILAMENT", "UNLOAD_FILAMENT", "FILAMENT_UNLOAD", "M702"],
 };
-const LIGHT_WORDS = /light|luci|luce|lamp|case|chamber|led/i;
+// 1.153.0: whole words (not "enabled", "chamber_heater_relay"); "light" also inside a name ("caselight")
+const LIGHT_WORDS = /(?<![a-z])(?:led|luci|luce|lamp)s?(?![a-z])|light/i;
 
 /** The first of `names` that Klipper knows as a command. */
 const firstRegistered = (names, commands) => names.find((name) => name in (commands || {})) || "";

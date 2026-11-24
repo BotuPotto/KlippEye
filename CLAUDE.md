@@ -24,7 +24,7 @@ A dashboard and AI print monitor for **Klipper** printers, made to run on the pr
 | Android app | `android/` | A full-screen WebView on the dashboard with push notifications, downloads, addresses (home / VPN), HTTPS pinning, in-app updates. Own version in `android/VERSION`; GitHub builds and publishes the APK into `apk/` (never by hand). |
 | Install / update | `scripts/install.sh`, `scripts/repair.sh`, `scripts/klippeye`, `systemd/` | Install once as the normal user (never root); `repair.sh` runs at every start and fixes a damaged install; the `klippeye` command (diagnose, benchmark, web, …). Updates come through **Moonraker's update manager** (git): channel **stable** (tagged releases) or **dev** (every commit of `main`). The service must keep the name `klippeye`. |
 | Local model | `models/base/` (+ `ml/` to train it) | MobileNetV3-Small, ONNX, run by OpenCV DNN on the Pi. |
-| CI | `.github/workflows/` | `tests.yml` (Tests, ~1 h: backend/notifier/app CI/frontend build, local model training chain, Android compile, install & updates on a simulated Raspberry, dashboard in the browser), `release.yml` (tags `vX.Y.Z` after a merge whose tests pass on main), `app.yml` (APK), `e2e.yml`. |
+| CI | `.github/workflows/` | `tests.yml` (Tests, ~1 h: backend/notifier/app CI/frontend build, local model training chain, Android compile, install & updates on a simulated Raspberry, dashboard in the browser), `release.yml` (tags `vX.Y.Z` after a merge whose tests pass on main), `app.yml` (APK). The install and update test (`tests/e2e/`) is a job of `tests.yml`, so a release waits for it (1.155.0). |
 
 On a printer: program in `~/klippeye`, the person's data in `~/printer_data/klippeye/` (settings `monitor.json`,
 `ai.json` mode 600 with the AI keys, recordings, alerts, `personal/`, `camera.json`, …). Updates replace only the program.
@@ -115,7 +115,10 @@ warm-up seconds, minimum progress, hotend at temperature), one check every `chec
    OpenRouter, Meta, Together, Fireworks, any OpenAI-compatible «custom»; backups, per-service quotas/429), prompt `build_ai_prompt` (neutral, says what is and is not a problem, «when in
    doubt CONTINUE», never an empty bed from one picture, JSON only), with the picture of a minute before when allowed.
    A PAUSE/CANCEL is looked at **again** 15 s later on a new picture, by another service when there is one
-   (`confirm_stop`; the local model sure on the new picture can hold it). An unreadable answer is never a stop.
+   (`confirm_stop`; the local model sure on the new picture can hold it). An unreadable answer is never a stop, and
+   it does not end the chain (1.149.0): any failure of one question (`_ask_ai` catches everything) or a reply with no
+   verdict (`parsed` None) moves on to the next service; «answer not readable» is written only when none gave one. The
+   action is read from the first word (`normalize_action`). One analysis at a time (`_ai_busy`: an alarm during one is dropped).
    `apply_min_confidence` and `distrust_empty_bed` can downgrade. A question while the toolhead hides the part is put
    off (`_put_off_when_hidden`, the rest starts when it goes). Results → `record_alert` (alert history with pictures,
    the person marks right/false) and `last_analysis` (read by the notifier and the dashboard).
@@ -296,8 +299,9 @@ keeps it readable).
   `GET /api/local_model` (about `0.15,0.36,0.70,0.61` on 16 Nov). Current base model **20261118-2036** (1.135.0, threshold 0.90,
   temperature 2.965, levels 80/90; the previous one, 20261116-1408, is in git history). Box `0,0.368,1,0.632`, 9 kept-out
   prints (4 failed, 2.5 h): «monitor» 0 false/h, 1 of 4 (before 10.5/h, 3 of 4); «+ motion» 0/h, 2 of 4 (before
-  4.8/h, 2 of 4). Kept-out recording prefixes, never to train on: 20261113-164121, 20261115-011215, 20261116-160817,
-  20261116-175000, 20261113-144408, 20261114-001218, 20261114-151534, 20261114-232613, 20261118-160816.
+  4.8/h, 2 of 4). Kept-out recording prefixes, never to train on: the list is the file `models/base/kept-out.txt` (1.150.0; `ml/datasets.py
+  --klippeye` skips them): 20261113-164121, 20261115-011215, 20261116-160817, 20261116-175000, 20261113-144408,
+  20261114-001218, 20261114-151534, 20261114-232613, 20261118-160816.
 
 ## 7. Colab (training the base model)
 
@@ -424,8 +428,7 @@ keeps it readable).
 - CI's headless Chromium has no hyphenation dictionaries: text that fits only by hyphenating (`hyphens: auto`) passes
   locally and fails there. Check narrow tables with DejaVu Sans and `hyphens: none` (the shaper table, 1.133.1).
 - Proposed, not done (waits for the owner): AI state and score strip under the camera on Home, the print card's two
-  big figures (ends at, remaining), temperatures folded during a print, 44 px hit areas (fold chevrons 36, fan −/+ 36,
-  file actions 28, AI badge 48×28), uppercase labels, the remaining hand-written colours (293 outside the tokens).
+  big figures (ends at, remaining), temperatures folded during a print, uppercase labels, the remaining hand-written colours (293 outside the tokens).
 
 ### Home by moment and motion (17 Nov, 1.134.0)
 - The owner keeps the current look; wanted Home to change with the moment (shown only when useful) and macOS-like
@@ -451,8 +454,9 @@ keeps it readable).
   Every Must and Should was reproduced or confirmed by a verifier who did not write it; none dropped.
 - Section 8 of the report: 19 fix PRs in order (dashboard actions that move or restart the printer first). Waiting for
   the owner to choose which groups and in what order. Mark each PR here when it merges.
-- Two questions for the owner in the report: whether the automatic pause should wait for the online second look, and
-  whether the old app's key `android/chiave/vzbot.p12` can go (and its GitHub secret).
+- Two questions for the owner in the report: whether the automatic pause should wait for the online second look (answered
+  24 Nov: only the local model's own verdict is limited, see section 2) and whether the old app's key `android/chiave/vzbot.p12`
+  can go (answered 24 Nov: yes; the file and its references are removed in PR 15, the old GitHub secret is deleted on GitHub).
 - Fixes: plan `docs/superpowers/plans/2026-11-24-audit-fixes.md`, one PR per task. PR 1 (dashboard actions, 1.138.0, test
   `tests/ui/dashboard_actions_test.py`) open as #189, branch `fix-dashboard-actions`.
   PR 2 (calibration: no moves during a print, right Z guess, 1.139.0, test in `tests/backend/test_calibration_auto.py`) open as #190,
@@ -479,6 +483,36 @@ keeps it readable).
   1.148.0, tests in `tests/backend/test_monitor_loop.py`) open as #199, branch `fix-monitor-loop`, built on #198 (merge #196 to #198
   first, in order). Not done: a push message when the monitor is blind (the notifier does not read the status), structure
   proposals 1 (shared `prepare_check` and `ask_rule`) and 6 (dead code).
+  PR 12 (online AI chain: any failure of one question is a service that did not answer, an unreadable answer tries the backup,
+  the action is read from the first word, one analysis at a time, AI keys saved under one lock, 1.149.0, tests «1.149.0: …» in
+  `tests/backend/test_backend.py`) open as #200, branch `fix-online-ai`, built on #199 (merge #197 to #199 first, in order).
+  PR 13 (training chain: kept-out prints skipped by `ml/datasets.py` from `models/base/kept-out.txt`, a print recorded and answered
+  counts once, licence allow-list, a cut download fetched again, `evaluate.py --trained`, 1.150.0, tests «1.150.0: …» in
+  `ml/tests/test_tools.py`) open as #201, branch `fix-training-chain`, built on #200 (merge #198 to #200 first, in order).
+  PR 15 (Android app 1.9.0: the bridge answers only the dashboard's origin, a pinned certificate means https only, the signing
+  password only on its workflow steps, actions pinned, `vzbot.p12` removed, 1.151.0, tests «1.151.0: …» in `tests/app/app_ci_test.py`
+  and `AddressesTest`) open as #202, branch `fix-android`, built on #201 (merge #198 to #201 first, in order). Not done: a hostile
+  frame inside the dashboard's page (needs `addWebMessageListener`); the signing key is still public, encrypted, and moving it into
+  a secret waits for the owner (`android/README.md`, «Signing»).
+  PR 16 (MQTT says offline when Klipper is down, one MQTT client id per machine, a wrong sure / doubt pair in `monitor.json`
+  put right, 1.152.0, tests in `tests/backend/test_backend.py`) open as #203, branch `fix-mqtt-settings`, built on #202 (merge #198 to #202 first, in order).
+  PR 17 (dashboard small fixes: back and Escape close a ConfirmDialog, components list read again when Klipper is back, whole-word
+  light names and pca outputs, «Clear console» off the phone's clock, print metadata read again at a new print, camera photo
+  watchdog, a late update answer not shown as failed, G-code viewer memo, «no app published» by a flag, 1.153.0, test
+  `tests/ui/small_fixes_test.py`) open as #204, branch `fix-dashboard-small`, built on #203 (merge #199 to #203 first, in order).
+  Not done from its list: the hand-made dialogs without a back handler (finding 54, second half).
+  PR 18 (look: the tab bar and page titles translated, a 44 px touch area for the fold arrow, fan − / +, header buttons, AI badge, «?»
+  buttons and file menu, the brand name whole at 360 to 389 px, fan names on two lines, the strip and the last temperatures when the
+  Raspberry or Moonraker does not answer, 1.154.0, test `tests/ui/look_small_test.py`) open as #205, branch `fix-look-small`, built on #204
+  (merge #199 to #204 first, in order). Not checked: the real Pi's timing (finding 78 was PARTLY confirmed; the fix reacts to the backend's
+  error answer and to a failed read, tested on the mock only), the header's «Ready» pill on the computer while the Pi is down, and the
+  pictures on the owner's phone (the audit's list of 10). The hit areas are tested with elementFromPoint, not with a thumb.
+  PR 19 (tests and CI: the End-to-end workflow is a job of Tests so a release waits for it and `e2e.yml` is gone, `tests/ui/run_all.sh`
+  runs every `*_test.py` (five were left out, about 4 more minutes), seven checks that could not fail made real and three removed, a
+  skipped check is a failure when `GITHUB_ACTIONS` is set, 1.155.0, test in `tests/app/release_test.py`) open as #206, branch `fix-tests-ci`,
+  built on #205 (merge #199 to #205 first, in order). Not checked: the workflow change and the new skip guards on GitHub itself (read
+  against the last green runs: nginx, sudo, kotlinc and cryptography are there on `ubuntu-24.04`; the `e2e` job is the old file's steps
+  unchanged). The «Nice» test findings not looked at one by one: only the ones the audit named, plus the constant `True` checks found by grep.
 
 ### Owner's notes of 23 Nov (to do, in this order)
 1. Release 1.135.1 (#184): plainer texts, guide, no benchmark of other models. Done when merged.
@@ -501,4 +535,4 @@ keeps it readable).
    writing rules.
 
 ### Open PRs
-#194 (PR 6, 1.143.0, branch `fix-macros-file`), open 24 Nov. #195 (PR 7, 1.144.0, branch `fix-personal-files`), built on #194, open 24 Nov. #196 (PR 8, 1.145.0, branch `fix-settings-sync`), built on #195, open 24 Nov. #197 (PR 9, 1.146.0, branch `fix-config-editor`: the config editor never overwrites newer text), built on #196, open 24 Nov. #189 to #193 (PRs 1 to 5 of the audit fixes, 1.138.0 to 1.142.0) and #188 (the audit report) merged 24 Nov. #198 (PR 10, 1.147.0, branch `fix-access-network`), built on #197, open 24 Nov. #199 (PR 11, 1.148.0, branch `fix-monitor-loop`), built on #198, open 24 Nov. Update this line when a PR opens or merges.
+#189 to #196 (PRs 1 to 8 of the audit fixes, 1.138.0 to 1.145.0) and #188 (the audit report) merged 24 Nov. #197 (PR 9, 1.146.0, branch `fix-config-editor`: the config editor never overwrites newer text), open 24 Nov. #198 (PR 10, 1.147.0, branch `fix-access-network`), built on #197, open 24 Nov. #199 (PR 11, 1.148.0, branch `fix-monitor-loop`), built on #198, open 24 Nov. #200 (PR 12, 1.149.0, branch `fix-online-ai`), built on #199, open 24 Nov. #201 (PR 13, 1.150.0, branch `fix-training-chain`), built on #200, open 24 Nov. #202 (PR 15, 1.151.0, branch `fix-android`), built on #201, open 24 Nov. #203 (PR 16, 1.152.0, branch `fix-mqtt-settings`), built on #202, open 24 Nov. #204 (PR 17, 1.153.0, branch `fix-dashboard-small`), built on #203, open 24 Nov. #205 (PR 18, 1.154.0, branch `fix-look-small`), built on #204, open 24 Nov. #206 (PR 19, 1.155.0, branch `fix-tests-ci`), built on #205, open 24 Nov. Update this line when a PR opens or merges.

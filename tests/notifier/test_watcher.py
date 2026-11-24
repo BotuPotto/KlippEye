@@ -210,6 +210,7 @@ try:
     ok("RS256: 30 signatures identical to the cryptography library's (and they verify)", good == total, (good, total))
 except ImportError:
     print("SKIP RS256 tests: cryptography not installed")
+    ok("RS256: on GitHub the cryptography package is there (the check against it is not skipped)", not os.environ.get("GITHUB_ACTIONS"))  # 1.155.0
 
 # --------------------------------------------------------------------------------------------------- the FCM message
 msg = vn.build_message(cfg(topic="klippeye-abc"), vn.Notice("runout", USER_TEXTS["runout"]))["message"]

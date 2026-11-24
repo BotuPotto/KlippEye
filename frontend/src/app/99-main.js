@@ -81,7 +81,7 @@ function ConfigPage({ onEditFile, onViewImage }) {
   return h("div", { className: "grid grid-cols-1" }, h(ConfigFilesCard, { onEditFile, onViewImage }));
 }
 
-const TAB_TITLES = { home: "Home", controllo: tx("Control"), files: "Files", config: "Config", sistema: tx("System") };
+const TAB_TITLES = { home: "Home", controllo: tx("Control"), files: tx("Files"), config: tx("Config"), sistema: tx("System") };
 
 function App() {
   const [tab, setTab] = useState(() => {

@@ -58,6 +58,7 @@ function onKlipperReady(listener) {
   klipperReadyListeners.add(listener);
   return () => klipperReadyListeners.delete(listener);
 }
+onKlipperReady(forgetMoonrakerComponents); // 1.153.0: the first listener, so the others read the list afresh
 
 /**
  * One look at Klipper: { phase, message }. phase is Klipper's state ("ready", "startup", "shutdown", "error"),

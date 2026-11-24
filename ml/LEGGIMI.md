@@ -50,7 +50,14 @@ Servono foto di **stampe fallite** e di **stampe andate bene**.
 Il modello base, quello che KlippEye dà a tutti, impara da foto pubbliche e varie e, dalla 1.135.0, da alcune stampe
 giudicate della stampante dell'autore (`models/base/CREDITS.md`). Le stampe di ognuno vanno nello strato personale che
 KlippEye impara sul Raspberry. Le raccolte con una licenza che non permette di condividere il modello (ShareAlike, non
-commerciale, privata) vengono scartate da `download.py`.
+commerciale, privata) vengono scartate da `download.py`. Dalla 1.150.0 tiene una raccolta solo se la sua licenza è
+nota come aperta (CC BY 4.0, CC0, pubblico dominio, MIT, Apache): una licenza scritta con gli spazi, ODbL, GPL o non
+trovata viene scartata, e il log lo dice (`--any-licence` tiene tutto). Una raccolta scaricata solo a metà viene
+scaricata di nuovo alla prossima esecuzione.
+
+Stampe tenute per misurare (1.150.0): `models/base/kept-out.txt` le elenca, una per riga (l'inizio dell'id). `datasets.py
+--klippeye` salta ognuna e la risposta data sulla stessa stampa, e dice quante ne ha saltate. Una stampa registrata e
+anche giudicata con «Com'è andata la stampa?» vale una sola volta, come in `evaluate.py`.
 
 ## 2. L'elenco delle foto
 
@@ -102,7 +109,9 @@ python ml/evaluate.py --model ml/out/model --data ./klippeye-data
 ```
 Per diverse soglie dice quanti **falsi allarmi all'ora** avrebbe dato sulle stampe andate bene e quante **stampe fallite
 avrebbe preso**, e dopo quanto. Più stampe hai giudicato, più la misura è affidabile. `--consecutive 2` conta un allarme
-solo con due foto di fila sopra la soglia.
+solo con due foto di fila sopra la soglia. Se il modello ha imparato da quelle stesse stampe, aggiungi `--trained`: avvisa
+che i numeri sono troppo buoni e lo scrive nel risultato. Il notebook di Colab lo fa, perché misura sulle stampe appena
+usate per addestrare.
 
 Si può lanciare anche sul Raspberry (serve solo OpenCV, già presente):
 ```

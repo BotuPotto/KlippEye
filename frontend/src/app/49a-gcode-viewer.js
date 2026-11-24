@@ -465,7 +465,7 @@ function GcodeViewer({ path, onClose }) {
 
   const layerInfo = model && model.layers[current];
   const toggleKind = (id) => setHidden((list) => (list.includes(id) ? list.filter((one) => one !== id) : list.concat(id)));
-  const present = model ? GCODE_KINDS.filter((kind, index) => model.segments.kinds.some((value) => value === index)) : [];
+  const present = useMemo(() => (model ? GCODE_KINDS.filter((kind, index) => model.segments.kinds.some((value) => value === index)) : []), [model]); // 1.153.0: not on every pan
   return h(
     "div",
     { className: "screen screen--viewer gcode-viewer", role: "dialog", "aria-label": tx("Layers of {name}", { name }) },

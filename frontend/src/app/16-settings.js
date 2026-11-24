@@ -244,7 +244,7 @@ function cleanPrinterName(value) {
 const pickOne = (value, allowed, fallback) => (allowed.includes(value) ? value : fallback);
 const cleanMacroName = (value) => (typeof value === "string" && MACRO_NAME.test(value.trim()) ? value.trim().toUpperCase() : "");
 const cleanGcode = (value) => (typeof value === "string" ? value.replace(/\r\n?/g, "\n").slice(0, FUNCTION_GCODE_MAX) : "");
-const cleanObjectName = (value) => (typeof value === "string" && /^[A-Za-z_]+ [^\n]{1,80}$/.test(value.trim()) ? value.trim() : "");
+const cleanObjectName = (value) => (typeof value === "string" && /^[A-Za-z_][A-Za-z0-9_]* [^\n]{1,80}$/.test(value.trim()) ? value.trim() : "");
 
 /** The "functions" part of the settings, cleaned. */
 /** Macro names, upper case, once each (Klipper does not tell "park" from "PARK"). */

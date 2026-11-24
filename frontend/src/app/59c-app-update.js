@@ -161,7 +161,7 @@ function AppBlock({ app, installed }) {
   if (app.state === "down") return h(AppStatus, { tone: "warn" }, tx("The KlippEye service does not answer: cannot know whether there is an app."));
   const info = app.info;
   if (!info.available) {
-    const none = /nessuna app/i.test(String(info.reason));
+    const none = info.none === true; // 1.153.0: a flag, not the words of the reason (the backend translates them)
     return h(
       React.Fragment,
       null,

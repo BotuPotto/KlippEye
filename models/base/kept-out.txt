@@ -1,0 +1,11 @@
+# Judged prints kept for measuring the model. ml/datasets.py --klippeye never trains on them, nor on the answer given
+# about the same print. One id start (date and time) per line.
+20261113-164121
+20261115-011215
+20261116-160817
+20261116-175000
+20261113-144408
+20261114-001218
+20261114-151534
+20261114-232613
+20261118-160816
