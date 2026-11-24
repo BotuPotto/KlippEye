@@ -9778,6 +9778,21 @@ function sanitizeSettings(raw) {
 
 const cloneJson = (value) => JSON.parse(JSON.stringify(value));
 
+/**
+ * 1.145.0: `theirs` (the Raspberry's copy) with what changed here since `base` (the copy this page last saw) put on top.
+ * Objects are merged key by key; a list (the materials) or a value changed here wins as a whole.
+ */
+function mergeSettings(base, mine, theirs) {
+  if (!isPlainObject(mine) || !isPlainObject(theirs) || !isPlainObject(base)) return mine;
+  const out = {};
+  for (const key of new Set([...Object.keys(theirs), ...Object.keys(mine)])) {
+    const changedHere = JSON.stringify(mine[key]) !== JSON.stringify(base[key]);
+    const value = changedHere ? (isPlainObject(mine[key]) && isPlainObject(theirs[key]) ? mergeSettings(base[key], mine[key], theirs[key]) : mine[key]) : theirs[key];
+    if (value !== undefined) out[key] = value;
+  }
+  return out;
+}
+
 /* ---------------------------------------------------------------------------
    Moonraker's database
    ------------------------------------------------------------------------- */
@@ -9822,6 +9837,10 @@ function createSettingsStore() {
   let current = sanitizeSettings(remembered && remembered.settings);
   let stamp = (remembered && Number(remembered.t)) || 0; // when they were last changed, in ms: the newer copy wins
   let dirty = Boolean(remembered && remembered.dirty); // changed here, the Raspberry has not got the change yet
+  // 1.145.0: the Raspberry's copy as this page last saw or wrote it, and its time stamp: a save is put on top of the Raspberry's
+  // copy when another device saved in between (null: not known, the whole document is sent as before)
+  let base = remembered && isPlainObject(remembered.base) ? sanitizeSettings(remembered.base) : null;
+  let baseStamp = (remembered && Number(remembered.baseT)) || 0;
   let sync = { state: "loading", detail: "" };
   let view = { settings: current, sync };
   let saveTimer = 0;
@@ -9838,7 +9857,7 @@ function createSettingsStore() {
     view = { settings: current, sync };
     listeners.forEach((listener) => listener());
   };
-  const remember = () => storage.set(STORAGE_KEYS.settings, JSON.stringify({ t: stamp, dirty, settings: current }));
+  const remember = () => storage.set(STORAGE_KEYS.settings, JSON.stringify({ t: stamp, dirty, settings: current, base, baseT: baseStamp }));
   const setSync = (state, detail = "") => {
     if (sync.state === state && sync.detail === detail) return;
     sync = { state, detail };
@@ -9849,19 +9868,33 @@ function createSettingsStore() {
   async function push() {
     if (saving) return;
     saving = true;
-    const sentStamp = stamp;
+    let sentStamp = stamp;
     let aborted = false;
     let retry = false;
     let timedOut = false;
     const timeoutTimer = setTimeout(() => (timedOut = true), SETTINGS_DB_TIMEOUT_MS - 50);
     try {
       setSync("saving");
-      const result = await writeSettingsDb(SETTINGS_DB_KEY, { ...cloneJson(current), _t: sentStamp });
+      // 1.145.0: another device may have saved since this page last looked: its changes are kept, only ours go on top
+      // shortcut: the Raspberry's database cannot write "only if unchanged", so two saves within the same moment can still cross
+      const answer = await readSettingsDb(SETTINGS_DB_KEY);
+      if (!answer.ok) return setSync("local", answer.detail);
+      const remoteStamp = !answer.missing && isPlainObject(answer.value) ? Number(answer.value._t) || 0 : 0;
+      if (base && remoteStamp && remoteStamp !== baseStamp) {
+        current = sanitizeSettings(mergeSettings(base, current, sanitizeSettings(answer.value)));
+        stamp = nextStamp(Math.max(stamp, remoteStamp));
+        remember();
+        announce();
+        emit();
+      }
+      sentStamp = stamp;
+      const sent = cloneJson(current);
+      const result = await writeSettingsDb(SETTINGS_DB_KEY, { ...sent, _t: sentStamp });
       if (result.ok) {
-        if (stamp === sentStamp) {
-          dirty = false;
-          remember();
-        }
+        base = sent;
+        baseStamp = sentStamp;
+        if (stamp === sentStamp) dirty = false;
+        remember();
         setSync("shared");
       } else {
         setSync("local", result.detail);
@@ -9906,13 +9939,16 @@ function createSettingsStore() {
         return push();
       }
       const remoteStamp = Number(answer.value._t) || 0;
-      if (dirty && stamp > remoteStamp) {
+      if (dirty) {
+        // changed here and not saved yet: the save puts our changes on top of the Raspberry's copy
         known = true;
         announce();
         return push();
       }
       const remote = sanitizeSettings(answer.value);
       known = true;
+      base = remote;
+      baseStamp = remoteStamp;
       if (typeof answer.value.language !== "string") {
         // saved by a release before 1.5.0: the notifications get this device's language, and the Raspberry is told
         current = remote;
@@ -9965,6 +10001,7 @@ function createSettingsStore() {
     },
     reset() {
       current = sanitizeSettings(null);
+      base = null; // a reset replaces everything: nothing of the Raspberry's copy is kept
       stamp = nextStamp(stamp);
       dirty = true;
       known = true;
@@ -10349,7 +10386,7 @@ function usePrinterFunctions() {
    ========================================================================== */
 
 /** Written by build.py from the VERSION file of the release; stays as it is when the page is built by hand. */
-const DASHBOARD_RELEASE = "1.144.0";
+const DASHBOARD_RELEASE = "1.145.0";
 const dashboardRelease = () => (DASHBOARD_RELEASE.startsWith("__") ? "sviluppo" : DASHBOARD_RELEASE);
 
 /** The interface level this page needs from the backend (the backend says its own in /api/version). */
