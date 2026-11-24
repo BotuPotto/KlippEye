@@ -459,4 +459,4 @@ keeps it readable).
    writing rules.
 
 ### Open PRs
-#187 (release 1.137.0: install question, `klippeye uninstall`, branch `install-uninstall`), open 23 Nov. #186 (1.136.0) merged 23 Nov. Update this line when a PR opens or merges.
+None open (23 Nov: #186 1.136.0 and #187 1.137.0 merged). The full audit runs on branch `audit-2026-11-23`, commit audited in its report. Update this line when a PR opens or merges.
