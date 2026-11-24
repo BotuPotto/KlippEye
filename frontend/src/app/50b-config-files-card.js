@@ -75,6 +75,7 @@ function ConfigFilesCard({ onEditFile, onViewImage }) {
     if (item.type === "folder") return folder.openFolder(item.path);
     if (isImagePath(item.path)) return onViewImage(item.path);
     try {
+      configFileCache.delete(item.path); // 1.146.0: the editor always opens what the Raspberry has now (Klipper writes printer.cfg itself)
       onEditFile(item.path, await configFilesApi.read(item.path));
     } catch (error) {
       toast.action(tx("Error loading ") + item.path + ": " + (error.message || ""));

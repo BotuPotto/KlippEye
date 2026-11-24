@@ -392,6 +392,81 @@ with sync_playwright() as p:
         ok("[desktop %s] ... the file closed: the full panel again" % phase, wait_until(lambda: P.pg.locator(".klipper-state--compact").count() == 0 and P.pg.locator(".klipper-state").count() == 1))
         ok("[desktop %s] no page errors" % phase, not [e for e in errs(P) if not re.search(r"status of (502|503)", e)], errs(P)[:2])
         P.close()
+
+    # ------------------------------------------------------------------ 1.146.0: never overwrite newer text
+    def upload_cfg(P, name, text):
+        P.pg.evaluate("""async ([name, text]) => { const f = new FormData(); f.append('file', new Blob([text]), name); f.append('root', 'config'); await fetch('/server/files/upload', {method: 'POST', body: f}); }""", [name, text])
+
+    def on_pi(name="printer.cfg"):
+        return urllib.request.urlopen(mock.base + "/server/files/config/" + name).read().decode()
+
+    def kept_versions(name="printer.cfg"):
+        vers = json.loads(urllib.request.urlopen(mock.base + "/api/config/versions?path=" + name).read())["versions"]
+        return [json.loads(urllib.request.urlopen(mock.base + "/api/config/versions/%s?path=%s" % (v["id"], name)).read())["content"] for v in vers]
+
+    def type_at_end(P, text):
+        P.pg.evaluate("(t) => { const v = %s; v.dispatch({changes: {from: v.state.doc.length, insert: t}}); }" % VIEW, text)
+
+    BLOCK = "\n#*# <---------------------- SAVE_CONFIG ---------------------->\n#*# DO NOT EDIT THIS BLOCK OR BELOW. The contents are auto-generated.\n#*#\n#*# [probe]\n#*# z_offset = 1.234\n"
+    P = open_cfg(b, "printer.cfg")
+    first = P.pg.evaluate("() => %s.state.doc.toString()" % VIEW)
+    P.pg.locator(".editor-close").click()
+    wait_until(lambda: P.pg.locator(".screen--editor").count() == 0)
+    newer = first + BLOCK
+    upload_cfg(P, "printer.cfg", newer)           # Klipper's SAVE_CONFIG (or another browser) writes the file after the first read
+    P.pg.locator(".cfg-row", has=P.pg.locator(".cfg-row__name", has_text=re.compile("^printer.cfg$"))).first.locator(".cfg-row__main").click()
+    P.pg.wait_for_selector(".screen--editor .cm-editor")
+    P.pg.wait_for_timeout(500)
+    ok("1.146.0: the editor opens the file as it is on the Pi now, not an earlier copy", P.pg.evaluate("() => %s.state.doc.toString()" % VIEW) == newer)
+    P.close()
+
+    # a second browser saves while this one has the file open: Save asks, and the other change is kept
+    P = open_cfg(b, "printer.cfg")
+    base = on_pi()
+    type_at_end(P, "\n# tab A edit")
+    other = base + "\n# saved by tab B"
+    upload_cfg(P, "printer.cfg", other)
+    P.pg.locator(".editor-save").first.click()
+    ok("1.146.0: the file changed on the Pi since it was opened: Save asks first", wait_until(lambda: P.pg.locator(".confirm-card").count() == 1), P.pg.locator(".screen--editor").count())
+    ok("... and nothing was uploaded yet", on_pi() == other and "tab A edit" not in on_pi())
+    P.pg.locator(".confirm-card .oui-btn:not(.oui-btn--primary)").click()
+    wait_until(lambda: P.pg.locator(".confirm-card").count() == 0)
+    ok("... Cancel keeps the editor open with the text and leaves the Pi's copy alone", P.pg.locator(".screen--editor .cm-editor").count() == 1 and on_pi() == other)
+    P.pg.locator(".editor-save").first.click()
+    wait_until(lambda: P.pg.locator(".confirm-card").count() == 1)
+    P.pg.locator(".confirm-card .oui-btn--primary").click()
+    ok("... Save anyway writes it", wait_until(lambda: "tab A edit" in on_pi()))
+    ok("... and the Pi's text it replaced is kept in the versions", any("saved by tab B" in k for k in kept_versions()), kept_versions()[-1:] )
+    ok("1.146.0: no page errors", not errs(P), errs(P)[:2])
+    P.close()
+
+    # Klipper wrote the SAVE_CONFIG block after the editor opened: saving anyway never drops it
+    P = open_cfg(b, "printer.cfg")
+    base = on_pi()
+    type_at_end(P, "\n# my edit")
+    upload_cfg(P, "printer.cfg", base + BLOCK)
+    P.pg.locator(".editor-save").first.click()
+    wait_until(lambda: P.pg.locator(".confirm-card").count() == 1)
+    P.pg.locator(".confirm-card .oui-btn--primary").click()
+    ok("1.146.0: Save anyway writes the edit and keeps the SAVE_CONFIG block Klipper added", wait_until(lambda: "# my edit" in on_pi()) and "z_offset = 1.234" in on_pi() and on_pi().count("SAVE_CONFIG ---") == 1, on_pi()[-300:])
+    P.close()
+
+    # nothing changed on the Pi: Save does not ask
+    P = open_cfg(b, "printer.cfg")
+    type_at_end(P, "\n# plain edit")
+    P.pg.locator(".editor-save").first.click()
+    ok("1.146.0: an unchanged file saves without a question", wait_until(lambda: "# plain edit" in on_pi()) and P.pg.locator(".confirm-card").count() == 0)
+    P.close()
+
+    # a system log opens in the editor for reading only
+    mock.reset()
+    P = Page(b, mock, 390, 844)
+    CUR[0] = P
+    P.goto("sistema", 2000)
+    P.pg.locator(".log-row", has_text="klippy.log").first.locator("button", has_text="Apri").click()
+    P.pg.wait_for_selector(".screen--editor .cm-editor")
+    ok("1.146.0: a system log opens read-only: badge, no Save", P.pg.locator(".editor-title-row .oui-badge", has_text="Solo lettura").count() == 1 and P.pg.locator(".editor-save").count() == 0)
+    P.close()
     b.close()
 
 print("\n%d failure(s)" % len(FAILS) + (": " + ", ".join(FAILS) if FAILS else ""))
