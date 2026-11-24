@@ -68,23 +68,35 @@ command -v git >/dev/null 2>&1 || exit 0
 # An update (git) is working right now (or Moonraker is checking the repository, which takes a moment): wait up to 10 seconds.
 # An old lock left by a power loss is removed instead.
 LOCK="$REPO/.git/index.lock"
+# 1.142.0: a negative age (the Raspberry's clock is behind after a power cut, until the network gives the time) is an old
+# lock, not a young one.
+lock_busy() {
+  AGE=$(( $(date +%s) - $(stat -c %Y "$LOCK" 2>/dev/null || echo 0) ))
+  { [ "$AGE" -ge 0 ] && [ "$AGE" -lt 120 ]; } || pgrep -x git >/dev/null 2>&1
+}
 for _ in $(seq 20); do
   [ -e "$LOCK" ] || break
-  AGE=$(( $(date +%s) - $(stat -c %Y "$LOCK" 2>/dev/null || echo 0) ))
-  { [ "$AGE" -lt 120 ] || pgrep -x git >/dev/null 2>&1; } || break
+  lock_busy || break
   sleep 0.5
 done
 if [ -e "$LOCK" ]; then
-  AGE=$(( $(date +%s) - $(stat -c %Y "$LOCK" 2>/dev/null || echo 0) ))
-  if [ "$AGE" -lt 120 ] || pgrep -x git >/dev/null 2>&1; then
+  if lock_busy; then
     [ "$QUIET" = 1 ] || echo "Git is working (lock ${AGE}s old): try again in a moment."
     exit 0
   fi
   rm -f "$LOCK" && log "Removed the git lock left by a sudden power loss (${AGE}s old)."
 fi
 
+RECOVER="Fix: Moonraker's update manager -> klippeye -> Recover (hard), or in a terminal: klippeye update --force"
 if ! git -C "$REPO" rev-parse --verify -q 'HEAD^{commit}' >/dev/null 2>&1; then
-  log "ERROR: the git data in $REPO is damaged: cannot compare the files. Fix: Moonraker's update manager -> klippeye -> Recover (hard), or in a terminal: klippeye update --force"
+  log "ERROR: the git data in $REPO is damaged: cannot compare the files. $RECOVER"
+  exit 0
+fi
+# 1.142.0: the list of files first, so that a damaged tree object is told, not taken for an empty list (and «intact»)
+TREE="$(mktemp "${TMPDIR:-/tmp}/klippeye-tree.XXXXXX")" || { log "ERROR: cannot make a temporary file: the files were not compared."; exit 0; }
+if ! git -C "$REPO" ls-tree -r -z HEAD -- backend frontend notifier scripts systemd models apk VERSION > "$TREE" 2>/dev/null; then
+  rm -f "$TREE"
+  log "ERROR: the git data in $REPO is damaged: cannot list the files. $RECOVER"
   exit 0
 fi
 
@@ -96,7 +108,8 @@ while IFS= read -r -d '' ENTRY; do
   [ "$TYPE" = blob ] && [ "$MODE" != 120000 ] || continue
   if [ ! -f "$REPO/$FILE" ]; then BAD+=("$FILE"); continue; fi
   FILES+=("$FILE"); SHAS+=("$SHA")
-done < <(git -C "$REPO" ls-tree -r -z HEAD -- backend frontend notifier scripts systemd models apk VERSION 2>/dev/null)
+done < "$TREE"
+rm -f "$TREE"
 # 1.133.1: one git for all the files (one each took seconds at every start on a slow Raspberry)
 NOW=()
 [ ${#FILES[@]} -gt 0 ] && mapfile -t NOW < <(printf '%s\n' "${FILES[@]/#/$REPO/}" | git -C "$REPO" hash-object --no-filters --stdin-paths 2>/dev/null)
@@ -120,7 +133,7 @@ for FILE in "${BAD[@]}"; do
 done
 [ "${#DONE[@]}" = 0 ] || log "Restored (${#DONE[@]}): ${DONE[*]}"
 if [ "${#FAILED[@]}" != 0 ]; then
-  log "NOT restored (${#FAILED[@]}): ${FAILED[*]} - fix: Moonraker's update manager -> klippeye -> Recover (hard), or in a terminal: klippeye update --force"
+  log "NOT restored (${#FAILED[@]}): ${FAILED[*]} - $RECOVER"
 fi
 
 json_list() { local out="" f; for f in "$@"; do out="${out:+$out,}\"$f\""; done; printf '[%s]' "$out"; }

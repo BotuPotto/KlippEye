@@ -2181,6 +2181,7 @@
  "The printer homed (the page does it if needed).": "Хомінг принтера виконано (сторінка робить його за потреби).",
  "The printer is free and the queue is running: the first copy starts printing at once.": "Принтер вільний, і черга працює: перша копія одразу починає друкуватися.",
  "The printer is printing: change the update channel when the print ends (Moonraker restarts).": "Принтер друкує: змініть канал оновлень після закінчення друку (Moonraker перезапуститься).",
+ "Moonraker is slow to answer, so the printer may be printing: change the update channel in a moment (Moonraker restarts).": "Moonraker відповідає повільно, тому принтер, можливо, друкує: змініть канал оновлень за хвилину (Moonraker перезапуститься).",
  "The printer itself leaves six small discs of filament (retraction and a Z hop between them). Faster, less precise than printed markers. Filament loaded.": "Принтер сам залишає шість маленьких дисків філаменту (з ретрактом і Z hop між ними). Швидше й менш точно, ніж надруковані мітки. Філамент має бути завантажено.",
  "The printer moves the nozzle to a few points; at each one tap the very tip of the nozzle on the picture, where it would touch the bed. Not the toolhead, not the green marker. Zoom in with two fingers to be precise.": "Принтер переміщує сопло в кілька точок; у кожній натисніть на зображенні на самий кінчик сопла — там, де воно торкнулося б столу. Не на голівку й не на зелену мітку. Збільшуйте двома пальцями для точності.",
  "The printer, on every device": "Принтер, на кожному пристрої",

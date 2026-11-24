@@ -3330,12 +3330,23 @@ def api_update_channel_set():
     channel = str((request.get_json(silent=True) or {}).get("channel", "")).lower()
     if channel not in UPDATE_CHANNELS:
         return jsonify({"ok": False, "error": bt("Unknown update channel.", lang)}), 400
+    # 1.142.0: an error answer (Klipper not ready) or no Moonraker means nothing prints; a slow or unreadable answer is
+    # unknown, and unknown counts as printing: Moonraker restarts here
+    state = ""
     try:
-        state = requests.get(MOONRAKER_URL + "/printer/objects/query?print_stats=state", timeout=4).json()
-        if state["result"]["status"]["print_stats"]["state"] in ("printing", "paused"):
-            return jsonify({"ok": False, "error": bt("The printer is printing: change the update channel when the print ends (Moonraker restarts).", lang)}), 409
-    except Exception:  # noqa: BLE001 - Klipper not ready: nothing is printing
+        got = requests.get(MOONRAKER_URL + "/printer/objects/query?print_stats=state", timeout=4)
+        if got.ok:
+            state = got.json()["result"]["status"]["print_stats"]["state"]
+    except requests.exceptions.Timeout:
+        state = "unknown"
+    except requests.exceptions.ConnectionError:
         pass
+    except Exception:  # noqa: BLE001
+        state = "unknown"
+    if state in ("printing", "paused"):
+        return jsonify({"ok": False, "error": bt("The printer is printing: change the update channel when the print ends (Moonraker restarts).", lang)}), 409
+    if state == "unknown":
+        return jsonify({"ok": False, "error": bt("Moonraker is slow to answer, so the printer may be printing: change the update channel in a moment (Moonraker restarts).", lang)}), 409
     try:
         conf = _read_moonraker_conf()
         if update_channel_of(conf) is None:

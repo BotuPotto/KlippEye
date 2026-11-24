@@ -1330,6 +1330,16 @@ check("canale sconosciuto: 400", cg.post("/api/update/channel", json={"channel":
 fake.state["print_state"] = "printing"
 r = cg.post("/api/update/channel", json={"channel": "dev"})
 check("durante una stampa: 409 e niente cambia", r.status_code == 409 and bg.update_channel_of(fake.state["moonraker_conf"]) == "stable", r.get_json())
+# 1.142.0: Moonraker printing but slow to answer: «unknown» counts as printing, nothing changes
+real_get_ch = bg.requests.get
+def slow_get(*a, **k):
+    raise bg.requests.exceptions.Timeout("slow")
+bg.requests.get = slow_get
+del fake.posts[:]
+r = cg.post("/api/update/channel", json={"channel": "dev"})
+bg.requests.get = real_get_ch
+check("1.142.0: the update channel is not changed when Moonraker is too slow to say whether it is printing", r.status_code == 409 and not fake.posts
+      and bg.update_channel_of(fake.state["moonraker_conf"]) == "stable", (r.get_json(), fake.posts))
 fake.state["print_state"] = "standby"
 fake.state["moonraker_conf"] = "[server]\n"
 check("senza voce klippeye in moonraker.conf: GET dice non elencato, POST 409", cg.get("/api/update/channel").get_json()["listed"] is False and cg.post("/api/update/channel", json={"channel": "dev"}).status_code == 409)

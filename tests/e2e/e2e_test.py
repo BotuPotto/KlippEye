@@ -350,6 +350,11 @@ if scenario("install") or scenario("update") or scenario("undo"):
     ok("[install] klippeye status: the backend answers with its release", st.returncode == 0 and "The backend answers: release 1.0.0" in st.stdout, st.stdout + st.stderr)
     st = w.run([os.path.join(w.bin, "klippeye"), "stato"], env_extra={"KLIPPEYE_BRAIN_URL": BACKEND})
     ok("[install] the Italian command names of before 1.3.0 still work (klippeye stato)", st.returncode == 0 and "The backend answers" in st.stdout, st.stdout + st.stderr)
+    # 1.142.0: the command passes the data folder of the services, whatever the home folder looks like
+    other_home = os.path.join(w.root, "other_home")
+    os.makedirs(other_home, exist_ok=True)
+    st = w.run([os.path.join(w.bin, "klippeye"), "status"], env_extra={"HOME": other_home, "KLIPPEYE_BRAIN_URL": BACKEND})
+    ok("1.142.0: the klippeye command uses the services' data folder, not a guess from the home folder", ("Data and settings:   " + w.data) in st.stdout, st.stdout + st.stderr)
     vv = w.run([os.path.join(w.bin, "klippeye"), "version"])
     ok("[install] klippeye version", "KlippEye 1.0.0" in vv.stdout, vv.stdout + vv.stderr)
     dg = w.run([os.path.join(w.bin, "klippeye"), "diagnose"], env_extra={"KLIPPEYE_BRAIN_URL": BACKEND})
@@ -456,6 +461,19 @@ if scenario("install") or scenario("update") or scenario("undo"):
 
     if scenario("undo"):
         expected = backend_release()
+        # 1.142.0: a full card (ulimit -f 0 inside grep and python for these two files): both files stay as they were
+        conf_path, asvc_path = os.path.join(w.pd, "config", "moonraker.conf"), os.path.join(w.pd, "moonraker.asvc")
+        conf_was, asvc_was = open(conf_path).read(), open(asvc_path).read()
+        full = os.path.join(w.root, "fullbin")
+        os.makedirs(full, exist_ok=True)
+        for name, real in (("grep", shutil.which("grep")), ("python3", sys.executable)):
+            open(os.path.join(full, name), "w").write('#!/bin/sh\ncase "$*" in *moonraker.asvc*|*moonraker.conf*) ulimit -f 0 ;; esac\nexec "%s" "$@"\n' % real)
+            os.chmod(os.path.join(full, name), 0o755)
+        rf = w.install("--undo", env_extra={"PATH": full + ":" + w.env["PATH"], "KLIPPEYE_PYTHON": os.path.join(full, "python3")})
+        outf = rf.stdout + rf.stderr
+        ok("1.142.0: undo on a full card: moonraker.conf and moonraker.asvc are not emptied, no leftover, nothing said removed",
+           open(conf_path).read() == conf_was and open(asvc_path).read() == asvc_was and not [n for n in os.listdir(os.path.dirname(conf_path)) + os.listdir(w.pd) if n.endswith(".klippeye-tmp")]
+           and "removed from moonraker.asvc" not in outf and "removed from moonraker.conf" not in outf, outf)
         ra = w.install("--undo")
         outa = ra.stdout + ra.stderr
         ok("[undo] exits with 0", ra.returncode == 0, outa)
@@ -662,6 +680,20 @@ if scenario("printing"):
     out = r.stdout + r.stderr
     ok("[printing] the installer succeeds but does NOT restart Moonraker, and says so", r.returncode == 0 and not any(c.startswith("restart moonraker") for c in w.calls()) and "Printing" in out, out)
     ok("[printing] the entry is written to moonraker.conf anyway", "[update_manager klippeye]" in open(os.path.join(w.pd, "config", "moonraker.conf")).read())
+    # 1.142.0: Moonraker is printing but slow to answer (a busy Pi): not «not printing»
+    class SlowPrinting(Printing):
+        def do_GET(self):
+            time.sleep(5)
+            super().do_GET()
+    slow = ThreadingHTTPServer(("127.0.0.1", 7456), SlowPrinting)
+    threading.Thread(target=slow.serve_forever, daemon=True).start()
+    restarts = len([c for c in w.calls() if c.startswith("restart")])
+    rs = w.install("--channel=dev", env_extra={"KLIPPEYE_MOONRAKER_URL": "http://127.0.0.1:7456"})
+    outs = rs.stdout + rs.stderr
+    ok("1.142.0: a slow answer from a printing Moonraker: the installer does not restart it", rs.returncode == 0 and "Printing" in outs
+       and len([c for c in w.calls() if c.startswith("restart")]) == restarts, outs)
+    slow.shutdown()
+    slow.server_close()
     pcfg = os.path.join(w.pd, "config", "printer.cfg")
     open(pcfg, "w").write("[printer]\n\n# KlippEye (Settings -> Printer functions)\n[include klippeye_macros.cfg]\n")
     open(os.path.join(w.pd, "config", "klippeye_macros.cfg"), "w").write("[gcode_macro KLIPPEYE_PARK]\ngcode:\n  G28\n")
@@ -674,6 +706,7 @@ if scenario("printing"):
        and not os.path.exists(w.repo), outu)
     fake.shutdown()
     fake.server_close()
+
     w.teardown()
 
 # ----------------------------------------------------------------------------------- the real dashboard against Moonraker and the backend
@@ -1031,6 +1064,32 @@ if scenario("blackout"):
     r = w.run(["bash", os.path.join(w.repo, "scripts", "repair.sh")])
     ok("[blackout] an hour-old lock (left by the power cut): removed, and the file repaired", not os.path.exists(lock) and open(dash, "rb").read() == good[dash], r.stdout + r.stderr)
     ok("[blackout] ... and git works afterwards", sorted(l.split()[-1] for l in tree_clean(w).splitlines()) == ["README.md", "frontend/mine.txt"])
+
+    # 1.142.0: after a power cut the clock is behind (no battery): the lock looks younger than now, and no git runs
+    open(lock, "w").close()
+    open(dash, "wb").close()
+    soon = time.time() + 2400
+    os.utime(lock, (soon, soon))
+    r = w.run(["bash", os.path.join(w.repo, "scripts", "repair.sh")])
+    ok("1.142.0: a git lock dated in the future (clock behind), no git running: removed, and the file repaired", not os.path.exists(lock) and open(dash, "rb").read() == good[dash], r.stdout + r.stderr)
+    # 1.142.0: git's own copy damaged (an empty tree object): it says so instead of «intact»
+    mini = os.path.join(w.root, "tree_damaged")
+    shutil.rmtree(mini, ignore_errors=True)
+    os.makedirs(os.path.join(mini, "scripts"))
+    os.makedirs(os.path.join(mini, "backend"))
+    shutil.copy(os.path.join(w.repo, "scripts", "repair.sh"), os.path.join(mini, "scripts", "repair.sh"))
+    open(os.path.join(mini, "backend", "klippeye_backend.py"), "w").write("print('backend')\n")
+    w.git("init", "-q", "-b", "main", cwd=mini)
+    w.git("add", "-A", cwd=mini)
+    w.git("commit", "-q", "-m", "one", cwd=mini)
+    tree = w.git("rev-parse", "HEAD:backend", cwd=mini)
+    obj = os.path.join(mini, ".git", "objects", tree[:2], tree[2:])
+    os.chmod(obj, 0o644)
+    open(obj, "wb").close()
+    open(os.path.join(mini, "backend", "klippeye_backend.py"), "w").write("print('bac")
+    r = w.run(["bash", os.path.join(mini, "scripts", "repair.sh")], env_extra={"KLIPPEYE_DATA": os.path.join(mini, "data")})
+    logged = open(os.path.join(mini, "data", "repair.log")).read() if os.path.exists(os.path.join(mini, "data", "repair.log")) else ""
+    ok("1.142.0: git's copy damaged: no «intact», the log says git is damaged and names Recover", r.returncode == 0 and "intact" not in r.stdout and "damaged" in logged and "Recover" in logged, r.stdout + r.stderr + logged)
 
     broken = os.path.join(w.root, "broken_copy")
     shutil.copytree(w.repo, broken, symlinks=True)
