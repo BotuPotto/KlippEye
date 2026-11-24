@@ -1,5 +1,16 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.139.0
+
+The camera calibration no longer moves the printer during a print, and a CoreXZ gets the right Z arrows.
+
+- «Find the nozzle» checks that the printer is idle, homed and ready before it sends any move. Before, a second browser
+  or a page left open could start it during a print, and eight moves reached Klipper while the part was printing.
+- A CoreXZ printer moves the toolhead in Z, not the bed. KlippEye used to guess the bed, so the calibration fitted the
+  wrong model and the Z «up» arrow lowered the nozzle. Both the calibration and the dashboard now guess the toolhead.
+- The Z arrows stay off until the dashboard has read Klipper's configuration. Before, they assumed the bed moves and
+  could be inverted for a moment on a printer where the toolhead moves.
+
 ## 1.138.0
 
 Nothing in the dashboard moves, stops or restarts the printer without telling you how it went.

@@ -125,7 +125,7 @@ def guess_z_moves(settings):
     if "quad_gantry_level" in settings:
         return "toolhead"
     kinematics = str((settings.get("printer") or {}).get("kinematics", "")).lower()
-    if "z_tilt" in settings or "z_tilt_ng" in settings or kinematics in ("corexy", "hybrid_corexy", "corexz"):
+    if "z_tilt" in settings or "z_tilt_ng" in settings or kinematics in ("corexy", "hybrid_corexy"):   # 1.139.0: not corexz, its gantry moves in Z
         return "bed"
     return "toolhead"
 
@@ -513,6 +513,7 @@ class CameraCalibration:
         if self.cv2 is None:
             raise NotReady("OpenCV is missing on the Raspberry")
         printer = self.printer()
+        self._ready_to_move(printer)   # 1.139.0: _walk sends moves before goto() checks; never during a print
         t = self._target(target_id, printer)
         if t["kind"] != "nozzle":
             raise ValueError("only the nozzle points can be found by themselves")
