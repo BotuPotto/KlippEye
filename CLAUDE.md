@@ -438,6 +438,17 @@ keeps it readable).
   on**, only used to measure the base model and the monitor (`ml/evaluate.py`, `scripts/replay.py`). The old
   measurements (bed box `0,0.368,1,0.632`, thresholds, kept-out prints) are valid for the old camera only.
 
+### Full audit (24 Nov)
+- Report: `docs/audits/2026-11-24-full-audit.md`, commit audited f0552fb, proofs in `docs/audits/2026-11-24-proofs/`
+  (each command becomes the failing test of its fix). 22 Must, 65 Should, 80 Nice (the Nice ones not verified one by one).
+  Every Must and Should was reproduced or confirmed by a verifier who did not write it; none dropped.
+- Section 8 of the report: 19 fix PRs in order (dashboard actions that move or restart the printer first). Waiting for
+  the owner to choose which groups and in what order. Mark each PR here when it merges.
+- Two questions for the owner in the report: whether the automatic pause should wait for the online second look, and
+  whether the old app's key `android/chiave/vzbot.p12` can go (and its GitHub secret).
+- Fixes: plan `docs/superpowers/plans/2026-11-24-audit-fixes.md`, one PR per task. PR 1 (dashboard actions, 1.138.0, test
+  `tests/ui/dashboard_actions_test.py`) open, branch `fix-dashboard-actions`.
+
 ### Owner's notes of 23 Nov (to do, in this order)
 1. Release 1.135.1 (#184): plainer texts, guide, no benchmark of other models. Done when merged.
 2. Calibration: take out the automatic «detail» method (the owner uses the 6 blobs); bed corners as dots to drag by
@@ -459,9 +470,4 @@ keeps it readable).
    writing rules.
 
 ### Open PRs
-#187 (release 1.137.0: install question, `klippeye uninstall`, branch `install-uninstall`), open 23 Nov. #186 (1.136.0) merged 23 Nov. Update this line when a PR opens or merges.
-
-### Full audit fixes (24 Nov)
-- Plan: `docs/superpowers/plans/2026-11-24-audit-fixes.md`, one PR per task. PR 1 (dashboard: nothing moves or restarts the
-  printer unseen, release 1.138.0) open, branch `fix-dashboard-actions`; test `tests/ui/dashboard_actions_test.py`.
-  Mark each PR here when it merges.
+PR 1 of the audit fixes (release 1.138.0, branch `fix-dashboard-actions`), open 24 Nov. #188 (the audit report) merged 24 Nov. Update this line when a PR opens or merges.
