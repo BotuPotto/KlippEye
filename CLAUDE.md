@@ -460,3 +460,8 @@ keeps it readable).
 
 ### Open PRs
 #187 (release 1.137.0: install question, `klippeye uninstall`, branch `install-uninstall`), open 23 Nov. #186 (1.136.0) merged 23 Nov. Update this line when a PR opens or merges.
+
+### Full audit fixes (24 Nov)
+- Plan: `docs/superpowers/plans/2026-11-24-audit-fixes.md`, one PR per task. PR 1 (dashboard: nothing moves or restarts the
+  printer unseen, release 1.138.0) open, branch `fix-dashboard-actions`; test `tests/ui/dashboard_actions_test.py`.
+  Mark each PR here when it merges.

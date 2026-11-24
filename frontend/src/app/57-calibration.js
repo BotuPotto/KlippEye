@@ -336,10 +336,13 @@ function MacroCards({ printState, onGcode, onSettings }) {
   const { settings } = useSettings();
   const catalog = useMacroCatalog();
   const [editing, setEditing] = useState(null); // macro whose parameters are being filled in
-  const run = (script) => {
+  const [asking, setAsking] = useState(null); // 1.138.0: the script waiting for a «yes» during a print
+  const send = (script) => {
     onGcode(script);
     toast.action(script);
   };
+  // the simple card is one tap per macro: during a print it asks first (a group is shown in a state on purpose)
+  const run = (script) => (settings.macros.mode === "simple" && macroPrintState(printState) !== "standby" ? setAsking(script) : send(script));
   const cards = macroCards(settings.macros, catalog, printState);
   return h(
     React.Fragment,
@@ -362,6 +365,20 @@ function MacroCards({ printState, onGcode, onSettings }) {
       ),
     ),
     h(Presence, null, editing && h(ParamDialog, { macro: editing, onRun: run, onClose: () => setEditing(null) })),
+    h(ConfirmDialog, {
+      open: Boolean(asking),
+      tone: "danger",
+      icon: h(Icons.Warning),
+      title: tx("A print is running"),
+      subtitle: asking,
+      message: tx("The macro can move the toolhead or change the print. Send it anyway?"),
+      confirmLabel: tx("Send"),
+      onConfirm: () => {
+        send(asking);
+        setAsking(null);
+      },
+      onCancel: () => setAsking(null),
+    }),
   );
 }
 

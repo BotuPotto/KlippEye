@@ -1,5 +1,22 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.138.0
+
+Nothing in the dashboard moves, stops or restarts the printer without telling you how it went.
+
+- The emergency stop checks that it arrived. If neither request is answered ok within four seconds, a message tells you
+  to cut the power if the printer still moves. Before, a dead connection looked like a stop that worked.
+- Start print, Pause, Resume, Cancel and Exclude an object show Klipper's own words when Klipper refuses them. Before, a
+  refused cancel still said «CANCEL_PRINT sent» and a refused start just closed the dialog.
+- Quick taps on a jog button are all sent. Five taps on Z -1 used to send two moves. When Klipper refuses a jog, the
+  dashboard sets absolute mode again, so the next move from a macro or the console does not go to the wrong place.
+- «Save and restart» asks first when it cannot read whether a print is running, as it already did during a print. When
+  Klipper refuses SAVE_CONFIG, the editor no longer says that Klipper restarts.
+- Renaming a bed mesh profile that is not in use no longer changes the mesh in use: the one you had loaded is loaded again.
+- A dialog opened while the printer was idle (measure the input shaper, calibrate the mesh, rename a profile) checks the
+  print again when you confirm. If a print started in the meantime, nothing is sent.
+- On the Macros card, a tap during a print or a pause asks first. Groups you set up for a print state still run at once.
+
 ## 1.137.0
 
 - When the Raspberry runs nginx, the installer asks one question: should KlippEye be the Raspberry's main page

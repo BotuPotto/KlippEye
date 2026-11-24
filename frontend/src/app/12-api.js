@@ -13,11 +13,14 @@ const JSON_HEADERS = { "Content-Type": "application/json" };
    endpoint and the backend endpoint.
    ------------------------------------------------------------------------- */
 const GCODE_DUPLICATE_WINDOW_MS = 500;
+/** A jog: "G91", the move, "G90" in one script. */
+const RELATIVE_MOVE = /^G91\b[\s\S]*\bG90$/;
 const gcodeGuard = {
   lastScript: "",
   lastTime: 0,
   /** Returns true when `script` repeats the previous one inside the window. */
   isDuplicate(script) {
+    if (RELATIVE_MOVE.test(script)) return false; // 1.138.0: five taps on a jog button are five moves
     const squash = (s) => s.replace(/\s+/g, " ").trim();
     const now = Date.now();
     const duplicate = squash(script) === squash(this.lastScript) && now - this.lastTime < GCODE_DUPLICATE_WINDOW_MS;
@@ -38,7 +41,14 @@ const blockedDuplicateResponse = () => ({
 function postGcodeTo(endpoint, script) {
   const trimmed = (script || "").trim();
   if (trimmed && gcodeGuard.isDuplicate(trimmed)) return Promise.resolve(blockedDuplicateResponse());
-  return fetch(endpoint, { method: "POST", headers: JSON_HEADERS, body: JSON.stringify({ script }) });
+  const post = (body) => fetch(endpoint, { method: "POST", headers: JSON_HEADERS, body: JSON.stringify({ script: body }) });
+  if (!RELATIVE_MOVE.test(trimmed)) return post(script);
+  // 1.138.0: Klipper stops a script at a refused move, so its closing G90 never runs and every later absolute move would go wrong
+  const absolute = () => post("G90").catch(noop);
+  return post(script).then(
+    (response) => (response.ok ? response : (absolute(), response)),
+    (error) => (absolute(), Promise.reject(error)),
+  );
 }
 
 /** Sends G-code through Moonraker. Rejects on network failure. */
@@ -82,6 +92,21 @@ async function sendLongGcode(script) {
   } catch (error) {
     return { ok: false, message: error.message || tx("printer not reachable") };
   }
+}
+
+/**
+ * Runs `request()` (resolves a Response) and, when Klipper refuses it or it does not arrive, shows Klipper's own words in a
+ * toast. Resolves true when it went through. For the actions that move or stop the printer (1.138.0).
+ */
+async function sendOrTell(request) {
+  try {
+    const response = await request();
+    if (response.ok) return true;
+    toast.notice(tx("Failed: ") + (await errorMessageOf(response)), 5000);
+  } catch (error) {
+    toast.notice(tx("Failed: ") + (error.message || tx("printer not reachable")), 5000);
+  }
+  return false;
 }
 
 /* ---------------------------------------------------------------------------

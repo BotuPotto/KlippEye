@@ -4,7 +4,7 @@
    ========================================================================== */
 
 function startPrint(job) {
-  fetch("/printer/print/start", { method: "POST", headers: JSON_HEADERS, body: JSON.stringify({ filename: job.path }) }).catch(noop);
+  sendOrTell(() => fetch("/printer/print/start", { method: "POST", headers: JSON_HEADERS, body: JSON.stringify({ filename: job.path }) }));
 }
 
 /**

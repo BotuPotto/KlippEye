@@ -308,6 +308,9 @@ function createKlipperWatch(publish) {
   };
 }
 
+/** How long the emergency stop waits for one of its two requests to be answered ok before it tells the person. */
+const EMERGENCY_STOP_WAIT_MS = 4000;
+
 /** The panel's state, and what can be done to it. Everything but `view` keeps its identity from one render to the next. */
 function useKlipperState() {
   const [view, setView] = useState(null);
@@ -322,9 +325,16 @@ function useKlipperState() {
   /** Emergency stop: brief pause, M112 + emergency_stop, then Klipper's own message is looked for. */
   const emergencyStop = async () => {
     await sleep(100);
-    moonraker.emergencyStop().catch(noop);
-    fireGcode("M112");
+    // 1.138.0: two requests, one is enough; when none comes back ok in a few seconds the person is told
+    const worked = new Promise((resolve) => {
+      let waiting = 2;
+      const answer = (request) => request.then((response) => response.ok, () => false).then((ok) => (ok ? resolve(true) : --waiting === 0 && resolve(false)));
+      answer(moonraker.emergencyStop());
+      answer(sendGcode("M112"));
+      setTimeout(() => resolve(false), EMERGENCY_STOP_WAIT_MS);
+    });
     actions.watchClosely();
+    if (!(await worked)) toast.notice(tx("The emergency stop did not go through. If the printer is still moving, cut its power."), 10000);
   };
   return { view, emergencyStop, evaluateConsoleStore: actions.noteConsole, restartKlipper: actions.restartKlipper, serviceAction: actions.serviceAction, rebootHost: actions.rebootHost, shutdownHost: actions.shutdownHost, expectRestart: actions.expectRestart };
 }

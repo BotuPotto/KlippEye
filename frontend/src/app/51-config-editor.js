@@ -341,9 +341,12 @@ async function restartForFile(target) {
     if (!response.ok) throw new Error("HTTP " + response.status);
     return;
   }
-  const status = await moonraker.queryObjects("print_stats=state&configfile=save_config_pending", { timeout: 4000 }).catch(() => ({}));
+  const read = await moonraker.queryObjects("print_stats=state&configfile=save_config_pending", { timeout: 4000 }).catch(() => null);
+  const status = read || {};
   const state = (status.print_stats || {}).state;
-  if ((state === "printing" || state === "paused") && !window.confirm(tx("A print is running: it will fail!") + " " + tx("Restart Klipper anyway?"))) throw new Error("cancelled");
+  // 1.138.0: a read that failed does not mean "no print": ask
+  const question = read ? ((state === "printing" || state === "paused") && tx("A print is running: it will fail!")) : tx("Cannot tell if a print is running.");
+  if (question && !window.confirm(question + " " + tx("Restart Klipper anyway?"))) throw new Error("cancelled");
   if ((status.configfile || {}).save_config_pending) return sendSaveConfig();
   const response = await moonraker.firmwareRestart();
   if (!response.ok) throw new Error("HTTP " + response.status);
@@ -351,11 +354,13 @@ async function restartForFile(target) {
 
 /** Sends SAVE_CONFIG, falling back to the query-string form when the POST fails. */
 async function sendSaveConfig() {
+  let response;
   try {
-    await sendGcode("SAVE_CONFIG");
+    response = await sendGcode("SAVE_CONFIG");
   } catch (error) {
-    await postAction("/printer/gcode/script?script=SAVE_CONFIG");
+    response = await postAction("/printer/gcode/script?script=SAVE_CONFIG");
   }
+  if (!response.ok) throw new Error(await errorMessageOf(response)); // 1.138.0: Klipper refused: nothing restarts
 }
 
 /* ---------------------------------------------------------------------------

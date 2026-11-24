@@ -2982,5 +2982,8 @@
  "…and {count} more: type more letters": "…还有 {count} 个：请输入更多字母",
  "◀ Alarm": "◀ 警报",
  "Old method: calibrate again": "旧方法：请重新校准",
- "You can also drag the corners of the dashed bed outline on the picture, so it matches the plate without counting millimetres.": "你也可以在画面上拖动虚线热床轮廓的四个角，让它与打印板吻合，无需计算毫米。"
+ "You can also drag the corners of the dashed bed outline on the picture, so it matches the plate without counting millimetres.": "你也可以在画面上拖动虚线热床轮廓的四个角，让它与打印板吻合，无需计算毫米。",
+ "The emergency stop did not go through. If the printer is still moving, cut its power.": "紧急停止没有成功。如果打印机仍在移动，请切断电源。",
+ "Cannot tell if a print is running.": "无法确定是否正在打印。",
+ "The macro can move the toolhead or change the print. Send it anyway?": "该宏可能移动打印头或改变打印。仍要发送吗？"
 }

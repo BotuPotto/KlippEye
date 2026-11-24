@@ -2982,5 +2982,8 @@
  "…and {count} more: type more letters": "…і ще {count}: введіть більше літер",
  "◀ Alarm": "◀ Тривога",
  "Old method: calibrate again": "Старий метод: відкалібруйте знову",
- "You can also drag the corners of the dashed bed outline on the picture, so it matches the plate without counting millimetres.": "Також можна перетягнути кути пунктирного контуру столу на зображенні, щоб він збігся з пластиною без підрахунку міліметрів."
+ "You can also drag the corners of the dashed bed outline on the picture, so it matches the plate without counting millimetres.": "Також можна перетягнути кути пунктирного контуру столу на зображенні, щоб він збігся з пластиною без підрахунку міліметрів.",
+ "The emergency stop did not go through. If the printer is still moving, cut its power.": "Аварійна зупинка не пройшла. Якщо принтер усе ще рухається, вимкніть живлення.",
+ "Cannot tell if a print is running.": "Не вдається дізнатися, чи йде друк.",
+ "The macro can move the toolhead or change the print. Send it anyway?": "Макрос може посунути голівку або змінити друк. Усе одно надіслати?"
 }

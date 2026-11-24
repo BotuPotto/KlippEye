@@ -103,7 +103,7 @@ with sync_playwright() as p:
     ok("... and not sent", not any("my mesh" in g for g in gcodes()) and pg.locator(".confirm-card .mesh-name__input").count() == 1)
     pg.locator(".confirm-card .mesh-name__input").fill("fine_bed")
     pg.locator(".confirm-card").get_by_role("button", name="Rinomina", exact=True).click()
-    ok("renaming: load, save with the new name, remove the old", wait_until(lambda: "BED_MESH_PROFILE LOAD=adaptive\nBED_MESH_PROFILE SAVE=fine_bed\nBED_MESH_PROFILE REMOVE=adaptive" in gcodes()), gcodes()[-3:])
+    ok("renaming: load, save with the new name, remove the old, load the one in use again", wait_until(lambda: "BED_MESH_PROFILE LOAD=adaptive\nBED_MESH_PROFILE SAVE=fine_bed\nBED_MESH_PROFILE REMOVE=adaptive\nBED_MESH_PROFILE LOAD=default" in gcodes()), gcodes()[-3:])
     ok("... the list has fine_bed, not adaptive", wait_until(lambda: sorted(profiles(P)) == ["default", "fine_bed"]), profiles(P))
     c.locator('[data-profile="default"] button[aria-label="Rimuovi default"]').click()
     pg.wait_for_selector(".confirm-card")
