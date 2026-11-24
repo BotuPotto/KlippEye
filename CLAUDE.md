@@ -495,6 +495,8 @@ keeps it readable).
   and `AddressesTest`) open as #202, branch `fix-android`, built on #201 (merge #198 to #201 first, in order). Not done: a hostile
   frame inside the dashboard's page (needs `addWebMessageListener`); the signing key is still public, encrypted, and moving it into
   a secret waits for the owner (`android/README.md`, «Signing»).
+  PR 16 (MQTT says offline when Klipper is down, one MQTT client id per machine, a wrong sure / doubt pair in `monitor.json`
+  put right, 1.152.0, tests in `tests/backend/test_backend.py`) open as #203, branch `fix-mqtt-settings`, built on #202 (merge #198 to #202 first, in order).
 
 ### Owner's notes of 23 Nov (to do, in this order)
 1. Release 1.135.1 (#184): plainer texts, guide, no benchmark of other models. Done when merged.
@@ -517,4 +519,4 @@ keeps it readable).
    writing rules.
 
 ### Open PRs
-#189 to #196 (PRs 1 to 8 of the audit fixes, 1.138.0 to 1.145.0) and #188 (the audit report) merged 24 Nov. #197 (PR 9, 1.146.0, branch `fix-config-editor`: the config editor never overwrites newer text), open 24 Nov. #198 (PR 10, 1.147.0, branch `fix-access-network`), built on #197, open 24 Nov. #199 (PR 11, 1.148.0, branch `fix-monitor-loop`), built on #198, open 24 Nov. #200 (PR 12, 1.149.0, branch `fix-online-ai`), built on #199, open 24 Nov. #201 (PR 13, 1.150.0, branch `fix-training-chain`), built on #200, open 24 Nov. #202 (PR 15, 1.151.0, branch `fix-android`), built on #201, open 24 Nov. Update this line when a PR opens or merges.
+#189 to #196 (PRs 1 to 8 of the audit fixes, 1.138.0 to 1.145.0) and #188 (the audit report) merged 24 Nov. #197 (PR 9, 1.146.0, branch `fix-config-editor`: the config editor never overwrites newer text), open 24 Nov. #198 (PR 10, 1.147.0, branch `fix-access-network`), built on #197, open 24 Nov. #199 (PR 11, 1.148.0, branch `fix-monitor-loop`), built on #198, open 24 Nov. #200 (PR 12, 1.149.0, branch `fix-online-ai`), built on #199, open 24 Nov. #201 (PR 13, 1.150.0, branch `fix-training-chain`), built on #200, open 24 Nov. #202 (PR 15, 1.151.0, branch `fix-android`), built on #201, open 24 Nov. #203 (PR 16, 1.152.0, branch `fix-mqtt-settings`), built on #202, open 24 Nov. Update this line when a PR opens or merges.
