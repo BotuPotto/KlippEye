@@ -488,7 +488,7 @@ keeps it readable).
   `tests/backend/test_backend.py`) open as #200, branch `fix-online-ai`, built on #199 (merge #197 to #199 first, in order).
   PR 13 (training chain: kept-out prints skipped by `ml/datasets.py` from `models/base/kept-out.txt`, a print recorded and answered
   counts once, licence allow-list, a cut download fetched again, `evaluate.py --trained`, 1.150.0, tests «1.150.0: …» in
-  `ml/tests/test_tools.py`) open as #PR13, branch `fix-training-chain`, built on #200 (merge #198 to #200 first, in order).
+  `ml/tests/test_tools.py`) open as #201, branch `fix-training-chain`, built on #200 (merge #198 to #200 first, in order).
 
 ### Owner's notes of 23 Nov (to do, in this order)
 1. Release 1.135.1 (#184): plainer texts, guide, no benchmark of other models. Done when merged.
@@ -511,4 +511,4 @@ keeps it readable).
    writing rules.
 
 ### Open PRs
-#189 to #196 (PRs 1 to 8 of the audit fixes, 1.138.0 to 1.145.0) and #188 (the audit report) merged 24 Nov. #197 (PR 9, 1.146.0, branch `fix-config-editor`: the config editor never overwrites newer text), open 24 Nov. #198 (PR 10, 1.147.0, branch `fix-access-network`), built on #197, open 24 Nov. #199 (PR 11, 1.148.0, branch `fix-monitor-loop`), built on #198, open 24 Nov. #200 (PR 12, 1.149.0, branch `fix-online-ai`), built on #199, open 24 Nov. #PR13 (PR 13, 1.150.0, branch `fix-training-chain`), built on #200, open 24 Nov. Update this line when a PR opens or merges.
+#189 to #196 (PRs 1 to 8 of the audit fixes, 1.138.0 to 1.145.0) and #188 (the audit report) merged 24 Nov. #197 (PR 9, 1.146.0, branch `fix-config-editor`: the config editor never overwrites newer text), open 24 Nov. #198 (PR 10, 1.147.0, branch `fix-access-network`), built on #197, open 24 Nov. #199 (PR 11, 1.148.0, branch `fix-monitor-loop`), built on #198, open 24 Nov. #200 (PR 12, 1.149.0, branch `fix-online-ai`), built on #199, open 24 Nov. #201 (PR 13, 1.150.0, branch `fix-training-chain`), built on #200, open 24 Nov. Update this line when a PR opens or merges.
