@@ -455,8 +455,9 @@ keeps it readable).
   Every Must and Should was reproduced or confirmed by a verifier who did not write it; none dropped.
 - Section 8 of the report: 19 fix PRs in order (dashboard actions that move or restart the printer first). Waiting for
   the owner to choose which groups and in what order. Mark each PR here when it merges.
-- Two questions for the owner in the report: whether the automatic pause should wait for the online second look, and
-  whether the old app's key `android/chiave/vzbot.p12` can go (and its GitHub secret).
+- Two questions for the owner in the report: whether the automatic pause should wait for the online second look (answered
+  24 Nov: only the local model's own verdict is limited, see section 2) and whether the old app's key `android/chiave/vzbot.p12`
+  can go (answered 24 Nov: yes; the file and its references are removed in PR 15, the old GitHub secret is deleted on GitHub).
 - Fixes: plan `docs/superpowers/plans/2026-11-24-audit-fixes.md`, one PR per task. PR 1 (dashboard actions, 1.138.0, test
   `tests/ui/dashboard_actions_test.py`) open as #189, branch `fix-dashboard-actions`.
   PR 2 (calibration: no moves during a print, right Z guess, 1.139.0, test in `tests/backend/test_calibration_auto.py`) open as #190,
@@ -489,6 +490,11 @@ keeps it readable).
   PR 13 (training chain: kept-out prints skipped by `ml/datasets.py` from `models/base/kept-out.txt`, a print recorded and answered
   counts once, licence allow-list, a cut download fetched again, `evaluate.py --trained`, 1.150.0, tests «1.150.0: …» in
   `ml/tests/test_tools.py`) open as #201, branch `fix-training-chain`, built on #200 (merge #198 to #200 first, in order).
+  PR 15 (Android app 1.9.0: the bridge answers only the dashboard's origin, a pinned certificate means https only, the signing
+  password only on its workflow steps, actions pinned, `vzbot.p12` removed, 1.151.0, tests «1.151.0: …» in `tests/app/app_ci_test.py`
+  and `AddressesTest`) open as #202, branch `fix-android`, built on #201 (merge #198 to #201 first, in order). Not done: a hostile
+  frame inside the dashboard's page (needs `addWebMessageListener`); the signing key is still public, encrypted, and moving it into
+  a secret waits for the owner (`android/README.md`, «Signing»).
 
 ### Owner's notes of 23 Nov (to do, in this order)
 1. Release 1.135.1 (#184): plainer texts, guide, no benchmark of other models. Done when merged.
@@ -511,4 +517,4 @@ keeps it readable).
    writing rules.
 
 ### Open PRs
-#189 to #196 (PRs 1 to 8 of the audit fixes, 1.138.0 to 1.145.0) and #188 (the audit report) merged 24 Nov. #197 (PR 9, 1.146.0, branch `fix-config-editor`: the config editor never overwrites newer text), open 24 Nov. #198 (PR 10, 1.147.0, branch `fix-access-network`), built on #197, open 24 Nov. #199 (PR 11, 1.148.0, branch `fix-monitor-loop`), built on #198, open 24 Nov. #200 (PR 12, 1.149.0, branch `fix-online-ai`), built on #199, open 24 Nov. #201 (PR 13, 1.150.0, branch `fix-training-chain`), built on #200, open 24 Nov. Update this line when a PR opens or merges.
+#189 to #196 (PRs 1 to 8 of the audit fixes, 1.138.0 to 1.145.0) and #188 (the audit report) merged 24 Nov. #197 (PR 9, 1.146.0, branch `fix-config-editor`: the config editor never overwrites newer text), open 24 Nov. #198 (PR 10, 1.147.0, branch `fix-access-network`), built on #197, open 24 Nov. #199 (PR 11, 1.148.0, branch `fix-monitor-loop`), built on #198, open 24 Nov. #200 (PR 12, 1.149.0, branch `fix-online-ai`), built on #199, open 24 Nov. #201 (PR 13, 1.150.0, branch `fix-training-chain`), built on #200, open 24 Nov. #202 (PR 15, 1.151.0, branch `fix-android`), built on #201, open 24 Nov. Update this line when a PR opens or merges.
