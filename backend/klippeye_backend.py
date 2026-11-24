@@ -37,6 +37,7 @@ import time
 import traceback
 import urllib.parse
 from html import escape
+from types import SimpleNamespace
 
 import requests
 from flask import Flask, Response, jsonify, redirect, request
@@ -1580,6 +1581,9 @@ def _read_ai_file():
         return {}
 
 
+_ai_file_lock = threading.Lock()   # 1.149.0: read, change and write of ai.json is one step (two devices saving keys at once)
+
+
 def load_ai_config():
     """The AI settings (ai_services, version 2: keys per service, a service and model for the logs and for the monitor),
     with the fields of before 1.27 for the logs' service ("provider", "api_key", "model"). None when no key was entered."""
@@ -1657,13 +1661,14 @@ def api_ai_config():
             out["message"] = bt(AI_SETUP_HINT, _lang())
         return _no_store(jsonify(out))
     body = request.get_json(force=True, silent=True) or {}
-    cfg, problem = ai_services.apply(_read_ai_file(), body if isinstance(body, dict) else {})
-    if problem:
-        return jsonify({"ok": False, "error": bt(AI_CONFIG_ERRORS.get(problem, AI_CONFIG_ERRORS["unknown"]), _lang())}), 400
-    try:
-        write_json_atomic(AI_CONFIG_PATH, cfg, private=True)   # readable only by the service user: it holds passwords
-    except OSError as e:
-        return jsonify({"ok": False, "error": bt("cannot save the key in {path}: {error}", _lang(), path=AI_CONFIG_PATH, error=e)}), 500
+    with _ai_file_lock:
+        cfg, problem = ai_services.apply(_read_ai_file(), body if isinstance(body, dict) else {})
+        if problem:
+            return jsonify({"ok": False, "error": bt(AI_CONFIG_ERRORS.get(problem, AI_CONFIG_ERRORS["unknown"]), _lang())}), 400
+        try:
+            write_json_atomic(AI_CONFIG_PATH, cfg, private=True)   # readable only by the service user: it holds passwords
+        except OSError as e:
+            return jsonify({"ok": False, "error": bt("cannot save the key in {path}: {error}", _lang(), path=AI_CONFIG_PATH, error=e)}), 500
     if isinstance(body.get("monitor"), dict) and detector.ai_model:
         set_backend_config({"ai_model": ""})   # the model of before 1.27 (Monitor thresholds) gives way to the one chosen here
     return jsonify(dict(ai_services.summary(cfg), ok=True, saved_to=[AI_CONFIG_PATH]))
@@ -2089,9 +2094,30 @@ def write_ai_picture(frame, path):
     return path
 
 
+PICTURE_MAX_BYTES = 6 * 1024 * 1024   # a camera's photo is 50 KB to a few MB
+
+
+def fetch_picture(url, timeout=4):
+    """1.148.0: one photo from a snapshot address, never a stream. `timeout` counts each read, not the whole answer, so an
+    MJPEG stream (the address most camera pages show) never returned and filled the RAM. A stream is refused by its type,
+    and any answer is read in pieces up to a size and a total time. -> (ok, status_code, headers, content) like requests;
+    raises requests.RequestException."""
+    deadline = time.time() + 2 * timeout
+    with requests.get(url, timeout=timeout, stream=True) as answer:
+        if answer.headers.get("Content-Type", "").lower().startswith("multipart/"):
+            raise requests.RequestException("this is a video stream, not a photo address")
+        pieces, size = [], 0
+        for piece in answer.iter_content(65536):
+            pieces.append(piece)
+            size += len(piece)
+            if size > PICTURE_MAX_BYTES or time.time() > deadline:
+                raise requests.RequestException("the answer does not end: this is not a photo address")
+        return SimpleNamespace(ok=answer.ok, status_code=answer.status_code, headers=answer.headers, content=b"".join(pieces))
+
+
 def camera_frame(timeout=5):
     """A picture from the camera, decoded (None when the camera does not answer with one)."""
-    answer = requests.get(snapshot_url(), timeout=timeout)
+    answer = fetch_picture(snapshot_url(), timeout)
     if not answer.ok or len(answer.content) < 1000:
         return None
     return cv2.imdecode(np.frombuffer(answer.content, np.uint8), cv2.IMREAD_COLOR)
@@ -2132,13 +2158,11 @@ def normalize_action(value):
     """The AI's advice as CONTINUE / PAUSE / CANCEL, also when written the Italian way (CONTINUA / PAUSA / CANCELLA,
     releases before 1.6.0 and answers in Italian); "" when there is none."""
     text = str(value or "").upper()
-    if "CANCEL" in text:
-        return "CANCEL"
-    if "PAUS" in text:
-        return "PAUSE"
-    if "CONTIN" in text or text.strip():
-        return "CONTINUE"
-    return ""
+    # 1.149.0: the first word only: a copied template («CONTINUE|PAUSE|CANCEL») or a negation («PAUSE (do not cancel)») is no stop
+    word = re.match(r"\W*(CANCEL|PAUS|CONTIN)", text)
+    if word:
+        return {"CANCEL": "CANCEL", "PAUS": "PAUSE"}.get(word.group(1), "CONTINUE")
+    return "CONTINUE" if text.strip() else ""
 
 
 def build_ai_prompt(score, state, filename, progress, hotend, ref_age=None, language="en", local=None, part=""):
@@ -2222,6 +2246,7 @@ class LightDetector(FrameJudge):
         self.thread = None
         self.generation = 0  # every start() opens a new one: an old loop still asleep understands by itself that it must end
         self.last_ai_call = 0
+        self._ai_busy = threading.Lock()   # 1.149.0: one AI analysis at a time (call_ai_analysis)
         self.print_real_at = None  # 1.132: when this print really started (the monitor's first check of it)
         self.local_state = {}  # 1.106: the local model's last look (score, when, runs of sure / doubtful looks, counts)
         self.local_vec = None  # 1.125: how the model described the picture of its last look (the view that counted)
@@ -2454,6 +2479,8 @@ class LightDetector(FrameJudge):
 
                 except Exception as e:
                     print(f"[DETECTOR] real_print check err: {e}")
+                    if isinstance(e, requests.RequestException):
+                        self.stats["status"] = "Moonraker does not answer"   # 1.148.0
                     self._nap(generation, 3)
                     continue
 
@@ -2462,10 +2489,11 @@ class LightDetector(FrameJudge):
                     calibrated = self._uses_calibration()
                     if calibrated:
                         self._position_now("live")  # where the toolhead is right before the picture...
-                    r = requests.get(snapshot_url(), timeout=4)
+                    r = fetch_picture(snapshot_url(), 4)
                     if calibrated:
                         self._position_now("live2")  # ...and right after it (it moves while the picture is taken)
                     if not r.ok or len(r.content) < 1000:
+                        self.stats["status"] = "no picture from the camera"   # 1.148.0: the monitor says it is blind
                         self._nap(generation, 2)
                         continue
                     decode_started = time.time()
@@ -2473,10 +2501,12 @@ class LightDetector(FrameJudge):
                     frame = cv2.imdecode(img_arr, cv2.IMREAD_COLOR)
                     decode_seconds = time.time() - decode_started
                     if frame is None:
+                        self.stats["status"] = "no picture from the camera"
                         self._nap(generation, 2)
                         continue
                 except Exception as e:
                     print(f"[OPENCV] snapshot fail: {e}")
+                    self.stats["status"] = "no picture from the camera"
                     self._nap(generation, 3)
                     continue
 
@@ -2580,7 +2610,7 @@ class LightDetector(FrameJudge):
 
     def local_judge(self, frame, now=None, cover=True):
         """The local model on local_views(): -> (score 0..100: the highest view, {view: score}, the view that gave it)
-        or None (no model, or it failed on the whole picture)."""
+        or None (no model, or it failed on every view)."""
         return self.local_look(frame, now, cover)[0]
 
     def local_look(self, frame, now=None, cover=True):
@@ -2592,11 +2622,11 @@ class LightDetector(FrameJudge):
         for name, picture in self.local_views(self._without_purge(frame) if cover else frame, now):
             result = local_ai.predict(picture)
             if result is None:
-                if name == "whole":
-                    return None, None
                 continue
             scores[name] = round(personal.blend(result[0], result[1], version) * 100, 1)
             vectors[name] = result[1]
+        if not scores:   # 1.148.0: no model, or it failed on every view (with a calibration the first view is not «whole»)
+            return None, None
         best = max(scores, key=scores.get)
         return (scores[best], scores, best), vectors.get(best)
 
@@ -2618,7 +2648,7 @@ class LightDetector(FrameJudge):
             return
         self.purge = {"done": False}
         try:
-            r = requests.get(snapshot_url(), timeout=4)
+            r = fetch_picture(snapshot_url(), 4)
             frame = cv2.imdecode(np.frombuffer(r.content, np.uint8), cv2.IMREAD_COLOR) if r.ok else None
         except Exception:
             frame = None
@@ -2646,6 +2676,7 @@ class LightDetector(FrameJudge):
         purge["marks"] = marks
         purge["share"] = round(purge_marks.share(np, marks, zone[0]) * 100, 2) if marks is not None else 0
         self.stats["purge"] = purge["share"] or None
+        recorder.note_purge(marks)   # 1.148.0: the replay leaves them out too
         if marks is not None:
             print("[OPENCV] purge marks found: %.1f%% of the bed, hidden from the local model and the motion detection" % purge["share"])
         else:
@@ -2858,7 +2889,16 @@ class LightDetector(FrameJudge):
                 return float(value[2])
         return None
 
-    def _ask_ai(self, target, img_path, ref_path, ref_age, score, state, filename, progress, temp_h, language, local=None):
+    def _ask_ai(self, target, *args, **kwargs):
+        """One question to the AI (see _ask_ai_once). 1.149.0: whatever goes wrong inside (a 200 that is a web page, a
+        retry after a 429 that fails) is an answer of {"ok": False}: the chain goes on and the analysis is never lost."""
+        try:
+            return self._ask_ai_once(target, *args, **kwargs)
+        except Exception as error:
+            print(f"[OPENCV] {target['name']}: the question failed: {error}")
+            return {"ok": False, "status": 0, "error": "%s: %s" % (target["name"], str(error)[:200])}
+
+    def _ask_ai_once(self, target, img_path, ref_path, ref_age, score, state, filename, progress, temp_h, language, local=None):
         """One question to the AI about a picture (and the one before it, if any).
         -> {"ok": True, "parsed": dict | None, "answer": text, "with_reference": bool} or {"ok": False, "status", "error"}."""
         def read(path):
@@ -2964,17 +3004,34 @@ class LightDetector(FrameJudge):
         one). -> (result, target that answered or the last asked, [errors of those that did not])."""
         errors = []
         result, target = {"ok": False, "status": 0, "error": "no AI service"}, None
+        unreadable = None
         for target in chain:
             if self.ai_quota.get(target["provider"] + "/" + target["model"], 0) > time.time():
                 continue
             result = self._ask_ai(target, *args)
-            if result["ok"]:
+            if result["ok"] and result["parsed"] is not None:
                 return result, target, errors
+            if result["ok"]:   # 1.149.0: an answer that cannot be read is no answer: the next service is asked
+                unreadable = unreadable or (result, target)
+                result = dict(result, status=200, error="answer not readable")
             errors.append({"service": target["name"], "model": target["model"], "status": result["status"], "error": result["error"]})
             print(f"[OPENCV] {target['name']} / {target['model']} could not answer ({result['status']}): the next service")
+        if unreadable:   # none gave a verdict, and one of them did answer: the history says its answer was not readable
+            return unreadable[0], unreadable[1], errors
         return result, target, errors
 
-    def call_ai_analysis(self, img_path, ref_path=None, ref_age=None, local=None):
+    def call_ai_analysis(self, *args, **kwargs):
+        """One analysis at a time (1.149.0): an alarm that comes while one is running (a second look takes up to a minute,
+        `ai_cooldown` can be 30 s) is covered by it, instead of a second paid question and a verdict that goes back."""
+        if not self._ai_busy.acquire(blocking=False):
+            print("[OPENCV] an AI analysis is already running: this alarm waits for its verdict")
+            return
+        try:
+            self._analyse_with_ai(*args, **kwargs)
+        finally:
+            self._ai_busy.release()
+
+    def _analyse_with_ai(self, img_path, ref_path=None, ref_age=None, local=None):
         """Asks the AI to look at the picture (and, if there is one, at how it was before) when the monitor triggers, with
         nobody involved. 1.102: a stop it proposes is looked at again AI_CONFIRM_DELAY_S later on a new picture, and
         holds only if that look proposes a stop too. 1.104: the services of the chain (the monitor's, then its backups)
@@ -4384,7 +4441,7 @@ def api_camera_snapshot():
         return jsonify({"ok": False, "error": bt("not a camera address", _lang())}), 400
     url = camera_snapshot.absolute(camera_snapshot.clean(given), _camera_origin()) if given else snapshot_url(fresh=True)
     try:
-        r = requests.get(url, timeout=8)
+        r = fetch_picture(url, 8)
         content_type = r.headers.get("Content-Type", "")
         if not r.ok or len(r.content) < 500 or not content_type.startswith("image/"):
             detail = "HTTP %s, %s, %d bytes" % (r.status_code, content_type or "?", len(r.content))
@@ -4418,7 +4475,7 @@ def _klipper_gcode(script, timeout):
 
 
 def _camera_snapshot():
-    r = requests.get(snapshot_url(), timeout=5)
+    r = fetch_picture(snapshot_url(), 5)
     return r.content if r.ok and len(r.content) > 1000 else None
 
 
@@ -4827,7 +4884,7 @@ def api_print_snapshot():
 
 def _camera_jpeg():
     """The camera's picture for the AI: at the AI's size when OpenCV is there, else as the camera made it. None: no picture."""
-    answer = requests.get(snapshot_url(), timeout=6)
+    answer = fetch_picture(snapshot_url(), 6)
     if not answer.ok or len(answer.content) < 1000:
         return None
     frame = cv2.imdecode(np.frombuffer(answer.content, np.uint8), cv2.IMREAD_COLOR) if HAS_CV2 else None

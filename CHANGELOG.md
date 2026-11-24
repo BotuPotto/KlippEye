@@ -1,5 +1,55 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.150.0
+
+The tools that train the local model no longer depend on someone remembering which prints are for measuring. The
+program on the printer is unchanged.
+
+- The nine prints kept for measuring are now listed in `models/base/kept-out.txt`. `ml/datasets.py --klippeye` skips them
+  and the answer given about the same print, and says how many. Before, nothing stopped the next retrain from learning
+  from them, which would have made the numbers in `models/base/README.md` meaningless.
+- A print that was recorded and also answered in «How did the print go?» was put in the list twice, under two groups,
+  so one copy could land in training and the other in the measuring set. It now counts once, as `ml/evaluate.py` already did.
+- `ml/download.py` kept collections whose licence was written «CC BY NC 4.0» or «CC BY SA 4.0» (with spaces), and ODbL,
+  GPL or no licence at all. It now keeps only licences known to be open and prints what it left out.
+- A download cut in the middle counted as «already here» and stayed partial. A collection is now finished only when its
+  `klippeye-source.json` exists.
+- The Colab notebook measured the model on the prints it had just trained on. `ml/evaluate.py --trained` warns that the
+  numbers are too good and marks the report, and the notebook uses it.
+
+## 1.149.0
+
+The online AI chain no longer loses an answer.
+
+- A service that answered with something that was not JSON (a web page from a gateway, say) ended the whole analysis. Nothing
+  was recorded, even when the first look had already proposed a pause. Any failure of one question now counts as that service
+  not answering: the next one is asked, and a pause whose second look fails stays standing.
+- An answer that could not be read stopped the chain at the first service. The backup service is now asked as well. The
+  history only says «answer not readable» when none of them gave a verdict.
+- The AI's advice is read from its first word. A model that echoed the template (`CONTINUE|PAUSE|CANCEL`) was taken as a
+  cancel, and «Continue, no need to pause» as a pause.
+- Two alarms close together could start two analyses at once: double paid questions, two alerts and a verdict that went
+  back in time. An alarm that comes while one analysis is running now waits for its verdict.
+- Two devices saving AI keys at the same moment could lose most of them while both were told «saved». The keys are now
+  saved one request at a time.
+
+## 1.148.0
+
+The AI monitor no longer stops without saying so.
+
+- With a calibrated camera and no working local model (OpenCV could not load it), every check failed with an error and no
+  alarm ever reached the online AI. The motion detection now asks the AI as it should.
+- A camera address that is really a video stream (the address most camera pages show) froze the monitor for good and filled
+  the Raspberry's memory. The photo is now read in pieces, with a size limit and a time limit, and a stream is refused. The
+  «Try» button in Settings, Camera says so.
+- When the camera sends no picture, or Moonraker does not answer, the dashboard now says it: the status reads «no picture
+  from the camera» or «Moonraker does not answer», and the AI badge turns amber. Before, it kept the last status and
+  looked like it was watching.
+- A light switched on and left on gave a false alarm half a minute later. The monitor now waits until its background has
+  taken the new light in before it treats a big change as real.
+- The replay of a recording now leaves out the purge marks, as the live monitor does. Alarm counts from replays are no
+  longer higher than what happens on the printer. Recordings made before this release have no purge file and replay as before.
+
 ## 1.147.0
 
 Access and network: the password stays on, and port 80 is as closed as port 8085.
