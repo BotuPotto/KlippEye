@@ -482,6 +482,9 @@ keeps it readable).
   1.148.0, tests in `tests/backend/test_monitor_loop.py`) open as #199, branch `fix-monitor-loop`, built on #198 (merge #196 to #198
   first, in order). Not done: a push message when the monitor is blind (the notifier does not read the status), structure
   proposals 1 (shared `prepare_check` and `ask_rule`) and 6 (dead code).
+  PR 12 (online AI chain: any failure of one question is a service that did not answer, an unreadable answer tries the backup,
+  the action is read from the first word, one analysis at a time, AI keys saved under one lock, 1.149.0, tests «1.149.0: …» in
+  `tests/backend/test_backend.py`) open as #200, branch `fix-online-ai`, built on #199 (merge #197 to #199 first, in order).
 
 ### Owner's notes of 23 Nov (to do, in this order)
 1. Release 1.135.1 (#184): plainer texts, guide, no benchmark of other models. Done when merged.
@@ -504,4 +507,4 @@ keeps it readable).
    writing rules.
 
 ### Open PRs
-#194 (PR 6, 1.143.0, branch `fix-macros-file`), open 24 Nov. #195 (PR 7, 1.144.0, branch `fix-personal-files`), built on #194, open 24 Nov. #196 (PR 8, 1.145.0, branch `fix-settings-sync`), built on #195, open 24 Nov. #197 (PR 9, 1.146.0, branch `fix-config-editor`: the config editor never overwrites newer text), built on #196, open 24 Nov. #189 to #193 (PRs 1 to 5 of the audit fixes, 1.138.0 to 1.142.0) and #188 (the audit report) merged 24 Nov. #198 (PR 10, 1.147.0, branch `fix-access-network`), built on #197, open 24 Nov. #199 (PR 11, 1.148.0, branch `fix-monitor-loop`), built on #198, open 24 Nov. Update this line when a PR opens or merges.
+#189 to #196 (PRs 1 to 8 of the audit fixes, 1.138.0 to 1.145.0) and #188 (the audit report) merged 24 Nov. #197 (PR 9, 1.146.0, branch `fix-config-editor`: the config editor never overwrites newer text), open 24 Nov. #198 (PR 10, 1.147.0, branch `fix-access-network`), built on #197, open 24 Nov. #199 (PR 11, 1.148.0, branch `fix-monitor-loop`), built on #198, open 24 Nov. #200 (PR 12, 1.149.0, branch `fix-online-ai`), built on #199, open 24 Nov. Update this line when a PR opens or merges.
