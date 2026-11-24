@@ -372,7 +372,7 @@ class Recorder:
                     self.status = "waiting for a print"
             # 1.144.0: under the lock only a rename (the monitor's thread waits for it); the files go in a thread of their own
             gone = os.path.join(self.root, ".deleting-" + sid)
-            shutil.rmtree(gone, ignore_errors=True)
+            gone += "-%d" % time.time_ns()   # a name of its own: a folder left by a stop is never in the way
             try:
                 os.replace(os.path.join(self.root, sid), gone)
             except OSError:
