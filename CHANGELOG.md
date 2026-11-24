@@ -1,5 +1,28 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.144.0
+
+A damaged file no longer stops KlippEye, and what you taught it is not lost.
+
+- After a power cut, `false_alarms.npz` could be empty or half written. KlippEye then failed to start, and systemd tried
+  again in a loop until someone deleted the file over SSH. A damaged file is now an empty memory. The embeddings and what
+  each one is are kept in one file, written whole or not at all, so they can no longer fall out of step and wipe
+  the alarms you marked. Old installs are read once and moved to the new file.
+- A damaged `personal/cache.npz` gave an error at every training of the personal layer and was never rewritten. It is
+  now made again.
+- After a new base model, describing your false alarms again no longer stops the monitor's local looks. They used to wait
+  seconds (a minute with 300 alarms).
+- Marking an alarm «false» while the monitor was checking could store the live picture's description instead of the
+  alarm's. That could later silence a real failure. The description now travels with the result.
+- With more than 4,000 fine examples, every call copied and removed the same pictures again, minutes of writing to the SD
+  card per answer. Once the limit is reached, no more fine pictures are copied.
+- With more than 1,500 failed examples, training used only the oldest failed prints. It now takes them evenly from all
+  of them.
+- When a restart splits a print into two recordings, «failed at 2.5 h» labelled none of them. Every recording of that
+  print is now labelled: the part before the moment as fine, the part with it as failed.
+- Deleting a recording because the size limit was reached held the monitor for a moment on a slow SD card. The folder
+  is now renamed at once and removed in the background.
+
 ## 1.143.0
 
 Klipper always starts after KlippEye writes its macros file.

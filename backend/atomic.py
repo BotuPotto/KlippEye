@@ -8,13 +8,18 @@ import tempfile
 
 def write_text(path, text, private=False):
     """`text` into `path`; mode 600 when `private` (keys, passwords), else 644. The folder is made when missing."""
+    write_bytes(path, text.encode("utf-8"), private)
+
+
+def write_bytes(path, data, private=False):
+    """Same, for bytes (1.144.0: the false-alarm memory's .npz)."""
     path = os.path.realpath(path)  # 1.143.0: a link (printer.cfg kept in a config repository) stays a link: its target is written
     folder = os.path.dirname(path) or "."
     os.makedirs(folder, exist_ok=True)
     fd, tmp = tempfile.mkstemp(prefix=".tmp-", dir=folder)  # a name of its own: two writers never share it
     try:
-        with os.fdopen(fd, "w", encoding="utf-8") as handle:
-            handle.write(text)
+        with os.fdopen(fd, "wb") as handle:
+            handle.write(data)
             handle.flush()
             os.fsync(handle.fileno())
         os.chmod(tmp, 0o600 if private else 0o644)

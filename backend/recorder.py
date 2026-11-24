@@ -64,6 +64,12 @@ class Recorder:
         self.last_trigger = None  # (session id, time, frame) of the last live alarm
         self._sizes = None  # {id: bytes} of the folders, measured once and then kept up to date
         self.close_orphans()
+        try:   # 1.144.0: folders being deleted when the service stopped
+            for name in os.listdir(self.root):
+                if name.startswith(".deleting-"):
+                    threading.Thread(target=shutil.rmtree, args=(os.path.join(self.root, name), True), daemon=True).start()
+        except OSError:
+            pass
 
     def close_orphans(self):
         """Recordings left open by a power cut or a restart of the backend (session.json without an end): closed at the
@@ -364,7 +370,14 @@ class Recorder:
                 self.frames_file = None
                 if self.enabled:
                     self.status = "waiting for a print"
-            shutil.rmtree(os.path.join(self.root, sid), ignore_errors=True)
+            # 1.144.0: under the lock only a rename (the monitor's thread waits for it); the files go in a thread of their own
+            gone = os.path.join(self.root, ".deleting-" + sid)
+            shutil.rmtree(gone, ignore_errors=True)
+            try:
+                os.replace(os.path.join(self.root, sid), gone)
+            except OSError:
+                gone = os.path.join(self.root, sid)
+            threading.Thread(target=shutil.rmtree, args=(gone, True), daemon=True).start()
             if self._sizes is not None:
                 self._sizes.pop(sid, None)
             return True

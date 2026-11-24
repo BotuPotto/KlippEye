@@ -2542,6 +2542,11 @@ class LightDetector(FrameJudge):
     def local_judge(self, frame, now=None, cover=True):
         """The local model on local_views(): -> (score 0..100: the highest view, {view: score}, the view that gave it)
         or None (no model, or it failed on the whole picture)."""
+        return self.local_look(frame, now, cover)[0]
+
+    def local_look(self, frame, now=None, cover=True):
+        """local_judge with the embedding of the view that counted: -> (result, vector). 1.144.0: returned, not kept in an
+        attribute: a web request judging a picture must not change the vector the monitor's own look is about to use."""
         model = local_ai.model
         version = model.version if model is not None else None
         scores, vectors = {}, {}
@@ -2549,13 +2554,12 @@ class LightDetector(FrameJudge):
             result = local_ai.predict(picture)
             if result is None:
                 if name == "whole":
-                    return None
+                    return None, None
                 continue
             scores[name] = round(personal.blend(result[0], result[1], version) * 100, 1)
             vectors[name] = result[1]
         best = max(scores, key=scores.get)
-        self.local_vec = vectors.get(best)
-        return scores[best], scores, best
+        return (scores[best], scores, best), vectors.get(best)
 
     def _without_purge(self, frame):
         """1.125: the picture with the marks of this print's purge covered by the empty bed (unchanged without marks)."""
@@ -2623,11 +2627,12 @@ class LightDetector(FrameJudge):
         fresh = (self.change_at is not None and self.change_at >= now - 0.5 and now - state.get("at", 0) >= LOCAL_SOON_S
                  and not same_place(self.change_box, state.get("change_seen")))
         due = triggered or fresh or now >= state.get("next", 0)
-        result = self.local_judge(frame, now) if (self.local_enabled and due) else None
+        result, vector = self.local_look(frame, now) if (self.local_enabled and due) else (None, None)
         if result is None:
             state["why"] = "motion" if triggered and self.ai_online else None
             return bool(triggered) and self.ai_online
         score, views, best = result
+        self.local_vec = vector   # the monitor's own look (the loop's thread only)
         if (fresh or triggered) and self.change_box is not None:
             state["change_seen"] = self.change_box
         state.update(score=score, views=views, best=best, at=now, next=now + self.local_every, checks=state.get("checks", 0) + 1,
@@ -3826,7 +3831,7 @@ def refresh_false_alarms():
     if model is None or not HAS_CV2:
         return
     try:
-        false_memory.refresh(memory_version(), lambda picture: detector.local_vec if detector.local_judge(picture, cover=False) is not None else None)
+        false_memory.refresh(memory_version(), lambda picture: detector.local_look(picture, cover=False)[1])
     except Exception as error:  # a help only
         print("[LOCAL] false alarms not described again: %s" % error)
 
@@ -3837,9 +3842,7 @@ def _alarm_vector(entry):
         return None
     frame = cv2.imread(os.path.join(ALERT_HISTORY_DIR, os.path.basename(entry["image"])))
     # the purge of the print running now is not the purge of that alarm's print: not covered
-    if frame is None or detector.local_judge(frame, cover=False) is None:
-        return None
-    return detector.local_vec
+    return detector.local_look(frame, cover=False)[1] if frame is not None else None
 
 
 @app.route("/api/print/alerts/<alert_id>/label", methods=["POST"])
@@ -3903,11 +3906,11 @@ def _local_model_test():
         frame = None
     if frame is None:
         return jsonify({"ok": False, "error": bt("No picture from the camera", lang)}), 502
-    result = detector.local_judge(frame)
+    result, vector = detector.local_look(frame)
     if result is None:
         return jsonify({"ok": False, "error": bt("The local model could not judge the picture", lang)}), 500
     score, views, best = result
-    known = false_memory.match(detector.local_vec, score, memory_version()) if score >= detector.local_doubt else None
+    known = false_memory.match(vector, score, memory_version()) if score >= detector.local_doubt else None
     return _no_store(jsonify({"ok": True, "score": score, "views": views, "best": best,
                               "known": {"source": known["source"], "score": known["score"]} if known else None,
                               "doubt": detector.local_doubt, "sure": detector.local_sure}))
@@ -4015,17 +4018,25 @@ def api_print_review_answer(rid):
                 continue  # failed, but from when is not known: the alarms stay for the person to judge
             if label_alert(entry["id"], label, entry.get("session")):
                 marked += 1
-        for sid in reversed(recorder.ids()[-5:]):
+        # 1.144.0: every recording of this print (a restart splits one in two), each with the moment only where it falls
+        for sid in reversed(recorder.ids()[-30:]):
             session = recorder.load(sid)
-            if session and session.get("file") == review.get("file") and abs((session.get("started") or 0) - review["started"]) < 600:
-                try:
-                    when = answer["failed_at"]
-                    if answer["outcome"] == "failed" and when is None:
-                        when = session.get("ended") or session["started"]
-                    recorder.set_label(sid, answer["outcome"], when)
-                except (KeyError, ValueError) as error:
-                    print("[REVIEW] recording not labelled: %s" % error)
-                break
+            if not session or session.get("file") != review.get("file"):
+                continue
+            began, ended = session.get("started") or 0, session.get("ended") or time.time()
+            if began > (review.get("ended") or time.time()) + 600 or ended < review["started"] - 600:
+                continue
+            try:
+                when = answer["failed_at"]
+                if answer["outcome"] == "failed":
+                    if when is None or when < began - 1:
+                        when = ended if when is None else began   # no moment: the end; the failure was before this part: all of it
+                    elif when > ended + 1:
+                        recorder.set_label(sid, "ok")   # this part went fine: the failure came later
+                        continue
+                recorder.set_label(sid, answer["outcome"], when)
+            except (KeyError, ValueError) as error:
+                print("[REVIEW] recording not labelled: %s" % error)
     if answer["outcome"] in ("ok", "failed"):
         keep_examples_later()
         train_personal_later("print answered")
