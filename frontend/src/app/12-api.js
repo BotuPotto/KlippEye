@@ -214,6 +214,11 @@ async function fetchJson(url, options) {
 const MOONRAKER_INFO_RETRY_MS = 30000;
 let moonrakerInfoAsk = null;
 let moonrakerInfoFailedAt = 0;
+/** Klipper came back: the config may have changed and Moonraker may have restarted with other components (1.153.0). */
+function forgetMoonrakerComponents() {
+  moonrakerInfoAsk = null;
+  moonrakerInfoFailedAt = 0;
+}
 function moonrakerComponents() {
   if (!moonrakerInfoAsk && Date.now() - moonrakerInfoFailedAt > MOONRAKER_INFO_RETRY_MS) {
     moonrakerInfoAsk = fetchJson("/server/info")

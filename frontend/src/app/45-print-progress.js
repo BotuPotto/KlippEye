@@ -83,8 +83,11 @@ function largestThumbnailUrl(meta) {
   return best.absolute_path || null;
 }
 
-/** The metadata of a file does not change while it is the current one: the last answer is kept until the name changes. */
-const printMetadataCache = { filename: "", meta: null };
+/**
+ * The metadata of a file does not change while it is the current one: the last answer is kept until the name changes or a
+ * print starts (1.153.0: a file sliced again under the same name has other times, layers and thumbnail).
+ */
+const printMetadataCache = { filename: "", meta: null, running: false };
 
 async function fetchFileMetadata(filename) {
   if (!filename) return null;
@@ -119,6 +122,9 @@ async function fetchPrintObjects() {
     }
     const status = ((await response.json()).result || {}).status || {};
     const stats = status.print_stats || {};
+    const running = stats.state === "printing" || stats.state === "paused";
+    if (running && !printMetadataCache.running) printMetadataCache.meta = null;
+    printMetadataCache.running = running;
     return {
       stats,
       sdcard: status.virtual_sdcard || {},

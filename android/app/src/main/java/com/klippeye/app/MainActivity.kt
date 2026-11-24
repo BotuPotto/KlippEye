@@ -79,6 +79,9 @@ class MainActivity : AppCompatActivity() {
     private var addressesForPage: Addresses.AddressPair? = null
 
     private var currentUrl = "http://127.0.0.1:${Addresses.PORT}/" // only until it has connected to an address
+    // The address the window is showing or loading (set by the page client). The bridge answers only while it is the dashboard's
+    // origin: after a redirect or a link to another page the WebView still has the bridge, but that page does not get it to work.
+    @Volatile private var pageUrl: String? = null
     // Another printer opened from the dashboard's top menu (app 1.6.0, see Printers.kt): "" = the main one
     @Volatile private var otherPrinter = ""
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
@@ -190,7 +193,8 @@ class MainActivity : AppCompatActivity() {
             if (request == null || !request.isForMainFrame) return false
             val uri = request.url
             val scheme = (uri.scheme ?: "").lowercase()
-            if ((scheme == "http" || scheme == "https") && uri.host == hostOf(currentUrl)) return false
+            // the same scheme too: from a pinned https page, an http page of the same address is not the Raspberry
+            if ((scheme == "http" || scheme == "https") && uri.host == hostOf(currentUrl) && scheme == schemeOf(currentUrl)) return false
             if (scheme == "about" || scheme == "data" || scheme == "blob" || scheme == "javascript") return false
             openOutside(uri)
             return true
@@ -198,9 +202,11 @@ class MainActivity : AppCompatActivity() {
 
         override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
             // the splash stays until the page has finished
+            pageUrl = url
         }
 
         override fun onPageFinished(view: WebView?, url: String?) {
+            pageUrl = url
             // After an error Android calls onPageFinished anyway, for its error page: the splash stays
             if (errorHost != null && errorHost == hostOf(url)) return
             splash.visibility = View.GONE
@@ -248,12 +254,12 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * Where KlippEye answers on that Raspberry (app 1.7.0): https without a port when the app knows its certificate, then
+     * Where KlippEye answers on that Raspberry (app 1.7.0): only https when the app knows its certificate (app 1.9.0), otherwise
      * http without a port, then the service's port. Each address must answer as KlippEye: another page may be at the
      * address without a port. Null when none answers.
      */
     private fun find(host: String): String? =
-        Addresses.variants(host, Certificates.read(this, host) != null).firstOrNull { isKlippEye(it) }
+        Addresses.variants(host, pinned = Certificates.read(this, host) != null).firstOrNull { isKlippEye(it) }
 
     private fun isKlippEye(baseUrl: String): Boolean = try {
         val connection = Certificates.open(this, URL(URL(baseUrl), Addresses.PROBE_PATH))
@@ -285,6 +291,15 @@ class MainActivity : AppCompatActivity() {
         }
         return String(buffer, 0, read, Charsets.UTF_8)
     }
+
+    private fun schemeOf(url: String?): String? = try {
+        Uri.parse(url ?: "").scheme?.lowercase()
+    } catch (e: Exception) {
+        null
+    }
+
+    /** The bridge's calls come from the page of the dashboard's own origin only (see [pageUrl]). */
+    private fun fromDashboard(): Boolean = Addresses.sameOrigin(pageUrl, currentUrl)
 
     private fun hostOf(url: String?): String? = try {
         Uri.parse(url ?: "").host
@@ -439,6 +454,9 @@ class MainActivity : AppCompatActivity() {
                 val external = externalField.text.toString()
                 val outcome = Addresses.save(this, local, external)
                 if (outcome == Addresses.Check.OK) {
+                    // Saving the addresses forgets the remembered certificates: when https was switched off on the Raspberry the app
+                    // would otherwise look only for https. The dashboard gives the certificate again over http (app 1.9.0).
+                    listOf(local, external).mapNotNull { Addresses.clean(it) }.forEach { Certificates.save(this, it, "") }
                     addressesForPage = Addresses.read(this)
                     detectAndLoad()
                 } else {
@@ -484,10 +502,15 @@ class MainActivity : AppCompatActivity() {
     /**
      * The bridge for the dashboard (`window.KlippEyeApp`). It runs on a WebView thread, so the work moves to the main thread.
      * The names of its calls and of what they answer are shared with every dashboard version: they never change.
+     * Every call is refused ("refused", "{}" or nothing) unless the window's page has the dashboard's own origin (app 1.9.0).
+     * shortcut: Android gives the bridge to every frame and does not say which one calls, so a cross-origin frame inside the
+     * dashboard's page (the «Web page» camera) is still not told apart; that needs androidx.webkit's addWebMessageListener and
+     * a new bridge protocol.
      */
     inner class DashboardBridge {
         @JavascriptInterface
         fun saveUrl(url: String?, fileName: String?) {
+            if (!fromDashboard()) return
             runOnUiThread { downloadFile(url, fileName) }
         }
 
@@ -498,6 +521,7 @@ class MainActivity : AppCompatActivity() {
          */
         @JavascriptInterface
         fun setAddresses(local: String?, external: String?): String {
+            if (!fromDashboard()) return "refused"
             if (otherPrinter.isNotEmpty()) return "ok"
             return checkText(Addresses.save(applicationContext, local, external))
         }
@@ -508,6 +532,7 @@ class MainActivity : AppCompatActivity() {
          */
         @JavascriptInterface
         fun setCertificate(fingerprint: String?): String {
+            if (!fromDashboard()) return "refused"
             val host = hostOf(currentUrl) ?: return "no page"
             if (!Addresses.isPrivate(host)) return "private networks only"
             return if (Certificates.save(applicationContext, host, fingerprint)) "ok" else "invalid fingerprint"
@@ -515,11 +540,12 @@ class MainActivity : AppCompatActivity() {
 
         /** The addresses the app uses now, as {"local":"...","external":"..."}: the dashboard compares them with its own. */
         @JavascriptInterface
-        fun getAddresses(): String = Addresses.toJson(Addresses.read(applicationContext))
+        fun getAddresses(): String = if (fromDashboard()) Addresses.toJson(Addresses.read(applicationContext)) else "{}"
 
         /** The installed app's version, and whether Android lets it install updates: {"version":"1.0.0","code":10000,"canInstall":true}. */
         @JavascriptInterface
         fun appInfo(): String {
+            if (!fromDashboard()) return "{}"
             val (name, code) = AppInstaller.installed(applicationContext)
             return AppUpdate.infoJson(name, code, AppInstaller.canInstall(applicationContext))
         }
@@ -531,6 +557,7 @@ class MainActivity : AppCompatActivity() {
          */
         @JavascriptInterface
         fun updateApp(path: String?, version: String?, sha256: String?, size: String?) {
+            if (!fromDashboard()) return
             runOnUiThread { updateApp(path, version, sha256, size?.toLongOrNull() ?: 0L) }
         }
 
@@ -539,6 +566,7 @@ class MainActivity : AppCompatActivity() {
         /** How the Raspberry has set up the notifications, and the person's choice: see [PushSettings.update]. Answers the state. */
         @JavascriptInterface
         fun notifySetup(json: String?): String {
+            if (!fromDashboard()) return "{}"
             val printer = otherPrinter // the page's printer: its notifications are added to those of the others
             PushSettings.update(applicationContext, json, printer)
             return PushSettings.state(applicationContext, printer)
@@ -546,7 +574,7 @@ class MainActivity : AppCompatActivity() {
 
         /** {permission, battery, receive, chosen, mode, connected, lastMessageAt, ...}: see [PushSettings.state]. */
         @JavascriptInterface
-        fun notifyState(): String = PushSettings.state(applicationContext, otherPrinter)
+        fun notifyState(): String = if (fromDashboard()) PushSettings.state(applicationContext, otherPrinter) else "{}"
 
         /**
          * More printers (app 1.6.0): the dashboard asks to open another printer, {"host": "192.168.1.50[:port]", "name": "..."}.
@@ -554,6 +582,7 @@ class MainActivity : AppCompatActivity() {
          */
         @JavascriptInterface
         fun switchPrinter(json: String?): String {
+            if (!fromDashboard()) return "refused"
             val printer = try {
                 Printers.clean(JSONObject(json ?: "{}").optString("host", ""))
             } catch (e: Exception) {
@@ -566,12 +595,14 @@ class MainActivity : AppCompatActivity() {
         /** Shows Android's window for the notification permission; when Android no longer shows it, opens the app's settings. */
         @JavascriptInterface
         fun askNotificationPermission() {
+            if (!fromDashboard()) return
             runOnUiThread { askNotificationPermissionNow() }
         }
 
         /** Asks Android not to put KlippEye to sleep (without it the connection to ntfy breaks while the phone is still). */
         @JavascriptInterface
         fun askBatteryExemption() {
+            if (!fromDashboard()) return
             runOnUiThread { askBatteryExemptionNow() }
         }
 
@@ -582,12 +613,14 @@ class MainActivity : AppCompatActivity() {
          */
         @JavascriptInterface
         fun setFullscreen(on: Boolean, landscape: Boolean) {
+            if (!fromDashboard()) return
             runOnUiThread { fullscreen(on, landscape) }
         }
 
         /** KlippEye's notification settings in Android (to switch them on again or hide the ongoing notification). */
         @JavascriptInterface
         fun openNotificationSettings() {
+            if (!fromDashboard()) return
             runOnUiThread { openNotificationSettingsNow() }
         }
     }

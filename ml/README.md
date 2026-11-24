@@ -37,7 +37,14 @@ prepared (zipped and shared from Google Drive); it runs in the background, so a 
    The base model, the one shipped to everyone, is trained on public, varied pictures and, since 1.135.0, on a few
    judged prints of the author's printer (`models/base/CREDITS.md`). Each printer's own prints go to its personal layer,
    which KlippEye learns on the Raspberry. Collections whose licence does not let the model be shared (ShareAlike,
-   NonCommercial, private) are deleted again by `download.py`.
+   NonCommercial, private) are deleted again by `download.py`. Since 1.150.0 it keeps a collection only when its licence is
+   known to be open (CC BY 4.0, CC0, public domain, MIT, Apache): a licence written with spaces, ODbL, GPL or one that is not
+   found is left out too, and the log says so (`--any-licence` keeps everything). A collection whose download was cut short
+   is fetched again on the next run.
+
+   Prints kept for measuring (1.150.0): `models/base/kept-out.txt` lists them, one start of an id per line. `datasets.py
+   --klippeye` skips each one and the answer given about the same print, and says how many it skipped. A print that was
+   recorded and answered is now one print there too, as in `evaluate.py`.
 2. The list of pictures: `pip install -r ml/requirements.txt` then
    `python ml/datasets.py --yolo ./spaghetti --klippeye ./klippeye-data --out ml/work`
    (`--fail-classes a,b` to name the failure classes of a dataset; `--empty-is-ok` when its pictures without boxes are fine prints).
@@ -55,7 +62,9 @@ prepared (zipped and shared from Google Drive); it runs in the background, so a 
    a 70% is right about 7 times in 10), and the threshold is the lowest that keeps 9 alarms out of 10 right while taking
    at most 3 fine pictures in 100 for failures.
 4. Measuring: `python ml/evaluate.py --model ml/out/model --data ./klippeye-data` gives, for several thresholds, the false
-   alarms per hour on fine prints and the failed prints caught (and how late). It also runs on the Raspberry.
+   alarms per hour on fine prints and the failed prints caught (and how late). It also runs on the Raspberry. If the model
+   learned from those prints, add `--trained`: it warns that the numbers are too good, and the report says so. The Colab
+   notebook does this, because it measures on the prints it just trained on.
 
 `ml/tests/test_tools.py` (no PyTorch, part of `tests/run_all.sh`) and `ml/tests/smoke_train.py` (the CI's «Local model»
 job) check the chain on synthetic pictures.

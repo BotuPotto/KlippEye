@@ -58,7 +58,7 @@ English is the language of the code, comments, commands, logs, commit messages a
 
 The repository is public, because Moonraker downloads it without a password. Keys, passwords and Firebase files live only in
 the data folder on each Raspberry. The only exceptions are the app's signing key, `android/chiave/klippeye.p12`, stored here
-encrypted (its password is the GitHub secret `KLIPPEYE_CHIAVE_PASSWORD`), and the app's `google-services.json`, which is the
+encrypted (its password is the GitHub secret `KLIPPEYE_CHIAVE_PASSWORD`, and it must be long and random), and the app's `google-services.json`, which is the
 GitHub secret `GOOGLE_SERVICES_JSON`.
 
 ## Security problems

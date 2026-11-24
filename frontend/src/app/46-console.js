@@ -26,7 +26,9 @@ function toConsoleEntry(item) {
   const record = typeof item === "string" ? { message: item, type: "response", time: Date.now() / 1000 } : item;
   const message = record.message || "";
   const isCommand = record.type === "command";
-  return { t: formatUnixTime(record.time), msg: message, color: consoleColor(message, isCommand), isCommand, time: record.time || 0 };
+  // 1.153.0: a live line (a plain string) has only the phone's clock, which says nothing about the Raspberry's: it is told apart by a number
+  const live = typeof item === "string";
+  return { t: formatUnixTime(record.time), msg: message, color: consoleColor(message, isCommand), isCommand, time: live ? 0 : record.time || 0, seq: live ? ++consoleEchoSeq : undefined };
 }
 
 /** Temperature reports ("ok B:60 /60 T0:200 /200", M105 answers...) are noise. */
@@ -198,6 +200,16 @@ const consoleViewStore = (() => {
       const newest = entries.reduce((max, entry) => Math.max(max, entry.time || 0), view.clearedAt);
       view = { ...view, clearedAt: newest, clearedSeq: consoleEchoSeq };
       emit();
+      // 1.153.0: the live lines have no time of the Raspberry's: its newest line is what «cleared» means for the next read
+      fetchJson("/server/gcode_store?count=1")
+        .then((json) => {
+          const last = (((json && json.result) || {}).gcode_store || []).slice(-1)[0];
+          if (last && last.time > view.clearedAt) {
+            view = { ...view, clearedAt: last.time };
+            emit();
+          }
+        })
+        .catch(() => {});
     },
   };
 })();

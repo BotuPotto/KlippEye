@@ -28,6 +28,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "backend"))
 import labelled_prints  # noqa: E402
+from labelled_prints import same_print_once  # noqa: E402  (1.150.0: moved there, datasets.py counts a print the same way)
 import local_model  # noqa: E402
 
 THRESHOLDS = (0.5, 0.6, 0.7, 0.8, 0.9, 0.95)
@@ -131,13 +132,6 @@ def count(results, times_of):
     return per_hour, false_alarms, fine_hours, caught, failed, (delays[len(delays) // 2] if delays else None)
 
 
-def same_print_once(prints, within=300):
-    """1.135: a print both recorded and answered in «How did the print go?» counted once, by its recording (the
-    monitor's own pictures; the answer's are small, one a minute): counted twice it weighed double, with worse pictures."""
-    recorded = [p["started"] for p in prints if p["kind"] == "recording" and p["started"]]
-    return [p for p in prints if p["kind"] == "recording" or not any(abs((p["started"] or 0) - t) < within for t in recorded)]
-
-
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--model", required=True, help="the model's folder (model.onnx + model.json)")
@@ -148,6 +142,7 @@ def main(argv=None):
     parser.add_argument("--every-s", type=float, default=15, help="«monitor» row: how often the local model looks by itself (local_every)")
     parser.add_argument("--warmup", type=float, default=300, help="«monitor» row: the first seconds of a print, with a stricter rule")
     parser.add_argument("--json", help="write the details here")
+    parser.add_argument("--trained", action="store_true", help="these prints were in the training: the numbers are not an independent measure")
     parser.add_argument("--box", default="", help="x,y,w,h in fractions: judge only that part of each picture (the bed)")
     args = parser.parse_args(argv)
     box = None
@@ -169,6 +164,8 @@ def main(argv=None):
         print("No labelled print in %s: label some (Recordings, or «How did the print go?») and copy the folder again." % args.data)
         return 1
     print("model %s (threshold %.2f), %d labelled prints" % (model.version, model.threshold, len(prints)))
+    if args.trained:   # 1.150.0
+        print("WARNING: the model learned from these prints, so these numbers are too good. Measure on prints it has not seen.")
     results = []
     for one in prints:
         pictures = one["pictures"][:: args.every] if one["kind"] == "recording" else one["pictures"]
@@ -213,7 +210,7 @@ def main(argv=None):
                   "fine_hours": round(fine_hours, 2), "caught": caught, "failed": failed, "median_delay_s": median})
     if args.json:
         with open(args.json, "w", encoding="utf-8") as handle:
-            json.dump({"model": model.info, "table": table, "prints": results}, handle)
+            json.dump({"model": model.info, "table": table, "prints": results, "independent": not args.trained}, handle)
         print("details in %s" % args.json)
     return 0
 
