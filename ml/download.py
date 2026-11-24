@@ -40,12 +40,8 @@ BAMBU_DOUBT = 0.5         # a timelapse whose last picture the current model sco
 
 
 def licence_is_open(text):
+    """1.150.0: an allow-list. A licence that is not found, or that is not known to let the model be shared, is not open."""
     return bool(OPEN_LICENCE.search(text or "")) and not CLOSED_LICENCE.search(text or "")
-
-
-def licence_is_closed(text):
-    """A licence that does not let the model be shared with everyone (ShareAlike, NonCommercial, NoDerivatives, private)."""
-    return bool(CLOSED_LICENCE.search(text or "")) and not OPEN_LICENCE.search(re.sub(CLOSED_LICENCE, "", text or ""))
 
 
 def latest_version(project):
@@ -106,7 +102,7 @@ def main(argv=None):
                 raise RuntimeError("no version to download")
             multi = "multi" in kind.lower()
             fmt = "multiclass" if multi else "folder" if "classification" in kind else "yolov8"
-            if not os.path.isdir(folder) or not os.listdir(folder):
+            if not os.path.isfile(os.path.join(folder, "klippeye-source.json")):   # 1.150.0: a folder cut short is not «here»
                 print("downloading %s (version %d, %s)…" % (slug, number, kind))
                 project.version(number).download(fmt, location=folder, overwrite=True)
             else:
@@ -114,11 +110,11 @@ def main(argv=None):
             with open(os.path.join(folder, "klippeye-source.json"), "w", encoding="utf-8") as handle:
                 json.dump({"slug": slug, "version": number, "type": kind, "format": fmt}, handle)
             licence = licence_of(folder)
-            if not args.any_licence and licence_is_closed(licence):
-                shutil.rmtree(folder, ignore_errors=True)
-                raise RuntimeError("its licence (%s) does not let the model be shared: left out (--any-licence keeps it)" % licence)
             if not licence_is_open(licence):
-                licence += " (not found in the download: check it on the page before sharing the model)"
+                if not args.any_licence:
+                    shutil.rmtree(folder, ignore_errors=True)
+                    raise RuntimeError("its licence (%s) is not known to let the model be shared: left out (--any-licence keeps it)" % (licence or "not found"))
+                licence += " (check it on the page before sharing the model)"
             credits.append("- [%s](https://universe.roboflow.com/%s) v%d (%s): %s" % (slug, slug, number, kind, licence))
             done += 1
         except Exception as error:  # noqa: BLE001 - one dataset less, the others go on

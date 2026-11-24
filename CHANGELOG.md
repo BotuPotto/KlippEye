@@ -1,5 +1,22 @@
 # Changelog (Cosa cambia in ogni release)
 
+## 1.150.0
+
+The tools that train the local model no longer depend on someone remembering which prints are for measuring. The
+program on the printer is unchanged.
+
+- The nine prints kept for measuring are now listed in `models/base/kept-out.txt`. `ml/datasets.py --klippeye` skips them
+  and the answer given about the same print, and says how many. Before, nothing stopped the next retrain from learning
+  from them, which would have made the numbers in `models/base/README.md` meaningless.
+- A print that was recorded and also answered in «How did the print go?» was put in the list twice, under two groups,
+  so one copy could land in training and the other in the measuring set. It now counts once, as `ml/evaluate.py` already did.
+- `ml/download.py` kept collections whose licence was written «CC BY NC 4.0» or «CC BY SA 4.0» (with spaces), and ODbL,
+  GPL or no licence at all. It now keeps only licences known to be open and prints what it left out.
+- A download cut in the middle counted as «already here» and stayed partial. A collection is now finished only when its
+  `klippeye-source.json` exists.
+- The Colab notebook measured the model on the prints it had just trained on. `ml/evaluate.py --trained` warns that the
+  numbers are too good and marks the report, and the notebook uses it.
+
 ## 1.149.0
 
 The online AI chain no longer loses an answer.
